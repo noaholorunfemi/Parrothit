@@ -1,0 +1,1668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>PARROTHIT Control Room</title>
+
+  <meta
+    name="description"
+    content="PARROTHIT News Blog Administration Dashboard"
+  >
+
+  <style>
+    :root {
+      --red: #e52332;
+      --dark: #151515;
+      --panel: #222;
+      --muted: #a9a9a9;
+      --white: #fff;
+      --border: #383838;
+      --green: #20b878;
+      --yellow: #f5bd39;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #101010;
+      color: var(--white);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .login-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background:
+        radial-gradient(circle at top, #482025, transparent 55%),
+        #101010;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      padding: 30px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .login-card h1 {
+      color: var(--red);
+      margin-top: 0;
+    }
+
+    .login-card p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .app {
+      min-height: 100vh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      padding: 16px 20px;
+      background: #191919;
+      border-bottom: 2px solid var(--red);
+    }
+
+    .brand {
+      font-size: 21px;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    .brand span {
+      color: var(--red);
+    }
+
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      min-height: calc(100vh - 68px);
+    }
+
+    .sidebar {
+      padding: 20px 12px;
+      background: #191919;
+      border-right: 1px solid var(--border);
+    }
+
+    .nav-button {
+      display: block;
+      width: 100%;
+      margin-bottom: 7px;
+      padding: 12px;
+      color: #ddd;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 8px;
+    }
+
+    .nav-button:hover,
+    .nav-button.active {
+      background: #332022;
+      border-color: #663038;
+      color: #fff;
+    }
+
+    main {
+      min-width: 0;
+      padding: 24px;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active {
+      display: block;
+    }
+
+    h1,
+    h2,
+    h3 {
+      line-height: 1.3;
+    }
+
+    .page-title {
+      margin-top: 0;
+      margin-bottom: 8px;
+    }
+
+    .muted {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .notice {
+      margin: 18px 0;
+      padding: 14px;
+      color: #ffe6a8;
+      background: #392e17;
+      border: 1px solid #72591e;
+      border-radius: 8px;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .card {
+      min-width: 0;
+      padding: 18px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .stat {
+      font-size: 28px;
+      font-weight: 900;
+      margin: 12px 0 4px;
+    }
+
+    .field {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      font-weight: 700;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px;
+      color: white;
+      background: #151515;
+      border: 1px solid #484848;
+      border-radius: 7px;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: 2px solid var(--red);
+      outline-offset: 1px;
+    }
+
+    .form-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 11px 15px;
+      color: white;
+      background: #373737;
+      border: 1px solid #555;
+      border-radius: 7px;
+    }
+
+    .btn:hover {
+      filter: brightness(1.15);
+    }
+
+    .btn-primary {
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    .btn-success {
+      background: #147b51;
+      border-color: #147b51;
+    }
+
+    .btn-danger {
+      background: #7b2028;
+      border-color: #7b2028;
+    }
+
+    .btn-small {
+      padding: 7px 10px;
+      font-size: 13px;
+    }
+
+    .item-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .item {
+      padding: 16px;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .item h3 {
+      margin-top: 0;
+    }
+
+    .item-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 8px;
+      font-size: 12px;
+      background: #383838;
+      border-radius: 5px;
+    }
+
+    .badge-green {
+      background: #145c40;
+    }
+
+    .badge-red {
+      background: #70252b;
+    }
+
+    .preview-image {
+      display: block;
+      width: 100%;
+      max-height: 280px;
+      margin: 12px 0;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+
+    .empty {
+      padding: 22px;
+      color: var(--muted);
+      text-align: center;
+      background: #1a1a1a;
+      border: 1px dashed #484848;
+      border-radius: 10px;
+    }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .check-row input {
+      width: auto;
+    }
+
+    .check-row label {
+      margin: 0;
+    }
+
+    .footer {
+      padding: 18px;
+      color: var(--muted);
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 850px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: flex;
+        gap: 7px;
+        overflow-x: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .nav-button {
+        width: auto;
+        min-width: max-content;
+        margin-bottom: 0;
+      }
+
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      main {
+        padding: 15px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .grid,
+      .two-column {
+        grid-template-columns: 1fr;
+      }
+
+      .login-card {
+        padding: 22px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Local preview login screen -->
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <h1>PARROTHIT</h1>
+      <h2>Control Room</h2>
+
+      <p>
+        This page currently runs in local-preview mode.
+        The demo gate is not a secure administrator login.
+      </p>
+
+      <div class="notice">
+        Do not use this demo gate to protect a public website.
+        A real administrator login must be authenticated by Supabase.
+      </div>
+
+      <button id="enterDemo" class="btn btn-primary">
+        Open Local Preview
+      </button>
+    </div>
+  </section>
+
+  <div id="app" class="app hidden">
+
+    <header class="topbar">
+      <div class="brand">PARROT<span>HIT</span> CONTROL ROOM</div>
+
+      <div class="top-actions">
+        <span class="badge">LOCAL PREVIEW</span>
+        <button id="exportBackup" class="btn">Export Backup</button>
+        <button id="logout" class="btn btn-danger">Exit</button>
+      </div>
+    </header>
+
+    <div class="layout">
+
+      <aside class="sidebar" aria-label="Dashboard navigation">
+        <button class="nav-button active" data-page="overview">📊 Overview</button>
+        <button class="nav-button" data-page="articles">📰 Articles</button>
+        <button class="nav-button" data-page="categories">📂 Categories</button>
+        <button class="nav-button" data-page="slider">🖼️ Homepage Slider</button>
+        <button class="nav-button" data-page="hotnews">🔥 Hot News</button>
+        <button class="nav-button" data-page="comments">💬 Comments & Likes</button>
+        <button class="nav-button" data-page="community">👥 Community</button>
+        <button class="nav-button" data-page="media">🎬 Media References</button>
+        <button class="nav-button" data-page="appearance">🎨 Appearance</button>
+        <button class="nav-button" data-page="social">🔗 Social Links</button>
+        <button class="nav-button" data-page="ads">📢 Advertisements</button>
+        <button class="nav-button" data-page="notifications">🔔 Notifications</button>
+        <button class="nav-button" data-page="backup">💾 Backup & Restore</button>
+      </aside>
+
+      <main>
+
+        <section id="page-overview" class="page active">
+          <h1 class="page-title">Dashboard Overview</h1>
+          <p class="muted">
+            Manage your PARROTHIT content in this local preview.
+          </p>
+
+          <div class="notice">
+            Changes made here are saved only in this browser.
+            They are not automatically sent to Supabase or published on
+            the live website.
+          </div>
+
+          <div class="grid">
+            <div class="card">
+              <div class="muted">Articles</div>
+              <div id="articleCount" class="stat">0</div>
+            </div>
+
+            <div class="card">
+              <div class="muted">Categories</div>
+              <div id="categoryCount" class="stat">0</div>
+            </div>
+
+            <div class="card">
+              <div class="muted">Slider Images</div>
+              <div id="sliderCount" class="stat">0</div>
+            </div>
+
+            <div class="card">
+              <div class="muted">Hot News</div>
+              <div id="hotnewsCount" class="stat">0</div>
+            </div>
+
+            <div class="card">
+              <div class="muted">Community Posts</div>
+              <div id="communityCount" class="stat">0</div>
+            </div>
+
+            <div class="card">
+              <div class="muted">Advertisements</div>
+              <div id="adCount" class="stat">0</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Welcome to PARROTHIT</h2>
+            <p class="muted">
+              News that speaks! Use the navigation menu to manage
+              demonstration content and settings.
+            </p>
+          </div>
+        </section>
+
+        <section id="page-articles" class="page">
+          <h1 class="page-title">Articles</h1>
+
+          <form id="articleForm" class="card">
+            <h2 id="articleFormTitle">Add Article</h2>
+
+            <input type="hidden" id="articleId">
+
+            <div class="field">
+              <label for="articleTitle">Article Title</label>
+              <input id="articleTitle" required maxlength="200">
+            </div>
+
+            <div class="field">
+              <label for="articleCategory">Category</label>
+              <select id="articleCategory">
+                <option value="">Choose a category</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="articleAuthor">Author</label>
+              <input id="articleAuthor" maxlength="100">
+            </div>
+
+            <div class="field">
+              <label for="articleImage">Image URL</label>
+              <input id="articleImage" type="url"
+                     placeholder="https://example.com/image.jpg">
+            </div>
+
+            <div class="field">
+              <label for="articleBody">Article Content</label>
+              <textarea id="articleBody" required></textarea>
+            </div>
+
+            <div class="check-row field">
+              <input id="articlePublished" type="checkbox">
+              <label for="articlePublished">Mark as published in preview</label>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Article</button>
+              <button class="btn" type="button" id="cancelArticle">Clear Form</button>
+            </div>
+          </form>
+
+          <div id="articleList" class="item-list"></div>
+        </section>
+
+        <section id="page-categories" class="page">
+          <h1 class="page-title">Categories</h1>
+
+          <form id="categoryForm" class="card">
+            <input type="hidden" id="categoryId">
+
+            <div class="field">
+              <label for="categoryName">Category Name</label>
+              <input id="categoryName" required maxlength="100">
+            </div>
+
+            <div class="field">
+              <label for="categoryDescription">Description</label>
+              <textarea id="categoryDescription"></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Category</button>
+              <button class="btn" type="button" id="cancelCategory">Clear</button>
+            </div>
+          </form>
+
+          <div id="categoryList" class="item-list"></div>
+        </section>
+
+        <section id="page-slider" class="page">
+          <h1 class="page-title">Homepage Slider</h1>
+
+          <form id="sliderForm" class="card">
+            <input type="hidden" id="sliderId">
+
+            <div class="field">
+              <label for="sliderTitle">Slide Title</label>
+              <input id="sliderTitle" required maxlength="200">
+            </div>
+
+            <div class="field">
+              <label for="sliderImage">Image URL</label>
+              <input id="sliderImage" type="url" required
+                     placeholder="https://example.com/image.jpg">
+            </div>
+
+            <div class="field">
+              <label for="sliderLink">Destination Link (optional)</label>
+              <input id="sliderLink" type="url">
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Slide</button>
+              <button class="btn" type="button" id="cancelSlider">Clear</button>
+            </div>
+          </form>
+
+          <div id="sliderList" class="item-list"></div>
+        </section>
+
+        <section id="page-hotnews" class="page">
+          <h1 class="page-title">Hot News</h1>
+
+          <form id="hotnewsForm" class="card">
+            <input type="hidden" id="hotnewsId">
+
+            <div class="field">
+              <label for="hotnewsTitle">Headline</label>
+              <input id="hotnewsTitle" required maxlength="200">
+            </div>
+
+            <div class="field">
+              <label for="hotnewsLink">News Link (optional)</label>
+              <input id="hotnewsLink" type="url">
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Headline</button>
+              <button class="btn" type="button" id="cancelHotnews">Clear</button>
+            </div>
+          </form>
+
+          <div id="hotnewsList" class="item-list"></div>
+        </section>
+
+        <section id="page-comments" class="page">
+          <h1 class="page-title">Comments & Likes</h1>
+
+          <div class="notice">
+            This section is a moderation workspace for sample records.
+            It does not read or delete comments from your live website.
+          </div>
+
+          <form id="commentForm" class="card">
+            <h2>Add a Sample Comment</h2>
+
+            <div class="field">
+              <label for="commentAuthor">Display Name</label>
+              <input id="commentAuthor" required maxlength="100">
+            </div>
+
+            <div class="field">
+              <label for="commentText">Comment</label>
+              <textarea id="commentText" required></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Add Sample Comment</button>
+            </div>
+          </form>
+
+          <div id="commentList" class="item-list"></div>
+        </section>
+
+        <section id="page-community" class="page">
+          <h1 class="page-title">Community Moderation</h1>
+
+          <div class="notice">
+            The records here are local demonstration data.
+            Real community posts, nested replies, reports, and user-owned
+            edit/delete permissions require a connected database and
+            server-side authorization.
+          </div>
+
+          <form id="communityForm" class="card">
+            <h2>Add a Sample Community Post</h2>
+
+            <div class="field">
+              <label for="communityAuthor">Display Name</label>
+              <input id="communityAuthor" required maxlength="100">
+            </div>
+
+            <div class="field">
+              <label for="communityText">Post Text</label>
+              <textarea id="communityText" required></textarea>
+            </div>
+
+            <div class="field">
+              <label for="communityImage">Image URL (optional)</label>
+              <input id="communityImage" type="url">
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Add Sample Post</button>
+            </div>
+          </form>
+
+          <div id="communityList" class="item-list"></div>
+        </section>
+
+        <section id="page-media" class="page">
+          <h1 class="page-title">Media References</h1>
+
+          <form id="mediaForm" class="card">
+            <input type="hidden" id="mediaId">
+
+            <div class="field">
+              <label for="mediaTitle">Media Title</label>
+              <input id="mediaTitle" required maxlength="200">
+            </div>
+
+            <div class="field">
+              <label for="mediaType">Media Type</label>
+              <select id="mediaType">
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+                <option value="audio">Audio</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="mediaUrl">Media URL</label>
+              <input id="mediaUrl" type="url" required>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Media</button>
+              <button class="btn" type="button" id="cancelMedia">Clear</button>
+            </div>
+          </form>
+
+          <div id="mediaList" class="item-list"></div>
+        </section>
+
+        <section id="page-appearance" class="page">
+          <h1 class="page-title">Appearance</h1>
+
+          <form id="appearanceForm" class="card">
+            <div class="field">
+              <label for="siteTitle">Website Title</label>
+              <input id="siteTitle" maxlength="150">
+            </div>
+
+            <div class="field">
+              <label for="themeColor">Theme Color</label>
+              <input id="themeColor" type="color" value="#e52332">
+            </div>
+
+            <div class="field">
+              <label for="announcement">Announcement</label>
+              <textarea id="announcement"></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Appearance</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="page-social" class="page">
+          <h1 class="page-title">Social Links</h1>
+
+          <form id="socialForm" class="card">
+            <div class="field">
+              <label for="facebookUrl">Facebook URL</label>
+              <input id="facebookUrl" type="url">
+            </div>
+
+            <div class="field">
+              <label for="instagramUrl">Instagram URL</label>
+              <input id="instagramUrl" type="url">
+            </div>
+
+            <div class="field">
+              <label for="tiktokUrl">TikTok URL</label>
+              <input id="tiktokUrl" type="url">
+            </div>
+
+            <div class="field">
+              <label for="youtubeUrl">YouTube URL</label>
+              <input id="youtubeUrl" type="url">
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Social Links</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="page-ads" class="page">
+          <h1 class="page-title">Advertisement Manager</h1>
+
+          <div class="notice">
+            Advertisements saved here are only sample settings.
+            This form does not publish advertisements on the live website.
+          </div>
+
+          <form id="adForm" class="card">
+            <input type="hidden" id="adId">
+
+            <div class="field">
+              <label for="adTitle">Advertisement Title</label>
+              <input id="adTitle" required maxlength="200">
+            </div>
+
+            <div class="field">
+              <label for="adImage">Advertisement Image URL</label>
+              <input id="adImage" type="url">
+            </div>
+
+            <div class="field">
+              <label for="adLink">Advertiser Destination URL</label>
+              <input id="adLink" type="url">
+            </div>
+
+            <div class="check-row field">
+              <input id="adEnabled" type="checkbox">
+              <label for="adEnabled">Enable in local preview</label>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Advertisement</button>
+              <button class="btn" type="button" id="cancelAd">Clear</button>
+            </div>
+          </form>
+
+          <div id="adList" class="item-list"></div>
+        </section>
+
+        <section id="page-notifications" class="page">
+          <h1 class="page-title">Notifications</h1>
+
+          <form id="notificationForm" class="card">
+            <div class="field">
+              <label for="notificationTitle">Notification Title</label>
+              <input id="notificationTitle" required maxlength="150">
+            </div>
+
+            <div class="field">
+              <label for="notificationText">Notification Message</label>
+              <textarea id="notificationText" required></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Save Notification</button>
+            </div>
+          </form>
+
+          <div id="notificationList" class="item-list"></div>
+        </section>
+
+        <section id="page-backup" class="page">
+          <h1 class="page-title">Backup & Restore</h1>
+
+          <div class="card">
+            <h2>Export Backup</h2>
+            <p class="muted">
+              Download a JSON backup of the data stored by this preview.
+            </p>
+
+            <button id="exportBackup2" class="btn btn-primary">
+              Download Backup
+            </button>
+          </div>
+
+          <div class="card" style="margin-top:18px">
+            <h2>Restore Backup</h2>
+
+            <div class="field">
+              <label for="backupFile">Choose a JSON backup file</label>
+              <input id="backupFile" type="file" accept=".json,application/json">
+            </div>
+
+            <button id="restoreBackup" class="btn btn-danger">
+              Restore Backup
+            </button>
+
+            <p class="muted">
+              Restoring replaces the current local-preview dataset.
+              Export a backup first if you need to preserve it.
+            </p>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <footer class="footer">
+      PARROTHIT Control Room · Local Preview
+    </footer>
+  </div>
+
+  <script>
+    "use strict";
+
+    const STORAGE_KEY = "parrothit_control_room_v2";
+
+    const DEFAULT_DATA = {
+      articles: [],
+      categories: [],
+      slider: [],
+      hotnews: [],
+      comments: [],
+      community: [],
+      media: [],
+      ads: [],
+      notifications: [],
+      appearance: {
+        siteTitle: "PARROTHIT — News That Speaks!",
+        themeColor: "#e52332",
+        announcement: ""
+      },
+      social: {
+        facebookUrl: "",
+        instagramUrl: "",
+        tiktokUrl: "",
+        youtubeUrl: ""
+      }
+    };
+
+    let data = loadData();
+
+    function clone(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function loadData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+
+        if (!raw) {
+          return clone(DEFAULT_DATA);
+        }
+
+        const saved = JSON.parse(raw);
+
+        return {
+          ...clone(DEFAULT_DATA),
+          ...saved,
+          appearance: {
+            ...DEFAULT_DATA.appearance,
+            ...(saved.appearance || {})
+          },
+          social: {
+            ...DEFAULT_DATA.social,
+            ...(saved.social || {})
+          }
+        };
+      } catch (error) {
+        console.error("Could not load preview data:", error);
+        return clone(DEFAULT_DATA);
+      }
+    }
+
+    function saveData() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        renderAll();
+      } catch (error) {
+        alert(
+          "Could not save data. The browser may have run out of storage. " +
+          "Try using image URLs rather than large uploaded images."
+        );
+        console.error(error);
+      }
+    }
+
+    function makeId() {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
+      }
+
+      return Date.now().toString(36) +
+        Math.random().toString(36).slice(2);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, character => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      })[character]);
+    }
+
+    function safeUrl(value) {
+      const url = String(value || "").trim();
+
+      if (!url) {
+        return "";
+      }
+
+      try {
+        const parsed = new URL(url, window.location.href);
+
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+          return "";
+        }
+
+        return parsed.href;
+      } catch {
+        return "";
+      }
+    }
+
+    function safeImage(value) {
+      return safeUrl(value);
+    }
+
+    function imageMarkup(url, alt) {
+      const safe = safeImage(url);
+
+      if (!safe) {
+        return "";
+      }
+
+      return `
+        <img
+          class="preview-image"
+          src="${escapeHtml(safe)}"
+          alt="${escapeHtml(alt)}"
+          loading="lazy"
+          referrerpolicy="no-referrer"
+        >
+      `;
+    }
+
+    function showPage(name) {
+      document.querySelectorAll(".page").forEach(page => {
+        page.classList.toggle("active", page.id === "page-" + name);
+      });
+
+      document.querySelectorAll(".nav-button").forEach(button => {
+        button.classList.toggle("active", button.dataset.page === name);
+      });
+    }
+
+    document.querySelectorAll(".nav-button").forEach(button => {
+      button.addEventListener("click", () => {
+        showPage(button.dataset.page);
+      });
+    });
+
+    document.getElementById("enterDemo").addEventListener("click", () => {
+      document.getElementById("loginScreen").classList.add("hidden");
+      document.getElementById("app").classList.remove("hidden");
+      renderAll();
+    });
+
+    document.getElementById("logout").addEventListener("click", () => {
+      document.getElementById("app").classList.add("hidden");
+      document.getElementById("loginScreen").classList.remove("hidden");
+    });
+
+    function upsert(collection, id, values) {
+      const index = data[collection].findIndex(item => item.id === id);
+
+      if (index >= 0) {
+        data[collection][index] = {
+          ...data[collection][index],
+          ...values,
+          id
+        };
+      } else {
+        data[collection].unshift({
+          id: makeId(),
+          createdAt: new Date().toISOString(),
+          ...values
+        });
+      }
+
+      saveData();
+    }
+
+    function deleteItem(collection, id) {
+      if (!confirm("Delete this item from local preview?")) {
+        return;
+      }
+
+      data[collection] = data[collection].filter(item => item.id !== id);
+      saveData();
+    }
+
+    function editItem(collection, id, formPrefix, fields) {
+      const item = data[collection].find(record => record.id === id);
+
+      if (!item) {
+        return;
+      }
+
+      const idField = document.getElementById(formPrefix + "Id");
+
+      if (idField) {
+        idField.value = item.id;
+      }
+
+      fields.forEach(field => {
+        const element = document.getElementById(formPrefix + field);
+        if (!element) return;
+
+        if (element.type === "checkbox") {
+          element.checked = Boolean(item[field]);
+        } else {
+          element.value = item[field] ?? "";
+        }
+      });
+
+      showPage(collection === "hotnews" ? "hotnews" : collection);
+
+      const form = document.getElementById(formPrefix + "Form");
+
+      if (form) {
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+
+    function renderList(elementId, collection, renderer) {
+      const container = document.getElementById(elementId);
+
+      if (!container) return;
+
+      if (!data[collection].length) {
+        container.innerHTML = '<div class="empty">No items yet.</div>';
+        return;
+      }
+
+      container.innerHTML = data[collection].map(renderer).join("");
+
+      container.querySelectorAll("[data-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          deleteItem(collection, button.dataset.delete);
+        });
+      });
+
+      container.querySelectorAll("[data-edit]").forEach(button => {
+        button.addEventListener("click", () => {
+          const config = {
+            articles: ["article", [
+              "Title", "Category", "Author", "Image", "Body", "Published"
+            ]],
+            categories: ["category", ["Name", "Description"]],
+            slider: ["slider", ["Title", "Image", "Link"]],
+            hotnews: ["hotnews", ["Title", "Link"]],
+            media: ["media", ["Title", "Type", "Url"]],
+            ads: ["ad", ["Title", "Image", "Link", "Enabled"]]
+          }[collection];
+
+          if (!config) return;
+
+          const [prefix, fields] = config;
+          const item = data[collection].find(record =>
+            record.id === button.dataset.edit
+          );
+
+          if (!item) return;
+
+          const fieldMap = {
+            article: {
+              Title: "Title",
+              Category: "Category",
+              Author: "Author",
+              Image: "Image",
+              Body: "Body",
+              Published: "Published"
+            },
+            category: {
+              Name: "Name",
+              Description: "Description"
+            },
+            slider: {
+              Title: "Title",
+              Image: "Image",
+              Link: "Link"
+            },
+            hotnews: {
+              Title: "Title",
+              Link: "Link"
+            },
+            media: {
+              Title: "Title",
+              Type: "Type",
+              Url: "Url"
+            },
+            ad: {
+              Title: "Title",
+              Image: "Image",
+              Link: "Link",
+              Enabled: "Enabled"
+            }
+          };
+
+          const mapping = fieldMap[prefix];
+
+          document.getElementById(prefix + "Id").value = item.id;
+
+          fields.forEach(field => {
+            const element = document.getElementById(prefix + mapping[field]);
+
+            if (!element) return;
+
+            if (element.type === "checkbox") {
+              element.checked = Boolean(item[field.charAt(0).toLowerCase() +
+                field.slice(1)]);
+            } else {
+              const key = field.charAt(0).toLowerCase() + field.slice(1);
+              element.value = item[key] ?? "";
+            }
+          });
+
+          const page = {
+            articles: "articles",
+            categories: "categories",
+            slider: "slider",
+            hotnews: "hotnews",
+            media: "media",
+            ads: "ads"
+          }[collection];
+
+          showPage(page);
+        });
+      });
+    }
+
+    function renderAll() {
+      document.getElementById("articleCount").textContent = data.articles.length;
+      document.getElementById("categoryCount").textContent = data.categories.length;
+      document.getElementById("sliderCount").textContent = data.slider.length;
+      document.getElementById("hotnewsCount").textContent = data.hotnews.length;
+      document.getElementById("communityCount").textContent = data.community.length;
+      document.getElementById("adCount").textContent = data.ads.length;
+
+      const categorySelect = document.getElementById("articleCategory");
+      const previousCategory = categorySelect.value;
+
+      categorySelect.innerHTML =
+        '<option value="">Choose a category</option>' +
+        data.categories.map(category =>
+          `<option value="${escapeHtml(category.name)}">` +
+          `${escapeHtml(category.name)}</option>`
+        ).join("");
+
+      categorySelect.value = previousCategory;
+
+      renderList("articleList", "articles", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.title)}</h3>
+          <p class="muted">
+            ${escapeHtml(item.category || "Uncategorized")}
+            · ${escapeHtml(item.author || "Unknown author")}
+          </p>
+          ${imageMarkup(item.image, item.title)}
+          <p>${escapeHtml(item.body).slice(0, 500)}</p>
+          <span class="badge ${item.published ? "badge-green" : ""}">
+            ${item.published ? "Published in preview" : "Draft"}
+          </span>
+          <div class="item-actions">
+            <button class="btn btn-small" data-edit="${item.id}">Edit</button>
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete</button>
+          </div>
+        </article>
+      `);
+
+      renderList("categoryList", "categories", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.name)}</h3>
+          <p>${escapeHtml(item.description || "")}</p>
+          <div class="item-actions">
+            <button class="btn btn-small" data-edit="${item.id}">Edit</button>
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete</button>
+          </div>
+        </article>
+      `);
+
+      renderList("sliderList", "slider", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.title)}</h3>
+          ${imageMarkup(item.image, item.title)}
+          <p class="muted">${escapeHtml(item.link || "")}</p>
+          <div class="item-actions">
+            <button class="btn btn-small" data-edit="${item.id}">Edit</button>
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete</button>
+          </div>
+        </article>
+      `);
+
+      renderList("hotnewsList", "hotnews", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.title)}</h3>
+          <p class="muted">${escapeHtml(item.link || "")}</p>
+          <div class="item-actions">
+            <button class="btn btn-small" data-edit="${item.id}">Edit</button>
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete</button>
+          </div>
+        </article>
+      `);
+
+      renderList("commentList", "comments", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.author)}</h3>
+          <p>${escapeHtml(item.text)}</p>
+          <div class="item-actions">
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete Sample</button>
+          </div>
+        </article>
+      `);
+
+      renderList("communityList", "community", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.author)}</h3>
+          ${imageMarkup(item.image, "Community post image")}
+          <p>${escapeHtml(item.text)}</p>
+          <div class="item-actions">
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete Sample</button>
+          </div>
+        </article>
+      `);
+
+      renderList("mediaList", "media", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.title)}</h3>
+          <span class="badge">${escapeHtml(item.type)}</span>
+          <p>${escapeHtml(item.url)}</p>
+          <div class="item-actions">
+            <button class="btn btn-small" data-edit="${item.id}">Edit</button>
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete</button>
+          </div>
+        </article>
+      `);
+
+      renderList("adList", "ads", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.title)}</h3>
+          ${imageMarkup(item.image, item.title)}
+          <p class="muted">${escapeHtml(item.link || "")}</p>
+          <span class="badge ${item.enabled ? "badge-green" : "badge-red"}">
+            ${item.enabled ? "Enabled in preview" : "Disabled"}
+          </span>
+          <div class="item-actions">
+            <button class="btn btn-small" data-edit="${item.id}">Edit</button>
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete</button>
+          </div>
+        </article>
+      `);
+
+      renderList("notificationList", "notifications", item => `
+        <article class="item">
+          <h3>${escapeHtml(item.title)}</h3>
+          <p>${escapeHtml(item.text)}</p>
+          <div class="item-actions">
+            <button class="btn btn-danger btn-small"
+              data-delete="${item.id}">Delete</button>
+          </div>
+        </article>
+      `);
+
+      document.getElementById("siteTitle").value =
+        data.appearance.siteTitle;
+
+      document.getElementById("themeColor").value =
+        data.appearance.themeColor;
+
+      document.getElementById("announcement").value =
+        data.appearance.announcement;
+
+      document.getElementById("facebookUrl").value =
+        data.social.facebookUrl;
+
+      document.getElementById("instagramUrl").value =
+        data.social.instagramUrl;
+
+      document.getElementById("tiktokUrl").value =
+        data.social.tiktokUrl;
+
+      document.getElementById("youtubeUrl").value =
+        data.social.youtubeUrl;
+    }
+
+    function resetForm(formId) {
+      document.getElementById(formId).reset();
+
+      const idField = document.querySelector(
+        "#" + formId + ' input[type="hidden"]'
+      );
+
+      if (idField) {
+        idField.value = "";
+      }
+    }
+
+    document.getElementById("articleForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      upsert("articles", document.getElementById("articleId").value, {
+        title: document.getElementById("articleTitle").value.trim(),
+        category: document.getElementById("articleCategory").value,
+        author: document.getElementById("articleAuthor").value.trim(),
+        image: safeImage(document.getElementById("articleImage").value),
+        body: document.getElementById("articleBody").value.trim(),
+        published: document.getElementById("articlePublished").checked
+      });
+
+      resetForm("articleForm");
+    });
+
+    document.getElementById("cancelArticle").addEventListener("click", () => {
+      resetForm("articleForm");
+    });
+
+    document.getElementById("categoryForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      upsert("categories", document.getElementById("categoryId").value, {
+        name: document.getElementById("categoryName").value.trim(),
+        description: document.getElementById("categoryDescription").value.trim()
+      });
+
+      resetForm("categoryForm");
+    });
+
+    document.getElementById("cancelCategory").addEventListener("click", () => {
+      resetForm("categoryForm");
+    });
+
+    document.getElementById("sliderForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      const image = safeImage(document.getElementById("sliderImage").value);
+
+      if (!image) {
+        alert("Enter a valid HTTP or HTTPS image URL.");
+        return;
+      }
+
+      upsert("slider", document.getElementById("sliderId").value, {
+        title: document.getElementById("sliderTitle").value.trim(),
+        image,
+        link: safeUrl(document.getElementById("sliderLink").value)
+      });
+
+      resetForm("sliderForm");
+    });
+
+    document.getElementById("cancelSlider").addEventListener("click", () => {
+      resetForm("sliderForm");
+    });
+
+    document.getElementById("hotnewsForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      upsert("hotnews", document.getElementById("hotnewsId").value, {
+        title: document.getElementById("hotnewsTitle").value.trim(),
+        link: safeUrl(document.getElementById("hotnewsLink").value)
+      });
+
+      resetForm("hotnewsForm");
+    });
+
+    document.getElementById("cancelHotnews").addEventListener("click", () => {
+      resetForm("hotnewsForm");
+    });
+
+    document.getElementById("commentForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      upsert("comments", "", {
+        author: document.getElementById("commentAuthor").value.trim(),
+        text: document.getElementById("commentText").value.trim()
+      });
+
+      resetForm("commentForm");
+    });
+
+    document.getElementById("communityForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      upsert("community", "", {
+        author: document.getElementById("communityAuthor").value.trim(),
+        text: document.getElementById("communityText").value.trim(),
+        image: safeImage(document.getElementById("communityImage").value),
+        replies: [],
+        likes: 0
+      });
+
+      resetForm("communityForm");
+    });
+
+    document.getElementById("mediaForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      const url = safeUrl(document.getElementById("mediaUrl").value);
+
+      if (!url) {
+        alert("Enter a valid HTTP or HTTPS URL.");
+        return;
+      }
+
+      upsert("media", document.getElementById("mediaId").value, {
+        title: document.getElementById("mediaTitle").value.trim(),
+        type: document.getElementById("mediaType").value,
+        url
+      });
+
+      resetForm("mediaForm");
+    });
+
+    document.getElementById("cancelMedia").addEventListener("click", () => {
+      resetForm("mediaForm");
+    });
+
+    document.getElementById("appearanceForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      data.appearance = {
+        siteTitle: document.getElementById("siteTitle").value.trim(),
+        themeColor: document.getElementById("themeColor").value,
+        announcement: document.getElementById("announcement").value.trim()
+      };
+
+      document.documentElement.style.setProperty(
+        "--red",
+        data.appearance.themeColor
+      );
+
+      saveData();
+      alert("Appearance settings saved in local preview.");
+    });
+
+    document.getElementById("socialForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      data.social = {
+        facebookUrl: safeUrl(document.getElementById("facebookUrl").value),
+        instagramUrl: safeUrl(document.getElementById("instagramUrl").value),
+        tiktokUrl: safeUrl(document.getElementById("tiktokUrl").value),
+        youtubeUrl: safeUrl(document.getElementById("youtubeUrl").value)
+      };
+
+      saveData();
+      alert("Social links saved in local preview.");
+    });
+
+    document.getElementById("adForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      upsert("ads", document.getElementById("adId").value, {
+        title: document.getElementById("adTitle").value.trim(),
+        image: safeImage(document.getElementById("adImage").value),
+        link: safeUrl(document.getElementById("adLink").value),
+        enabled: document.getElementById("adEnabled").checked
+      });
+
+      resetForm("adForm");
+    });
+
+    document.getElementById("cancelAd").addEventListener("click", () => {
+      resetForm("adForm");
+    });
+
+    document.getElementById("notificationForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      upsert("notifications", "", {
+        title: document.getElementById("notificationTitle").value.trim(),
+        text: document.getElementById("notificationText").value.trim()
+      });
+
+      resetForm("notificationForm");
+    });
+
+    function downloadBackup() {
+      const blob = new Blob(
+        [JSON.stringify(data, null, 2)],
+        { type: "application/json" }
+      );
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "parrothit-local-backup.json";
+      link.click();
+
+      URL.revokeObjectURL(url);
+    }
+
+    document.getElementById("exportBackup").addEventListener("click", downloadBackup);
+
+    document.getElementById("exportBackup2").addEventListener("click", downloadBackup);
+
+    document.getElementById("restoreBackup").addEventListener("click", async () => {
+      const file = document.getElementById("backupFile").files[0];
+
+      if (!file) {
+        alert("Choose a JSON backup file first.");
+        return;
+      }
+
+      if (!confirm("Restore this backup and replace local preview data?")) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(await file.text());
+
+        const keys = [
+          "articles", "categories", "slider", "hotnews",
+          "comments", "community", "media", "ads", "notifications"
+        ];
+
+        for (const key of keys) {
+          if (!Array.isArray(parsed[key])) {
+            throw new Error("Invalid backup: " + key);
+          }
+        }
+
+        data = {
+          ...clone(DEFAULT_DATA),
+          ...parsed,
+          appearance: {
+            ...DEFAULT_DATA.appearance,
+            ...(parsed.appearance || {})
+          },
+          social: {
+            ...DEFAULT_DATA.social,
+            ...(parsed.social || {})
+          }
+        };
+
+        saveData();
+        alert("Local preview backup restored successfully.");
+      } catch (error) {
+        alert("Could not restore backup. Check that it is a valid PARROTHIT JSON backup.");
+        console.error(error);
+      }
+    });
+
+    document.documentElement.style.setProperty(
+      "--red",
+      data.appearance.themeColor || "#e52332"
+    );
+
+    renderAll();
+  </script>
+
+</body>
+</html>
