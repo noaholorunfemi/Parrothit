@@ -1,0 +1,40 @@
+PARROTHIT — SUPABASE CONNECTION AND ADMIN SECURITY
+
+IMPORTANT: The website pages and SQL schema are prepared, but live features are not active until you configure your own Supabase project. Do not publish before completing these steps.
+
+1. Open your Supabase project (or create one).
+2. In SQL Editor, run supabase/schema.sql. Review the SQL before running it.
+3. In Project Settings > API, copy the Project URL and public anon/publishable key. Never use the service_role/secret key in browser code.
+4. Copy supabase-config.example.js to supabase-config.js and replace the two placeholders. Update pages to load supabase-config.js. Do not commit secrets; the anon key is public but database security depends on RLS.
+5. In Authentication settings, set your Site URL to your GitHub Pages URL and add the same URL plus /admin/reset-password.html to allowed redirect URLs.
+6. Create up to four administrator accounts through Supabase Auth. To assign each as an admin, add a row in public.admin_profiles with their Auth user UUID, unique username, and display name. Example: insert into public.admin_profiles(user_id,username,display_name) values ('AUTH-USER-UUID','benadmin','News Admin'); Use the actual UUID. The database trigger rejects a fifth admin. Only trusted owners should have SQL Editor access.
+7. For image uploads, create a Storage bucket named news-images. Set public read access for published images and authenticated admin-only insert/update/delete policies. Do not allow visitors to upload files.
+8. Configure Supabase Auth email templates and SMTP for reliable password reset email. Add the reset page URL to allowed redirects.
+9. Before going live, test sign-in, reset password, RLS, post creation/edit/delete, comments, likes, categories and images in a separate test project.
+
+ADMIN USERNAME LOGIN
+Supabase Auth signs in with email/password. Username login uses resolve_admin_email(username) to map a username to the account email, then performs the normal Auth password check. Do not store passwords in the profiles table. Consider rate limits and abuse monitoring.
+
+MAXIMUM FOUR ADMINS
+The SQL trigger enforces a maximum of four rows in admin_profiles. Adding/removing administrators should be done by the trusted project owner through SQL Editor. Do not add a public “create admin” form.
+
+FEATURES PLANNED/REQUIRING FRONTEND CONNECTION
+Search across all stories, related stories, share links, visitor comments and likes, trending counts, breaking-news settings, scheduled posts, slider management, analytics, audit log, backup/restore and site settings require connecting the page components to Supabase queries and Storage. Static placeholder cards remain examples until published database records are wired into the frontend.
+
+
+NEW FEATURES / SECURITY NOTES
+- Mascot: assets/images/parrothit-mascot.jpg is displayed with a gentle animation on public pages.
+- Theme selector: System, Light, Dark. Preference is saved in this browser.
+- Welcome dialog: appears once per browser session.
+- Admin registration: admin/signup.html explains the owner-controlled process; it intentionally does not allow public self-registration.
+- Admin roles: schema includes owner/admin roles. Only the owner role should manage admin_profiles. After creating the first Supabase Auth user, bootstrap the first owner profile securely from the Supabase SQL Editor. Never expose service-role credentials in frontend files.
+- Notification sound: browser audio must only play after a user gesture. Admin dashboard sound cues can be added to successful actions once the real Supabase dashboard actions are connected; this starter does not falsely claim backend changes are live.
+
+
+NEW FEATURES / SECURITY NOTES
+- Mascot: assets/images/parrothit-mascot.jpg is displayed with a gentle animation on public pages.
+- Theme selector: System, Light, Dark. Preference is saved in this browser.
+- Welcome dialog: appears once per browser session.
+- Admin registration: admin/signup.html explains the owner-controlled process; it intentionally does not allow public self-registration.
+- Admin roles: schema includes owner/admin roles. Only the owner role should manage admin_profiles. After creating the first Supabase Auth user, bootstrap the first owner profile securely from the Supabase SQL Editor. Never expose service-role credentials in frontend files.
+- Notification sound: browser audio must only play after a user gesture. Admin dashboard sound cues can be added to successful actions once the real Supabase dashboard actions are connected; this starter does not falsely claim backend changes are live.
