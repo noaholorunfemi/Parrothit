@@ -166,3 +166,17 @@ html[data-theme-choice="dark"] .search-panel,html[data-theme-choice="dark"] .new
 
 /* Back-home navigation links */
 .back-home-wrap{padding:8px 3%;background:#f4f6f8}.back-home-link{display:inline-block;color:#b3131b;font-weight:800;text-decoration:none;border:1px solid #d6dce4;padding:7px 11px;border-radius:7px}.back-home-link:hover{background:#fff0f0}
+
+/* PARROTHIT accessibility and requested red category menu */
+select, option, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), .text-area, [contenteditable="true"] {
+  color:#111 !important; font-weight:700;
+}
+select option, .mobile-category-menu select option { background:#d71920 !important; color:#fff !important; font-weight:800; }
+select:focus, textarea:focus, input:focus { outline:2px solid #d71920; outline-offset:1px; }
+.password-wrap{display:flex;align-items:stretch;gap:6px}.password-wrap input{flex:1;min-width:0}.password-toggle{border:1px solid #bbb;border-radius:7px;background:#fff;color:#111;padding:0 12px;cursor:pointer;font-weight:800}
+.remember-row{display:flex;align-items:center;gap:8px;font-weight:700;color:#111}.remember-row input{width:auto}
+.parrothit-ads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px auto;max-width:1180px;padding:0 3%}
+.parrothit-ad-card{min-height:110px;border:2px dashed #d71920;border-radius:10px;padding:12px;background:#fff;color:#111;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.parrothit-ad-card strong{color:#d71920}.parrothit-ad-card a{font-weight:800;text-decoration:underline;color:#111}
+@media(max-width:700px){.parrothit-ads{grid-template-columns:1fr}.parrothit-ad-card{min-height:80px}}
+body.admin-auth-pending{visibility:hidden}
