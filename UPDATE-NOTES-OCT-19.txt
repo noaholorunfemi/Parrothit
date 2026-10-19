@@ -1,0 +1,14 @@
+PARROTHIT Blog update notes — 19 October 2026
+
+Changes made:
+1. Did not change the site's colour scheme.
+2. Admin alert notifications are now non-blocking in-page toast messages instead of browser alert pop-ups. Destructive-action confirmations are retained for safety.
+3. Added a shared “Commit Changes” bar to operational admin pages. It submits the currently active form or triggers the last relevant save/action button; it does not blindly submit every form on a page.
+4. Fixed local article route normalization so /Article.html and other casing variants resolve to the shipped lowercase article.html route on case-sensitive hosting.
+5. Normalized explicit mixed-case Article.html references found in project files.
+
+Important testing notes:
+- Please test the featured post using the live-like local preview and after deploying to Netlify.
+- The Commit Changes bar works with the active section/form. Some pages with custom JavaScript-only controls may still require their existing section button if no form/save control was selected.
+- Native confirmation prompts for destructive actions (delete/reset/clear) remain intentionally enabled to prevent accidental data loss.
+- Supabase publication still depends on the existing project URL/key, authentication, and database permissions.

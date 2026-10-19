@@ -1,42 +1,31 @@
-PARROTHIT — NEWS THAT SPEAKS!
+PARROTHIT NEWS — NEWS THAT SPEAKS!
+=================================
 
-Project files for the PARROTHIT news blog. Uses separate HTML pages and a shared css/style.css.
+This project includes separate HTML pages for the homepage, news categories, sports subcategories, article view, Parrots Interaction community page, public content styles, Supabase configuration, a protected admin login/dashboard, and database/Edge Function setup files.
 
-Includes: homepage slider/ticker, category pages, article page, search UI, admin sign-in/reset-password pages, dashboard prototype, Supabase SQL schema, and setup instructions.
+CURRENT FEATURES
+- Admin dashboard login guard checks the active Supabase session and admin_profiles role. The dashboard does not intentionally bypass authentication.
+- The dashboard offers article create/edit/publish/unpublish/delete controls and loads existing Supabase stories when connected.
+- Local image pickers are available for article images, category covers, slider images, advertisements and the media library. The URL field is optional when choosing a file.
+- Selected images are uploaded as image files to Supabase Storage when configured. The dashboard does not put a base64 image string into a text field. Older browser-stored base64 images are migrated into IndexedDB to avoid filling localStorage.
+- Category pages can display their category image. The homepage slider supports up to 16 items.
+- The Home YouTube panel embeds a YouTube URL on the homepage. First upload the video to YouTube, then paste its share/watch link; this static website cannot upload a video file to a YouTube account directly.
+- Dashboard theme switch toggles between white and dark themes and remembers the chosen theme in that browser.
+- Admin 1 (Owner) can add, suspend/reactivate, and delete up to ten additional admins. Server-side Edge Functions and the SQL trigger enforce a maximum of 11 administrator profiles total, including the owner.
+- Parrots Interaction has local image attachments stored as binary image Blobs in IndexedDB rather than base64 strings. Community posts themselves remain browser-local in this build; cross-device community publishing needs a separate shared community backend.
 
-IMPORTANT: The backend is not fully live until you follow SETUP-SUPABASE.txt, configure the public Supabase URL/key, connect the frontend CRUD/search/comments/likes/image functions, and test RLS. Never put a Supabase service_role/secret key in browser files.
+IMPORTANT SETUP
+1. Replace the placeholders in supabase-config.js with your own Supabase Project URL and public anon/publishable key.
+2. Follow SETUP-SUPABASE.txt. Run supabase/schema.sql, set Admin 1's profile role to owner, ensure the parrothit-media bucket and policies are present, and deploy all three admin Edge Functions (create, delete and suspend/reactivate).
+3. Never place a Supabase service_role/secret key in website JavaScript or a public repository.
+4. If image upload to Supabase fails, the dashboard shows an error instead of claiming an image was published. Check the configured project, signed-in admin profile, Storage bucket and RLS policies.
+5. Changes saved only in local browser preview are not public to other visitors or devices. A public web URL from Supabase Storage and a successful database save are required for shared content.
 
-To preview locally: extract the ZIP and open index.html in TrebEdit. Some online features require HTTPS hosting and Supabase configuration.
-\n\nPARROTHIT requested additions in this build:\n- Contact page social icons for Facebook, X/Twitter, Instagram and YouTube (replace placeholder profile URLs with official links).\n- Clickable homepage slider slides (starter destinations currently point to article.html).\n- HOT NEWS card with slowly blinking heading and animated parrot mascot.\n- Reusable mascot notification popup helper. Real-time notifications require backend/event integration and calling showParrothitNotification() after a confirmed event.\n- Slider destination editing is not yet synced from the admin prototype; connect it to Supabase settings before production.\n
-Theme control fix: a visible Theme selector (Light, Dark, System) is included on HTML pages. The selected option is saved in this browser. System follows the device appearance setting.
-\nResponsive/social update: Added mobile category dropdown to public pages, six additional social SVG icons (TikTok, LinkedIn, Telegram, WhatsApp, Threads, Pinterest), and repositioned theme control into normal page flow to reduce overlap. Public pages do not expose admin links. Hiding links is not access control; secure authentication and database authorization remain required for all admin pages. Social URLs are generic placeholders and should be replaced with PARROTHIT official profile URLs.\n
+LOCAL PREVIEW (SUPABASE NOT REQUIRED)
+For local troubleshooting, open the project through a local HTTP server / Live Server (recommended) or open the HTML files directly if your device/browser permits local scripts. Open admin/dashboard.html for the local Control Room, then use its links for news cards, advertising cards, category-card controls, ticker and other settings. All admin pages now show a LOCAL PREVIEW MODE banner and use browser-local storage where supported. No Supabase sign-in or Supabase admin profile is required in this local-only mode. Local changes are saved only in the same browser and do not publish to visitors or other devices. On a hosted domain, the local preview bypass does not activate and the normal Supabase authentication rules remain in force.
 
-CONTROL ROOM UPDATE (2026-10-17)
-The admin dashboard has been redesigned as a central control room with sections for articles, categories, homepage slider references, HOT NEWS, comments/likes preferences, media references, appearance, social links, notifications, admin roster demo, and backups. Data is saved in this browser only. This is not yet a live CMS: public pages do not automatically receive changes, file uploads are not implemented, and admin roster entries do not create/authenticate accounts. Before production, configure Supabase Auth, database tables, Storage, Realtime where needed, and strict RLS/role policies. Never expose a service-role key in browser code.
+LOCAL LOGIN / SUSPENSION TESTS
+Open admin/login.html on localhost or in a local preview. Enter username `owner-preview` or `admin-preview` (any non-empty password) to open the local dashboard without authenticating a real account. Enter `suspended-test` to preview the “Admin suspended” popup and the appeal form. Any other username previews the unauthorized-admin popup, including its warning animation and sound (the browser may require a user gesture for sound). A submitted appeal is saved only in this browser under local preview storage; it is not sent to Admin 1 and is not a real account action. These shortcuts activate only for local file/localhost preview and must not be used as production authentication.
 
-
-COMMUNITY FEATURES UPDATE
-- Added Religion, Culture and Wildlife category pages and navigation links.
-- Added six more homepage cards (12 total starter cards).
-- Added Parrots interaction page with community guideline consent gate, text posts capped at 300 words, picture attachments, microphone voice recording preview, replies and emoji reactions (👍 👎 ❤️ 😄 😢).
-- Added Parrots interaction controls to the admin dashboard for enable/disable, moderation approval, images, voice, replies, reactions, and approve/delete local preview posts.
-- Added comment replies and emoji reactions on the article template.
-
-IMPORTANT LIMITATION
-These community interactions currently use same-origin browser localStorage for a preview; visitors on other devices do not share posts. Picture data may fill browser storage; voice recordings are previewed but are not persistently published. For a real public community, configure Supabase Auth, database tables, Storage buckets, RLS policies, server-enforced moderation, rate limits and reporting/blocking tools before launch. Consent acceptance is remembered for the current browser session.
-
-
-LATEST COMMUNITY UPDATE
-- Added Back home navigation links across website pages.
-- Homepage search branding now reads Parrot Search.
-- Community header includes Welcome to Parrot Community and Register/Login/With Google/Trending/Recent/New links.
-- Community composer uses required email identity, dark text areas with white text, and mobile camera capture hint.
-- Community email and Google authentication buttons are interface placeholders until Supabase Auth URL/key and Google provider are configured. Do not treat the front-end preview as secure authentication or shared publishing.
-
-
-LATEST COMMUNITY UPDATE
-- Added reply-to-reply threads in the local preview.
-- Added Translate to English actions for post and reply text; opens Google Translate.
-- Removed email prompts and confirmation prompts from local post edit/delete flows.
-- Advertising Manager remains in the dashboard for top, feed, article and sidebar ad placements.
-- Important: local preview only. Real admin-wide controls and secure post ownership need Supabase Auth, Storage, database tables, and row-level security policies.
+LIVE SETUP LATER
+For production login, shared publishing, storage uploads and owner-managed admin accounts, configure Supabase and follow SETUP-SUPABASE.txt. Static syntax checks do not replace live authentication, database, upload and mobile-device tests.
