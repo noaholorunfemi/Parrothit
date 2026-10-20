@@ -84,6 +84,8 @@ drop policy if exists "visitors add likes" on public.post_likes;
 create policy "visitors add likes" on public.post_likes for insert with check (length(visitor_token) between 20 and 100);
 drop policy if exists "admins read settings" on public.site_settings;
 create policy "admins read settings" on public.site_settings for select to authenticated using (public.is_parrothit_admin());
+drop policy if exists "public read scrolling effects setting" on public.site_settings;
+create policy "public read scrolling effects setting" on public.site_settings for select to anon, authenticated using (key = 'scroll_effects');
 drop policy if exists "admins manage settings" on public.site_settings;
 create policy "admins manage settings" on public.site_settings for all to authenticated using (public.is_parrothit_admin()) with check (public.is_parrothit_admin());
 drop policy if exists "admins view audit log" on public.admin_audit_log;
@@ -107,10 +109,10 @@ insert into public.categories(name,slug) values
 
 -- Public visitors may read only display settings needed by the homepage; all writes stay admin-only.
 drop policy if exists "public reads public display settings" on public.site_settings;
-create policy "public reads public display settings" on public.site_settings for select using (key in ('homepage_slides','home_video','category_images','ads','moving_text','news_cards','advertisement_cards'));
+create policy "public reads public display settings" on public.site_settings for select using (key in ('homepage_slides','home_video','category_images','ads','moving_text','home_tickler','news_cards','advertisement_cards','category_cards'));
 
 -- Shared image uploads. The bucket is public for viewing; uploads/changes require an authenticated PARROTHIT admin.
-insert into storage.buckets (id, name, public, file_size_limit) values ('parrothit-media','parrothit-media',true,153600) on conflict (id) do update set public=true, file_size_limit=153600;
+insert into storage.buckets (id, name, public, file_size_limit) values ('parrothit-media','parrothit-media',true,104857600) on conflict (id) do update set public=true, file_size_limit=104857600;
 drop policy if exists "public reads PARROTHIT media" on storage.objects;
 create policy "public reads PARROTHIT media" on storage.objects for select using (bucket_id='parrothit-media');
 drop policy if exists "admins upload PARROTHIT media" on storage.objects;
@@ -256,3 +258,12 @@ end;
 $$;
 revoke all on function public.consume_admin_reactivation_notice() from public, anon;
 grant execute on function public.consume_admin_reactivation_notice() to authenticated;
+
+
+-- PARROTHIT editorial categories requested for the October 2026 update. Safe to rerun.
+insert into public.categories (name, slug) values
+ ('Celebrity News','celebrity-news'),
+ ('Football','football'),
+ ('Nollywood','nollywood'),
+ ('Nigerian Celebrity','nigerian-celebrity')
+on conflict (slug) do update set name=excluded.name;
