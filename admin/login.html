@@ -177,12 +177,15 @@ form.addEventListener('submit',async e=>{
     if(authError){showAuthAlert('unauthorized');return;}
     const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
     if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
-    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('role,is_suspended,username,email').eq('user_id',sessionData.session.user.id).maybeSingle();
-    if(profileError||!profile||!['owner','admin'].includes(profile.role)){
-      await appealClient.auth.signOut();showAuthAlert('unauthorized');return;
+    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name').eq('user_id',sessionData.session.user.id).maybeSingle();
+    if(profileError){console.error('Could not read admin profile:',profileError);await appealClient.auth.signOut();showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
+    if(!profile||!['owner','admin'].includes(String(profile.role||'').toLowerCase())){
+      await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
     }
-    if(profile.is_suspended){
-      const userEmail=profile.email||sessionData.session.user.email||email;
+    // This project may have an older admin_profiles schema without email/is_suspended columns.
+    // Do not request missing columns during sign-in; the core owner check uses user_id + role.
+    if(profile.is_suspended===true){
+      const userEmail=sessionData.session.user.email||email;
       const userName=profile.username||loginName;
       document.getElementById('appealEmail').value=userEmail;
       document.getElementById('appealUsername').value=userName;
