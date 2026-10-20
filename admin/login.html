@@ -49,7 +49,8 @@
 @keyframes auth-hatch{0%,100%{transform:translateX(0) rotate(0)}12%,36%,60%,84%{transform:translateX(-9px) rotate(-1deg)}24%,48%,72%{transform:translateX(9px) rotate(1deg)}0%{filter:brightness(1.4)}35%{filter:brightness(.8)}70%{filter:brightness(1.2)}}
 @media(prefers-reduced-motion:reduce){.auth-alert-card.unauthorized{animation:none}}
 
-</style></head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
+</style>
+</head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
 <div class="back-home-wrap"><a class="back-home-link" href="../index.html">← Back home</a></div>
 <div class="admin-shell"><div class="admin-header"><h1>PARROTHIT ADMIN</h1><a href="../index.html">← View website</a></div><section class="admin-panel" style="max-width:520px;margin:30px auto"><h2>Administrator sign in</h2><p>Sign in using your administrator username or email and password.</p><form id="loginForm" class="admin-form"><label>Username or email<input id="loginName" autocomplete="username" required></label><label>Password <span class="password-wrap"><input id="loginPassword" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">👁</button></span></label>
 <label class="remember-row"><input id="rememberMe" type="checkbox" checked> Remember me on this device</label><button class="admin-btn" type="submit">Sign in securely</button></form><p><a href="forgot-password.html">Forgot your password?</a></p><p id="loginMessage" role="status"></p><p class="meta">Setup required: copy your Supabase URL and public anon key into supabase-config.js (then update this page to load that file). Never use a service-role key here.</p></section></div>
@@ -122,7 +123,7 @@ appealStatusCheckForm.addEventListener('submit',async e=>{
     if(!a){alert('No appeal was found for that email and username. Check the details and try again.');return;}
     showAppealStatus(a.status);return;
   }
-  if(!appealClient){if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||!window.PARROTHIT_SUPABASE_ANON_KEY){alert('Appeal status checking is unavailable until Supabase is configured.');return;}appealClient=window.supabase.createClient(window.PARROTHIT_SUPABASE_URL,window.PARROTHIT_SUPABASE_ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});}
+  if(!appealClient){if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||!window.PARROTHIT_SUPABASE_ANON_KEY){alert('Appeal status checking is unavailable until Supabase is configured.');return;}appealClient=window.getParrothitSupabaseClient();}
   const button=appealStatusCheckForm.querySelector('button[type="submit"]');button.disabled=true;
   try{const {data,error}=await appealClient.rpc('check_admin_appeal_status',{p_email:email,p_username:username});if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(!row||!row.status){alert('No appeal was found for that email and username. Check the details and try again.');return;}showAppealStatus(row.status);}
   catch(err){console.error('Appeal status check failed:',err);alert('Could not check your appeal status. The latest Supabase schema must be installed first.');}
@@ -169,7 +170,7 @@ form.addEventListener('submit',async e=>{
   const loginName=document.getElementById('loginName').value.trim(),password=document.getElementById('loginPassword').value;
   const btn=form.querySelector('button[type="submit"]');if(btn)btn.disabled=true;
   try{
-    appealClient=window.supabase.createClient(window.PARROTHIT_SUPABASE_URL,window.PARROTHIT_SUPABASE_ANON_KEY,{auth:{persistSession:document.getElementById('rememberMe').checked,autoRefreshToken:true,detectSessionInUrl:true}});
+    appealClient=window.getParrothitSupabaseClient();
     let email=loginName;
     if(!loginName.includes('@')){const {data,error}=await appealClient.rpc('resolve_admin_email',{p_username:loginName});if(error||!data){showAuthAlert('unauthorized','This username is not registered as a PARROTHIT administrator. Check the spelling or contact Admin 1 (Owner).');if(btn)btn.disabled=false;return;}email=data;}
     const {error:authError}=await appealClient.auth.signInWithPassword({email,password});
@@ -214,8 +215,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&overlay.classList.c
 overlay.__finish=finish;
 }
 function ask(message){ensureDialog();const overlay=document.getElementById('parrot-warning-overlay');if(pendingResolve){return Promise.resolve(false)}const msg=overlay.querySelector('#parrot-warning-message');msg.textContent=message||'You are about to make a change. Would you like to revoke this action or continue?';overlay.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';requestAnimationFrame(()=>overlay.classList.add('pw-open'));return new Promise(resolve=>{pendingResolve=resolve;setTimeout(()=>overlay.querySelector('#parrot-warning-cancel').focus(),60)})}
-function isAction(el){if(!el||el.closest(SKIP_SELECTOR))return false;if(el.matches('button,input[type="submit"],input[type="button"],input[type="file"],[role="button"]')){const txt=actionText(el);if(el.matches('input[type="file"]'))return true;if(el.matches('button[type="button"]')&&/^(close|cancel|back|preview|show password|hide password|next|previous|prev|menu|open menu)$/i.test(txt))return false;return ACTION_WORDS.test(txt)||el.hasAttribute('data-confirm-action')||el.matches('[data-delete-admin],[data-remove],[data-clear],[data-save],[data-publish]')}
-if(el.matches('a[data-confirm-action]'))return true;return false}
+function isAction(el){if(!el||el.closest(SKIP_SELECTOR))return false;const txt=actionText(el).replace(/\s+/g,' ').trim().toLowerCase();return el.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(txt)||el.hasAttribute('data-commit-change');}
 function messageFor(el){const label=actionText(el)||'this action';return `Parrot Warning! You are about to ${label.charAt(0).toLowerCase()+label.slice(1)}. Do you want to revoke this action or continue?`}
 document.addEventListener('click',async e=>{
  const el=e.target.closest('button,input[type="submit"],input[type="button"],input[type="file"],[role="button"],a[data-confirm-action]');if(!el)return;
@@ -231,7 +231,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('submit',async e=>{
  const form=e.target;if(!(form instanceof HTMLFormElement))return;
  if(bypassSubmit===form){bypassSubmit=null;return}
- const submitter=e.submitter;const label=submitter?actionText(submitter):(form.getAttribute('data-confirm-action')||form.querySelector('button[type="submit"],input[type="submit"]')?.textContent||'submit these changes');
+ const submitter=e.submitter;const submitLabel=submitter?actionText(submitter).replace(/\s+/g,' ').trim().toLowerCase():'';if(!(submitter&&(submitter.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(submitLabel)||submitter.hasAttribute('data-commit-change'))))return;const label=actionText(submitter)||'Commit Change';
  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
  const ok=await ask(`Parrot Warning! You are about to ${String(label).trim().toLowerCase()}. Do you want to revoke this action or continue?`);if(!ok)return;
  bypassSubmit=form;const oldConfirm=window.confirm;window.confirm=()=>true;

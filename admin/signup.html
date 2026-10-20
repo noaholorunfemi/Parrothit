@@ -26,7 +26,8 @@
 @keyframes pw-text-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
-</style></head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
+</style>
+</head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
 <div class="back-home-wrap"><a class="back-home-link" href="../index.html">← Back home</a></div>
 <main class="admin-shell"><header class="admin-header"><h1>PARROTHIT ADMIN ACCOUNTS</h1><a href="login.html">Back to sign in</a></header><section class="admin-panel" style="max-width:650px;margin:24px auto"><h2>Administrator registration</h2><div class="notice"><strong>Restricted:</strong> Public visitors cannot register as administrators. Admin 1 (Owner) must authorize administrator accounts. Maximum: four administrators total.</div><p>To prevent unauthorized access, this page does not create admin accounts by itself. First configure Supabase, establish the Owner account using the secure setup instructions, then use the owner-only admin management feature.</p><p>Account details for each approved administrator should include a display name, unique username, email and a strong password. Password recovery is available from the <a href="forgot-password.html"><u>forgot-password page</u></a>.</p><a class="button" href="login.html">Go to sign in</a><p class="meta">Never put a Supabase service-role key in browser code.</p></section></main><script id="parrot-warning-script">
 (()=>{
@@ -47,8 +48,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&overlay.classList.c
 overlay.__finish=finish;
 }
 function ask(message){ensureDialog();const overlay=document.getElementById('parrot-warning-overlay');if(pendingResolve){return Promise.resolve(false)}const msg=overlay.querySelector('#parrot-warning-message');msg.textContent=message||'You are about to make a change. Would you like to revoke this action or continue?';overlay.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';requestAnimationFrame(()=>overlay.classList.add('pw-open'));return new Promise(resolve=>{pendingResolve=resolve;setTimeout(()=>overlay.querySelector('#parrot-warning-cancel').focus(),60)})}
-function isAction(el){if(!el||el.closest(SKIP_SELECTOR))return false;if(el.matches('button,input[type="submit"],input[type="button"],input[type="file"],[role="button"]')){const txt=actionText(el);if(el.matches('input[type="file"]'))return true;if(el.matches('button[type="button"]')&&/^(close|cancel|back|preview|show password|hide password|next|previous|prev|menu|open menu)$/i.test(txt))return false;return ACTION_WORDS.test(txt)||el.hasAttribute('data-confirm-action')||el.matches('[data-delete-admin],[data-remove],[data-clear],[data-save],[data-publish]')}
-if(el.matches('a[data-confirm-action]'))return true;return false}
+function isAction(el){if(!el||el.closest(SKIP_SELECTOR))return false;const txt=actionText(el).replace(/\s+/g,' ').trim().toLowerCase();return el.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(txt)||el.hasAttribute('data-commit-change');}
 function messageFor(el){const label=actionText(el)||'this action';return `Parrot Warning! You are about to ${label.charAt(0).toLowerCase()+label.slice(1)}. Do you want to revoke this action or continue?`}
 document.addEventListener('click',async e=>{
  const el=e.target.closest('button,input[type="submit"],input[type="button"],input[type="file"],[role="button"],a[data-confirm-action]');if(!el)return;
@@ -64,7 +64,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('submit',async e=>{
  const form=e.target;if(!(form instanceof HTMLFormElement))return;
  if(bypassSubmit===form){bypassSubmit=null;return}
- const submitter=e.submitter;const label=submitter?actionText(submitter):(form.getAttribute('data-confirm-action')||form.querySelector('button[type="submit"],input[type="submit"]')?.textContent||'submit these changes');
+ const submitter=e.submitter;const submitLabel=submitter?actionText(submitter).replace(/\s+/g,' ').trim().toLowerCase():'';if(!(submitter&&(submitter.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(submitLabel)||submitter.hasAttribute('data-commit-change'))))return;const label=actionText(submitter)||'Commit Change';
  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
  const ok=await ask(`Parrot Warning! You are about to ${String(label).trim().toLowerCase()}. Do you want to revoke this action or continue?`);if(!ok)return;
  bypassSubmit=form;const oldConfirm=window.confirm;window.confirm=()=>true;
