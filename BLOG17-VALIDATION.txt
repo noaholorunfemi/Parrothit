@@ -1,0 +1,8 @@
+PARROTHIT Blog 17 validation
+HTML files: 107; parse errors: 0
+Standalone JS files: 8; syntax errors: 0
+Inline scripts checked: 553; syntax errors: 0
+Root public HTML pages: 23; missing reaction/share script: 0
+Editorial guideline section headings: 0
+
+Static checks do not verify live browser behavior, Supabase permissions, Edge Function deployment, or cross-device data synchronization.
