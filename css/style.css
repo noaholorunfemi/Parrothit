@@ -180,3 +180,32 @@ select:focus, textarea:focus, input:focus { outline:2px solid #d71920; outline-o
 .parrothit-ad-card strong{color:#d71920}.parrothit-ad-card a{font-weight:800;text-decoration:underline;color:#111}
 @media(max-width:700px){.parrothit-ads{grid-template-columns:1fr}.parrothit-ad-card{min-height:80px}}
 body.admin-auth-pending{visibility:hidden}
+
+/* October 2026: keep slider imagery visible in both light and dark themes. */
+.home-slider,.slider-track,.slide{background-color:#111!important;}
+.slide{color:#fff!important;filter:none!important;opacity:1;}
+.slide h2,.slide span{color:#fff!important;font-weight:900!important;text-shadow:0 3px 12px #000,0 1px 3px #000!important;}
+.slide span{background:#b5121b!important;border:1px solid #fff;}
+[data-theme="dark"] .home-slider,[data-theme="dark"] .slider-track,[data-theme="dark"] .slide{background-blend-mode:normal!important;filter:none!important;}
+.parrothit-live-sports{margin:22px 0;padding:22px;background:#fff;color:#111;border-radius:14px;border:2px solid #d71920;box-shadow:0 8px 30px #0002;}
+.parrothit-live-sports h2{font-size:clamp(1.5rem,4vw,2.2rem);margin-top:0;}
+.parrothit-live-sports .stream-placeholder{min-height:430px;background:#05070a;border:1px solid #333;}
+.parrothit-live-sports iframe{display:block;width:min(100%,1000px);height:clamp(300px,56vw,560px);border:0;margin:18px auto 0;background:#111;}
+
+.nav-inner{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.nav-inner>a{padding:10px 8px}
+
+
+/* Site-wide smooth navigation; accessibility preference is respected. */
+html{scroll-behavior:smooth;scroll-padding-top:1rem}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+/* Premium featured slider transition: soft cross-fade, glide and gentle zoom. */
+.home-slider{overflow:hidden}
+.slider-track{position:relative;isolation:isolate;overflow:hidden}
+.slider-track .slide{display:flex;position:absolute;inset:0;min-height:300px;opacity:0!important;visibility:hidden;transform:translateX(30px) scale(.985);filter:saturate(.9);transition:opacity .8s ease,transform 1s cubic-bezier(.2,.7,.2,1),filter 1s ease,visibility 0s linear .85s;pointer-events:none;z-index:0}
+.slider-track .slide.active{display:flex;position:relative;inset:auto;min-height:300px;opacity:1!important;visibility:visible;transform:translateX(0) scale(1);filter:saturate(1);transition-delay:0s;pointer-events:auto;z-index:1;animation:featuredSlideReveal 1s cubic-bezier(.2,.7,.2,1) both}
+.slider-track .slide.active h2{animation:featuredTitleReveal .75s .12s both}
+.slider-track .slide.active span{animation:featuredBadgeReveal .65s .08s both}
+@keyframes featuredSlideReveal{from{background-size:110% auto}to{background-size:cover}}
+@keyframes featuredTitleReveal{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes featuredBadgeReveal{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:700px){.slider-track .slide,.slider-track .slide.active{min-height:240px}}
