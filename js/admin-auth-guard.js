@@ -13,8 +13,8 @@
     client.auth.getSession().then(async function(result){
       var session=result&&result.data&&result.data.session;
       if(!session){deny();return;}
-      var profile=await client.from('admin_profiles').select('user_id,role,is_suspended').eq('user_id',session.user.id).maybeSingle();
-      if(profile.error||!profile.data||profile.data.is_suspended||!['owner','admin'].includes(profile.data.role)){await client.auth.signOut();deny();return;}
+      var profile=await client.from('admin_profiles').select('user_id,role').eq('user_id',session.user.id).maybeSingle();
+      if(profile.error||!profile.data||!['owner','admin'].includes(String(profile.data.role||'').toLowerCase())){await client.auth.signOut();deny();return;}
       window.PARROTHIT_ADMIN_CLIENT=client;
       window.PARROTHIT_ADMIN_PROFILE=profile.data;
       document.documentElement.style.visibility='';
