@@ -4,6 +4,14 @@ PARROTHIT NEWS — SUPABASE SETUP AND ADMIN SECURITY
 IMPORTANT
 The HTML, CSS and JavaScript are included in this ZIP. Shared publishing, shared image uploads and real administrator management work only after you connect your own Supabase project and deploy the provided Edge Functions. Do not remove the login guard or put a service-role/secret key into any website file.
 
+
+CURRENT CONFIGURATION CHECK (Blog 17)
+------------------------------------
+- supabase-config.js contains a non-placeholder PARROTHIT project URL and a browser-safe publishable key. The key is designed to be public; never put a service-role/secret key in this file.
+- This archive cannot confirm live DNS/network access or authenticate against your project from the packaging environment. Before launch, sign in to admin/login.html and verify the project accepts the key.
+- To finish the live setup, run the included supabase/schema.sql in the SQL Editor, deploy the three included admin Edge Functions, and test owner-only admin actions, public display-setting reads and Storage uploads.
+- Do not assume Supabase is fully live until those steps succeed; local preview mode is only a local simulation.
+
 A. CONNECT THE WEBSITE
 1. Open your Supabase project.
 2. In Project Settings > API, copy the Project URL and public anon/publishable key.
@@ -52,14 +60,25 @@ G. SECURITY AND TESTING
 
 PARROTHIT PATCH NOTES — ADS, NEWS DESTINATIONS, TICKER AND IMAGE LIMIT
 ---------------------------------------------------------------------
-The corrected project now uses a maximum uploaded image size of 150 KiB (153,600 bytes) in the browser upload checks and the parrothit-media Storage bucket configuration.
+The project uses a maximum uploaded image size of 100 MiB (104,857,600 bytes) in the browser helper and the parrothit-media Storage bucket configuration. Supabase project-level limits and the bucket configuration must both permit this size.
 
 After replacing the project files, run the updated supabase/schema.sql in the Supabase SQL Editor so public pages can read the display-only settings keys moving_text, news_cards, and advertisement_cards. Writes remain restricted to authenticated PARROTHIT administrators by the site_settings policies. If the SQL editor reports a policy already exists, the script drops/recreates the named public display policy.
 
 The 16 feature news-card controls now include a required destination URL and publish records through the news_cards site_settings key. Page-specific ad controls publish to advertisement_cards. Ticker controls save to moving_text. If the dashboard reports a local-only save or shared publishing failure, verify the administrator is signed in and that the updated schema/policies have been applied.
 
-Uploaded images are limited to 150 KiB. Image URLs pasted into URL fields are remote assets and are not subject to a local-file size check. Keep remote image files at or below 150 KiB as well for consistent page performance.
+Uploaded image files are limited to 100 MiB. Image URLs pasted into URL fields are remote assets and are not subject to a local-file size check. For performance and mobile data use, compress images where possible even though the upload ceiling is 100 MiB.
 
 
 Suspended administrator appeals
 The `admin_appeals` table stores suspension appeals (maximum 250 words). Only the active Owner can read or review them. Re-run `supabase/schema.sql` after this update to install the table and RLS policies.
+
+PARROTS INTERACTION MEMBER LOGIN UPDATE (OCTOBER 2026)
+1. Open the Supabase project connected in supabase-config.js.
+2. Open SQL Editor -> New query.
+3. Paste and run the complete contents of supabase/community-interaction.sql.
+4. In Authentication -> Providers, make sure Email is enabled. If email confirmation is enabled, new users must click the confirmation email before they can log in.
+5. Deploy the updated website files. Do not publish any Supabase secret/service-role key in browser files.
+6. On Parrots Interaction, the post composer, comment boxes, emoji picker, voice recorder and image-upload icon are visible while signed out. Registration/login is required before posting, commenting, reacting, replying, reporting, or recording voice.
+7. A signed-in user can use Log out at any time and log in again later. Supabase records the community member's user ID, email, display name, created time and last-seen time in public.community_members. RLS limits member profile access to the signed-in member.
+
+Important current limitation: this update records community accounts in Supabase, but the existing community post feed still saves posts/comments/reactions in the current browser's local preview storage. They are not yet shared between different visitors/devices. A fully shared community feed needs a separate database/storage integration and policies; do not treat browser-local posts as a shared live feed.

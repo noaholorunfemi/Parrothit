@@ -29,3 +29,12 @@ Open admin/login.html on localhost or in a local preview. Enter username `owner-
 
 LIVE SETUP LATER
 For production login, shared publishing, storage uploads and owner-managed admin accounts, configure Supabase and follow SETUP-SUPABASE.txt. Static syntax checks do not replace live authentication, database, upload and mobile-device tests.
+
+ANDROID PHONE — TEST THE SCROLLING EFFECTS LOCALLY
+1. Extract the ZIP into a folder on your Android phone. Do not try to test the whole site by opening index.html with file:// if you can avoid it; browsers can restrict local scripts and requests.
+2. Easiest option: open the extracted project folder in an Android editor that supports a local web preview/server (for example, Acode), start its preview/local server, then open the local HTTP address it provides in Chrome.
+3. Alternative with Termux: install Termux and run `termux-setup-storage` once; move into the extracted project folder under `~/storage/downloads/` (or the folder where you extracted it); run `python -m http.server 8080 --bind 127.0.0.1`; then open `http://127.0.0.1:8080/` in Chrome on the same phone. If port 8080 is busy, use another port and match it in the URL.
+4. Scroll the homepage and category pages slowly and quickly. News cards should fade/slide into view as they enter the screen. On article.html, scroll down and check the thin reading-progress bar at the top. Tap a page anchor/link to check smooth scrolling.
+5. To test the admin scrolling settings, open the Control Room's scrolling-effects settings page, change the preset/toggles, save, and refresh a public page. Admin pages themselves are intentionally excluded from public reveal effects.
+6. Without a configured Supabase URL/key and the SQL policy applied, local testing uses the built-in default/cached effect settings; the remote admin setting will not sync. Local changes do not publish to the live website.
+7. If animations do not appear, check Chrome's Android Accessibility / Remove animations setting. The script respects `prefers-reduced-motion` and disables most motion when that preference is active.
