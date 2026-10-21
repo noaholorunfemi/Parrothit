@@ -11,7 +11,30 @@ Deno.serve(async (req: Request) => {
   const {data:userData,error:userError}=await userClient.auth.getUser(); if(userError||!userData.user)return reply(401,{error:"Your session is invalid or expired. Sign in again."});
   const admin=createClient(url,serviceKey,{auth:{persistSession:false,autoRefreshToken:false}});
   const {data:actor,error:actorError}=await admin.from("admin_profiles").select("user_id,role,is_suspended").eq("user_id",userData.user.id).maybeSingle();
-  if(actorError||!actor||actor.role!=="owner"||actor.is_suspended)return reply(403,{error:"Only active Admin 1 (Owner) can add administrators."});
+  if (actorError) {
+    console.error("Owner profile lookup failed:", actorError);
+    return reply(403, {
+      error: "Owner profile lookup failed: " + actorError.message
+    });
+  }
+
+  if (!actor) {
+    return reply(403, {
+      error: "No admin profile matches the currently signed-in user ID."
+    });
+  }
+
+  if (actor.role !== "owner") {
+    return reply(403, {
+      error: "Signed-in account role is: " + actor.role
+    });
+  }
+
+  if (actor.is_suspended) {
+    return reply(403, {
+      error: "The signed-in owner account is suspended."
+    });
+  }
   let body:{email?:string;username?:string;password?:string;confirm_password?:string;display_name?:string};try{body=await req.json()}catch{return reply(400,{error:"Request body must be valid JSON."})}
   const email=String(body.email||"").trim().toLowerCase(), password=String(body.password||""), confirmPassword=String(body.confirm_password||""), displayName=String(body.display_name||body.username||"Administrator").trim().slice(0,100)||"Administrator";
   let username=String(body.username||"").trim().toLowerCase().replace(/[^a-z0-9_.-]/g,"_").slice(0,32);
