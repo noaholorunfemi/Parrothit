@@ -126,7 +126,27 @@ appealStatusCheckForm.addEventListener('submit',async e=>{
   if(!appealClient){if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||!window.PARROTHIT_SUPABASE_ANON_KEY){alert('Appeal status checking is unavailable until Supabase is configured.');return;}appealClient=window.getParrothitSupabaseClient();}
   const button=appealStatusCheckForm.querySelector('button[type="submit"]');button.disabled=true;
   try{const {data,error}=await appealClient.functions.invoke('parrothit-admin-appeals',{body:{action:'status',email,username}});if(error)throw error;if(!data||!data.appeal||!data.appeal.status){alert('No appeal was found for that email and username. Check the details and try again.');return;}showAppealStatus(data.appeal.status);}
-  catch(err){console.error('Appeal status check failed:',err);alert('Could not check your appeal status. The latest Supabase schema must be installed first.');}
+  catch(err){catch(err) {
+  console.error('PARROTHIT appeal status error:', err);
+
+  let message = 'Could not check your appeal status.';
+
+  if (err && err.message) {
+    message += '\n\nDetails: ' + err.message;
+  }
+
+  if (err && err.context) {
+    try {
+      const response = await err.context.json();
+
+      if (response && response.error) {
+        message += '\n\nServer: ' + response.error;
+      }
+    } catch (_) {}
+  }
+
+  alert(message);
+}}
   finally{button.disabled=false;}
 });
 function showAppealStatus(status){status=String(status||'pending').toLowerCase();if(status==='approved'){alert("Your appeal has been approved by Admin 1 (Owner). The Owner must still reactivate your account before you can sign in.");}else if(status==='rejected'){if(confirm('Sorry, your appeal was rejected. Would you like to resubmit an appeal?')){document.getElementById('appealText').focus();document.getElementById('appealStatus').textContent='You can submit a new appeal below.';}}else{alert('Your appeal is still waiting for Admin 1 (Owner) to review.');}}
