@@ -144,7 +144,24 @@ document.getElementById('suspendedAppealForm').addEventListener('submit',async e
   if(!appealClient){status.textContent='Appeal submission is unavailable until the Supabase project is configured.';return}
   btn.disabled=true;status.textContent='Submitting appeal securely…';
   try{const {data,error}=await appealClient.functions.invoke('parrothit-admin-appeals',{body:{action:'submit',email,username,appeal_reason:appeal}});if(error)throw error;if(!data||!data.success)throw new Error(data&&data.error?data.error:'Appeal submission failed.');status.textContent=data.message||'Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
-  catch(err){console.error('Appeal submission failed:',err);status.textContent='Could not submit appeal. Ensure the admin_appeals table and policies have been installed in Supabase.'}
+  catch(err){
+    console.error('PARROTHIT appeal submission error:',err);
+    let message='Could not submit appeal.';
+    if(err&&err.message)message+=' Details: '+err.message;
+    if(err&&err.context){
+      try{
+        const response=await err.context.clone().json();
+        if(response&&response.error)message+=' Server: '+response.error;
+        else if(response&&response.message)message+=' Server: '+response.message;
+      }catch(_){
+        try{
+          const response=await err.context.clone().text();
+          if(response)message+=' Server: '+response.slice(0,500);
+        }catch(__){}
+      }
+    }
+    status.textContent=message;
+  }
   finally{btn.disabled=false}
 });
 form.addEventListener('submit',async e=>{
