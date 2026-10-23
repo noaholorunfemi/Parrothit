@@ -125,11 +125,11 @@ appealStatusCheckForm.addEventListener('submit',async e=>{
   }
   if(!appealClient){if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||!window.PARROTHIT_SUPABASE_ANON_KEY){alert('Appeal status checking is unavailable until Supabase is configured.');return;}appealClient=window.getParrothitSupabaseClient();}
   const button=appealStatusCheckForm.querySelector('button[type="submit"]');button.disabled=true;
-  try{const {data,error}=await appealClient.functions.invoke('parrothit-admin-appeals',{body:{action:'status',email,username}});if(error)throw error;if(!data||!data.appeal||!data.appeal.status){alert('No appeal was found for that email and username. Check the details and try again.');return;}showAppealStatus(data.appeal.status);}
+  try{const {data,error}=await appealClient.rpc('check_admin_appeal_status',{p_email:email,p_username:username});if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(!row||!row.status){alert('No appeal was found for that email and username. Check the details and try again.');return;}showAppealStatus(row.status);}
   catch(err){console.error('Appeal status check failed:',err);alert('Could not check your appeal status. The latest Supabase schema must be installed first.');}
   finally{button.disabled=false;}
 });
-function showAppealStatus(status){status=String(status||'pending').toLowerCase();if(status==='approved'){alert("Your appeal has been approved by Admin 1 (Owner). The Owner must still reactivate your account before you can sign in.");}else if(status==='rejected'){if(confirm('Sorry, your appeal was rejected. Would you like to resubmit an appeal?')){document.getElementById('appealText').focus();document.getElementById('appealStatus').textContent='You can submit a new appeal below.';}}else{alert('Your appeal is still waiting for Admin 1 (Owner) to review.');}}
+function showAppealStatus(status){status=String(status||'pending').toLowerCase();if(status==='accepted'){alert("Your appeal has been accepted and is waiting for Admin 1's review.");}else if(status==='rejected'){if(confirm('Sorry, your appeal was rejected. Would you like to resubmit an appeal?')){document.getElementById('appealText').focus();document.getElementById('appealStatus').textContent='You can submit a new appeal below.';}}else if(status==='reactivated'){alert("Congratulations or welcome back, you've been reactivated by admin 1.");}else{alert('Your appeal is still waiting for Admin 1 (Owner) to review.');}}
 function countWords(v){const t=String(v||'').trim();return t?t.split(/\s+/).length:0}
 function updateAppealCount(){const n=countWords(appealText.value);document.getElementById('appealWordCount').textContent=`${n} / 250 words`;document.getElementById('appealWordCount').style.color=n>250?'#b91c1c':'';document.getElementById('submitAppealBtn').disabled=n===0||n>250}
 appealText.addEventListener('input',updateAppealCount);
@@ -143,25 +143,8 @@ document.getElementById('suspendedAppealForm').addEventListener('submit',async e
   }
   if(!appealClient){status.textContent='Appeal submission is unavailable until the Supabase project is configured.';return}
   btn.disabled=true;status.textContent='Submitting appeal securely…';
-  try{const {data,error}=await appealClient.functions.invoke('parrothit-admin-appeals',{body:{action:'submit',email,username,appeal_reason:appeal}});if(error)throw error;if(!data||!data.success)throw new Error(data&&data.error?data.error:'Appeal submission failed.');status.textContent=data.message||'Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
-  catch(err){
-    console.error('PARROTHIT appeal submission error:',err);
-    let message='Could not submit appeal.';
-    if(err&&err.message)message+=' Details: '+err.message;
-    if(err&&err.context){
-      try{
-        const response=await err.context.clone().json();
-        if(response&&response.error)message+=' Server: '+response.error;
-        else if(response&&response.message)message+=' Server: '+response.message;
-      }catch(_){
-        try{
-          const response=await err.context.clone().text();
-          if(response)message+=' Server: '+response.slice(0,500);
-        }catch(__){}
-      }
-    }
-    status.textContent=message;
-  }
+  try{const {error}=await appealClient.from('admin_appeals').insert({email,username,appeal_text:appeal});if(error)throw error;status.textContent='Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
+  catch(err){console.error('Appeal submission failed:',err);status.textContent='Could not submit appeal. Ensure the admin_appeals table and policies have been installed in Supabase.'}
   finally{btn.disabled=false}
 });
 form.addEventListener('submit',async e=>{
@@ -194,13 +177,13 @@ form.addEventListener('submit',async e=>{
     if(authError){showAuthAlert('unauthorized');return;}
     const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
     if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
-    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name,email,is_suspended').eq('user_id',sessionData.session.user.id).maybeSingle();
+    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name').eq('user_id',sessionData.session.user.id).maybeSingle();
     if(profileError){console.error('Could not read admin profile:',profileError);await appealClient.auth.signOut();showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
     if(!profile||!['owner','admin'].includes(String(profile.role||'').toLowerCase())){
       await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
     }
-    // Read is_suspended during login so suspended administrators see the appeal dialog
-    // instead of being redirected to the dashboard and bounced back to login.
+    // This project may have an older admin_profiles schema without email/is_suspended columns.
+    // Do not request missing columns during sign-in; the core owner check uses user_id + role.
     if(profile.is_suspended===true){
       const userEmail=sessionData.session.user.email||email;
       const userName=profile.username||loginName;

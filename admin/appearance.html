@@ -139,6 +139,20 @@ document.addEventListener('DOMContentLoaded',()=>{
 .section-page-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid #d1d5db;border-radius:12px;padding:12px 16px;margin:12px 0}
 .section-page-banner a{display:inline-block;background:#151821;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:700}
 .control-body.admin-theme-dark .section-page-banner{background:var(--adm-panel);color:var(--adm-text);border-color:var(--adm-line)}
+
+/* PARROTHIT responsive Control Room layout fix (Oct 2026) */
+.control-body,.control-shell,.workspace,.workspace main,.tab-panel{min-width:0;max-width:100%;box-sizing:border-box}
+.workspace{grid-template-columns:minmax(205px,235px) minmax(0,1fr);width:100%;gap:16px}
+.workspace main{width:100%;overflow-x:clip}
+.side-nav{min-width:0;max-width:100%;z-index:2;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow-y:auto;overscroll-behavior:contain}
+.tab-panel{overflow-wrap:anywhere}
+.form-grid,.two-col,.quick-grid,.social-fields{min-width:0}
+.field{min-width:0}
+.field input,.field select,.field textarea{max-width:100%;min-width:0}
+.table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media(min-width:901px) and (max-width:1200px){.control-shell{padding:14px}.workspace{grid-template-columns:minmax(190px,215px) minmax(0,1fr);gap:12px}.tab-panel{padding:16px}.side-nav{padding:9px}.side-nav button{padding:10px 8px;font-size:.9rem}.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:900px){.workspace{grid-template-columns:minmax(0,1fr)}.side-nav{position:static;max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.workspace main{overflow:visible}}
+@media(max-width:600px){.control-shell{padding:8px}.workspace{gap:10px}.side-nav{grid-template-columns:repeat(2,minmax(0,1fr))}.tab-panel{padding:12px}.form-grid,.two-col,.social-fields{grid-template-columns:minmax(0,1fr)}.data-table{min-width:560px}}
 </style>
 <script>
 (function(){
