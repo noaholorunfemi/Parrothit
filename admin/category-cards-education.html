@@ -30,7 +30,7 @@
 @keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
 </style>
-</head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav><main class="wrap"><div class="top"><div><h1>Education: Individual News Cards</h1><p class="muted">Manage cards 1–6 for the Education page. Image URL is optional when a local image is selected.</p></div><a class="btn" href="dashboard.html">Back to Control Room</a></div><div class="grid">
+<link rel="stylesheet" href="../css/admin-responsive.css"></head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav><main class="wrap"><div class="top"><div><h1>Education: Individual News Cards</h1><p class="muted">Manage cards 1–6 for the Education page. Image URL is optional when a local image is selected.</p></div><a class="btn" href="dashboard.html">Back to Control Room</a></div><div class="grid">
 <section class="card">
 <h2>Card 1</h2>
 <label for="title1">Headline</label><input id="title1" type="text" maxlength="180" placeholder="Enter news headline">
@@ -38,7 +38,7 @@
 <label for="file1">Upload picture from device</label><input id="file1" type="file" accept="image/*">
 <img id="preview1" class="preview" alt="Image preview for card 1" hidden>
 <label for="url1">Image URL (optional)</label><input id="url1" type="url" placeholder="https://… (optional if a file is selected)">
-<label for="target1">Story destination URL</label><input id="target1" type="url" placeholder="article.html?id=unique-story-1" maxlength="500">
+<label for="target1">Story destination URL</label><input id="target1" type="text" placeholder="article.html?categoryCard=1" maxlength="500">
 <label class="check"><input id="enabled1" type="checkbox" checked> Show this card</label>
 <button class="btn green" type="button" onclick="saveCard(1)">Save / Publish Card 1</button>
 <button class="btn" type="button" onclick="clearCard(1)">Delete / Clear Card 1</button>
@@ -50,7 +50,7 @@
 <label for="file2">Upload picture from device</label><input id="file2" type="file" accept="image/*">
 <img id="preview2" class="preview" alt="Image preview for card 2" hidden>
 <label for="url2">Image URL (optional)</label><input id="url2" type="url" placeholder="https://… (optional if a file is selected)">
-<label for="target2">Story destination URL</label><input id="target2" type="url" placeholder="article.html?id=unique-story-2" maxlength="500">
+<label for="target2">Story destination URL</label><input id="target2" type="text" placeholder="article.html?categoryCard=2" maxlength="500">
 <label class="check"><input id="enabled2" type="checkbox" checked> Show this card</label>
 <button class="btn green" type="button" onclick="saveCard(2)">Save / Publish Card 2</button>
 <button class="btn" type="button" onclick="clearCard(2)">Delete / Clear Card 2</button>
@@ -62,7 +62,7 @@
 <label for="file3">Upload picture from device</label><input id="file3" type="file" accept="image/*">
 <img id="preview3" class="preview" alt="Image preview for card 3" hidden>
 <label for="url3">Image URL (optional)</label><input id="url3" type="url" placeholder="https://… (optional if a file is selected)">
-<label for="target3">Story destination URL</label><input id="target3" type="url" placeholder="article.html?id=unique-story-3" maxlength="500">
+<label for="target3">Story destination URL</label><input id="target3" type="text" placeholder="article.html?categoryCard=3" maxlength="500">
 <label class="check"><input id="enabled3" type="checkbox" checked> Show this card</label>
 <button class="btn green" type="button" onclick="saveCard(3)">Save / Publish Card 3</button>
 <button class="btn" type="button" onclick="clearCard(3)">Delete / Clear Card 3</button>
@@ -74,7 +74,7 @@
 <label for="file4">Upload picture from device</label><input id="file4" type="file" accept="image/*">
 <img id="preview4" class="preview" alt="Image preview for card 4" hidden>
 <label for="url4">Image URL (optional)</label><input id="url4" type="url" placeholder="https://… (optional if a file is selected)">
-<label for="target4">Story destination URL</label><input id="target4" type="url" placeholder="article.html?id=unique-story-4" maxlength="500">
+<label for="target4">Story destination URL</label><input id="target4" type="text" placeholder="article.html?categoryCard=4" maxlength="500">
 <label class="check"><input id="enabled4" type="checkbox" checked> Show this card</label>
 <button class="btn green" type="button" onclick="saveCard(4)">Save / Publish Card 4</button>
 <button class="btn" type="button" onclick="clearCard(4)">Delete / Clear Card 4</button>
@@ -86,7 +86,7 @@
 <label for="file5">Upload picture from device</label><input id="file5" type="file" accept="image/*">
 <img id="preview5" class="preview" alt="Image preview for card 5" hidden>
 <label for="url5">Image URL (optional)</label><input id="url5" type="url" placeholder="https://… (optional if a file is selected)">
-<label for="target5">Story destination URL</label><input id="target5" type="url" placeholder="article.html?id=unique-story-5" maxlength="500">
+<label for="target5">Story destination URL</label><input id="target5" type="text" placeholder="article.html?categoryCard=5" maxlength="500">
 <label class="check"><input id="enabled5" type="checkbox" checked> Show this card</label>
 <button class="btn green" type="button" onclick="saveCard(5)">Save / Publish Card 5</button>
 <button class="btn" type="button" onclick="clearCard(5)">Delete / Clear Card 5</button>
@@ -98,7 +98,7 @@
 <label for="file6">Upload picture from device</label><input id="file6" type="file" accept="image/*">
 <img id="preview6" class="preview" alt="Image preview for card 6" hidden>
 <label for="url6">Image URL (optional)</label><input id="url6" type="url" placeholder="https://… (optional if a file is selected)">
-<label for="target6">Story destination URL</label><input id="target6" type="url" placeholder="article.html?id=unique-story-6" maxlength="500">
+<label for="target6">Story destination URL</label><input id="target6" type="text" placeholder="article.html?categoryCard=6" maxlength="500">
 <label class="check"><input id="enabled6" type="checkbox" checked> Show this card</label>
 <button class="btn green" type="button" onclick="saveCard(6)">Save / Publish Card 6</button>
 <button class="btn" type="button" onclick="clearCard(6)">Delete / Clear Card 6</button>
@@ -106,12 +106,14 @@
 <script>
 const KEY="parrothit-category-cards-v1-education";const CATEGORY="education";let records={};try{records=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){records={}}
 const files={};
+function defaultCategoryDestination(i){return 'article.html?categoryCard='+encodeURIComponent(CATEGORY+'-'+i)}
+
 async function preview(i,src){const im=document.getElementById('preview'+i);if(!src){im.removeAttribute('src');im.hidden=true;return}try{const resolved=window.PARROTHITMediaStore?await window.PARROTHITMediaStore.resolve(src):src;if(resolved){im.src=resolved;im.hidden=false}else{im.removeAttribute('src');im.hidden=true}}catch(e){im.hidden=true}}
-function loadCard(i){const r=records[i]||{};document.getElementById('title'+i).value=r.title||'';document.getElementById('text'+i).value=r.text||'';document.getElementById('url'+i).value=r.imageUrl||'';document.getElementById('target'+i).value=r.targetUrl||'';document.getElementById('enabled'+i).checked=r.enabled!==false;preview(i,r.image||r.imageUrl||'')}
-for(let i=1;i<=6;i++){loadCard(i);document.getElementById('file'+i).addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;if(!f.type.startsWith('image/')){window.PARROTHITAdminNotice('Please choose an image file.');e.target.value='';return}if(f.size>100*1024*1024){window.PARROTHITAdminNotice('Choose an image of 100 MB or less.');e.target.value='';return}try{files[i]=await window.PARROTHITMediaStore.store(f);await preview(i,files[i]);document.getElementById('status').textContent='Image stored in IndexedDB for card '+i+'.'}catch(err){document.getElementById('status').textContent=err.message||'Could not store image.';e.target.value=''}});document.getElementById('url'+i).addEventListener('input',()=>{if(!files[i])preview(i,document.getElementById('url'+i).value.trim())})}
+function loadCard(i){const r=records[i]||{};document.getElementById('title'+i).value=r.title||'';document.getElementById('text'+i).value=r.text||'';document.getElementById('url'+i).value=r.imageUrl||'';document.getElementById('target'+i).value=r.targetUrl||defaultCategoryDestination(i);document.getElementById('enabled'+i).checked=r.enabled!==false;preview(i,r.image||r.imageUrl||'')}
+for(let i=1;i<=6;i++){loadCard(i);const targetField=document.getElementById('target'+i);if(targetField&&!document.getElementById('reset-destination-'+i)){const reset=document.createElement('button');reset.type='button';reset.id='reset-destination-'+i;reset.className='btn';reset.textContent='Restore default destination';reset.style.marginTop='6px';reset.addEventListener('click',()=>{targetField.value=defaultCategoryDestination(i);document.getElementById('status').textContent='Default destination restored for card '+i+'. Save the card to apply it.'});targetField.insertAdjacentElement('afterend',reset)}document.getElementById('file'+i).addEventListener('change',async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;if(!f.type.startsWith('image/')){window.PARROTHITAdminNotice('Please choose an image file.');e.target.value='';return}if(f.size>100*1024*1024){window.PARROTHITAdminNotice('Choose an image of 100 MB or less.');e.target.value='';return}try{files[i]=await window.PARROTHITMediaStore.store(f);await preview(i,files[i]);document.getElementById('status').textContent='Image stored in IndexedDB for card '+i+'.'}catch(err){document.getElementById('status').textContent=err.message||'Could not store image.';e.target.value=''}});document.getElementById('url'+i).addEventListener('input',()=>{if(!files[i])preview(i,document.getElementById('url'+i).value.trim())})}
 if(window.PARROTHITCategoryCardPublisher){window.PARROTHITCategoryCardPublisher.load(CATEGORY).then(remote=>{if(remote&&typeof remote==='object'){records={...records,...remote};try{localStorage.setItem(KEY,JSON.stringify(records))}catch(e){}for(let n=1;n<=6;n++)loadCard(n);}}).catch(err=>{const st=document.getElementById('status');if(st)st.textContent='Could not load shared category cards: '+(err.message||'Check Supabase permissions.');});}
-async function saveCard(i){const title=document.getElementById('title'+i).value.trim(),text=document.getElementById('text'+i).value.trim(),imageUrl=document.getElementById('url'+i).value.trim();const old=records[i]||{};const targetUrl=document.getElementById('target'+i).value.trim();if(targetUrl&&!/^(https?:\/\/|\/|\.\.?\/|[a-z0-9_-]+\.html(?:[?#]|$))/i.test(targetUrl)){document.getElementById('status').textContent='Card '+i+': enter a valid http(s) URL or local page path.';return}records[i]={title,text,image:files[i]||old.image||'',imageUrl,targetUrl,enabled:document.getElementById('enabled'+i).checked,updatedAt:new Date().toISOString()};try{localStorage.setItem(KEY,JSON.stringify(records));if(window.PARROTHITCategoryCardPublisher){const result=await window.PARROTHITCategoryCardPublisher.save(CATEGORY,records);document.getElementById('status').textContent='Card '+i+' '+result.message}else document.getElementById('status').textContent='Card '+i+' saved in this browser only.'}catch(e){document.getElementById('status').textContent='Saved locally, but shared publishing failed: '+(e.message||'Check Supabase permissions.')}} 
-async function clearCard(i){if(!CATEGORY){document.getElementById('status').textContent='Open this page with ?category=your-category-slug before clearing cards.';return}if(!confirm('Delete content for card '+i+'?'))return;delete records[i];delete files[i];let syncMessage='';try{localStorage.setItem(KEY,JSON.stringify(records));if(window.PARROTHITCategoryCardPublisher){const result=await window.PARROTHITCategoryCardPublisher.save(CATEGORY,records);syncMessage=result.message||''}}catch(e){syncMessage='Shared publishing failed: '+(e.message||'Check Supabase permissions.')}document.getElementById('title'+i).value='';document.getElementById('text'+i).value='';document.getElementById('url'+i).value='';document.getElementById('target'+i).value='';document.getElementById('file'+i).value='';document.getElementById('enabled'+i).checked=false;preview(i,'');document.getElementById('status').textContent='Card '+i+' cleared. '+syncMessage}
+async function saveCard(i){const title=document.getElementById('title'+i).value.trim(),text=document.getElementById('text'+i).value.trim(),imageUrl=document.getElementById('url'+i).value.trim();const old=records[i]||{};const targetUrl=document.getElementById('target'+i).value.trim()||defaultCategoryDestination(i);if(!/^(https?:\/\/|\/|\.\.?\/|[a-z0-9_-]+\.html(?:[?#]|$))/i.test(targetUrl)){document.getElementById('status').textContent='Card '+i+': enter a valid http(s) URL or local page path.';return}records[i]={title,text,image:files[i]||old.image||'',imageUrl,targetUrl,enabled:document.getElementById('enabled'+i).checked,updatedAt:new Date().toISOString()};try{localStorage.setItem(KEY,JSON.stringify(records));if(window.PARROTHITCategoryCardPublisher){const result=await window.PARROTHITCategoryCardPublisher.save(CATEGORY,records);document.getElementById('status').textContent='Card '+i+' '+result.message}else document.getElementById('status').textContent='Card '+i+' saved in this browser only.'}catch(e){document.getElementById('status').textContent='Saved locally, but shared publishing failed: '+(e.message||'Check Supabase permissions.')}} 
+async function clearCard(i){if(!CATEGORY){document.getElementById('status').textContent='Open this page with ?category=your-category-slug before clearing cards.';return}if(!confirm('Delete content for card '+i+'?'))return;delete records[i];delete files[i];let syncMessage='';try{localStorage.setItem(KEY,JSON.stringify(records));if(window.PARROTHITCategoryCardPublisher){const result=await window.PARROTHITCategoryCardPublisher.save(CATEGORY,records);syncMessage=result.message||''}}catch(e){syncMessage='Shared publishing failed: '+(e.message||'Check Supabase permissions.')}document.getElementById('title'+i).value='';document.getElementById('text'+i).value='';document.getElementById('url'+i).value='';document.getElementById('target'+i).value=defaultCategoryDestination(i);document.getElementById('file'+i).value='';document.getElementById('enabled'+i).checked=false;preview(i,'');document.getElementById('status').textContent='Card '+i+' cleared. '+syncMessage}
 </script>
 <script>document.documentElement.classList.remove("admin-auth-pending");document.body.classList.remove("admin-auth-pending");</script><script id="parrot-warning-script">
 (()=>{

@@ -35,7 +35,7 @@ button.commit-change:hover{background:#166534!important}
 @keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
 </style>
-</head>
+<link rel="stylesheet" href="../css/admin-responsive.css"></head>
 <body class="control-body admin-auth-pending"><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
 <script>
 (async function enforceAdminLogin(){if(window.PARROTHIT_LOCAL_PREVIEW){document.documentElement.classList.remove('admin-auth-pending');if(document.body)document.body.classList.remove('admin-auth-pending');return;}
