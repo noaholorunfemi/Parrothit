@@ -82,3 +82,10 @@ PARROTS INTERACTION MEMBER LOGIN UPDATE (OCTOBER 2026)
 7. A signed-in user can use Log out at any time and log in again later. Supabase records the community member's user ID, email, display name, created time and last-seen time in public.community_members. RLS limits member profile access to the signed-in member.
 
 Important current limitation: this update records community accounts in Supabase, but the existing community post feed still saves posts/comments/reactions in the current browser's local preview storage. They are not yet shared between different visitors/devices. A fully shared community feed needs a separate database/storage integration and policies; do not treat browser-local posts as a shared live feed.
+
+
+CARD DESTINATIONS AND APPEARANCE (OCTOBER 2026)
+- Open Admin Control Room > Manage News & Ad Card Colors to control the news-card colors separately from ad-card colors.
+- Featured Story Cards 01–16 have default destinations listed on admin/news-card-controls.html. Each card editor lets an administrator select a custom URL.
+- Every individual ad editor includes an Ad disclosure selector: Advertisement or Sponsored.
+- For public visitors to receive shared card-color settings, run supabase/card-appearance-public-policy.sql in the Supabase SQL Editor. It only adjusts the public display-setting SELECT policy; it does not allow public writes.

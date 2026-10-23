@@ -18,6 +18,9 @@
       window.PARROTHIT_ADMIN_CLIENT=client;
       window.PARROTHIT_ADMIN_PROFILE=profile.data;
       document.documentElement.style.visibility='';
+      /* Pages start hidden while authentication is checked. Remove the body-level
+         pending class too, otherwise CSS keeps the entire page invisible. */
+      if(document.body) document.body.classList.remove('admin-auth-pending');
     }).catch(deny);
   }catch(e){deny();}
 })();
