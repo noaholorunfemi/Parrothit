@@ -109,7 +109,7 @@ insert into public.categories(name,slug) values
 
 -- Public visitors may read only display settings needed by the homepage; all writes stay admin-only.
 drop policy if exists "public reads public display settings" on public.site_settings;
-create policy "public reads public display settings" on public.site_settings for select using (key in ('homepage_slides','home_video','category_images','ads','moving_text','home_tickler','news_cards','advertisement_cards','category_cards','news_ads_appearance','homepage_cards'));
+create policy "public reads public display settings" on public.site_settings for select using (key in ('homepage_slides','home_video','category_images','ads','moving_text','home_tickler','news_cards','advertisement_cards','category_cards'));
 
 -- Shared image uploads. The bucket is public for viewing; uploads/changes require an authenticated PARROTHIT admin.
 insert into storage.buckets (id, name, public, file_size_limit) values ('parrothit-media','parrothit-media',true,104857600) on conflict (id) do update set public=true, file_size_limit=104857600;
