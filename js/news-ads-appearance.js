@@ -41,8 +41,8 @@
     let style=document.getElementById('parrothit-news-ads-appearance-style');
     if(!style){style=document.createElement('style');style.id='parrothit-news-ads-appearance-style';document.head.appendChild(style)}
     style.textContent='@keyframes parrothit-card-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes parrothit-card-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}.parrothit-card-bounce{animation:parrothit-card-bounce var(--parrothit-card-animation-duration,2s) ease-in-out infinite}.parrothit-card-shake{animation:parrothit-card-shake var(--parrothit-card-animation-duration,2s) ease-in-out infinite}@media(prefers-reduced-motion:reduce){.parrothit-card-bounce,.parrothit-card-shake{animation:none!important}}';
-    applyOne('.news-card,.side-item,.hero-card,.parrothit-managed-card,.category-card,.parrothit-category-card','news','news');
-    applyOne('.parrothit-ad-card,.ad-card,.advertisement-card,.ad-slot,[data-ad-slot]','ads','ads');
+    applyOne('.news-card,.side-item,.hero-card,.parrothit-managed-card,.category-card,.parrothit-category-card,[data-news-card]','news','news');
+    applyOne('.parrothit-ad-card,.ad-card,.advertisement-card,.advertisement,.ad-slot,[data-ad-slot],[data-ad-card],.sponsored-card,.sponsored-ad,.advertisement-content,.ad-card-content','ads','ads');
   }
   const start=()=>{apply();if(!window.__PARROTHIT_APPEARANCE_HELPER_OBSERVER__){window.__PARROTHIT_APPEARANCE_HELPER_OBSERVER__=new MutationObserver(()=>apply());window.__PARROTHIT_APPEARANCE_HELPER_OBSERVER__.observe(document.body,{childList:true,subtree:true})}};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();

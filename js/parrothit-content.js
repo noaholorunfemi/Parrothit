@@ -474,7 +474,7 @@
     }
     const apply = () => {
       setFor('.news-card,.side-item,.hero-card,.parrothit-managed-card,.category-card,.parrothit-category-card', cfgs.news, 'news');
-      setFor('.parrothit-ad-card,.ad-card,.advertisement-card,.ad-slot,[data-ad-slot]', cfgs.ads, 'ads');
+      setFor('.parrothit-ad-card,.ad-card,.advertisement-card,.advertisement,.ad-slot,[data-ad-slot],[data-ad-card],.sponsored-card,.sponsored-ad,.advertisement-content,.ad-card-content', cfgs.ads, 'ads');
     };
     apply();
     if (!window.__PARROTHIT_CARD_APPEARANCE_OBSERVER__) {

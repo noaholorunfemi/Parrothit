@@ -1,147 +1,34 @@
-/* PARROTHIT Parrots Interaction authentication + community member registry.
-   Public browser keys only. Access to contributions is gated by Supabase Auth. */
-(function () {
+/* PARROTHIT community auth: registration, login, Google OAuth, recovery and profile completion. */
+(() => {
   'use strict';
-  const byId = id => document.getElementById(id);
-  const status = byId('authStatus');
-  const userStatus = byId('communityUserStatus');
-  const logout = byId('communityLogout');
-  const authPanel = byId('communityAuth');
-  const compose = byId('compose');
-  const postEmail = byId('postEmail');
-  const hint = byId('contributionHint');
-  let client = null;
-  let currentUser = null;
-  window.PARROTHIT_COMMUNITY_USER = null;
-  const say = (message, bad = false) => {
-    if (status) { status.textContent = message; status.style.color = bad ? '#b91c1c' : ''; }
-    if (userStatus) userStatus.textContent = currentUser ? `Signed in: ${currentUser.email || 'Community member'}` : 'Not signed in — login required to contribute';
-  };
-  function updateUI(user) {
-    currentUser = user || null;
-    window.PARROTHIT_COMMUNITY_USER = currentUser;
-    if (authPanel) authPanel.classList.toggle('signed-in', !!currentUser);
-    if (logout) logout.classList.toggle('hidden', !currentUser);
-    if (postEmail) {
-      postEmail.value = currentUser?.email || '';
-      postEmail.readOnly = !!currentUser;
-      postEmail.placeholder = currentUser ? 'Signed-in account email' : 'Log in to use your account email';
-    }
-    if (hint) hint.textContent = currentUser
-      ? `Signed in as ${currentUser.email}. You can now post, comment, react, and use the media tools.`
-      : 'All tools remain visible. Register or log in before posting, commenting, reacting, or uploading media.';
-    if (compose) compose.setAttribute('aria-describedby', 'contributionHint');
-    if (authPanel) {
-      const heading = authPanel.querySelector('h2');
-      if (heading) heading.textContent = currentUser ? 'Your Parrot Community account' : 'Join Parrot Community';
-      const intro = authPanel.querySelector('p');
-      if (intro) intro.textContent = currentUser ? 'You are signed in. You can log out at any time and log back in whenever you wish.' : 'Register or sign in before contributing. Use your email address as your community identity.';
-      const form = byId('emailAuthForm');
-      if (form) form.classList.toggle('hidden', !!currentUser);
-      const buttons = authPanel.querySelector('.auth-actions');
-      if (buttons) buttons.classList.toggle('hidden', !!currentUser);
-    }
-    if (user) say('You are signed in and can contribute.');
-    else if (status) say('Register or log in with email to contribute. Your tools remain visible while signed out.');
-  }
-  async function recordMember(user) {
-    if (!client || !user) return;
-    const metadata = user.user_metadata || {};
-    const displayName = metadata.display_name || metadata.full_name || metadata.name || (user.email ? user.email.split('@')[0] : 'Community member');
-    // This table stores a member record and last-seen timestamp. RLS restricts each user to their own row.
-    const { error } = await client.from('community_members').upsert({
-      user_id: user.id,
-      email: user.email || null,
-      display_name: String(displayName).slice(0, 80),
-      last_seen_at: new Date().toISOString()
-    }, { onConflict: 'user_id' });
-    if (error) console.warn('Community member registry could not be updated. Run supabase/community-interaction.sql:', error.message);
-  }
-  async function init() {
-    if (window.getParrothitSupabaseClient) client = window.getParrothitSupabaseClient();
-    if (!client) {
-      updateUI(null);
-      say('Supabase client is not available. Check supabase-config.js and the Supabase script connection.', true);
-      return;
-    }
-    const { data, error } = await client.auth.getSession();
-    if (error) say('Could not check your login session: ' + error.message, true);
-    updateUI(data?.session?.user || null);
-    if (data?.session?.user) await recordMember(data.session.user);
-    client.auth.onAuthStateChange((event, session) => {
-      const user = session?.user || null;
-      updateUI(user);
-      if (user) { setTimeout(() => recordMember(user), 0); say(event === 'SIGNED_IN' ? 'Login successful. You can now contribute.' : 'You are signed in.'); }
-      else if (event === 'SIGNED_OUT') say('You have logged out. You can log in again anytime.');
-    });
-  }
-  // Capture handlers run before the legacy preview handlers, so unauthenticated actions never save locally.
-  document.addEventListener('submit', async event => {
-    if (event.target?.id === 'emailAuthForm') {
-      event.preventDefault(); event.stopImmediatePropagation();
-      if (!client) return say('Supabase is not configured. Check supabase-config.js.', true);
-      const email = byId('authEmail').value.trim();
-      const password = byId('authPassword').value;
-      const remember = byId('communityRememberMe')?.checked !== false;
-      try {
-        if (remember) localStorage.setItem('parrothit-community-remember', 'yes');
-        else localStorage.setItem('parrothit-community-remember', 'no');
-        const { data, error } = await client.auth.signUp({ email, password, options: { data: { display_name: email.split('@')[0] } } });
-        if (error) throw error;
-        if (data.user && data.session) { await recordMember(data.user); updateUI(data.user); say('Registration successful. Your community account is ready.'); }
-        else say('Registration received. Check your email for the confirmation link, then return here to log in.');
-      } catch (error) { say(error.message || 'Registration failed. Please try again.', true); }
-      return;
-    }
-    if (event.target?.id === 'postForm' || event.target?.matches('[data-reply-form]')) {
-      if (!currentUser) {
-        event.preventDefault(); event.stopImmediatePropagation();
-        say('Please register or log in before posting or commenting.', true);
-        byId('emailAuthForm')?.classList.remove('hidden');
-        byId('authEmail')?.focus();
-      }
-    }
-  }, true);
-  document.addEventListener('click', async event => {
-    const contributionControl = event.target.closest('[data-react], [data-report-post], [data-edit-post], [data-delete-post], [data-reply-to]');
-    if (contributionControl && !currentUser) {
-      event.preventDefault(); event.stopImmediatePropagation();
-      say('Please register or log in before reacting, reporting, editing, deleting, or replying.', true);
-      byId('emailAuthForm')?.classList.remove('hidden'); byId('authEmail')?.focus(); return;
-    }
-    if (event.target.closest('#emailLogin')) {
-      event.preventDefault(); event.stopImmediatePropagation();
-      if (!client) return say('Supabase is not configured. Check supabase-config.js.', true);
-      const email = byId('authEmail').value.trim();
-      const password = byId('authPassword').value;
-      if (!email || !password) return say('Enter your email and password first.', true);
-      try {
-        const { data, error } = await client.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        await recordMember(data.user); updateUI(data.user); say('Login successful. You can now contribute.');
-      } catch (error) { say(error.message || 'Login failed. Check your email and password.', true); }
-      return;
-    }
-    if (event.target.closest('#communityLogout')) {
-      event.preventDefault();
-      if (!client) return;
-      const { error } = await client.auth.signOut();
-      if (error) say('Logout failed: ' + error.message, true);
-      else { updateUI(null); say('You have logged out. Log in again whenever you wish.'); }
-      return;
-    }
-    if (event.target.closest('#googleAuth')) {
-      event.preventDefault(); event.stopImmediatePropagation();
-      say('Google login needs the Google provider enabled and configured in Supabase Auth.', true);
-    }
-  }, true);
-  // Attach the signed-in account identity to comments generated by the legacy renderer.
-  document.addEventListener('submit', event => {
-    const form = event.target?.matches('[data-reply-form]') ? event.target : null;
-    if (!form || !currentUser) return;
-    let email = form.querySelector('input[name="email"]');
-    if (!email) { email = document.createElement('input'); email.type = 'hidden'; email.name = 'email'; form.appendChild(email); }
-    email.value = currentUser.email || '';
-  }, false);
-  init();
+  const $=id=>document.getElementById(id);
+  const els={status:$('authStatus'),userStatus:$('communityUserStatus'),logout:$('communityLogout'),panel:$('communityAuth'),authForm:$('emailAuthForm'),profileForm:$('communityProfileForm'),postEmail:$('postEmail'),hint:$('contributionHint')};
+  const USERNAME=/^[a-zA-Z0-9_]{3,24}$/;
+  let client=null,currentUser=null,currentProfile=null,profileComplete=false,mode='register',busy=false;
+  window.PARROTHIT_COMMUNITY_USER=null;
+  function say(message,error=false){if(!els.status)return;els.status.textContent=message;els.status.style.color=error?'#b91c1c':'';}
+  const hide=(el,value)=>{if(el)el.classList.toggle('hidden',!!value)};
+  const verified=user=>!!user&&(!!(user.email_confirmed_at||user.confirmed_at)||(user.app_metadata||{}).provider==='google');
+  const canContribute=()=>!!currentUser&&verified(currentUser)&&profileComplete;
+  function setMode(next){mode=next==='login'?'login':'register';const reg=mode==='register';hide($('registrationFields'),!reg);['authDisplayName','authUsername','authConfirmPassword','communityRulesAccepted'].forEach(id=>{const el=$(id);if(el)el.required=reg});hide($('confirmPasswordLabel'),!reg);hide($('communityRulesLabel'),!reg);hide($('authConfirmPassword'),!reg);if(!reg&&$('authConfirmPassword'))$('authConfirmPassword').value='';if($('authPassword'))$('authPassword').autocomplete=reg?'new-password':'current-password';hide($('emailRegister'),!reg);hide($('emailLogin'),reg);}
+  async function readProfile(user){if(!client||!user)return null;const {data,error}=await client.from('community_members').select('username,display_name,rules_accepted_at').eq('user_id',user.id).maybeSingle();if(error){console.warn('Community profile read failed. Run supabase/community-interaction.sql and check RLS:',error.message);return null}return data||null}
+  async function upsertMember(user,{displayName,username,rulesAccepted=false}={}){const m=user.user_metadata||{};const name=String(displayName||m.display_name||m.full_name||m.name||(user.email||'Community member').split('@')[0]).trim().slice(0,80)||'Community member';const handle=String(username||m.username||'').trim().toLowerCase();const payload={user_id:user.id,email:user.email||null,display_name:name,last_seen_at:new Date().toISOString()};if(USERNAME.test(handle))payload.username=handle;if(rulesAccepted)payload.rules_accepted_at=new Date().toISOString();const {error}=await client.from('community_members').upsert(payload,{onConflict:'user_id'});if(error)throw error}
+  async function refreshUI(user){currentUser=user||null;currentProfile=null;profileComplete=false;window.PARROTHIT_COMMUNITY_USER=currentUser;const signed=!!currentUser,verifiedUser=verified(currentUser);hide(els.logout,!signed);hide(els.authForm,signed);hide(els.panel?.querySelector('.auth-actions'),signed);hide(els.profileForm,true);if(els.postEmail){els.postEmail.value=currentUser?.email||'';els.postEmail.readOnly=signed;els.postEmail.placeholder=signed?'Signed-in account email':'Log in to use your account email'}
+    if(signed&&verifiedUser){currentProfile=await readProfile(currentUser);profileComplete=!!(currentProfile?.username&&USERNAME.test(currentProfile.username)&&currentProfile.rules_accepted_at);if(!profileComplete&&els.profileForm){hide(els.profileForm,false);$('profileDisplayName').value=currentProfile?.display_name||currentUser.user_metadata?.display_name||currentUser.user_metadata?.full_name||currentUser.user_metadata?.name||'';$('profileUsername').value=currentProfile?.username||currentUser.user_metadata?.username||'';$('profileRulesAccepted').checked=!!currentProfile?.rules_accepted_at}}
+    if(els.panel){const h=els.panel.querySelector('h2');if(h)h.textContent=signed?'Your Parrot Community account':'Join Parrot Community';const intro=els.panel.querySelector(':scope > p');if(intro)intro.textContent=!signed?'Register with email or continue with Google. A verified account and completed profile are required to contribute.':!verifiedUser?'Your email is not verified yet. Check your inbox, verify your email, then sign in again.':profileComplete?'You are signed in. You can now contribute to the community.':'Complete your display name, unique username and community rules acceptance before contributing.'}
+    if(els.userStatus)els.userStatus.textContent=!signed?'Guest mode · sign in to contribute':!verifiedUser?'Email verification required':profileComplete?'@'+currentProfile.username:'Complete your community profile';
+    if(els.hint)els.hint.textContent=!signed?'Guests can read public content. Register or log in before contributing.':!verifiedUser?'Please verify your email before posting, commenting, reacting, reporting or uploading media.':profileComplete?'Signed in as '+(currentProfile.display_name||currentUser.email||'Community member')+'. You can contribute.':'Complete your display name, unique username and community rules acceptance before contributing.';
+    if(!signed)say('Register or log in to contribute. Guests may browse public content.');else if(!verifiedUser)say('Email verification is required before contributing. Check your inbox.',true);else if(!profileComplete)say('Please complete your community profile.');else say('You are signed in and can contribute.');}
+  function requireAccess(){if(canContribute())return true;if(!currentUser){hide(els.authForm,false);setMode('login');say('Please register or log in before contributing.',true);$('authEmail')?.focus()}else if(!verified(currentUser))say('Please verify your email before contributing. Check your inbox.',true);else{hide(els.profileForm,false);say('Complete your community profile before contributing.',true);$('profileDisplayName')?.focus()}return false}
+  function busyState(value){busy=!!value;document.querySelectorAll('#emailAuthForm button,#communityProfileForm button,#googleAuth,#forgotCommunityPassword').forEach(b=>{b.disabled=busy})}
+  async function login(){if(!client)return say('Supabase is not configured. Check supabase-config.js.',true);const email=$('authEmail')?.value.trim()||'',password=$('authPassword')?.value||'';if(!email||!password)return say('Enter your email address and password first.',true);if(busy)return;busyState(true);try{const {data,error}=await client.auth.signInWithPassword({email,password});if(error)throw error;if(!verified(data.user)){await client.auth.signOut();await refreshUI(null);return say('Please verify your email using the link we sent before signing in.',true)}await refreshUI(data.user);say(profileComplete?'Login successful.':'Login successful. Complete your community profile to continue.')}catch(e){say(e.message||'Login failed. Check your email and password.',true)}finally{busyState(false)}}
+  async function register(){if(!client)return say('Supabase is not configured. Check supabase-config.js.',true);const email=$('authEmail')?.value.trim()||'',password=$('authPassword')?.value||'',name=$('authDisplayName')?.value.trim()||'',username=($('authUsername')?.value||'').trim().toLowerCase();if(!name)return say('Enter your display name.',true);if(!USERNAME.test(username))return say('Username must be 3–24 characters using letters, numbers or underscore.',true);if(!email)return say('Enter a valid email address.',true);if(password.length<8)return say('Use a password with at least 8 characters.',true);if(password!==($('authConfirmPassword')?.value||''))return say('Passwords do not match.',true);if(!$('communityRulesAccepted')?.checked)return say('Accept the community rules before registering.',true);if(busy)return;busyState(true);try{const check=await client.rpc('parrothit_username_available',{candidate:username});if(check.error)throw new Error('Username validation is not ready. Run supabase/community-interaction.sql. '+check.error.message);if(check.data!==true)return say('That username is unavailable or invalid. Choose another.',true);const {data,error}=await client.auth.signUp({email,password,options:{data:{display_name:name,username,rules_accepted:true},emailRedirectTo:new URL('interaction.html',location.href).href}});if(error)throw error;if(data.user&&data.session){try{await upsertMember(data.user,{displayName:name,username,rulesAccepted:true})}catch(e){console.warn('Account created, but community profile update failed:',e.message)}await refreshUI(data.user);say(verified(data.user)?'Registration successful.':'Account created. Verify your email before contributing.')}else say('Registration received. Check your email for the confirmation link. Verify your email, then sign in.')}catch(e){say(e.message||'Registration failed. Please try again.',true)}finally{busyState(false)}}
+  async function saveProfile(){if(!client||!currentUser||!verified(currentUser))return say('Sign in with a verified account first.',true);const name=$('profileDisplayName')?.value.trim()||'',username=($('profileUsername')?.value||'').trim().toLowerCase();if(!name)return say('Enter your display name.',true);if(!USERNAME.test(username))return say('Username must be 3–24 characters using letters, numbers or underscore.',true);if(!$('profileRulesAccepted')?.checked)return say('Accept the community rules before continuing.',true);if(busy)return;busyState(true);try{const existing=await client.from('community_members').select('username').eq('user_id',currentUser.id).maybeSingle();if(existing.error)throw existing.error;const check=await client.rpc('parrothit_username_available',{candidate:username});if(check.error)throw check.error;const own=String(existing.data?.username||'').toLowerCase()===username;if(check.data!==true&&!own)return say('That username is already taken. Choose another.',true);const now=new Date().toISOString();const {error}=await client.from('community_members').upsert({user_id:currentUser.id,email:currentUser.email||null,display_name:name,username,rules_accepted_at:now,last_seen_at:now},{onConflict:'user_id'});if(error)throw error;const metadata=await client.auth.updateUser({data:{display_name:name,username,rules_accepted:true}});if(metadata.error)console.warn('Profile saved but auth metadata update failed:',metadata.error.message);await refreshUI(currentUser);say('Community profile saved. You can now contribute.')}catch(e){say(e.message||'Could not save your community profile.',true)}finally{busyState(false)}}
+  async function resetPassword(){if(!client)return say('Supabase is not configured. Check supabase-config.js.',true);const email=$('authEmail')?.value.trim()||'';if(!email)return say('Enter your email address first, then choose Forgot password.',true);try{const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:new URL('community-reset-password.html',location.href).href});if(error)throw error;say('If this email belongs to an account, a password recovery link has been sent. Check your inbox.')}catch(e){say(e.message||'Could not send the recovery email.',true)}}
+  async function googleSignIn(){if(!client)return say('Supabase is not configured. Check supabase-config.js.',true);try{const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:new URL('interaction.html',location.href).href,queryParams:{prompt:'select_account'}}});if(error)throw error}catch(e){say(e.message||'Google sign-in could not start. Check Supabase Google provider configuration.',true)}}
+  async function init(){client=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();if(!client){await refreshUI(null);say('Supabase client unavailable. Check supabase-config.js and the Supabase script connection.',true);return}try{const {data,error}=await client.auth.getSession();if(error)throw error;await refreshUI(data?.session?.user||null)}catch(e){say('Could not check your sign-in session: '+(e.message||'Unknown error.'),true);await refreshUI(null)}client.auth.onAuthStateChange((event,session)=>{setTimeout(()=>refreshUI(session?.user||null).catch(e=>console.warn('Community UI refresh failed:',e)),0);if(event==='SIGNED_OUT')say('You have logged out.')})}
+  document.addEventListener('submit',async event=>{const form=event.target;if(form?.id==='emailAuthForm'){event.preventDefault();event.stopImmediatePropagation();if(mode==='register')await register();else await login();return}if(form?.id==='communityProfileForm'){event.preventDefault();event.stopImmediatePropagation();await saveProfile();return}if(form?.id==='postForm'||form?.matches?.('[data-reply-form]')){if(!requireAccess()){event.preventDefault();event.stopImmediatePropagation()}}},true);
+  document.addEventListener('click',async event=>{const target=event.target;if(!(target instanceof Element))return;if(target.closest('#showEmailAuth')){event.preventDefault();if(currentUser)return;const opening=!!els.authForm?.classList.contains('hidden');hide(els.authForm,!opening);if(opening)setMode('register');return}if(target.closest('#emailLogin')){event.preventDefault();setMode('login');await login();return}if(target.closest('#emailRegister')){setMode('register');return}if(target.closest('#forgotCommunityPassword')){event.preventDefault();await resetPassword();return}if(target.closest('#communityLogout')){event.preventDefault();if(!client)return;const {error}=await client.auth.signOut();if(error)say('Logout failed: '+error.message,true);else await refreshUI(null);return}if(target.closest('#googleAuth')){event.preventDefault();await googleSignIn();return}const contribution=target.closest('[data-react],[data-report-post],[data-edit-post],[data-delete-post],[data-reply-to]');if(contribution&&!requireAccess()){event.preventDefault();event.stopImmediatePropagation()}},true);
+  document.addEventListener('submit',event=>{const form=event.target?.matches?.('[data-reply-form]')?event.target:null;if(!form||!currentUser||!canContribute())return;let email=form.querySelector('input[name="email"]');if(!email){email=document.createElement('input');email.type='hidden';email.name='email';form.appendChild(email)}email.value=currentUser.email||''},false);
+  setMode('register');init();
 })();
