@@ -7,24 +7,35 @@
   const EMOJIS = [ ['👍','Like'], ['❤️','Love'], ['😂','Funny'], ['😮','Surprised'], ['😢','Sad'] ];
   const css = document.createElement('style');
   css.textContent = `
-    .parrothit-card-engagement{clear:both;margin:12px 0 0;padding-top:10px;border-top:1px solid #e2e8e4;color:#24352a;font:14px/1.4 system-ui,sans-serif}
-    .parrothit-reaction-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid #d3e4d8;background:#f7fcf8;color:#126b3a;border-radius:20px;padding:7px 11px;font-weight:800;cursor:pointer}
-    .parrothit-reaction-bucket{display:flex;flex-wrap:wrap;gap:7px;padding:9px 0 4px}
+    .parrothit-card-engagement{clear:both;margin:12px 0 0;padding-top:10px;border-top:1px solid #e2e8e4;color:#24352a;font:14px/1.4 system-ui,sans-serif;display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:auto;width:100%;box-sizing:border-box}
+    .news-card,.hero-card,.side-item,.category-card,article.news-card,article.story-card,[data-news-card='true']{min-width:0}
+    .parrothit-card-engagement .parrothit-reaction-toggle,.parrothit-card-engagement .parrothit-share-button{flex:0 0 auto;min-height:30px;padding:5px 9px;border:1px solid #b3131b;background:#d71920;color:#fff;border-radius:7px;font-size:11px;line-height:1.15;font-weight:800}
+    .parrothit-card-engagement .parrothit-share-row{margin:0;display:flex;align-items:center;justify-content:flex-start}
+    .parrothit-card-engagement .parrothit-share-status{width:100%;text-align:left}
+    article.news-card,.news-grid .news-card,article.story-card,.category-card,[data-news-card='true']{display:flex;flex-direction:column}
+    article.news-card .news-body,.news-grid .news-card .news-body{flex:1 1 auto}
+    .parrothit-reaction-toggle{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #b3131b;background:#d71920;color:#fff;border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.2;min-height:32px;font-weight:800;cursor:pointer;white-space:nowrap}
+    .parrothit-reaction-bucket{display:flex;flex-wrap:wrap;gap:7px;padding:9px 0 4px;flex:0 0 100%;order:3}
     .parrothit-reaction-bucket[hidden]{display:none!important}
     .parrothit-reaction{display:inline-flex;align-items:center;gap:5px;border:1px solid #dce6df;border-radius:18px;padding:6px 9px;background:#fff;color:#17251b;cursor:pointer;min-height:34px;transition:transform .18s ease,box-shadow .18s ease}
     .parrothit-reaction:hover{transform:translateY(-2px);box-shadow:0 4px 10px #126b3a18}
     .parrothit-reaction span:first-child{display:inline-block;transform-origin:50% 80%;animation:parrothitEmojiIdle 2.6s ease-in-out infinite}
     .parrothit-reaction:nth-child(2) span:first-child{animation-delay:.22s}.parrothit-reaction:nth-child(3) span:first-child{animation-delay:.44s}.parrothit-reaction:nth-child(4) span:first-child{animation-delay:.66s}.parrothit-reaction:nth-child(5) span:first-child{animation-delay:.88s}
     .parrothit-reaction[aria-pressed=true]{background:#e2f7e8;border-color:#16803d;box-shadow:0 0 0 1px #16803d inset}
+    .parrothit-reaction-toggle[aria-expanded=true]{background:#a90f17}
+    .parrothit-reaction:focus-visible,.parrothit-reaction-toggle:focus-visible,.parrothit-share-button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
     .parrothit-reaction.is-reacting span:first-child{display:inline-block;animation:parrothitEmojiPop .48s cubic-bezier(.2,.8,.2,1)}
     @keyframes parrothitEmojiIdle{0%,100%{transform:translateY(0) rotate(0) scale(1)}25%{transform:translateY(-3px) rotate(-5deg) scale(1.08)}50%{transform:translateY(0) rotate(0) scale(1)}75%{transform:translateY(-2px) rotate(5deg) scale(1.04)}}
     @keyframes parrothitEmojiPop{0%{transform:scale(1) rotate(0)}35%{transform:scale(1.65) rotate(-14deg)}70%{transform:scale(.84) rotate(9deg)}100%{transform:scale(1) rotate(0)}}
     .parrothit-reaction.is-reacting span:first-child{animation:parrothitEmojiPop .52s cubic-bezier(.2,.8,.2,1)!important}
     @media(prefers-reduced-motion:reduce){.parrothit-reaction span:first-child,.parrothit-reaction.is-reacting span:first-child{animation:none!important}.parrothit-reaction{transition:none}}
     .parrothit-reaction-count{font-size:12px;font-weight:800}
-    .parrothit-share-row{display:flex;justify-content:flex-end;align-items:center;margin-top:8px}
-    .parrothit-share-button{display:inline-flex;align-items:center;gap:7px;border:0;border-radius:8px;padding:8px 12px;background:#126b3a;color:#fff;font-weight:800;cursor:pointer}
-    .parrothit-share-status{font-size:12px;color:#526357;margin:4px 0 0;text-align:right}
+    .parrothit-share-row{display:flex;justify-content:flex-end;align-items:center;margin:0 0 0 auto}
+    .parrothit-share-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid #b3131b;border-radius:8px;padding:6px 10px;min-height:32px;background:#d71920;color:#fff;font-size:12px;line-height:1.2;font-weight:800;cursor:pointer;white-space:nowrap}
+    .parrothit-share-status{flex:0 0 100%;font-size:11px;color:#526357;margin:0;text-align:right;order:4}
+    .parrothit-card-engagement .parrothit-reaction-toggle{order:1}
+    .parrothit-card-engagement .parrothit-share-row{order:2}
+    @media(max-width:480px){.parrothit-reaction-toggle,.parrothit-share-button{padding:6px 8px;font-size:11px}.parrothit-card-engagement{gap:6px}}
     .parrothit-card-engagement button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
   `;
   document.head.appendChild(css);

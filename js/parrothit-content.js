@@ -213,10 +213,17 @@
     const section = document.createElement('section'); section.className = 'parrothit-managed-stories parrothit-admin-feature-cards';
     const heading = document.createElement('h2'); heading.textContent = 'Featured News';
     const grid = document.createElement('div'); grid.className = 'news-grid parrothit-managed-grid';
+    const featureDestinations = {
+      1:'nigeria.html', 2:'world.html', 3:'politics.html', 4:'entertainment.html',
+      5:'sports.html', 6:'business.html', 7:'technology.html', 8:'education.html',
+      9:'health.html', 10:'religion.html', 11:'culture.html', 12:'wildlife.html',
+      13:'celebrity-news.html', 14:'football.html', 15:'nollywood.html', 16:'nigerian-celebrity.html'
+    };
     list.forEach(item => {
       const card = document.createElement('article'); card.className = 'news-card parrothit-managed-card';
-      const raw = item.targetUrl || item.url || item.link || 'article.html';
-      const href = cleanHref(raw) || 'article.html';
+      const slotNo = Number(item.card) || 0;
+      const raw = item.targetUrl || item.url || item.link || featureDestinations[slotNo] || 'article.html';
+      const href = cleanHref(raw) || featureDestinations[slotNo] || 'article.html';
       const imgRef = item.imageData || item.imageUrl || item.image || '';
       if (imgRef) { const imageWrap = document.createElement('div'); imageWrap.className='managed-story-image';
         const img = document.createElement('img'); img.alt=item.headline || 'Featured news'; img.loading='lazy';
@@ -430,24 +437,50 @@
   }
 
   function applyNewsAdsAppearance(settings) {
-    const cfg = settings && typeof settings === 'object' ? settings : {};
-    const bg = /^#[0-9a-f]{6}$/i.test(cfg.background || '') ? cfg.background : '';
-    const fg = /^#[0-9a-f]{6}$/i.test(cfg.text || '') ? cfg.text : '';
-    const border = /^#[0-9a-f]{6}$/i.test(cfg.border || '') ? cfg.border : '';
-    const animation = ['none','bounce','shake'].includes(cfg.animation) ? cfg.animation : 'none';
-    const speed = Math.max(1, Math.min(6, Number(cfg.speed) || 2));
-    const apply = () => document.querySelectorAll('.news-card,.side-item,.parrothit-ad-card,.ad-card,.advertisement-card,.parrothit-managed-card').forEach(card => {
-      if (bg) card.style.setProperty('background-color', bg, 'important');
-      if (fg) card.style.setProperty('color', fg, 'important');
-      if (border) card.style.setProperty('border-color', border, 'important');
-      if (animation === 'none') { card.classList.remove('parrothit-card-bounce','parrothit-card-shake'); }
-      else { card.classList.remove('parrothit-card-bounce','parrothit-card-shake'); card.classList.add(animation === 'bounce' ? 'parrothit-card-bounce' : 'parrothit-card-shake'); card.style.setProperty('--parrothit-card-animation-duration', speed + 's'); }
-      if (fg) card.querySelectorAll('h1,h2,h3,h4,p,span,strong,a,small,.meta,.category').forEach(el => { if (!el.closest('.ad-action-button')) el.style.setProperty('color', fg, 'important'); });
-    });
-    if (!document.getElementById('parrothit-news-ads-appearance-style')) { const st=document.createElement('style'); st.id='parrothit-news-ads-appearance-style'; st.textContent='@keyframes parrothit-card-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes parrothit-card-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}.parrothit-card-bounce{animation:parrothit-card-bounce var(--parrothit-card-animation-duration,2s) ease-in-out infinite}.parrothit-card-shake{animation:parrothit-card-shake var(--parrothit-card-animation-duration,2s) ease-in-out infinite}@media(prefers-reduced-motion:reduce){.parrothit-card-bounce,.parrothit-card-shake{animation:none!important}}'; document.head.appendChild(st); }
+    const root = settings && typeof settings === 'object' ? settings : {};
+    const legacy = ['background','text','border','animation','speed'].some(k => root[k] !== undefined) ? root : {};
+    const defaults = {
+      news: { background:'#ffffff', text:'#172033', border:'#e5e7eb', animation:'none', speed:2 },
+      ads:  { background:'#fff7ed', text:'#7c2d12', border:'#fed7aa', animation:'none', speed:2 }
+    };
+    const cfgs = {
+      news: { ...defaults.news, ...(root.news || (!root.news && !root.ads ? legacy : {})) },
+      ads:  { ...defaults.ads,  ...(root.ads  || (!root.news && !root.ads ? legacy : {})) }
+    };
+    const valid = v => /^#[0-9a-f]{6}$/i.test(v || '');
+    const setFor = (selector, cfg, key) => {
+      const bg = valid(cfg.background) ? cfg.background : '';
+      const fg = valid(cfg.text) ? cfg.text : '';
+      const border = valid(cfg.border) ? cfg.border : '';
+      const animation = ['none','bounce','shake'].includes(cfg.animation) ? cfg.animation : 'none';
+      const speed = Math.max(1, Math.min(6, Number(cfg.speed) || 2));
+      document.querySelectorAll(selector).forEach(card => {
+        if (bg) card.style.setProperty('background-color', bg, 'important');
+        if (fg) card.style.setProperty('color', fg, 'important');
+        if (border) card.style.setProperty('border-color', border, 'important');
+        card.classList.remove('parrothit-card-bounce','parrothit-card-shake');
+        if (animation !== 'none') card.classList.add(animation === 'bounce' ? 'parrothit-card-bounce' : 'parrothit-card-shake');
+        card.style.setProperty('--parrothit-card-animation-duration', speed + 's');
+        if (fg) card.querySelectorAll('h1,h2,h3,h4,p,span,strong,a,small,.meta,.category').forEach(el => {
+          if (!el.closest('.ad-action-button')) el.style.setProperty('color', fg, 'important');
+        });
+        card.dataset.parrothitAppearanceType = key;
+      });
+    };
+    if (!document.getElementById('parrothit-news-ads-appearance-style')) {
+      const st=document.createElement('style'); st.id='parrothit-news-ads-appearance-style';
+      st.textContent='@keyframes parrothit-card-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}@keyframes parrothit-card-shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}.parrothit-card-bounce{animation:parrothit-card-bounce var(--parrothit-card-animation-duration,2s) ease-in-out infinite}.parrothit-card-shake{animation:parrothit-card-shake var(--parrothit-card-animation-duration,2s) ease-in-out infinite}@media(prefers-reduced-motion:reduce){.parrothit-card-bounce,.parrothit-card-shake{animation:none!important}}';
+      document.head.appendChild(st);
+    }
+    const apply = () => {
+      setFor('.news-card,.side-item,.hero-card,.parrothit-managed-card,.category-card,.parrothit-category-card', cfgs.news, 'news');
+      setFor('.parrothit-ad-card,.ad-card,.advertisement-card,.ad-slot,[data-ad-slot]', cfgs.ads, 'ads');
+    };
     apply();
-    // Cards can be inserted after cloud content loads; apply the same appearance to later cards.
-    if (!window.__PARROTHIT_CARD_APPEARANCE_OBSERVER__) { window.__PARROTHIT_CARD_APPEARANCE_OBSERVER__ = new MutationObserver(() => apply()); window.__PARROTHIT_CARD_APPEARANCE_OBSERVER__.observe(document.body,{childList:true,subtree:true}); }
+    if (!window.__PARROTHIT_CARD_APPEARANCE_OBSERVER__) {
+      window.__PARROTHIT_CARD_APPEARANCE_OBSERVER__ = new MutationObserver(() => apply());
+      window.__PARROTHIT_CARD_APPEARANCE_OBSERVER__.observe(document.body,{childList:true,subtree:true});
+    }
   }
   async function init() {
     addStyles(); const localState = readLocalState(); const cloud = await loadSupabase();

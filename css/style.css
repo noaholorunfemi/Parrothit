@@ -209,3 +209,20 @@ html{scroll-behavior:smooth;scroll-padding-top:1rem}
 @keyframes featuredTitleReveal{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 @keyframes featuredBadgeReveal{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:700px){.slider-track .slide,.slider-track .slide.active{min-height:240px}}
+
+
+/* PARROTHIT Control Room desktop responsiveness: keep navigation and content in separate columns. */
+.admin-shell,.admin-shell *{box-sizing:border-box}
+.admin-shell{width:min(1440px,100%);max-width:1440px;margin-inline:auto;min-width:0}
+.admin-grid{display:grid;grid-template-columns:minmax(190px,240px) minmax(0,1fr);align-items:start;gap:20px;min-width:0}
+.admin-menu{min-width:0;overflow-wrap:anywhere}
+.admin-panel{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.admin-panel img,.admin-panel video,.admin-panel iframe{max-width:100%}
+.admin-panel input,.admin-panel select,.admin-panel textarea{max-width:100%;box-sizing:border-box}
+.admin-panel table{max-width:100%}
+.admin-table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
+.admin-table{min-width:620px}
+.admin-header>*{min-width:0}
+@media(min-width:1200px){.admin-shell{padding-inline:28px}.admin-grid{grid-template-columns:minmax(210px,250px) minmax(0,1fr);gap:24px}}
+@media(min-width:701px) and (max-width:1000px){.admin-shell{padding-inline:18px}.admin-grid{grid-template-columns:minmax(175px,205px) minmax(0,1fr);gap:12px}.admin-menu,.admin-panel{padding:13px}}
+@media(max-width:700px){.admin-grid{grid-template-columns:minmax(0,1fr)}.admin-menu{position:static}.admin-panel{width:100%;overflow-wrap:anywhere}.admin-stat-row{grid-template-columns:minmax(0,1fr)}}
