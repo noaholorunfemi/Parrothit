@@ -89,3 +89,6 @@ CARD DESTINATIONS AND APPEARANCE (OCTOBER 2026)
 - Featured Story Cards 01–16 have default destinations listed on admin/news-card-controls.html. Each card editor lets an administrator select a custom URL.
 - Every individual ad editor includes an Ad disclosure selector: Advertisement or Sponsored.
 - For public visitors to receive shared card-color settings, run supabase/card-appearance-public-policy.sql in the Supabase SQL Editor. It only adjusts the public display-setting SELECT policy; it does not allow public writes.
+
+LIVE STREAM SETTINGS UPDATE
+Run supabase/live-streams-public-policy.sql in the Supabase SQL Editor to allow visitors to read the public sports_streams setting. Each slot is controlled independently from admin/live-stream-controls.html.
