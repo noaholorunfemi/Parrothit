@@ -4,7 +4,7 @@
 (() => {
   'use strict';
   const STATE_KEY = 'parrothit_control_room_v2';
-  const SITE_KEYS = ['homepage_slides', 'home_video', 'category_images', 'ads', 'moving_text', 'home_tickler', 'news_cards', 'advertisement_cards', 'category_cards', 'scroll_effects', 'news_ads_appearance'];
+  const SITE_KEYS = ['homepage_slides', 'home_video', 'category_images', 'ads', 'moving_text', 'home_tickler', 'news_cards', 'advertisement_cards', 'category_cards', 'scroll_effects', 'news_ads_appearance', 'sports_streams'];
   const $ = (sel, root = document) => root.querySelector(sel);
   const escHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   // Safe destination handling: external http(s) URLs are allowed; local links must
@@ -14,6 +14,9 @@
     if (!v) return '';
     try {
       const u = new URL(v, location.href);
+      if (u.protocol === 'file:' && location.protocol === 'file:') {
+        return /\.html?$/i.test(u.pathname) || u.pathname.endsWith('/') ? u.href : '';
+      }
       if (!['http:', 'https:'].includes(u.protocol)) return '';
       if (u.origin !== location.origin) return u.href;
       // Netlify/Linux paths are case-sensitive. Normalize known local article routes
@@ -76,7 +79,8 @@
   async function resolveImage(ref) {
     const value = String(ref || '').trim();
     if (value.startsWith('idb:') && window.PARROTHITMediaStore) return await window.PARROTHITMediaStore.resolve(value);
-    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:image/')) return value;
+    if (value.startsWith('data:image/')) return value;
+    try { const u = new URL(value, location.href); if (['http:', 'https:'].includes(u.protocol) || (u.protocol === 'file:' && location.protocol === 'file:')) return u.href; } catch (_) {}
     return '';
   }
   async function displayCategoryImage(localState, cloud) {
@@ -151,6 +155,7 @@
     for (let i = 1; i <= Math.min(6, cards.length); i++) {
       const rec = records[i]; if (!rec || rec.enabled === false || !(rec.title || rec.text || rec.image || rec.imageUrl)) continue;
       const card = cards[i - 1]; if (!card) continue;
+      card.hidden = false; card.removeAttribute('data-unpublished-template');
       card.replaceChildren();
       const rawTarget = String(rec.targetUrl || ('article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + i))).trim();
       const href = cleanHref(rawTarget) || ('article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + i));
@@ -181,12 +186,14 @@
     const category = match[1], number = Number(match[2]);
     let records = {};
     try { records = JSON.parse(localStorage.getItem('parrothit-category-cards-v1-' + category) || '{}') || {}; } catch (_) {}
+    const sharedCategory = cloudCards && cloudCards[category];
+    if (sharedCategory && typeof sharedCategory === 'object') records = { ...records, ...sharedCategory };
     const rec = records[number];
     const main = $('main'); if (!main) return false;
     const article = document.createElement('article'); article.className = 'parrothit-managed-article';
     if (!rec || rec.enabled === false || !(rec.title || rec.text || rec.image || rec.imageUrl)) {
       const h = document.createElement('h1'); h.textContent = 'News story not available yet';
-      const note = document.createElement('p'); note.textContent = 'This card is a sample placeholder and has not been configured with a published story yet.';
+      const note = document.createElement('p'); note.textContent = 'This story has not been published yet. Return to the category page to browse available coverage.';
       const back = document.createElement('a'); back.href = category + '.html'; back.textContent = 'Return to ' + category.replace(/-/g, ' ') + ' news';
       article.append(h, note, back); main.replaceChildren(article); document.title = 'Story not available | PARROTHIT'; return true;
     }
@@ -252,13 +259,15 @@
       let current = Math.max(0, nodes.findIndex(n => n.classList.contains('active'))); const dots = $('#sliderDots');
       const show = index => { current = (index + nodes.length) % nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active',i===current)); if(dots){dots.replaceChildren();nodes.forEach((_,i)=>{const b=document.createElement('button');b.type='button';b.className='slider-dot'+(i===current?' active':'');b.setAttribute('aria-label','Show slide '+(i+1));b.onclick=()=>show(i);dots.appendChild(b);});}};
       show(current); $('#prevSlide') && ($('#prevSlide').onclick=()=>show(current-1)); $('#nextSlide') && ($('#nextSlide').onclick=()=>show(current+1));
-      const delay=Math.max(2,Math.min(30,Number(interval)||4))*1000; let timer=setInterval(()=>show(current+1),delay);
+      const delay=Math.max(2,Math.min(30,Number(interval)||4))*1000; if(window.__PARROTHIT_HOME_SLIDER_TIMER)clearInterval(window.__PARROTHIT_HOME_SLIDER_TIMER); let timer=setInterval(()=>show(current+1),delay); window.__PARROTHIT_HOME_SLIDER_TIMER=timer;
       document.addEventListener('visibilitychange',()=>{clearInterval(timer);if(!document.hidden)timer=setInterval(()=>show(current+1),delay);});
       return;
     }
     track.innerHTML = '';
-    for (const slide of visible) {
-      const image = await resolveImage(slide.image);
+    const resolvedImages = await Promise.all(visible.map(slide => resolveImage(slide.image)));
+    for (let slideIndex = 0; slideIndex < visible.length; slideIndex++) {
+      const slide = visible[slideIndex];
+      const image = resolvedImages[slideIndex];
       const a = document.createElement('a'); a.className = 'slide';
       a.href = cleanHref(slide.url || 'article.html') || 'article.html';
       a.setAttribute('aria-label', slide.title || 'Featured story');
@@ -275,7 +284,8 @@
     show(0);
     $('#prevSlide') && ($('#prevSlide').onclick = () => show(current - 1));
     $('#nextSlide') && ($('#nextSlide').onclick = () => show(current + 1));
-    let timer = setInterval(() => show(current + 1), Math.max(2, Math.min(30, Number(interval) || 4)) * 1000);
+    if(window.__PARROTHIT_HOME_SLIDER_TIMER)clearInterval(window.__PARROTHIT_HOME_SLIDER_TIMER);
+    let timer = setInterval(() => show(current + 1), Math.max(2, Math.min(30, Number(interval) || 4)) * 1000); window.__PARROTHIT_HOME_SLIDER_TIMER=timer;
     document.addEventListener('visibilitychange', () => { if (document.hidden) clearInterval(timer); else timer = setInterval(() => show(current + 1), Math.max(2, Math.min(30, Number(interval) || 4)) * 1000); });
   }
   function displayHomeVideo(homeVideo) {
@@ -301,7 +311,7 @@
     const summary = document.createElement('p'); summary.className = 'article-summary'; summary.textContent = post.summary || '';
     if (post.image) { const img = document.createElement('img'); img.className = 'managed-article-image'; img.alt = post.title || 'Story image'; img.setAttribute('data-media-src', post.image); wrap.appendChild(img); }
     const text = document.createElement('div'); text.className = 'managed-article-body'; text.textContent = post.body || post.summary || ''; text.style.whiteSpace = 'pre-wrap';
-    wrap.prepend(cat, h, summary); wrap.appendChild(text); main.replaceChildren(wrap); document.title = (post.title || 'News') + ' | PARROTHIT';
+    wrap.prepend(cat, h, summary); wrap.appendChild(text); main.replaceChildren(wrap); const interactionPanel=document.querySelector('.visitor-interactions'); if(interactionPanel) interactionPanel.hidden=false; document.title = (post.title || 'News') + ' | PARROTHIT';
   }
   function applyExistingImageRefs() {
     document.querySelectorAll('img[src^="idb:"]').forEach(img => { const ref = img.getAttribute('src'); img.setAttribute('data-media-src', ref); img.removeAttribute('src'); });
@@ -483,15 +493,19 @@
     }
   }
   async function init() {
-    addStyles(); const localState = readLocalState(); const cloud = await loadSupabase();
+    addStyles(); const localState = readLocalState();
+    const sliderInterval = localState.settings && localState.settings.slideInterval || 4;
+    const initialSlider = replaceSlider(localState.slides && localState.slides.length ? localState.slides : [], sliderInterval);
+    const cloud = await loadSupabase();
     let appearance = cloud.settings.news_ads_appearance || {}; try { appearance = {...(JSON.parse(localStorage.getItem('parrothit-news-ads-appearance') || '{}')), ...appearance}; } catch (_) {} applyNewsAdsAppearance(appearance);
     if ((location.pathname.split('/').pop() || '').toLowerCase() === 'category.html') { const raw = new URLSearchParams(location.search).get('category') || 'Category'; const heading = document.getElementById('dynamicCategoryHeading'); if (heading) heading.textContent = raw.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) + ' News'; }
     const nav = document.querySelector('.nav-inner'); if (nav && Array.isArray(cloud.categories)) cloud.categories.forEach(c => { const slug = String(c.slug || '').trim(); if (!slug || nav.querySelector('[data-db-category="' + CSS.escape(slug) + '"]')) return; const a = document.createElement('a'); a.dataset.dbCategory = slug; a.href = 'category.html?category=' + encodeURIComponent(slug); a.textContent = c.name || slug; nav.appendChild(a); });
     applyManagedAds(cloud.settings.advertisement_cards || cloud.settings.ads);
     // Convert any old malformed references that put the data URI into text or an image src.
     applyExistingImageRefs();
-    const slides = (localState.slides && localState.slides.length) ? localState.slides : (cloud.settings.homepage_slides || []);
-    await replaceSlider(slides, localState.settings && localState.settings.slideInterval || 4);
+    const remoteSlides = Array.isArray(cloud.settings.homepage_slides) ? cloud.settings.homepage_slides : [];
+    if (!(localState.slides && localState.slides.length) && remoteSlides.length) await replaceSlider(remoteSlides, sliderInterval);
+    else await initialSlider;
     const tickler = cloud.settings.home_tickler || (localState.settings && localState.settings.homeTickler) || {};
     if ((location.pathname.split('/').pop() || 'index.html').toLowerCase() === 'index.html' || location.pathname.endsWith('/')) {
       const existingTickler = $('.parrothit-home-tickler');

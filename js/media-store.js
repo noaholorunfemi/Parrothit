@@ -6,7 +6,7 @@
   const DB_NAME = 'parrothit-media-db';
   const DB_VERSION = 1;
   const STORE = 'images';
-  const MAX_IMAGE_BYTES = 150 * 1024 * 1024; // 150 MiB maximum per image upload.
+  const MAX_IMAGE_BYTES = 100 * 1024 * 1024; // Match the admin image picker limit (100 MB).
   const urls = new Map();
 
   function openDb() {
@@ -24,7 +24,7 @@
 
   async function store(file) {
     if (!(file instanceof Blob) || !String(file.type || '').startsWith('image/')) throw new Error('Choose a valid image file.');
-    if (file.size > MAX_IMAGE_BYTES) throw new Error('Image exceeds the 150 MB maximum. Choose an image under 150 MB and try again.');
+    if (file.size > MAX_IMAGE_BYTES) throw new Error('Image exceeds the 100 MB maximum. Choose an image under 100 MB and try again.');
     // When an authenticated admin client is present, upload the actual image to
     // public Supabase Storage before saving its URL into shared site settings.
     // Never publish an IndexedDB-only reference as if it were a shared image.
