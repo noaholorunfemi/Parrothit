@@ -143,7 +143,7 @@ document.getElementById('suspendedAppealForm').addEventListener('submit',async e
   }
   if(!appealClient){status.textContent='Appeal submission is unavailable until the Supabase project is configured.';return}
   btn.disabled=true;status.textContent='Submitting appeal securely…';
-  try{const {error}=await appealClient.from('admin_appeals').insert({email,username,appeal_text:appeal});if(error)throw error;status.textContent='Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
+  try{const {error}=await appealClient.from('admin_appeals').insert({admin_user_id:(await appealClient.auth.getUser()).data.user.id,email,username,appeal_reason:appeal,status:'pending'});if(error)throw error;status.textContent='Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
   catch(err){console.error('Appeal submission failed:',err);status.textContent='Could not submit appeal. Ensure the admin_appeals table and policies have been installed in Supabase.'}
   finally{btn.disabled=false}
 });
@@ -177,7 +177,7 @@ form.addEventListener('submit',async e=>{
     if(authError){showAuthAlert('unauthorized');return;}
     const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
     if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
-    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name').eq('user_id',sessionData.session.user.id).maybeSingle();
+    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name,is_suspended,email').eq('user_id',sessionData.session.user.id).maybeSingle();
     if(profileError){console.error('Could not read admin profile:',profileError);await appealClient.auth.signOut();showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
     if(!profile||!['owner','admin'].includes(String(profile.role||'').toLowerCase())){
       await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
@@ -189,7 +189,7 @@ form.addEventListener('submit',async e=>{
       const userName=profile.username||loginName;
       document.getElementById('appealEmail').value=userEmail;
       document.getElementById('appealUsername').value=userName;
-      await appealClient.auth.signOut();showAuthAlert('suspended');return;
+      showAuthAlert('suspended');return;
     }
     // Atomically consume the reactivation notice once, after a successful sign-in.
     try{const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");}catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr)}
