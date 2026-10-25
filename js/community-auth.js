@@ -108,7 +108,7 @@
       }catch(err){say(err.message||'Could not save your profile.',true);}return;
     }
     if(form?.id==='postForm'||form?.matches('[data-reply-form]')){
-      if(!canContribute()||profileForm&&!profileForm.classList.contains('hidden')){event.preventDefault();event.stopImmediatePropagation();say(currentUser?'Verify your email and complete your community profile first.':'Please register or log in before posting or commenting.',true);authForm?.classList.remove('hidden');$('authEmail')?.focus();}
+      if(!canContribute()||profileForm&&!profileForm.classList.contains('hidden')){event.preventDefault();event.stopImmediatePropagation();if(!currentUser){location.href='community-auth.html?next=interaction.html';return;}say('Verify your email and complete your community profile before contributing.',true);profileForm?.classList.remove('hidden');}
     }
   },true);
   document.addEventListener('click',async event=>{
@@ -129,7 +129,7 @@
       try{const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:new URL('interaction.html',location.href).href,queryParams:{prompt:'select_account'}}});if(error)throw error;}catch(err){say(err.message||'Google sign-in could not start. Check the Supabase Google provider configuration.',true);}return;
     }
     const contribution=event.target.closest('[data-react],[data-report-post],[data-edit-post],[data-delete-post],[data-reply-to]');
-    if(contribution&&!canContribute()) {event.preventDefault();event.stopImmediatePropagation();say(currentUser?'Verify your email and complete your profile before contributing.':'Please register or log in before reacting, reporting, editing, deleting or replying.',true);authForm?.classList.remove('hidden');$('authEmail')?.focus();}
+    if(contribution&&!canContribute()) {event.preventDefault();event.stopImmediatePropagation();if(!currentUser){location.href='community-auth.html?next=interaction.html';return;}say('Verify your email and complete your community profile before contributing.',true);profileForm?.classList.remove('hidden');}
   },true);
   document.addEventListener('submit',event=>{const form=event.target?.matches('[data-reply-form]')?event.target:null;if(!form||!currentUser)return;let email=form.querySelector('input[name="email"]');if(!email){email=document.createElement('input');email.type='hidden';email.name='email';form.appendChild(email);}email.value=currentUser.email||'';},false);
   setMode('register');init();
