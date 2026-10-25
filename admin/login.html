@@ -147,6 +147,12 @@ document.getElementById('suspendedAppealForm').addEventListener('submit',async e
   catch(err){console.error('Appeal submission failed:',err);status.textContent='Could not submit appeal. Ensure the admin_appeals table and policies have been installed in Supabase.'}
   finally{btn.disabled=false}
 });
+function getAdminPostLoginDestination(){
+  const requested=new URLSearchParams(window.location.search).get('next')||'';
+  // Only allow a simple HTML filename within /admin; prevent open redirects.
+  if(/^[a-zA-Z0-9._-]+\.html(?:\?[a-zA-Z0-9._=&%-]*)?$/.test(requested) && !/^login\.html(?:$|\?)/i.test(requested)) return requested;
+  return 'dashboard.html';
+}
 form.addEventListener('submit',async e=>{
   e.preventDefault();
   // Local-only test controls. They never run on hosted domains and do not create real accounts.
@@ -155,7 +161,7 @@ form.addEventListener('submit',async e=>{
     const testName=document.getElementById('loginName').value.trim().toLowerCase();
     if(testName==='owner-preview'||testName==='admin-preview'){
       document.getElementById('loginMessage').textContent='Local preview only: opening the dashboard without authenticating a real administrator.';
-      setTimeout(()=>location.href='dashboard.html',350);
+      setTimeout(()=>location.href=getAdminPostLoginDestination(),350);
     }else if(testName==='suspended-test'){
       document.getElementById('appealEmail').value='suspended-test@example.local';
       document.getElementById('appealUsername').value='suspended-test';
@@ -193,7 +199,7 @@ form.addEventListener('submit',async e=>{
     }
     // Atomically consume the reactivation notice once, after a successful sign-in.
     try{const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");}catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr)}
-    location.href='dashboard.html';
+    location.href=getAdminPostLoginDestination();
   }catch(err){console.error('Admin login failed:',err);showAuthAlert('unauthorized');}
   finally{if(btn)btn.disabled=false;}
 });
