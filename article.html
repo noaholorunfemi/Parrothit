@@ -60,4 +60,46 @@ const likeBtn=document.getElementById('likePost');if(likeBtn)likeBtn.addEventLis
 
 <script src="js/hide-unpublished-placeholders.js" defer></script><script src="js/news-card-reactions-share.js" defer></script><script src="js/public-notifications.js"></script><script src="js/public-scroll-effects.js" defer></script>
 <script src="js/news-ads-appearance.js"></script>
+<style>.article-main-image{display:block;width:100%;max-height:560px;object-fit:cover;border-radius:12px;margin:18px 0}.article-meta,.article-source{color:#64748b;font-size:.92rem}.article-summary{font-size:1.12rem;font-weight:600}.article-body{line-height:1.8;overflow-wrap:anywhere}.breaking-label{display:inline-block;background:#d71920;color:#fff;padding:5px 9px;border-radius:5px;margin:8px 0}</style>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script id="parrothit-live-article-loader">
+(async function(){
+  const shell=document.getElementById('unpublishedArticle');
+  if(!shell)return;
+  const params=new URLSearchParams(location.search);
+  const slug=(params.get('slug')||'').trim();
+  if(!slug)return;
+  const fallback=shell.innerHTML;
+  function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
+  function safeHttpUrl(raw){try{const u=new URL(raw,location.href);return ['http:','https:'].includes(u.protocol)?u.href:''}catch(_){return ''}}
+  try{
+    const make=window.getParrothitSupabaseClient;
+    const client=typeof make==='function'?make():null;
+    if(!client)throw new Error('News database is not configured.');
+    const {data,error}=await client.from('posts').select('title,slug,summary,body,image_url,published_at,author_name,is_breaking,source_url,categories(name)').eq('slug',slug).eq('status','published').lte('published_at',new Date().toISOString()).maybeSingle();
+    if(error)throw error;
+    if(!data)throw new Error('Article is not available.');
+    shell.replaceChildren();
+    const category=node('span','category',data.categories?.name||'PARROTHIT NEWS');shell.appendChild(category);
+    if(data.is_breaking)shell.appendChild(node('strong','breaking-label','BREAKING NEWS'));
+    shell.appendChild(node('h1','',data.title||'PARROTHIT News'));
+    const meta=node('p','article-meta',`${data.author_name||'PARROTHIT News Desk'} · ${data.published_at?new Date(data.published_at).toLocaleString('en-NG',{dateStyle:'medium',timeStyle:'short'}):''}`);shell.appendChild(meta);
+    if(data.image_url){const img=node('img','article-main-image');img.src=data.image_url;img.alt=data.title||'Article image';img.loading='lazy';img.onerror=()=>img.remove();shell.appendChild(img)}
+    if(data.summary)shell.appendChild(node('p','article-summary',data.summary));
+    const body=node('div','article-body');body.style.whiteSpace='pre-wrap';body.textContent=data.body||'';shell.appendChild(body);
+    const source=safeHttpUrl(data.source_url||'');if(source){const p=node('p','article-source');p.append('Source: ');const a=node('a','', 'View original report');a.href=source;a.target='_blank';a.rel='noopener noreferrer';p.appendChild(a);shell.appendChild(p)}
+    const back=node('p','');const a=node('a','button','← Back to Home');a.href='index.html';back.appendChild(a);shell.appendChild(back);
+    const interactions=document.querySelector('.visitor-interactions');if(interactions)interactions.hidden=false;
+    document.title=(data.title||'Article')+' | PARROTHIT';
+    const desc=document.querySelector('meta[name="description"]');if(desc)desc.content=data.summary||data.title||'PARROTHIT — News that speaks!';
+  }catch(err){
+    console.warn('PARROTHIT article could not be loaded from Supabase:',err);
+    // Keep the original safe fallback; do not expose database errors to public visitors.
+    shell.innerHTML=fallback;
+  }
+})();
+</script>
+
 </body></html>

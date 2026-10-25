@@ -12,7 +12,7 @@ CURRENT FEATURES
 - The Home YouTube panel embeds a YouTube URL on the homepage. First upload the video to YouTube, then paste its share/watch link; this static website cannot upload a video file to a YouTube account directly.
 - Dashboard theme switch toggles between white and dark themes and remembers the chosen theme in that browser.
 - Admin 1 (Owner) can add, suspend/reactivate, and delete up to ten additional admins. Server-side Edge Functions and the SQL trigger enforce a maximum of 11 administrator profiles total, including the owner.
-- Parrots Interaction has local image attachments stored as binary image Blobs in IndexedDB rather than base64 strings. Community posts themselves remain browser-local in this build; cross-device community publishing needs a separate shared community backend.
+- Parrots Interaction uses IndexedDB for local media preview. With the social SQL migrations installed and a confirmed user signed in, approved posts are synchronized to Supabase; normalized tables store shared comments/replies and reactions. Local cache still supports faster rendering, but old local-only posts without an authenticated author are not automatically imported.
 
 IMPORTANT SETUP
 1. Replace the placeholders in supabase-config.js with your own Supabase Project URL and public anon/publishable key.
@@ -38,3 +38,7 @@ ANDROID PHONE — TEST THE SCROLLING EFFECTS LOCALLY
 5. To test the admin scrolling settings, open the Control Room's scrolling-effects settings page, change the preset/toggles, save, and refresh a public page. Admin pages themselves are intentionally excluded from public reveal effects.
 6. Without a configured Supabase URL/key and the SQL policy applied, local testing uses the built-in default/cached effect settings; the remote admin setting will not sync. Local changes do not publish to the live website.
 7. If animations do not appear, check Chrome's Android Accessibility / Remove animations setting. The script respects `prefers-reduced-motion` and disables most motion when that preference is active.
+
+
+NEW TEST BUILD — PARROT MINI MART AND COMMUNITY SOCIAL FEATURES
+Read PARROTHIT-ROOMS-LEVELS-CHECKLIST.txt for the setup sequence and test checklist. Run community-interaction.sql, then community-social-marketplace.sql, then community-social-features.sql last. Room pages now have theme-specific composers and Supabase room posting; verified members earn active-day levels based on participation frequency, and shared posts/comments/reactions are designed to persist across devices after migrations and RLS policies are installed. Existing news/category page files are preserved. The package has not been deployed or tested against the live Supabase project; private member messaging and checkout/payment are not included.

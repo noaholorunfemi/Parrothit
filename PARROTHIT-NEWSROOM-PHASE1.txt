@@ -1,0 +1,23 @@
+PARROTHIT NEWSROOM — PHASE 1 UPDATE
+
+Included in this update:
+1. Article editor now supports Draft, Scheduled, and Published statuses.
+2. Scheduled articles require a future date/time and are stored in the existing posts table's published_at field.
+3. Editor has an original source URL field.
+4. Public article.html can load a published Supabase post using article.html?slug=your-article-slug.
+5. SQL migration adds source attribution, SEO and review metadata while preserving existing posts.
+6. Optional server-side pg_cron script can publish due scheduled stories once per minute, if pg_cron is available and enabled.
+
+SETUP
+A. Back up your Supabase project/schema before running any SQL.
+B. In Supabase SQL Editor, run supabase/newsroom-phase1.sql.
+C. Deploy this updated website code to a staging/local copy first.
+D. Test by creating a draft, then a published article. Its public URL uses article.html?slug=<slug>. The exact slug can be checked in the posts table.
+E. For scheduled publication, only run supabase/newsroom-scheduled-publishing-optional.sql after confirming pg_cron is available. If it errors, do not repeatedly run it; use Supabase Cron or ask for help checking extension access.
+
+IMPORTANT LIMITATIONS
+- RSS discovery, AI drafting, a review queue UI, and the full analytics panel are not implemented in this Phase 1 package yet.
+- Scheduled status will remain queued until the optional server-side scheduler is configured.
+- AI writing will require a server-side provider/API key; never put private API keys in browser JavaScript.
+- Public articles require the existing Supabase project to have the correct posts/categories tables, policies, and publishable key configuration.
+- Do not paste a Supabase service-role key into any HTML or JavaScript file.

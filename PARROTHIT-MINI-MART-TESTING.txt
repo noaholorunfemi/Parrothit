@@ -1,0 +1,30 @@
+PARROT MINI MART + SOCIAL COMMUNITY TEST GUIDE
+
+PACKAGE CONTENTS
+- parrot-mini-mart.html and admin/parrot-mini-mart.html.
+- Fifteen rooms under rooms/ with distinct, theme-matched message composers.
+- js/community-room-page.js, js/community-social-features.js, js/parrot-mini-mart.js and js/admin-parrot-mini-mart.js.
+- Supabase migrations for Interaction, social/marketplace data, active-day levels, shared posts/comments/reactions, invitations and room join/leave activity.
+
+SUPABASE SETUP ORDER
+1. Run supabase/community-interaction.sql if needed.
+2. Run supabase/community-social-marketplace.sql.
+3. Run supabase/community-social-features.sql LAST.
+
+ROOM THEMES
+Dating, Love and Romance have soft relationship-themed composer colors and rounded fields; Education uses notebook lines; Technology uses a dark terminal style; the other rooms each use a separate palette/pattern. The text areas have no application word limit.
+
+MEMBER LEVELS
+Levels are determined by distinct active participation days (Novice 0–2; Beginning 3+; Amateur 7+; Legend 14+; Professional 30+; Veteran 60+; Master 100+; Ultimate Master 180+). The database counts at most one active day per member per calendar day.
+
+TEST
+- Use two verified accounts in separate browsers/devices. Test posts, comments/replies, reactions, room posts and the Mini Mart.
+- Join a room as one account and confirm the room count and “joined” event. Leave and confirm the “left” event. Send a room invite and accept it as the other account.
+- Test profile links, friend requests, avatar upload, private contact info, Mini Mart item fields, listing approval, hide/publish and transaction warning.
+
+LIMITATIONS
+- The ZIP does not deploy files or execute SQL against the live project automatically.
+- Mini Mart is a seller listing/contact service only; there is no checkout/payment integration.
+- Private member-to-member inbox/direct messages are not included.
+- Some moderation/report settings remain browser-side preview controls and need a separate server-side moderation implementation.
+- The existing `parrot media` bucket is public by choice; anyone with a file URL can access it.

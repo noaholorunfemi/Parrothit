@@ -1,0 +1,31 @@
+PARROTHIT ROOM THEMES + MEMBER LEVELS — CHANGELOG / CHECKLIST
+
+WHAT WAS ADDED OR UPDATED
+- Each of 15 room pages now has its own themed message composer: Dating/Love/Romance use relationship colors and soft shapes; Education uses notebook-style lines; Technology uses a dark terminal-like field; remaining rooms use distinct palettes/patterns tied to each room. Textareas have no app-imposed word limit and include room-specific prompts plus optional @username tags.
+- Room membership tools: join/leave button, current member count, member invitation by username, invitations accepted/declined, and a timestamped activity feed announcing who joined or left. Database triggers log membership changes.
+- Member levels are calculated from how many different days the member participates: Novice 🐣 (0–2 active days), Beginning 🌱 (3–6), Amateur 🎯 (7–13), Legend 🏆 (14–29), Professional 💼 (30–59), Veteran 🛡️ (60–99), Master 🧠 (100–179), Ultimate Master 👑 (180+). A date counts once no matter how many times the member refreshes. Levels are displayed on profiles and in room/feed author badges where profile data is available.
+- Added/updated participation-day tables/RPC, shared Supabase posts, persistent normalized comments/replies/reactions, tag display, server-side profile counter protection, and database sanitizers that prevent email fields in public JSON post/comment payloads. Signed-in image attachments and voice recordings now upload to the shared `parrot media` bucket; the feed and room pages resolve shared media URLs (local IndexedDB remains preview-only).
+- Retained public news/category page files, profile/friend features, Mini Mart and its admin controls from the previous package.
+
+SUPABASE SQL — RUN IN ORDER
+1. supabase/community-interaction.sql (if not already installed)
+2. supabase/community-social-marketplace.sql
+3. supabase/community-social-features.sql LAST
+Run all files in Supabase Dashboard > SQL Editor. The final migration intentionally installs the expanded participation RPC and normalized social tables after the marketplace migration. ZIP download does not deploy anything to Supabase or Cloudflare automatically.
+
+STATUS / REMAINING LIMITATIONS
+- Code and static configuration can be checked locally; the live Supabase backend and deployed Cloudflare site have not been verified from this ZIP. Test with two confirmed accounts on separate devices before production use.
+- There is no private 1-to-1 inbox/direct-message feature in this package. Room invites and share links are not DMs.
+- PARROT MINI MART supports listings/contact and admin moderation only, not payment/checkout processing.
+- Some interaction moderation/report settings are still local browser-preview state; a full database-backed moderation queue remains a separate task.
+- Existing browser-only posts without authenticated owner IDs cannot automatically be imported into shared Supabase posts.
+- Public bucket `parrot media` is intentionally left public; file URLs are retrievable by anyone who has them. Its current configured object-size limit is 50 MB, so shared uploads over 50 MB will be rejected by Supabase even though the frontend validator permits files up to 150 MB. Increase the bucket/project upload limit in Supabase Storage settings before expecting shared uploads above 50 MB.
+
+TEST CHECKLIST
+1. Run the three migrations in the order above.
+2. Upload/deploy the ZIP contents while preserving the repository folder structure.
+3. Sign in as two confirmed members in separate browsers/devices. Confirm a post by A appears for B, then test comments, nested replies and reactions after reload.
+4. Join a room, verify the count and “joined” event, leave and verify the “left” event. Invite B; accept the invite as B and verify membership.
+5. Visit Interaction on multiple days and confirm the active-day count increases no more than once per day and the member badge advances at the listed thresholds.
+6. Confirm authenticated image and voice uploads appear on a second device; keep test files under the bucket’s current 50 MB limit unless Storage settings have been increased.
+7. Test Mini Mart listing approval and admin controls.

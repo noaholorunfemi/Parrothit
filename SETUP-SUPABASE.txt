@@ -81,7 +81,7 @@ PARROTS INTERACTION MEMBER LOGIN UPDATE (OCTOBER 2026)
 6. On Parrots Interaction, the post composer, comment boxes, emoji picker, voice recorder and image-upload icon are visible while signed out. Registration/login is required before posting, commenting, reacting, replying, reporting, or recording voice.
 7. A signed-in user can use Log out at any time and log in again later. Supabase records the community member's user ID, email, display name, created time and last-seen time in public.community_members. RLS limits member profile access to the signed-in member.
 
-Important current limitation: this update records community accounts in Supabase, but the existing community post feed still saves posts/comments/reactions in the current browser's local preview storage. They are not yet shared between different visitors/devices. A fully shared community feed needs a separate database/storage integration and policies; do not treat browser-local posts as a shared live feed.
+Community social migrations for rooms, active-day member levels, shared posts/comments/reactions, invitations and join/leave activity are documented in PARROTHIT-ROOMS-LEVELS-CHECKLIST.txt. Run community-interaction.sql, then community-social-marketplace.sql, then community-social-features.sql last. Live cross-device behavior still requires those migrations plus two-account testing; legacy posts without an authenticated author remain local-only.
 
 
 CARD DESTINATIONS AND APPEARANCE (OCTOBER 2026)
@@ -92,3 +92,9 @@ CARD DESTINATIONS AND APPEARANCE (OCTOBER 2026)
 
 LIVE STREAM SETTINGS UPDATE
 Run supabase/live-streams-public-policy.sql in the Supabase SQL Editor to allow visitors to read the public sports_streams setting. Each slot is controlled independently from admin/live-stream-controls.html.
+
+
+PARROTHIT COMMUNITY SOCIAL + MINI MART ADDENDUM (OCT 2026)
+Before testing new member profile fields, room membership, reputation rewards, or PARROT MINI MART, run `supabase/community-social-marketplace.sql` in the Supabase SQL Editor after `supabase/community-interaction.sql`. The combined migration includes the social profiles/friends/rooms migration and the Mini Mart schema/settings/RLS policies, plus private contact details and engagement-point RPC. It is designed to be re-run and does not drop existing community data.
+
+Mini Mart pages: `parrot-mini-mart.html` for authenticated community members and `admin/parrot-mini-mart.html` for the existing Control Room owner/admin. It uses the existing `parrot media` public bucket, with an item picture limit of 50 MB. Public-bucket URLs are accessible to anyone holding the URL. The transaction warning is displayed before users can inspect listing details.

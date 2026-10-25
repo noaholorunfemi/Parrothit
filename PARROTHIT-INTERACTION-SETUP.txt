@@ -1,0 +1,64 @@
+PARROTHIT PARROTS INTERACTION — SOCIAL FEATURES SETUP
+
+INCLUDED
+- Main Interaction page, member profiles, friend controls, avatar/profile support, room navigation and social feed integration.
+- Fifteen independently themed room pages with room-specific compose text areas.
+- Room join/leave, membership count, member invites, accept/decline, and an activity log.
+- Participation-day-based levels and Supabase shared posts, comments/replies and reactions.
+- Separate community-auth.html login/sign-up page; existing signed-in members are redirected back without registering again.\n- private-chat.html WhatsApp-inspired friend list and one-to-one chat interface, linked from Interaction and every room.\n- supabase/private-chat.sql migration for friend-only private messages with row-level security.
+
+SUPABASE SETUP — RUN IN THIS ORDER
+1. If `public.is_parrothit_owner()` is missing, apply `supabase/schema.sql` first and confirm the existing Admin 1 owner profile. Do not overwrite or recreate your existing member/admin accounts.
+2. Run `supabase/community-interaction.sql` if it has not already been run.
+3. Run `supabase/community-social-marketplace.sql` for social profiles, room/friend foundations, private profile fields and PARROT MINI MART.
+4. Run `supabase/community-social-features.sql` for room invitations/activity, shared posts, comments/replies, reactions, active-day levels and profile counters.
+5. Run `supabase/private-chat.sql` for private messages.
+6. Run `supabase/community-admin-controls.sql` LAST for owner-only global controls and member suspension.
+
+Keep the existing storage bucket named exactly `parrot media`, public as requested. Public-bucket media URLs are accessible to anyone who has the URL. Never put a service-role key in front-end files.
+
+LEVEL RULES
+- Novice 🐣: 0–2 active days
+- Beginning 🌱: 3–6 active days
+- Amateur 🎯: 7–13 active days
+- Legend 🏆: 14–29 active days
+- Professional 💼: 30–59 active days
+- Veteran 🛡️: 60–99 active days
+- Master 🧠: 100–179 active days
+- Ultimate Master 👑: 180+ active days
+One authenticated interaction/room/post/comment/reaction/listing action earns at most one participation-day credit per date. Repeated refreshes on the same day do not inflate the count.
+
+TEST
+1. Use two verified test accounts in separate browsers/devices.
+2. Post in Interaction and in a room; verify approved posts appear on the other device after the SQL migrations are applied.
+3. Test nested replies, reactions, member avatar/profile links, friend requests, and profile privacy.
+4. Test joining/leaving a room, member counts, room activity, and invitations accepted by the invitee from a different room page.
+5. Visit Interaction on different dates to confirm active-day levels.
+6. Test Mini Mart listing/admin approval. Mini Mart is a listing/contact marketplace; it has no integrated checkout or payment system.
+
+LIMITATIONS TO KNOW
+- The package is not automatically applied to your live Supabase project or Cloudflare deployment. Live cross-device behavior requires migrations and real two-account testing.
+- Private one-to-one messages require the new supabase/private-chat.sql migration to be run in Supabase. The migration restricts message reading to sender/recipient and sending to accepted friends. Verify friend-table column names against your deployed schema before production use.
+- Moderation preferences and some report controls remain browser-side preview settings, not a complete server-side moderation workflow.
+- Old browser-only posts without an authenticated author cannot automatically be assigned a member identity.
+
+SHARED POST MEDIA
+- Signed-in community members upload images and voice recordings to the existing public `parrot media` Supabase Storage bucket. Install the own-folder media Storage policies included at the end of `supabase/community-social-features.sql`.
+- The bucket currently has a 50 MB object limit. Uploads above that size will fail until the bucket/project limit is increased in Supabase Storage settings. Never treat an IndexedDB `idb:` media reference as a cross-device URL; it is local-browser preview data only.
+
+
+OCT 25 UPDATE — PRIVATE CHAT + ADMIN 1 MASTER CONTROLS
+----------------------------------------------------
+New pages: community-auth.html (separate login/sign-up), private-chat.html (friends list and one-to-one chat), admin/parrot-rooms-chat.html (Admin 1 master controls), and the existing admin/parrot-mini-mart.html (marketplace controls). All room pages now link to private chats. The news homepage/index.html was left unchanged.
+
+Supabase SQL setup order for these features is listed above. If the core schema/owner helper is not already installed, apply supabase/schema.sql before the community migrations.
+
+The Admin 1 master page reads and writes public.community_interaction_settings, can approve/hide/delete shared posts and comments, and can suspend/reactivate community activity through an owner-checked RPC. Only the admin_profiles row with role='owner' can change master settings or suspend members. Admin page buttons do not replace Row Level Security: the SQL migration adds owner/member policies. The Mini Mart has its own settings and listing controls.
+
+Important limitations/setup:
+- The SQL migration must be run in the correct PARROTHIT Supabase project before global controls will apply across devices.
+- In Supabase Authentication settings, configure whether new sign-ups are allowed as the final server-side registration switch; the page's setting also hides/disables the sign-up tab.
+- Confirm the 'parrot media' Storage bucket is public only for community-post media as currently configured, and confirm its size limit/policies match the site's upload policy. The private-message table stores text only.
+- Private chat friends are accepted community_friendships rows. Members do not have to register a second time; existing signed-in sessions route directly into Interaction/chat.
+- Owner access depends on public.is_parrothit_owner() from supabase/schema.sql and an unsuspended admin_profiles role='owner' profile. Do not place a service-role key in frontend code.
+- Changes have passed static HTML/JavaScript checks only in this environment. They have not been tested against your live Supabase project, so apply the SQL and test with two real test member accounts before launch.
