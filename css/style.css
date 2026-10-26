@@ -240,3 +240,9 @@ html{scroll-behavior:smooth;scroll-padding-top:1rem}
 .news-card,.hero-card,.side-item,.category-card,.story-card,[data-news-card='true']{overflow:visible!important;min-width:0}.parrothit-card-engagement,.parrothit-reaction-bucket{max-width:100%;overflow:visible!important}.parrothit-reaction-bucket{z-index:4;position:relative;flex-wrap:wrap!important}.parrothit-reaction{flex:0 1 auto}
 
 @media(max-width:700px){.nav-inner{flex-wrap:nowrap!important;overflow-x:auto!important;white-space:nowrap}.nav-inner>a{flex:0 0 auto!important}}
+
+/* Parrot Search: keep the input white and make placeholder text red and legible. */
+.search-form input[type="search"]{background:#fff!important;color:#172033!important}
+.search-form input[type="search"]::placeholder{color:#d71920!important;opacity:1}
+.search-form input[type="search"]::-webkit-input-placeholder{color:#d71920!important;opacity:1}
+.search-form input[type="search"]::-moz-placeholder{color:#d71920!important;opacity:1}
