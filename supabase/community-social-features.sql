@@ -119,11 +119,11 @@ grant select,insert,delete on public.community_room_members to authenticated;
 -- Avatars are uploaded only to each authenticated user's own folder in the existing public bucket.
 -- The bucket stays public as requested; any file URL in it is publicly retrievable.
 drop policy if exists "Members upload own community avatars" on storage.objects;
-create policy "Members upload own community avatars" on storage.objects for insert to authenticated with check(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
+create policy "Members upload own community avatars" on storage.objects for insert to authenticated with check(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
 drop policy if exists "Members update own community avatars" on storage.objects;
-create policy "Members update own community avatars" on storage.objects for update to authenticated using(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text) with check(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
+create policy "Members update own community avatars" on storage.objects for update to authenticated using(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text) with check(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
 drop policy if exists "Members delete own community avatars" on storage.objects;
-create policy "Members delete own community avatars" on storage.objects for delete to authenticated using(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
+create policy "Members delete own community avatars" on storage.objects for delete to authenticated using(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
 
 
 -- Reputation points: a member earns at most 20 points each day, and duplicate action references are ignored.
@@ -444,20 +444,20 @@ GRANT INSERT (user_id,username,display_name,avatar_url,bio,primary_room,status_t
 GRANT UPDATE (user_id,username,display_name,avatar_url,bio,primary_room,status_text,feeling,updated_at)
   ON public.community_social_profiles TO authenticated;
 
--- Shared interaction images and voice recordings. The `parrot media` bucket is
+-- Shared interaction images and voice recordings. The `parrot-media` bucket is
 -- configured as public by the project owner; upload/change/delete is restricted
 -- to each signed-in member's own community-posts/<uid>/ folder.
 DROP POLICY IF EXISTS "Members upload own community post media" ON storage.objects;
 CREATE POLICY "Members upload own community post media" ON storage.objects
   FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text);
+  WITH CHECK (bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text);
 DROP POLICY IF EXISTS "Members update own community post media" ON storage.objects;
 CREATE POLICY "Members update own community post media" ON storage.objects
   FOR UPDATE TO authenticated
-  USING (bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text)
-  WITH CHECK (bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text);
+  USING (bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text)
+  WITH CHECK (bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text);
 DROP POLICY IF EXISTS "Members delete own community post media" ON storage.objects;
 CREATE POLICY "Members delete own community post media" ON storage.objects
   FOR DELETE TO authenticated
-  USING (bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text);
+  USING (bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'community-posts' AND (storage.foldername(name))[2] = auth.uid()::text);
 

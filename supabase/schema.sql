@@ -109,10 +109,10 @@ insert into public.categories(name,slug) values
 
 -- Public visitors may read only display settings needed by the homepage; all writes stay admin-only.
 drop policy if exists "public reads public display settings" on public.site_settings;
-create policy "public reads public display settings" on public.site_settings for select using (key in ('homepage_slides','home_video','category_images','ads','moving_text','home_tickler','news_cards','advertisement_cards','category_cards','news_ads_appearance','sports_streams'));
+create policy "public reads public display settings" on public.site_settings for select using (key in ('homepage_slides','home_video','category_images','ads','moving_text','home_tickler','news_cards','advertisement_cards','category_cards','news_ads_appearance','sports_streams','homepage_cards'));
 
 -- Shared image uploads. The bucket is public for viewing; uploads/changes require an authenticated PARROTHIT admin.
-insert into storage.buckets (id, name, public, file_size_limit) values ('parrothit-media','parrothit-media',true,104857600) on conflict (id) do update set public=true, file_size_limit=104857600;
+insert into storage.buckets (id, name, public, file_size_limit) values ('parrothit-media','parrothit-media',true,52428800), ('parrot-media','parrot-media',true,52428800) on conflict (id) do update set name=excluded.name, public=true, file_size_limit=excluded.file_size_limit;
 drop policy if exists "public reads PARROTHIT media" on storage.objects;
 create policy "public reads PARROTHIT media" on storage.objects for select using (bucket_id='parrothit-media');
 drop policy if exists "admins upload PARROTHIT media" on storage.objects;

@@ -209,14 +209,25 @@ Deno.serve(async (req) => {
       if (!title || articleBody.length < 80) throw new Error("AI draft was incomplete; no article was saved.");
       let slug = slugify(title), suffix = 2;
       while (true) { const { data: match } = await db.from("posts").select("id").eq("slug", slug).maybeSingle(); if (!match) break; slug = `${slugify(title)}-${suffix++}`; }
-      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
+      // Default to review unless an active admin explicitly saved automatic AI publishing.
+      // A settings read failure must never accidentally publish a draft.
+      let autoPublishAi = false;
+      const modeResult = await db.from("site_settings").select("value").eq("key", "newsroom_automation").maybeSingle();
+      if (!modeResult.error && modeResult.data?.value && typeof modeResult.data.value === "object") {
+        autoPublishAi = (modeResult.data.value as Record<string, unknown>).publishMode === "auto_publish_ai";
+      } else if (modeResult.error) {
+        console.warn("Newsroom publication mode could not be read; keeping AI draft in review:", modeResult.error.message);
+      }
+      const postStatus = autoPublishAi ? "published" : "in_review";
+      const publishedAt = autoPublishAi ? new Date().toISOString() : null;
+      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: postStatus, published_at: publishedAt, source_url: candidate.source_url, source_name: candidate.source_name, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
       if (postError) throw new Error(`Could not save article draft: ${postError.message}`);
-      const { error: linkError } = await db.from("newsroom_candidates").update({ status: "in_review", linked_post_id: post.id, error_message: null, updated_at: new Date().toISOString() }).eq("id", candidateId);
+      const { error: linkError } = await db.from("newsroom_candidates").update({ status: autoPublishAi ? "imported" : "in_review", linked_post_id: post.id, error_message: null, updated_at: new Date().toISOString() }).eq("id", candidateId);
       if (linkError) {
         await db.from("posts").delete().eq("id", post.id);
         throw new Error(`Could not link the AI draft to its candidate. The unlinked draft was rolled back: ${linkError.message}`);
       }
-      return json({ ok: true, post, message: "Draft created in In Review. An administrator must fact-check and approve it before publication." });
+      return json({ ok: true, post, message: autoPublishAi ? "AI-assisted draft published automatically using the administrator's saved publication mode. It was not human-reviewed; verify it promptly." : "Draft created in In Review. An administrator must fact-check and approve it before publication." });
     } catch (e) {
       const message = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
       await db.from("newsroom_candidates").update({ status: "error", error_message: message, updated_at: new Date().toISOString() }).eq("id", candidateId);

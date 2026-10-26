@@ -119,11 +119,11 @@ grant select,insert,delete on public.community_room_members to authenticated;
 -- Avatars are uploaded only to each authenticated user's own folder in the existing public bucket.
 -- The bucket stays public as requested; any file URL in it is publicly retrievable.
 drop policy if exists "Members upload own community avatars" on storage.objects;
-create policy "Members upload own community avatars" on storage.objects for insert to authenticated with check(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
+create policy "Members upload own community avatars" on storage.objects for insert to authenticated with check(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
 drop policy if exists "Members update own community avatars" on storage.objects;
-create policy "Members update own community avatars" on storage.objects for update to authenticated using(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text) with check(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
+create policy "Members update own community avatars" on storage.objects for update to authenticated using(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text) with check(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
 drop policy if exists "Members delete own community avatars" on storage.objects;
-create policy "Members delete own community avatars" on storage.objects for delete to authenticated using(bucket_id='parrot media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
+create policy "Members delete own community avatars" on storage.objects for delete to authenticated using(bucket_id='parrot-media' and (storage.foldername(name))[1]='avatars' and (storage.foldername(name))[2]=auth.uid()::text);
 
 
 -- PARROTHIT social profile enhancements and PARROT MINI MART.
@@ -284,22 +284,22 @@ FOR EACH ROW EXECUTE FUNCTION public.enforce_parrot_mini_mart_item_rules();
 DROP POLICY IF EXISTS "Mini Mart members upload media into own folder" ON storage.objects;
 CREATE POLICY "Mini Mart members upload media into own folder" ON storage.objects
   FOR INSERT TO authenticated WITH CHECK (
-    bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'mini-mart'
+    bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'mini-mart'
     AND (storage.foldername(name))[2] = auth.uid()::text
   );
 DROP POLICY IF EXISTS "Mini Mart members update own media" ON storage.objects;
 CREATE POLICY "Mini Mart members update own media" ON storage.objects
   FOR UPDATE TO authenticated USING (
-    bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'mini-mart'
+    bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'mini-mart'
     AND ((storage.foldername(name))[2] = auth.uid()::text OR public.is_parrothit_admin())
   ) WITH CHECK (
-    bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'mini-mart'
+    bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'mini-mart'
     AND ((storage.foldername(name))[2] = auth.uid()::text OR public.is_parrothit_admin())
   );
 DROP POLICY IF EXISTS "Mini Mart members delete own media or admins delete any" ON storage.objects;
 CREATE POLICY "Mini Mart members delete own media or admins delete any" ON storage.objects
   FOR DELETE TO authenticated USING (
-    bucket_id = 'parrot media' AND (storage.foldername(name))[1] = 'mini-mart'
+    bucket_id = 'parrot-media' AND (storage.foldername(name))[1] = 'mini-mart'
     AND ((storage.foldername(name))[2] = auth.uid()::text OR public.is_parrothit_admin())
   );
 

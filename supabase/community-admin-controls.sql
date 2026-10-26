@@ -93,7 +93,7 @@ grant execute on function public.parrothit_set_community_member_suspension(uuid,
 DROP POLICY IF EXISTS "Members upload own community post media" ON storage.objects;
 CREATE POLICY "Members upload own community post media" ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
-  bucket_id='parrot media' AND (storage.foldername(name))[1]='community-posts'
+  bucket_id='parrot-media' AND (storage.foldername(name))[1]='community-posts'
   AND (storage.foldername(name))[2]=auth.uid()::text
   AND public.parrothit_community_member_allowed()
   AND ((coalesce(metadata->>'mimetype','') LIKE 'image/%' AND public.parrothit_community_flag('allow_images'))
@@ -101,9 +101,9 @@ WITH CHECK (
 );
 DROP POLICY IF EXISTS "Members update own community post media" ON storage.objects;
 CREATE POLICY "Members update own community post media" ON storage.objects FOR UPDATE TO authenticated
-USING (bucket_id='parrot media' AND (storage.foldername(name))[1]='community-posts' AND (storage.foldername(name))[2]=auth.uid()::text)
+USING (bucket_id='parrot-media' AND (storage.foldername(name))[1]='community-posts' AND (storage.foldername(name))[2]=auth.uid()::text)
 WITH CHECK (
-  bucket_id='parrot media' AND (storage.foldername(name))[1]='community-posts'
+  bucket_id='parrot-media' AND (storage.foldername(name))[1]='community-posts'
   AND (storage.foldername(name))[2]=auth.uid()::text
   AND public.parrothit_community_member_allowed()
   AND ((coalesce(metadata->>'mimetype','') LIKE 'image/%' AND public.parrothit_community_flag('allow_images'))
