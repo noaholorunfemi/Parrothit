@@ -74,6 +74,104 @@ Deno.serve(async (req) => {
     return json({ ok: true, sources: (sources || []).length, scanned, added, failed, issues: issues.slice(0, 8) });
   }
 
+  // FREE manual drafting: uses the headline and RSS summary already stored in the candidate.
+  // It does not contact any AI provider and always saves the article as in_review.
+  if (action === "manual_draft") {
+    const candidateId = String(body.candidate_id || "");
+    if (!candidateId) return json({ error: "candidate_id is required." }, 400);
+    const { data: candidate, error: candidateError } = await db.from("newsroom_candidates")
+      .select("id,source_name,source_url,source_title,source_summary,category_id,status,linked_post_id")
+      .eq("id", candidateId).maybeSingle();
+    if (candidateError) return json({ error: `Could not read the selected candidate: ${candidateError.message}` }, 500);
+    if (!candidate) return json({ error: "News candidate not found." }, 404);
+    if (candidate.linked_post_id) return json({ error: "This candidate already has an article draft.", post_id: candidate.linked_post_id }, 409);
+    if (!["discovered", "error"].includes(candidate.status)) {
+      return json({ error: `Candidate status is ${candidate.status}; only discovered/error candidates can be drafted.` }, 409);
+    }
+    const title = String(candidate.source_title || "").trim().slice(0, 160);
+    if (!title) return json({ error: "This candidate has no source headline. It cannot be drafted." }, 400);
+
+    // Claim the candidate so two clicks cannot normally create duplicate drafts.
+    const { data: claim, error: claimError } = await db.from("newsroom_candidates")
+      .update({ status: "drafting", error_message: null, updated_at: new Date().toISOString() })
+      .eq("id", candidateId).is("linked_post_id", null).in("status", ["discovered", "error"])
+      .select("id").maybeSingle();
+    if (claimError) return json({ error: `Could not reserve this candidate: ${claimError.message}` }, 500);
+    if (!claim) return json({ error: "This candidate is already being processed or has already been linked to an article. Reload the queue." }, 409);
+
+    const sourceName = String(candidate.source_name || "Original source").slice(0, 240);
+    const sourceUrl = String(candidate.source_url || "").trim();
+    const sourceSummary = String(candidate.source_summary || "").trim().slice(0, 8000);
+    const summary = (sourceSummary || `Working draft based on the headline from ${sourceName}. An editor must verify the source and write/expand the report before publication.`).slice(0, 400);
+    const articleBody = [
+      "MANUAL WORKING DRAFT — EDIT AND VERIFY BEFORE PUBLICATION",
+      "",
+      sourceSummary
+        ? `Source-provided RSS summary (review and rewrite before publication):\n${sourceSummary}`
+        : "The RSS feed did not provide a summary. Open the original source and write an original report before publication.",
+      "",
+      `Source: ${sourceName}`,
+      `Original source URL: ${sourceUrl}`,
+      "",
+      "EDITORIAL CHECK: This draft was created without AI from feed metadata. Verify all details against the original report, write an original article, confirm dates and local context, and review attribution and rights before approving it."
+    ].join("\n");
+
+    let slug = slugify(title), suffix = 2;
+    while (true) {
+      const { data: match, error: slugError } = await db.from("posts").select("id").eq("slug", slug).maybeSingle();
+      if (slugError) {
+        await db.from("newsroom_candidates").update({ status: "error", error_message: slugError.message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", candidateId);
+        return json({ error: `Could not check article slug: ${slugError.message}` }, 500);
+      }
+      if (!match) break;
+      slug = `${slugify(title)}-${suffix++}`;
+    }
+
+    const { data: post, error: postError } = await db.from("posts").insert({
+      title,
+      slug,
+      summary,
+      body: articleBody,
+      category_id: candidate.category_id,
+      author_name: "PARROTHIT News Desk (manual draft)",
+      status: "in_review",
+      published_at: null,
+      source_url: sourceUrl || null,
+      source_name: sourceName,
+      seo_title: title.slice(0, 70),
+      seo_description: summary.slice(0, 160),
+      reviewed_at: null,
+      reviewed_by: null,
+    }).select("id,title,status").single();
+
+    if (postError || !post) {
+      const detail = postError?.message || "Post insert returned no article.";
+      await db.from("newsroom_candidates").update({ status: "error", error_message: detail.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", candidateId).is("linked_post_id", null);
+      return json({ error: `Could not save manual draft: ${detail}` }, 500);
+    }
+
+    const { data: linked, error: linkError } = await db.from("newsroom_candidates").update({
+      status: "in_review",
+      linked_post_id: post.id,
+      error_message: null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", candidateId).is("linked_post_id", null).select("id").maybeSingle();
+
+    if (linkError || !linked) {
+      // Avoid leaving an unlinked duplicate article if the candidate could not be updated.
+      await db.from("posts").delete().eq("id", post.id);
+      const detail = linkError?.message || "Candidate was no longer available to link.";
+      await db.from("newsroom_candidates").update({ status: "error", error_message: detail.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", candidateId).is("linked_post_id", null);
+      return json({ error: `The draft could not be linked to its candidate: ${detail}. Please reload the queue and try again.` }, 409);
+    }
+
+    return json({
+      ok: true,
+      post,
+      message: "Free manual draft created in In Review. Open Article Editor, verify the source, edit the article, and explicitly approve it before publication.",
+    });
+  }
+
   if (action === "draft") {
     const candidateId = String(body.candidate_id || "");
     if (!candidateId) return json({ error: "candidate_id is required." }, 400);
@@ -113,7 +211,11 @@ Deno.serve(async (req) => {
       while (true) { const { data: match } = await db.from("posts").select("id").eq("slug", slug).maybeSingle(); if (!match) break; slug = `${slugify(title)}-${suffix++}`; }
       const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
       if (postError) throw new Error(`Could not save article draft: ${postError.message}`);
-      await db.from("newsroom_candidates").update({ status: "in_review", linked_post_id: post.id, error_message: null, updated_at: new Date().toISOString() }).eq("id", candidateId);
+      const { error: linkError } = await db.from("newsroom_candidates").update({ status: "in_review", linked_post_id: post.id, error_message: null, updated_at: new Date().toISOString() }).eq("id", candidateId);
+      if (linkError) {
+        await db.from("posts").delete().eq("id", post.id);
+        throw new Error(`Could not link the AI draft to its candidate. The unlinked draft was rolled back: ${linkError.message}`);
+      }
       return json({ ok: true, post, message: "Draft created in In Review. An administrator must fact-check and approve it before publication." });
     } catch (e) {
       const message = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
@@ -121,5 +223,5 @@ Deno.serve(async (req) => {
       return json({ error: message }, 502);
     }
   }
-  return json({ error: "Unsupported action. Use discover or draft." }, 400);
+  return json({ error: "Unsupported action. Use discover, manual_draft, or draft." }, 400);
 });
