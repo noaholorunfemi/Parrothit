@@ -7,7 +7,7 @@
   const object = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   function publicRecord(record) {
     const out = { ...record };
-    const imageUrl = String(out.imageUrl || '');
+    const imageUrl = String(out.imageRef || out.imageUrl || out.imageData || out.image || '');
     out.imageRef = /^https?:\/\//i.test(imageUrl) ? imageUrl : '';
     out.imageUrl = /^https?:\/\//i.test(imageUrl) ? imageUrl : '';
     delete out.imageData;

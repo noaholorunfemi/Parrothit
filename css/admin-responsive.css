@@ -4,3 +4,56 @@
 @media(min-width:901px){.control-shell{width:100%;max-width:1600px;margin-inline:auto;padding:clamp(12px,2vw,28px)}.workspace{grid-template-columns:minmax(200px,260px) minmax(0,1fr);gap:clamp(12px,1.8vw,28px)}.workspace main{min-width:0}.tab-panel{min-width:0}.form-grid,.two-col,.social-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.control-shell{padding:12px}.workspace{grid-template-columns:minmax(0,1fr)!important}.workspace main{min-width:0;overflow:visible}.side-nav{position:static;max-height:none;overflow:visible;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.side-nav button{min-width:0;white-space:normal}.form-grid,.two-col,.social-fields{grid-template-columns:minmax(0,1fr)!important}}
 @media(max-width:600px){.control-shell,.wrap{padding:8px!important}.side-nav{grid-template-columns:minmax(0,1fr)!important}.panel,.tab-panel{padding:12px!important}.top,.toolbar,.actions{flex-wrap:wrap;gap:8px}.data-table{min-width:560px}.admin-responsive-shortcut{width:100%;justify-content:center}}
+
+
+/* Desktop admin readability: prevent intrinsic-width children pushing controls into a narrow left column. */
+@media (min-width:901px){
+  .control-shell,.workspace,.workspace>*,.workspace main,.workspace section,.tab-panel,.panel,.content,.container,.wrap,.form-grid,.two-col,.social-fields,.quick-grid{min-width:0;}
+  .control-shell{width:100%;max-width:1600px;margin-inline:auto;padding-inline:clamp(18px,2.2vw,36px);}
+  .workspace{width:100%;grid-template-columns:minmax(220px,280px) minmax(0,1fr)!important;align-items:start;gap:clamp(16px,2vw,30px);}
+  .workspace>main,.workspace>section{width:100%;max-width:100%;}
+  .wrap{width:min(calc(100% - 48px),1600px);max-width:1600px;margin-inline:auto;padding:clamp(18px,2vw,32px);}
+  .panel-head,.top,.top-actions,.section-head,.actions,.row,.form-actions{max-width:100%;flex-wrap:wrap;}
+  .field,.card,.stat,.quick-card,.subcard,.item-row,.panel-head>div,.top>div{min-width:0;max-width:100%;}
+  input,select,textarea,button,a,.field small,p,li,td,th{overflow-wrap:anywhere;}
+  table{max-width:100%;}
+}
+
+
+/* PARROTHIT v6: full-width desktop admin workspace. Applied across admin pages. */
+@media (min-width:901px) {
+  html, body { width:100%; min-width:0; }
+  body { overflow-x:hidden; }
+  body > main, body > .wrap, main, main.wrap, .wrap, .container, .content,
+  .content-wrapper, .page-container, .admin-container, .admin-shell,
+  .dashboard-container, .workspace, .control-shell, .newsroom-wrap {
+    box-sizing:border-box !important;
+    width:100% !important;
+    max-width:1680px !important;
+    min-width:0 !important;
+    margin-left:auto !important;
+    margin-right:auto !important;
+  }
+  .control-shell { padding-left:clamp(16px,2vw,38px) !important; padding-right:clamp(16px,2vw,38px) !important; }
+  .workspace { display:grid !important; grid-template-columns:minmax(220px,280px) minmax(0,1fr) !important; gap:clamp(14px,2vw,30px) !important; align-items:start; }
+  .workspace > main, .workspace > section, .workspace main {
+    width:100% !important; max-width:none !important; min-width:0 !important; overflow-x:visible;
+  }
+  .tab-panel, .panel, .card, .subcard, .form-grid, .two-col, .social-fields,
+  .quick-grid, .grid, .row, .field, .item-row, .panel-head, .top, .actions,
+  .form-actions, .toolbar, .settings-grid {
+    min-width:0 !important; max-width:100%; box-sizing:border-box;
+  }
+  .tab-panel, .panel, .card, .subcard { overflow-wrap:anywhere; }
+  .field input, .field select, .field textarea, input, select, textarea {
+    min-width:0; max-width:100%; box-sizing:border-box;
+  }
+  p, li, label, td, th, small, .muted, .notice, code, pre {
+    overflow-wrap:anywhere; word-break:normal;
+  }
+  .table-wrap { width:100%; max-width:100%; overflow-x:auto; }
+  .data-table { width:100%; }
+  .grid, .cards, .card-grid, .dashboard-grid, .admin-grid {
+    grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));
+  }
+}

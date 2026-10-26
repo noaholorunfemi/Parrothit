@@ -20,7 +20,7 @@ const levelFor=n=>n>=180?['👑','Ultimate Master']:n>=100?['🧠','Master']:n>=
 let client=null,user=null,profile=null,joined=new Set(),friends=[];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function msg(id,t,bad=false){const el=$(id);if(el){el.textContent=t;el.style.color=bad?'#b91c1c':''}}
-function publicUrl(path){return client.storage.from('parrot media').getPublicUrl(path).data.publicUrl}
+function publicUrl(path){return client.storage.from('parrot-media').getPublicUrl(path).data.publicUrl}
 function member(){return !!user&&!!(user.email_confirmed_at||user.confirmed_at||user.app_metadata?.provider==='google')}
 function roomMarkup(){const grid=$('communityRoomGrid'),select=$('communityPostRoom');if(!grid)return;grid.innerHTML=rooms.map(r=>`<a class="community-room ${r.theme}" href="rooms/${r.slug}.html" aria-label="Open ${r.name} room">${r.icon} ${r.name}<small>${r.desc}</small><span class="room-member-status" id="room-status-${r.slug}">Open room ↗</span></a>`).join('');if(select){select.innerHTML='<option value="General">🌐 General Community</option>'+rooms.filter(r=>r.slug!=='general').map(r=>`<option value="${r.name}">${r.icon} ${r.name}</option>`).join('');const key=new URLSearchParams(location.search).get('room');const found=rooms.find(r=>r.slug===key);if(found)select.value=found.name;}}
 function refreshLevel(){const count=Number(profile?.participation_days||0);const [icon,name]=levelFor(count);const badge=$('communityMiniLevel');if(badge)badge.textContent=`${icon} ${name} · ${count} active day${count===1?'':'s'}`;}

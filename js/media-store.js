@@ -1,5 +1,5 @@
 /* PARROTHIT media storage helper.
-   Signed-in community media uploads to the public `parrot media` bucket so
+   Signed-in community media uploads to the public `parrot-media` bucket so
    pictures and voice notes can be opened on other devices. Local IndexedDB is
    retained for unauthenticated/local previews only. */
 (function () {
@@ -7,7 +7,8 @@
   const DB_NAME = 'parrothit-media-db';
   const DB_VERSION = 1;
   const STORE = 'images';
-  const MAX_MEDIA_BYTES = 150 * 1024 * 1024;
+  const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
+  const MAX_SHARED_MEDIA_BYTES = 50 * 1024 * 1024;
   const urls = new Map();
 
   function newId() {
@@ -59,12 +60,29 @@
   async function storeBlob(blob, filename, expectedType) {
     if (!(blob instanceof Blob)) throw new Error('Choose a valid media file.');
     if (expectedType && !String(blob.type || '').startsWith(expectedType)) throw new Error(expectedType === 'image/' ? 'Choose a valid image file.' : 'Choose a valid audio recording.');
-    if (blob.size > MAX_MEDIA_BYTES) throw new Error('Media exceeds the 150 MB application maximum. Choose a smaller file.');
+    const maxBytes = expectedType === 'image/' ? 50 * 1024 * 1024 : MAX_MEDIA_BYTES;
+    if (blob.size > maxBytes) throw new Error(expectedType === 'image/' ? 'Image exceeds the 50 MB application maximum. Choose a smaller file.' : 'Media exceeds the 50 MB application maximum. Choose a smaller file.');
     const id = newId();
     const name = safeName(filename, expectedType === 'audio/' ? 'voice-message.webm' : 'image');
 
-    // Community posts use the shared bucket and uid-scoped paths. When logged in,
-    // a failed upload is surfaced rather than silently saving a device-only link.
+    // Admin news/ad/card uploads use the administrator-only `parrothit-media`
+    // bucket first. This prevents a missing community bucket named `parrot-media`
+    // from blocking legitimate website publishing uploads.
+    const adminClient = window.PARROTHIT_ADMIN_CLIENT;
+    if (window.PARROTHIT_ADMIN_PROFILE && adminClient && adminClient.storage && adminClient.auth) {
+      const sessionResult = await adminClient.auth.getSession();
+      if (sessionResult.data && sessionResult.data.session) {
+        if (blob.size > MAX_SHARED_MEDIA_BYTES) throw new Error('Shared Supabase Storage uploads are limited to 50 MiB. Choose a smaller file.');
+        const path = 'uploads/' + id + '-' + name;
+        try { return await uploadPublic(adminClient, 'parrothit-media', path, blob, blob.type); }
+        catch (err) {
+          throw new Error('Shared admin media upload failed. Ensure the `parrothit-media` bucket exists, its 50 MiB limit is configured, and administrator Storage policies are installed. ' + (err && err.message ? err.message : ''));
+        }
+      }
+    }
+
+    // Community posts use their own public bucket and uid-scoped paths. This
+    // branch remains separate so ordinary members cannot upload into the admin bucket.
     const communityClient = typeof window.getParrothitSupabaseClient === 'function'
       ? window.getParrothitSupabaseClient() : null;
     if (communityClient && communityClient.auth && communityClient.storage) {
@@ -72,11 +90,12 @@
         const sessionResult = await communityClient.auth.getSession();
         const session = sessionResult && sessionResult.data && sessionResult.data.session;
         if (session && session.user && session.user.id) {
+          if (blob.size > MAX_SHARED_MEDIA_BYTES) throw new Error('Shared media upload failed: Supabase Storage uploads are limited to 50 MiB. Choose a smaller file.');
           const path = 'community-posts/' + session.user.id + '/' + id + '-' + name;
           try {
-            return await uploadPublic(communityClient, 'parrot media', path, blob, blob.type);
+            return await uploadPublic(communityClient, 'parrot-media', path, blob, blob.type);
           } catch (err) {
-            throw new Error('Shared media upload failed. Confirm the `parrot media` bucket exists, its own-folder Storage policies are installed, and the bucket size limit allows this file. ' + (err && err.message ? err.message : ''));
+            throw new Error('Shared media upload failed. Confirm the `parrot-media` bucket exists, its own-folder Storage policies are installed, and the bucket size limit allows this file. ' + (err && err.message ? err.message : ''));
           }
         }
       } catch (err) {
@@ -85,18 +104,6 @@
       }
     }
 
-    // Preserve the existing admin publishing path for news/admin media.
-    const adminClient = window.PARROTHIT_ADMIN_CLIENT;
-    if (adminClient && adminClient.storage && adminClient.auth) {
-      const sessionResult = await adminClient.auth.getSession();
-      if (sessionResult.data && sessionResult.data.session) {
-        const path = 'uploads/' + id + '-' + name;
-        try { return await uploadPublic(adminClient, 'parrothit-media', path, blob, blob.type); }
-        catch (err) {
-          throw new Error('Shared admin media upload failed. Check the parrothit-media bucket, its size limit, and admin Storage policies. ' + (err && err.message ? err.message : ''));
-        }
-      }
-    }
     return storeLocally(blob, name);
   }
   async function store(file) {
