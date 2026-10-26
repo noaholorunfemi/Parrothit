@@ -1,0 +1,250 @@
+<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure admin sign-in | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><style id="parrot-warning-styles">
+#parrot-warning-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,10,20,.68);backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);opacity:0;visibility:hidden;transition:opacity .34s ease,visibility .34s ease,backdrop-filter .34s ease}
+#parrot-warning-overlay.pw-open{opacity:1;visibility:visible;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#parrot-warning-dialog{width:min(100%,430px);position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.78);border-radius:24px;background:linear-gradient(145deg,#fff 0%,#fff8f2 54%,#fff 100%);box-shadow:0 28px 90px rgba(0,0,0,.34);transform:translateY(30px) scale(.88) rotateX(7deg);opacity:0;transition:transform .48s cubic-bezier(.16,1,.3,1),opacity .3s ease;font-family:inherit;color:#171923;will-change:transform,opacity}
+#parrot-warning-overlay.pw-open #parrot-warning-dialog{transform:translateY(0) scale(1) rotateX(0);opacity:1;animation:pw-dialog-pop .52s cubic-bezier(.16,1,.3,1) both}
+#parrot-warning-dialog:before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,#d71920,#ff9b38,#ffe2a8,#d71920);background-size:250% 100%;animation:pw-shimmer 2.6s linear infinite}
+#parrot-warning-dialog:after{content:"";position:absolute;pointer-events:none;width:150px;height:150px;right:-90px;top:-90px;border-radius:50%;background:rgba(255,155,56,.14);filter:blur(2px)}
+#parrot-warning-dialog .pw-content{position:relative;z-index:1;padding:28px 26px 24px;text-align:center}
+#parrot-warning-dialog .pw-logo-wrap{width:86px;height:86px;margin:2px auto 15px;padding:7px;border-radius:25px;background:linear-gradient(145deg,#fff,#ffe4df);box-shadow:0 8px 24px rgba(215,25,32,.18);border:1px solid #ffd1cc;animation:pw-logo-enter .72s cubic-bezier(.16,1,.3,1) both,pw-float 3s ease-in-out .8s infinite;transform-origin:center}
+#parrot-warning-dialog .pw-logo{display:block;width:100%;height:100%;object-fit:contain;border-radius:17px}
+#parrot-warning-dialog h2{font-size:1.5rem;line-height:1.2;margin:0 0 9px;color:#b9141b;font-weight:900;letter-spacing:-.025em;animation:pw-text-enter .42s ease .12s both}
+#parrot-warning-dialog .pw-message{margin:0 auto;color:#4b5563;font-size:.98rem;line-height:1.55;max-width:340px;overflow-wrap:anywhere;animation:pw-text-enter .42s ease .18s both}
+#parrot-warning-dialog .pw-note{font-size:.79rem;color:#8a5260;margin:13px 0 0;animation:pw-text-enter .42s ease .22s both}
+#parrot-warning-dialog .pw-actions{display:flex;gap:10px;margin-top:23px}
+#parrot-warning-dialog .pw-btn{flex:1;border:0;border-radius:12px;padding:12px 14px;font:inherit;font-weight:800;cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease,background .2s ease;animation:pw-button-enter .42s ease .25s both}
+#parrot-warning-dialog .pw-btn:hover{transform:translateY(-3px) scale(1.02)}
+#parrot-warning-dialog .pw-btn:active{transform:translateY(0) scale(.98)}
+#parrot-warning-dialog .pw-cancel{background:#f1f3f6;color:#293244;border:1px solid #dfe3e9}
+#parrot-warning-dialog .pw-cancel:hover{background:#e7ebf1;box-shadow:0 5px 14px rgba(23,32,51,.10)}
+#parrot-warning-dialog .pw-continue{background:linear-gradient(135deg,#d71920,#a80f16);color:white;box-shadow:0 7px 18px rgba(215,25,32,.24)}
+#parrot-warning-dialog .pw-continue:hover{box-shadow:0 11px 26px rgba(215,25,32,.36)}
+@keyframes pw-shimmer{to{background-position:250% 0}}
+@keyframes pw-dialog-pop{0%{filter:blur(3px)}100%{filter:blur(0)}}
+@keyframes pw-logo-enter{0%{opacity:0;transform:translateY(14px) scale(.55) rotate(-12deg)}70%{opacity:1;transform:translateY(-3px) scale(1.06) rotate(3deg)}100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
+@keyframes pw-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes pw-text-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
+
+/* Login failure / suspension dialogs */
+.auth-alert-layer{position:fixed;inset:0;z-index:2147483200;display:none;place-items:center;padding:18px;background:rgba(3,8,20,.82);backdrop-filter:blur(7px)}
+.auth-alert-layer.open{display:grid}
+.auth-alert-card{width:min(100%,470px);box-sizing:border-box;background:#fff;border:2px solid #d71920;border-radius:18px;box-shadow:0 22px 80px #0009;overflow:hidden;color:#111827}
+.auth-alert-card.unauthorized{animation:auth-hatch .72s ease-in-out both}
+.auth-alert-bar{height:8px;background:repeating-linear-gradient(135deg,#d71920 0 12px,#fff 12px 24px,#111827 24px 36px)}
+.auth-alert-content{padding:25px;text-align:center}
+.auth-alert-icon{font-size:2.8rem;line-height:1.2;display:block;margin-bottom:8px}
+.auth-alert-card h2{margin:0 0 10px;color:#b91c1c;font-size:1.5rem}
+.auth-alert-card p{line-height:1.5}
+.auth-alert-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.auth-alert-actions button,.appeal-submit{border:0;border-radius:9px;padding:11px 16px;background:#b91c1c;color:#fff;font-weight:800;cursor:pointer}
+.auth-alert-actions .neutral{background:#e5e7eb;color:#111827}
+#suspendedAppealForm{text-align:left;margin-top:16px;border-top:1px solid #e5e7eb;padding-top:16px}
+#suspendedAppealForm label{display:grid;gap:6px;margin:10px 0;font-weight:750;font-size:.9rem}
+#suspendedAppealForm input,#suspendedAppealForm textarea{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:9px;padding:11px;font:inherit;background:#fff;color:#111827}
+#suspendedAppealForm textarea{min-height:125px;resize:vertical}
+.appeal-counter{font-size:.82rem;color:#475569;display:flex;justify-content:space-between;gap:8px}
+.appeal-status{font-size:.9rem;font-weight:700;overflow-wrap:anywhere}
+@keyframes auth-hatch{0%,100%{transform:translateX(0) rotate(0)}12%,36%,60%,84%{transform:translateX(-9px) rotate(-1deg)}24%,48%,72%{transform:translateX(9px) rotate(1deg)}0%{filter:brightness(1.4)}35%{filter:brightness(.8)}70%{filter:brightness(1.2)}}
+@media(prefers-reduced-motion:reduce){.auth-alert-card.unauthorized{animation:none}}
+
+</style>
+<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
+<div class="back-home-wrap"><a class="back-home-link" href="../index.html">← Back home</a></div>
+<div class="admin-shell"><div class="admin-header"><h1>PARROTHIT ADMIN</h1><a href="../index.html">← View website</a></div><section class="admin-panel" style="max-width:520px;margin:30px auto"><h2>Administrator sign in</h2><p>Sign in using your administrator username or email and password.</p><form id="loginForm" class="admin-form"><label>Username or email<input id="loginName" autocomplete="username" required></label><label>Password <span class="password-wrap"><input id="loginPassword" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">👁</button></span></label>
+<label class="remember-row"><input id="rememberMe" type="checkbox" checked> Remember me on this device</label><button class="admin-btn" type="submit">Sign in securely</button></form><p><a href="forgot-password.html">Forgot your password?</a></p><p id="loginMessage" role="status"></p><p class="meta">Setup required: copy your Supabase URL and public anon key into supabase-config.js (then update this page to load that file). Never use a service-role key here.</p></section></div>
+<div class="auth-alert-layer" id="authAlertLayer" aria-hidden="true">
+  <section class="auth-alert-card" id="authAlertCard" role="alertdialog" aria-modal="true" aria-labelledby="authAlertTitle" aria-describedby="authAlertMessage">
+    <div class="auth-alert-bar"></div><div class="auth-alert-content">
+      <span class="auth-alert-icon" id="authAlertIcon" aria-hidden="true">🚨</span>
+      <h2 id="authAlertTitle">Admin not found or you're not an authorized admin.</h2>
+      <p id="authAlertMessage">This account does not have permission to access the PARROTHIT admin dashboard.</p>
+      <div id="appealArea" hidden>
+        <p><b>Your account is suspended.</b> You can submit an appeal directly to Admin 1 (Owner).</p>
+        <form id="appealStatusCheckForm" style="text-align:left;margin:12px 0;padding:12px;border:1px solid #d1d5db;border-radius:10px">
+          <b>Check your appeal status</b>
+          <label for="statusAppealEmail">Email used in appeal<input id="statusAppealEmail" type="email" maxlength="254" autocomplete="email" required></label>
+          <label for="statusAppealUsername">Username used in appeal<input id="statusAppealUsername" type="text" maxlength="80" autocomplete="username" required></label>
+          <button type="submit" class="neutral">Check appeal status</button>
+        </form>
+        <form id="suspendedAppealForm">
+          <label for="appealEmail">Suspended admin email<input id="appealEmail" type="email" maxlength="254" autocomplete="email" required></label>
+          <label for="appealUsername">Username<input id="appealUsername" type="text" maxlength="80" autocomplete="username" required></label>
+          <label for="appealText">Appeal to Admin 1<textarea id="appealText" maxlength="4000" required placeholder="Explain why you are appealing the suspension..."></textarea></label>
+          <div class="appeal-counter"><span>Maximum 250 words</span><span id="appealWordCount">0 / 250 words</span></div>
+          <p id="appealStatus" class="appeal-status" role="status" aria-live="polite"></p>
+          <div class="auth-alert-actions"><button class="appeal-submit" id="submitAppealBtn" type="submit">Submit appeal to Owner</button><button class="neutral" id="closeSuspendedAlert" type="button">Close</button></div>
+        </form>
+      </div>
+      <div class="auth-alert-actions" id="unauthorizedActions"><button type="button" id="closeAuthAlert">Try again</button></div>
+    </div>
+  </section>
+</div>
+<script>
+const form=document.getElementById('loginForm');
+const alertLayer=document.getElementById('authAlertLayer');
+const alertCard=document.getElementById('authAlertCard');
+const alertTitle=document.getElementById('authAlertTitle');
+const alertMessage=document.getElementById('authAlertMessage');
+const alertIcon=document.getElementById('authAlertIcon');
+const appealArea=document.getElementById('appealArea');
+const unauthorizedActions=document.getElementById('unauthorizedActions');
+let appealClient=null;
+function showAuthAlert(kind,message){
+  alertLayer.classList.add('open');alertLayer.setAttribute('aria-hidden','false');
+  alertCard.classList.remove('unauthorized');void alertCard.offsetWidth;
+  appealArea.hidden=true;unauthorizedActions.hidden=false;
+  if(kind==='suspended'){
+    alertCard.classList.remove('unauthorized');alertTitle.textContent='Admin suspended';alertIcon.textContent='⛔';
+    alertMessage.textContent='Admin suspended by Admin 1 (Owner). You can submit an appeal.';
+    appealArea.hidden=false;unauthorizedActions.hidden=true;
+  }else{
+    alertCard.classList.add('unauthorized');alertTitle.textContent="Administrator not registered";alertIcon.textContent='🚨';
+    alertMessage.textContent=message||'This email or username is not registered as a PARROTHIT administrator, or the sign-in details are incorrect. Contact Admin 1 (Owner) if you believe this is a mistake.';
+    playWarningSound();
+  }
+  const focus=kind==='suspended'?document.getElementById('appealEmail'):document.getElementById('closeAuthAlert');setTimeout(()=>focus&&focus.focus(),50);
+}
+function hideAuthAlert(){alertLayer.classList.remove('open');alertLayer.setAttribute('aria-hidden','true')}
+function playWarningSound(){try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;const ctx=new AC();const now=ctx.currentTime;[0,1,2].forEach((n)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.type='sawtooth';osc.frequency.setValueAtTime(n===1?620:880,now+n*.19);osc.frequency.exponentialRampToValueAtTime(260,now+n*.19+.15);gain.gain.setValueAtTime(.0001,now+n*.19);gain.gain.exponentialRampToValueAtTime(.14,now+n*.19+.025);gain.gain.exponentialRampToValueAtTime(.0001,now+n*.19+.17);osc.connect(gain);gain.connect(ctx.destination);osc.start(now+n*.19);osc.stop(now+n*.19+.18)});setTimeout(()=>ctx.close().catch(()=>{}),1000)}catch(e){console.warn('Warning sound is unavailable in this browser.',e)}}
+document.getElementById('closeAuthAlert').addEventListener('click',hideAuthAlert);
+document.getElementById('closeSuspendedAlert').addEventListener('click',hideAuthAlert);
+alertLayer.addEventListener('click',e=>{if(e.target===alertLayer)hideAuthAlert()});
+const appealText=document.getElementById('appealText');
+const appealStatusCheckForm=document.getElementById('appealStatusCheckForm');
+appealStatusCheckForm.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const email=document.getElementById('statusAppealEmail').value.trim();
+  const username=document.getElementById('statusAppealUsername').value.trim();
+  if(window.PARROTHIT_LOCAL_PREVIEW){
+    const items=(()=>{try{return JSON.parse(localStorage.getItem('parrothit-local-admin-appeals-v1')||'[]')}catch{return []}})();
+    const a=items.filter(x=>String(x.email||'').toLowerCase()===email.toLowerCase()&&String(x.username||'').toLowerCase()===username.toLowerCase()).sort((x,y)=>new Date(y.created_at)-new Date(x.created_at))[0];
+    if(!a){alert('No appeal was found for that email and username. Check the details and try again.');return;}
+    showAppealStatus(a.status);return;
+  }
+  if(!appealClient){if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||!window.PARROTHIT_SUPABASE_ANON_KEY){alert('Appeal status checking is unavailable until Supabase is configured.');return;}appealClient=window.getParrothitSupabaseClient();}
+  const button=appealStatusCheckForm.querySelector('button[type="submit"]');button.disabled=true;
+  try{const {data,error}=await appealClient.rpc('check_admin_appeal_status',{p_email:email,p_username:username});if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(!row||!row.status){alert('No appeal was found for that email and username. Check the details and try again.');return;}showAppealStatus(row.status);}
+  catch(err){console.error('Appeal status check failed:',err);alert('Could not check your appeal status. The latest Supabase schema must be installed first.');}
+  finally{button.disabled=false;}
+});
+function showAppealStatus(status){status=String(status||'pending').toLowerCase();if(status==='accepted'){alert("Your appeal has been accepted and is waiting for Admin 1's review.");}else if(status==='rejected'){if(confirm('Sorry, your appeal was rejected. Would you like to resubmit an appeal?')){document.getElementById('appealText').focus();document.getElementById('appealStatus').textContent='You can submit a new appeal below.';}}else if(status==='reactivated'){alert("Congratulations or welcome back, you've been reactivated by admin 1.");}else{alert('Your appeal is still waiting for Admin 1 (Owner) to review.');}}
+function countWords(v){const t=String(v||'').trim();return t?t.split(/\s+/).length:0}
+function updateAppealCount(){const n=countWords(appealText.value);document.getElementById('appealWordCount').textContent=`${n} / 250 words`;document.getElementById('appealWordCount').style.color=n>250?'#b91c1c':'';document.getElementById('submitAppealBtn').disabled=n===0||n>250}
+appealText.addEventListener('input',updateAppealCount);
+document.getElementById('suspendedAppealForm').addEventListener('submit',async e=>{
+  e.preventDefault();const status=document.getElementById('appealStatus'),btn=document.getElementById('submitAppealBtn');
+  const email=document.getElementById('appealEmail').value.trim(),username=document.getElementById('appealUsername').value.trim(),appeal=appealText.value.trim(),words=countWords(appeal);
+  if(!email||!username||!appeal){status.textContent='Complete all required fields.';return}
+  if(words>250){status.textContent='Your appeal is over 250 words. Please shorten it.';return}
+  if(!appealClient&&window.PARROTHIT_LOCAL_PREVIEW){
+    try{const key='parrothit-local-admin-appeals-v1';const items=JSON.parse(localStorage.getItem(key)||'[]');items.push({id:'local-'+Date.now(),email,username,appeal_text:appeal,status:'pending',created_at:new Date().toISOString()});localStorage.setItem(key,JSON.stringify(items));status.textContent='Appeal saved in this browser for local testing. It has NOT been sent to the live Owner.';appealText.value='';updateAppealCount();return}catch(err){status.textContent='Could not save this local demo appeal in browser storage.';return}
+  }
+  if(!appealClient){status.textContent='Appeal submission is unavailable until the Supabase project is configured.';return}
+  btn.disabled=true;status.textContent='Submitting appeal securely…';
+  try{const {error}=await appealClient.from('admin_appeals').insert({admin_user_id:(await appealClient.auth.getUser()).data.user.id,email,username,appeal_reason:appeal,status:'pending'});if(error)throw error;status.textContent='Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
+  catch(err){console.error('Appeal submission failed:',err);status.textContent='Could not submit appeal. Ensure the admin_appeals table and policies have been installed in Supabase.'}
+  finally{btn.disabled=false}
+});
+function getAdminPostLoginDestination(){
+  const requested=new URLSearchParams(window.location.search).get('next')||'';
+  // Only allow a simple HTML filename within /admin; prevent open redirects.
+  if(/^[a-zA-Z0-9._-]+\.html(?:\?[a-zA-Z0-9._=&%-]*)?$/.test(requested) && !/^login\.html(?:$|\?)/i.test(requested)) return requested;
+  return 'dashboard.html';
+}
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  // Local-only test controls. They never run on hosted domains and do not create real accounts.
+  if(window.PARROTHIT_LOCAL_PREVIEW){
+    e.stopImmediatePropagation();
+    const testName=document.getElementById('loginName').value.trim().toLowerCase();
+    if(testName==='owner-preview'||testName==='admin-preview'){
+      document.getElementById('loginMessage').textContent='Local preview only: opening the dashboard without authenticating a real administrator.';
+      setTimeout(()=>location.href=getAdminPostLoginDestination(),350);
+    }else if(testName==='suspended-test'){
+      document.getElementById('appealEmail').value='suspended-test@example.local';
+      document.getElementById('appealUsername').value='suspended-test';
+      showAuthAlert('suspended');
+    }else{
+      showAuthAlert('unauthorized','Local test: this username is not an authorized administrator. Use owner-preview to open the local dashboard or suspended-test to preview the suspension appeal.');
+    }
+    return;
+  }
+  const msg=document.getElementById('loginMessage');msg.textContent='';
+  if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||String(window.PARROTHIT_SUPABASE_URL).includes('YOUR-PROJECT')||!window.PARROTHIT_SUPABASE_ANON_KEY||String(window.PARROTHIT_SUPABASE_ANON_KEY).includes('YOUR_PUBLIC')){msg.textContent='Supabase is not configured yet. Follow SETUP-SUPABASE.txt first.';return;}
+  const loginName=document.getElementById('loginName').value.trim(),password=document.getElementById('loginPassword').value;
+  const btn=form.querySelector('button[type="submit"]');if(btn)btn.disabled=true;
+  try{
+    appealClient=window.getParrothitSupabaseClient();
+    let email=loginName;
+    if(!loginName.includes('@')){const {data,error}=await appealClient.rpc('resolve_admin_email',{p_username:loginName});if(error||!data){showAuthAlert('unauthorized','This username is not registered as a PARROTHIT administrator. Check the spelling or contact Admin 1 (Owner).');if(btn)btn.disabled=false;return;}email=data;}
+    const {error:authError}=await appealClient.auth.signInWithPassword({email,password});
+    if(authError){showAuthAlert('unauthorized');return;}
+    const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
+    if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
+    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name,is_suspended,email').eq('user_id',sessionData.session.user.id).maybeSingle();
+    if(profileError){console.error('Could not read admin profile:',profileError);await appealClient.auth.signOut();showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
+    if(!profile||!['owner','admin'].includes(String(profile.role||'').toLowerCase())){
+      await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
+    }
+    // This project may have an older admin_profiles schema without email/is_suspended columns.
+    // Do not request missing columns during sign-in; the core owner check uses user_id + role.
+    if(profile.is_suspended===true){
+      const userEmail=sessionData.session.user.email||email;
+      const userName=profile.username||loginName;
+      document.getElementById('appealEmail').value=userEmail;
+      document.getElementById('appealUsername').value=userName;
+      showAuthAlert('suspended');return;
+    }
+    // Atomically consume the reactivation notice once, after a successful sign-in.
+    try{const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");}catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr)}
+    location.href=getAdminPostLoginDestination();
+  }catch(err){console.error('Admin login failed:',err);showAuthAlert('unauthorized');}
+  finally{if(btn)btn.disabled=false;}
+});
+</script><script>
+document.querySelectorAll('.password-toggle').forEach(btn=>btn.addEventListener('click',()=>{const input=btn.parentElement.querySelector('input');const show=input.type==='password';input.type=show?'text':'password';btn.textContent=show?'🙈':'👁';btn.setAttribute('aria-label',show?'Hide password':'Show password');btn.setAttribute('aria-pressed',String(show));}));
+</script><script id="parrot-warning-script">
+(()=>{
+'use strict';
+if(window.__PARROTHIT_WARNING_READY__)return;window.__PARROTHIT_WARNING_READY__=true;
+const ACTION_WORDS=/\b(save|update|publish|unpublish|delete|remove|clear|upload|replace|approve|dismiss|reset|restore|backup|invite|create|add|submit|sync|import|export|enable|disable|apply|send|post|change password|sign out|logout)\b/i;
+const SKIP_SELECTOR='[data-tab],[data-goto],.side-nav button,.password-toggle,[data-warning-skip],#parrot-warning-cancel,#parrot-warning-continue';
+let pendingResolve=null,queued=null,bypassClick=null,bypassSubmit=null;
+function actionText(el){return (el.getAttribute('data-confirm-action')||el.getAttribute('aria-label')||el.getAttribute('title')||el.innerText||el.value||el.textContent||'').trim().replace(/\s+/g,' ').slice(0,180)}
+function ensureDialog(){if(document.getElementById('parrot-warning-overlay'))return;
+const overlay=document.createElement('div');overlay.id='parrot-warning-overlay';overlay.setAttribute('aria-hidden','true');overlay.innerHTML=`<section id="parrot-warning-dialog" role="alertdialog" aria-modal="true" aria-labelledby="parrot-warning-title" aria-describedby="parrot-warning-message"><div class="pw-content"><div class="pw-logo-wrap"><img class="pw-logo" src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo"></div><h2 id="parrot-warning-title">Parrot Warning!</h2><p class="pw-message" id="parrot-warning-message">You are about to make a change. Would you like to revoke this action or continue?</p><p class="pw-note">Please review before continuing.</p><div class="pw-actions"><button type="button" class="pw-btn pw-cancel" id="parrot-warning-cancel">Revoke action</button><button type="button" class="pw-btn pw-continue" id="parrot-warning-continue">Continue</button></div></div></section>`;
+document.body.appendChild(overlay);
+const finish=answer=>{overlay.classList.remove('pw-open');overlay.setAttribute('aria-hidden','true');document.body.style.removeProperty('overflow');const resolve=pendingResolve;pendingResolve=null;setTimeout(()=>{if(resolve)resolve(answer)},190)};
+overlay.addEventListener('click',e=>{if(e.target===overlay)finish(false)});
+overlay.querySelector('#parrot-warning-cancel').addEventListener('click',()=>finish(false));
+overlay.querySelector('#parrot-warning-continue').addEventListener('click',()=>finish(true));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&overlay.classList.contains('pw-open'))finish(false)});
+overlay.__finish=finish;
+}
+function ask(message){ensureDialog();const overlay=document.getElementById('parrot-warning-overlay');if(pendingResolve){return Promise.resolve(false)}const msg=overlay.querySelector('#parrot-warning-message');msg.textContent=message||'You are about to make a change. Would you like to revoke this action or continue?';overlay.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';requestAnimationFrame(()=>overlay.classList.add('pw-open'));return new Promise(resolve=>{pendingResolve=resolve;setTimeout(()=>overlay.querySelector('#parrot-warning-cancel').focus(),60)})}
+function isAction(el){if(!el||el.closest(SKIP_SELECTOR))return false;const txt=actionText(el).replace(/\s+/g,' ').trim().toLowerCase();return el.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(txt)||el.hasAttribute('data-commit-change');}
+function messageFor(el){const label=actionText(el)||'this action';return `Parrot Warning! You are about to ${label.charAt(0).toLowerCase()+label.slice(1)}. Do you want to revoke this action or continue?`}
+document.addEventListener('click',async e=>{
+ const el=e.target.closest('button,input[type="submit"],input[type="button"],input[type="file"],[role="button"],a[data-confirm-action]');if(!el)return;
+ if(bypassClick===el){bypassClick=null;return}
+ if(!isAction(el))return;
+ e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+ const ok=await ask(messageFor(el));if(!ok)return;
+ if(el.matches('a')){location.href=el.href;return}
+ bypassClick=el;const form=el.form||el.closest('form');if(form)bypassSubmit=form;
+ const oldConfirm=window.confirm;window.confirm=()=>true;
+ try{el.click()}catch(err){console.error('PARROTHIT action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassClick===el)bypassClick=null;if(bypassSubmit===form)bypassSubmit=null},0)}
+},true);
+document.addEventListener('submit',async e=>{
+ const form=e.target;if(!(form instanceof HTMLFormElement))return;
+ if(bypassSubmit===form){bypassSubmit=null;return}
+ const submitter=e.submitter;const submitLabel=submitter?actionText(submitter).replace(/\s+/g,' ').trim().toLowerCase():'';if(!(submitter&&(submitter.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(submitLabel)||submitter.hasAttribute('data-commit-change'))))return;const label=actionText(submitter)||'Commit Change';
+ e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+ const ok=await ask(`Parrot Warning! You are about to ${String(label).trim().toLowerCase()}. Do you want to revoke this action or continue?`);if(!ok)return;
+ bypassSubmit=form;const oldConfirm=window.confirm;window.confirm=()=>true;
+ try{if(form.requestSubmit)form.requestSubmit(submitter||undefined);else HTMLFormElement.prototype.submit.call(form)}catch(err){console.error('PARROTHIT form action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassSubmit===form)bypassSubmit=null},0)}
+},true);
+})();
+</script></body></html>

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PARROTHIT Newsroom Automation</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase-config.js"></script>
+<style>
+:root{font-family:Arial,sans-serif;color:#f4f7fb;background:#071b13}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(145deg,#071b13,#102b20);min-height:100vh}
+.wrap{max-width:1250px;margin:auto;padding:18px}
+.top,.panel{background:#102b20;border:1px solid #28553e;border-radius:14px;padding:18px;margin-bottom:16px}
+.top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-bottom:4px solid #e01b24}
+.top h1{margin:0;font-size:clamp(1.25rem,3vw,2rem)}
+.muted{color:#b8cdbf;line-height:1.5}
+.warning{background:#3b2d08;border:1px solid #a47b18;color:#fff0b5;padding:12px;border-radius:9px;margin:12px 0}
+.row{display:flex;gap:9px;flex-wrap:wrap;align-items:end}
+.field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px}
+.field label{font-weight:bold;font-size:.9rem}
+input,select{width:100%;padding:11px;border-radius:8px;border:1px solid #527260;background:#07160f;color:white;font-size:1rem}
+button,.btn{border:0;border-radius:8px;padding:10px 13px;font-weight:750;cursor:pointer;background:#e01b24;color:#fff;text-decoration:none;display:inline-block}
+button.secondary,.btn.secondary{background:#304a3b}
+button.green{background:#16834a}
+button.blue{background:#245bb7}
+button:disabled{opacity:.55;cursor:wait}
+.section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:720px}
+th,td{text-align:left;border-bottom:1px solid #2b4a38;padding:11px 9px;vertical-align:top}
+th{color:#b8e3c5;font-size:.85rem}
+td{line-height:1.4}
+.pill{display:inline-block;background:#294c38;padding:4px 8px;border-radius:20px;font-size:.8rem}
+.empty{padding:20px;color:#c0d1c5}
+.msg{padding:10px;border-radius:8px;margin:10px 0;display:none;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.show{display:block}
+.msg.error{background:#4a1616;color:#ffd9d9}
+.msg.ok{background:#123f27;color:#d5ffe4}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.small{font-size:.83rem}
+.feed-url{overflow-wrap:anywhere;max-width:340px}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:600px){.wrap{padding:10px}.panel,.top{padding:13px}.field{min-width:100%}}
+</style>
+<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6">
+</head>
+<body>
+<main class="wrap">
+<header class="top">
+  <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare manual or AI-assisted drafts → review or administrator-selected AI auto-publishing.</p></div>
+  <div class="top-actions"><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
+</header>
+<div class="warning"><strong>Publication mode is controlled by the active administrator.</strong> The default is manual review. You can opt in to automatically publishing AI-assisted drafts after you click Create AI Draft. Free manual working drafts always remain In Review and are never automatically published. Automatic mode does not run unattended feed discovery or generate drafts on a schedule.</div>
+<section class="panel" id="publicationModePanel">
+  <div class="section-head"><div><h2>Publication mode</h2><p class="muted">Choose whether newly generated AI-assisted drafts wait for approval or publish as soon as the Edge Function saves them.</p></div></div>
+  <div class="row">
+    <div class="field" style="flex:2;min-width:260px"><label for="publishMode">AI draft handling</label><select id="publishMode"><option value="review">Hold for manual review — recommended</option><option value="auto_publish_ai">Automatically publish AI-assisted drafts without review</option></select></div>
+    <button id="savePublishMode" type="button" class="green">Save publication mode</button>
+  </div>
+  <p id="publishModeStatus" class="muted small" role="status" aria-live="polite">Publication mode is being loaded…</p>
+  <p class="muted small"><strong>Safety:</strong> this setting affects only future AI drafts created through this page. Manual Draft — FREE stays In Review. Existing articles are not changed by switching the setting.</p>
+</section>
+<div id="message" class="msg"></div>
+<section class="panel">
+  <div class="section-head"><div><h2>1. Feed sources</h2><p class="muted">Add RSS or Atom feeds. Feed URLs are fetched by the secure Supabase Edge Function, not by your browser.</p></div><button id="discoverBtn" class="green">🔎 Discover new stories</button></div>
+  <form id="sourceForm"><div class="row">
+    <div class="field"><label for="sourceName">Source name</label><input id="sourceName" required maxlength="120" placeholder="Example: BBC News Africa"></div>
+    <div class="field" style="flex:2"><label for="feedUrl">RSS / Atom feed URL</label><input id="feedUrl" type="url" required placeholder="https://example.com/rss.xml"></div>
+    <div class="field"><label for="sourceCategory">Default category</label><select id="sourceCategory"><option value="">No default category</option></select></div>
+    <button type="submit">Add feed</button>
+  </div></form>
+  <div class="table-wrap"><table><thead><tr><th>Source</th><th>Feed URL</th><th>Default category</th><th>Enabled</th><th>Actions</th></tr></thead><tbody id="sourceRows"><tr><td colspan="5" class="empty">Loading sources…</td></tr></tbody></table></div>
+</section>
+<section class="panel">
+  <div class="section-head"><div><h2>2. Discovered story queue</h2><p class="muted">Choose a free manual working draft or optional AI-assisted draft after checking the source. A source link is not yet a finished PARROTHIT article.</p></div><button id="reloadCandidates" class="secondary">Reload queue</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Source headline</th><th>Source / date</th><th>Category</th><th>Status</th><th>Action</th></tr></thead><tbody id="candidateRows"><tr><td colspan="5" class="empty">Loading candidates…</td></tr></tbody></table></div>
+</section>
+<section class="panel">
+  <h2>3. Draft and publish workflow</h2>
+  <ol class="muted">
+    <li>Run discovery to collect recent links from enabled feeds.</li>
+    <li>Check the headline, publisher, and source URL before creating a draft.</li>
+    <li><strong>Create Manual Draft — FREE</strong> uses the headline and available RSS summary without calling an AI provider. It is a working draft, not a verified finished article.</li>
+    <li><strong>Create AI Draft — OPTIONAL</strong> uses the configured AI provider and may require paid credits.</li>
+    <li>In manual-review mode, open Article Editor, verify facts and attribution, rewrite/expand as needed, then select <strong>Approve &amp; publish</strong> only when ready. In automatic AI mode, the AI draft is published immediately without human review.</li>
+  </ol>
+  <p class="muted small">If AI credits are exhausted, manual drafting remains available. Never place service-role or AI API keys in public files. This page does not configure scheduled publishing.</p>
+</section>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  let client, session, categories = [];
+
+  function message(text, type = 'ok') {
+    const el = $('message');
+    el.textContent = text;
+    el.className = 'msg show ' + (type === 'error' ? 'error' : 'ok');
+  }
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function categoryName(id) { return categories.find(c => c.id === id)?.name || '—'; }
+
+  let publishMode = 'review';
+  async function loadPublishMode() {
+    const status = $('publishModeStatus');
+    try {
+      const { data, error } = await client.from('site_settings').select('value').eq('key', 'newsroom_automation').maybeSingle();
+      if (error) throw error;
+      const value = data && data.value && typeof data.value === 'object' ? data.value : {};
+      publishMode = value.publishMode === 'auto_publish_ai' ? 'auto_publish_ai' : 'review';
+      $('publishMode').value = publishMode;
+      status.textContent = publishMode === 'auto_publish_ai'
+        ? 'Automatic AI publication is ON for new AI drafts. Manual working drafts remain in review.'
+        : 'Manual review is ON. New AI drafts remain unpublished until an administrator approves them.';
+    } catch (error) {
+      publishMode = 'review';
+      $('publishMode').value = 'review';
+      status.textContent = 'Could not read the saved mode; safe default selected. ' + (error.message || String(error));
+      status.style.color = '#ffd9d9';
+    }
+  }
+  async function savePublishMode() {
+    const button = $('savePublishMode');
+    const status = $('publishModeStatus');
+    const selected = $('publishMode').value === 'auto_publish_ai' ? 'auto_publish_ai' : 'review';
+    button.disabled = true;
+    status.style.color = '';
+    status.textContent = 'Saving publication mode…';
+    try {
+      const value = { publishMode: selected, updatedAt: new Date().toISOString() };
+      const { error } = await client.from('site_settings').upsert({ key: 'newsroom_automation', value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      if (error) throw error;
+      publishMode = selected;
+      status.textContent = selected === 'auto_publish_ai'
+        ? 'Saved. Future AI-assisted drafts will publish automatically after generation; free manual drafts still require review.'
+        : 'Saved. Future AI-assisted drafts will remain unpublished until reviewed.';
+      message('Newsroom publication mode saved.', 'ok');
+    } catch (error) {
+      status.textContent = 'Could not save publication mode: ' + (error.message || String(error));
+      status.style.color = '#ffd9d9';
+      message(status.textContent, 'error');
+    } finally { button.disabled = false; }
+  }
+
+  async function init() {
+    if (!window.getParrothitSupabaseClient || !window.PARROTHIT_SUPABASE_URL || !window.PARROTHIT_SUPABASE_ANON_KEY) {
+      document.body.innerHTML = `<main class="wrap"><section class="panel"><h1>Supabase is not configured</h1><p>Set the project URL and public anon/publishable key in supabase-config.js first.</p><a class="btn" href="articles.html">Back to Article Editor</a></section></main>`;
+      return;
+    }
+    client = window.getParrothitSupabaseClient();
+    const { data, error } = await client.auth.getSession();
+    session = data?.session;
+    if (error || !session) { location.href = 'login.html?next=newsroom-automation.html'; return; }
+    const { data: profile, error: pe } = await client.from('admin_profiles').select('role,is_suspended').eq('user_id', session.user.id).maybeSingle();
+    if (pe || !profile || profile.is_suspended || !['owner', 'admin'].includes(profile.role)) {
+      document.body.innerHTML = `<main class="wrap"><section class="panel"><h1>Administrator access required</h1><p>Your account does not have active newsroom access.</p><a class="btn" href="login.html">Sign in</a></section></main>`;
+      return;
+    }
+    await loadPublishMode();
+    await refresh();
+  }
+
+  async function refresh() { await loadCategories(); await Promise.all([loadSources(), loadCandidates()]); }
+
+  async function loadCategories() {
+    const { data, error } = await client.from('categories').select('id,name').order('name');
+    if (error) { message('Could not load categories: ' + error.message, 'error'); return; }
+    categories = data || [];
+    const sel = $('sourceCategory'), old = sel.value;
+    sel.innerHTML = '<option value="">No default category</option>' + categories.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    if (old) sel.value = old;
+  }
+
+  async function loadSources() {
+    const { data, error } = await client.from('newsroom_sources').select('id,name,feed_url,category_id,enabled').order('name');
+    const body = $('sourceRows');
+    if (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run supabase/newsroom-automation-phase2.sql first.</td></tr>`; return; }
+    if (!data?.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No feed sources yet. Add one above.</td></tr>'; return; }
+    body.innerHTML = data.map(s => `<tr><td><strong>${esc(s.name)}</strong></td><td class="feed-url"><a href="${esc(s.feed_url)}" target="_blank" rel="noopener" style="color:#b7e4c7">${esc(s.feed_url)}</a></td><td>${esc(categoryName(s.category_id))}</td><td><span class="pill">${s.enabled ? 'Enabled' : 'Disabled'}</span></td><td><div class="actions"><button class="secondary" data-toggle="${s.id}" data-enabled="${s.enabled}">${s.enabled ? 'Disable' : 'Enable'}</button><button data-delete="${s.id}">Delete</button></div></td></tr>`).join('');
+    body.querySelectorAll('[data-toggle]').forEach(b => { b.onclick = async () => { const { error } = await client.from('newsroom_sources').update({ enabled: b.dataset.enabled !== 'true', updated_at: new Date().toISOString() }).eq('id', b.dataset.toggle); if (error) message(error.message, 'error'); else await loadSources(); }; });
+    body.querySelectorAll('[data-delete]').forEach(b => { b.onclick = async () => { if (!confirm('Delete this feed source? Previously discovered candidates will remain.')) return; const { error } = await client.from('newsroom_sources').delete().eq('id', b.dataset.delete); if (error) message(error.message, 'error'); else { message('Feed source deleted.'); await loadSources(); } }; });
+  }
+
+  async function loadCandidates() {
+    const { data, error } = await client.from('newsroom_candidates').select('id,source_name,source_url,source_title,source_summary,source_published_at,category_id,status,linked_post_id,error_message,discovered_at').order('discovered_at', { ascending: false }).limit(100);
+    const body = $('candidateRows');
+    if (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run the Phase 2 migration first.</td></tr>`; return; }
+    if (!data?.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No discovered stories yet. Click “Discover new stories”.</td></tr>'; return; }
+    body.innerHTML = data.map(c => `<tr>
+      <td><strong>${esc(c.source_title)}</strong><p class="muted small">${esc((c.source_summary || '').slice(0, 220))}</p><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="color:#b7e4c7">Open source ↗</a>${c.error_message ? `<p style="color:#ffb5b5" class="small">${esc(c.error_message)}</p>` : ''}</td>
+      <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
+      <td>${esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
+      ${['discovered', 'error'].includes(c.status) && !c.linked_post_id ? `<button class="green" data-manual-draft="${c.id}">Create Manual Draft — FREE</button><button class="blue" data-draft="${c.id}">Create AI Draft — OPTIONAL</button>` : ''}
+      ${c.linked_post_id ? `<a class="btn secondary" href="articles.html?edit=${encodeURIComponent(c.linked_post_id)}">Open draft</a>` : ''}
+      ${c.status === 'discovered' ? `<button class="secondary" data-reject="${c.id}">Reject</button>` : ''}
+      </div></td></tr>`).join('');
+
+    body.querySelectorAll('[data-manual-draft]').forEach(b => { b.onclick = () => manualDraftCandidate(b.dataset.manualDraft, b); });
+    body.querySelectorAll('[data-draft]').forEach(b => { b.onclick = () => draftCandidate(b.dataset.draft, b); });
+    body.querySelectorAll('[data-reject]').forEach(b => { b.onclick = async () => { if (!confirm('Reject this candidate?')) return; const { error } = await client.from('newsroom_candidates').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', b.dataset.reject); if (error) message(error.message, 'error'); else await loadCandidates(); }; });
+  }
+
+  async function invoke(action, extra = {}) {
+    const { data, error } = await client.functions.invoke('parrothit-newsroom-automation', { body: { action, ...extra } });
+    if (error) {
+      let detail = error.message || 'Edge Function request failed';
+      try {
+        const response = error.context;
+        if (response && typeof response.clone === 'function') {
+          const responseText = await response.clone().text();
+          if (responseText) { try { const payload = JSON.parse(responseText); detail = payload.error || payload.message || payload.msg || responseText; } catch { detail = responseText; } }
+          console.error('PARROTHIT Newsroom Function HTTP status:', response.status);
+        }
+      } catch (readError) { console.warn('Could not read the Edge Function error response:', readError); }
+      console.error('PARROTHIT Newsroom error:', error);
+      throw new Error(detail);
+    }
+    if (data?.error) throw new Error(data.error);
+    return data;
+  }
+
+  $('sourceForm').addEventListener('submit', async e => {
+    e.preventDefault(); const btn = e.submitter; btn.disabled = true;
+    try {
+      const { error } = await client.from('newsroom_sources').insert({ name: $('sourceName').value.trim(), feed_url: $('feedUrl').value.trim(), category_id: $('sourceCategory').value || null, enabled: true });
+      if (error) throw error;
+      $('sourceForm').reset(); message('Feed source added.'); await loadSources();
+    } catch (err) { message(err.message || String(err), 'error'); }
+    finally { btn.disabled = false; }
+  });
+
+  $('discoverBtn').onclick = async () => {
+    const b = $('discoverBtn'); b.disabled = true; b.textContent = 'Discovering…';
+    try {
+      const r = await invoke('discover');
+      message(`Discovery finished. Enabled feeds: ${r.sources}; feed entries scanned: ${r.scanned}; new candidates: ${r.added}; feed errors: ${r.failed}` + (r.issues?.length ? '\n' + r.issues.join('\n') : ''), r.failed ? 'error' : 'ok');
+      await loadCandidates();
+    } catch (e) { message(e.message || String(e), 'error'); }
+    finally { b.disabled = false; b.textContent = '🔎 Discover new stories'; }
+  };
+
+  async function manualDraftCandidate(id, b) {
+    if (!confirm('Create a FREE manual working draft from the headline and available RSS summary? It will be saved as In Review, will not call AI, and will NOT publish automatically. You must verify and edit it before publishing.')) return;
+    b.disabled = true; b.textContent = 'Saving manual draft…';
+    try {
+      const r = await invoke('manual_draft', { candidate_id: id });
+      message(r.message || 'Free manual draft created in In Review.');
+      await loadCandidates();
+    } catch (e) { message(e.message || String(e), 'error'); }
+    finally { b.disabled = false; b.textContent = 'Create Manual Draft — FREE'; }
+  }
+
+  async function draftCandidate(id, b) {
+    if (!confirm(publishMode === 'auto_publish_ai' ? 'Generate an AI-assisted draft from this source? The saved publication mode will publish it automatically without review. Check the source first. AI provider credits may be required.' : 'Generate an AI-assisted draft from this source? It will remain In Review and will NOT publish automatically. AI provider credits may be required.')) return;
+    b.disabled = true; b.textContent = 'Drafting with AI…';
+    try {
+      const r = await invoke('draft', { candidate_id: id });
+      message(r.message || 'AI draft created in review.');
+      await loadCandidates();
+    } catch (e) {
+      const detail = e.message || String(e);
+      if (/429|insufficient_quota|credit_balance_exhausted|no credits remaining/i.test(detail)) {
+        message('The configured AI provider has no available credits, so AI drafting could not run. No AI draft was created. Use “Create Manual Draft — FREE” for this story; it does not use AI credits.', 'error');
+      } else {
+        message(detail, 'error');
+      }
+    } finally { b.disabled = false; b.textContent = 'Create AI Draft — OPTIONAL'; }
+  }
+
+  $('savePublishMode').addEventListener('click', savePublishMode);
+  $('refreshBtn').onclick = refresh;
+  $('reloadCandidates').onclick = loadCandidates;
+  init().catch(e => message(e.message || String(e), 'error'));
+})();
+</script>
+</body>
+</html>
