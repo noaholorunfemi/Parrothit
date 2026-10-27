@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-newsroom-cron-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -31,6 +31,29 @@ function entries(xml: string) {
 }
 function slugify(s: string) { return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90) || `story-${Date.now()}`; }
 
+async function runDiscovery(db: any) {
+  const { data: sources, error } = await db.from("newsroom_sources").select("id,name,feed_url,category_id").eq("enabled", true);
+  if (error) return json({ error: `Could not load feeds: ${error.message}` }, 500);
+  let scanned = 0, added = 0, failed = 0; const issues: string[] = [];
+  for (const source of (sources || []).slice(0, 30)) {
+    try {
+      const response = await fetch(source.feed_url, { headers: { "User-Agent": "PARROTHIT-Newsroom/1.0 (+editorial research)" }, signal: AbortSignal.timeout(12000) });
+      if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}`);
+      const xml = (await response.text()).slice(0, 2_000_000);
+      const items = entries(xml).slice(0, 30); scanned += items.length;
+      for (const item of items) {
+        const parsedDate = item.date ? new Date(item.date) : null;
+        const pubDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : null;
+        const { data: existing } = await db.from("newsroom_candidates").select("id").eq("source_url", item.url).maybeSingle();
+        if (existing) continue;
+        const { error: insertError } = await db.from("newsroom_candidates").insert({ source_id: source.id, source_name: source.name, source_url: item.url, source_title: item.title.slice(0, 500), source_summary: item.summary.slice(0, 12000), source_published_at: pubDate, category_id: source.category_id, status: "discovered" });
+        if (!insertError) added++; else if (!/duplicate key/i.test(insertError.message)) { failed++; issues.push(`${source.name}: ${insertError.message}`); }
+      }
+    } catch (e) { failed++; issues.push(`${source.name}: ${e instanceof Error ? e.message : String(e)}`); }
+  }
+  return json({ ok: true, schedule: "daily_discovery", sources: (sources || []).length, scanned, added, failed, issues: issues.slice(0, 8) });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
@@ -38,41 +61,30 @@ Deno.serve(async (req) => {
   const anon = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !anon || !serviceKey) return json({ error: "Supabase Edge Function secrets are incomplete." }, 500);
+  let body: any;
+  try { body = await req.json(); } catch { return json({ error: "Request body must be JSON." }, 400); }
+  const action = String(body.action || "");
+  const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+  // Scheduled calls are accepted only with a separately configured high-entropy secret.
+  // The scheduler stores this secret in Supabase Vault; it is never sent to browser code.
+  if (action === "scheduled_discover") {
+    const expected = Deno.env.get("NEWSROOM_CRON_SECRET") || "";
+    const supplied = req.headers.get("x-newsroom-cron-secret") || "";
+    if (!expected || supplied.length < 32 || supplied !== expected) return json({ error: "Scheduled discovery authentication failed." }, 401);
+    return await runDiscovery(db);
+  }
+
   const authHeader = req.headers.get("Authorization") || "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) return json({ error: "Sign in as a PARROTHIT administrator first." }, 401);
   const userClient = createClient(url, anon, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } });
   const { data: userData, error: userError } = await userClient.auth.getUser(token);
   if (userError || !userData.user) return json({ error: "Your session is invalid or expired. Sign in again." }, 401);
-  const db = createClient(url, serviceKey, { auth: { persistSession: false } });
   const { data: profile, error: profileError } = await db.from("admin_profiles").select("role,is_suspended").eq("user_id", userData.user.id).maybeSingle();
   if (profileError || !profile || profile.is_suspended || !["owner", "admin"].includes(profile.role)) return json({ error: "Administrator permission required." }, 403);
-  let body: any;
-  try { body = await req.json(); } catch { return json({ error: "Request body must be JSON." }, 400); }
-  const action = String(body.action || "");
 
-  if (action === "discover") {
-    const { data: sources, error } = await db.from("newsroom_sources").select("id,name,feed_url,category_id").eq("enabled", true);
-    if (error) return json({ error: `Could not load feeds: ${error.message}` }, 500);
-    let scanned = 0, added = 0, failed = 0; const issues: string[] = [];
-    for (const source of (sources || []).slice(0, 30)) {
-      try {
-        const response = await fetch(source.feed_url, { headers: { "User-Agent": "PARROTHIT-Newsroom/1.0 (+editorial research)" }, signal: AbortSignal.timeout(12000) });
-        if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}`);
-        const xml = (await response.text()).slice(0, 2_000_000);
-        const items = entries(xml).slice(0, 30); scanned += items.length;
-        for (const item of items) {
-          const parsedDate = item.date ? new Date(item.date) : null;
-          const pubDate = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : null;
-          const { data: existing } = await db.from("newsroom_candidates").select("id").eq("source_url", item.url).maybeSingle();
-          if (existing) continue;
-          const { error: insertError } = await db.from("newsroom_candidates").insert({ source_id: source.id, source_name: source.name, source_url: item.url, source_title: item.title.slice(0, 500), source_summary: item.summary.slice(0, 12000), source_published_at: pubDate, category_id: source.category_id, status: "discovered" });
-          if (!insertError) added++; else if (!/duplicate key/i.test(insertError.message)) { failed++; issues.push(`${source.name}: ${insertError.message}`); }
-        }
-      } catch (e) { failed++; issues.push(`${source.name}: ${e instanceof Error ? e.message : String(e)}`); }
-    }
-    return json({ ok: true, sources: (sources || []).length, scanned, added, failed, issues: issues.slice(0, 8) });
-  }
+  if (action === "discover") return await runDiscovery(db);
 
   // FREE manual drafting: uses the headline and RSS summary already stored in the candidate.
   // It does not contact any AI provider and always saves the article as in_review.
