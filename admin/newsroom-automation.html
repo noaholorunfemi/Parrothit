@@ -15,7 +15,7 @@ body{margin:0;background:linear-gradient(145deg,#071b13,#102b20);min-height:100v
 .top{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-bottom:4px solid #e01b24}
 .top h1{margin:0;font-size:clamp(1.25rem,3vw,2rem)}
 .muted{color:#b8cdbf;line-height:1.5}
-.warning{background:#3b2d08;border:1px solid #a47b18;color:#fff0b5;padding:12px;border-radius:9px;margin:12px 0}
+.danger{background:#b91c1c;color:#fff;border:1px solid #ef4444}.danger:disabled{opacity:.55;cursor:wait}.warning{background:#3b2d08;border:1px solid #a47b18;color:#fff0b5;padding:12px;border-radius:9px;margin:12px 0}
 .row{display:flex;gap:9px;flex-wrap:wrap;align-items:end}
 .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px}
 .field label{font-weight:bold;font-size:.9rem}
@@ -48,7 +48,7 @@ td{line-height:1.4}
 <main class="wrap">
 <header class="top">
   <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare manual or AI-assisted drafts → human review → approved publishing.</p></div>
-  <div class="top-actions"><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
+  <div class="top-actions"><a class="btn secondary" href="articles.html">Article Editor</a><button id="clearDraftsBtn" class="danger">🦜 Clear All Drafted News</button><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
 </header>
 <div class="warning"><strong>Human approval remains mandatory.</strong> Manual and AI-assisted drafts are saved as <em>In Review</em>. Neither action publishes an article. Check accuracy, date, attribution, rights, and local context before approving and publishing in Article Editor.</div>
 <div id="message" class="msg"></div>
@@ -216,6 +216,27 @@ td{line-height:1.4}
       }
     } finally { b.disabled = false; b.textContent = 'Create AI Draft — OPTIONAL'; }
   }
+
+
+  $('clearDraftsBtn').onclick = async () => {
+    const warning = '🦜 PARROT WARNING — DANGER ZONE 🦜\n\nThis will delete newsroom-created articles that are still Draft or In Review. Published articles and drafts not linked to the Newsroom candidate queue will be preserved.\n\nThis action cannot be undone. Continue?';
+    if (!window.confirm(warning)) return;
+    const typed = window.prompt('PARROT WARNING: Type CLEAR NEWSROOM DRAFTS to confirm deletion.');
+    if (typed !== 'CLEAR NEWSROOM DRAFTS') {
+      message('Clear drafted news cancelled. No articles were deleted.', 'error');
+      return;
+    }
+    const b = $('clearDraftsBtn'); b.disabled = true; b.textContent = 'Clearing drafts…';
+    try {
+      const r = await invoke('clear_drafts');
+      message(r.message || `Cleared ${r.deleted || 0} newsroom drafts.`);
+      await refresh();
+    } catch (e) {
+      message(e.message || String(e), 'error');
+    } finally {
+      b.disabled = false; b.textContent = '🦜 Clear All Drafted News';
+    }
+  };
 
   $('refreshBtn').onclick = refresh;
   $('reloadCandidates').onclick = loadCandidates;
