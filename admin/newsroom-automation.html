@@ -92,6 +92,9 @@ td{line-height:1.4}
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
   function categoryName(id) { return categories.find(c => c.id === id)?.name || '—'; }
+  function categoryOptions(selectedId) {
+    return '<option value="">Select category…</option>' + categories.map(c => `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  }
 
   async function init() {
     if (!window.getParrothitSupabaseClient || !window.PARROTHIT_SUPABASE_URL || !window.PARROTHIT_SUPABASE_ANON_KEY) {
@@ -139,12 +142,21 @@ td{line-height:1.4}
     body.innerHTML = data.map(c => `<tr>
       <td><strong>${esc(c.source_title)}</strong><p class="muted small">${esc((c.source_summary || '').slice(0, 220))}</p><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="color:#b7e4c7">Open source ↗</a>${c.error_message ? `<p style="color:#ffb5b5" class="small">${esc(c.error_message)}</p>` : ''}</td>
       <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
-      <td>${esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
+      <td>${!c.linked_post_id && ['discovered', 'error'].includes(c.status) ? `<div class="actions"><select aria-label="Category for ${esc(c.source_title)}" data-category-select="${esc(c.id)}">${categoryOptions(c.category_id)}</select><button class="secondary" data-save-category="${esc(c.id)}">Save category</button></div>` : esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
       ${['discovered', 'error'].includes(c.status) && !c.linked_post_id ? `<button class="green" data-source-text="${c.id}">Retrieve Source Text — FREE</button><button class="blue" data-detailed-draft="${c.id}">Create Original Detailed Report — AI</button>` : ''}
       ${c.linked_post_id ? `<a class="btn secondary" href="articles.html?edit=${encodeURIComponent(c.linked_post_id)}">Open draft</a>` : ''}
       ${c.status === 'discovered' ? `<button class="secondary" data-reject="${c.id}">Reject</button>` : ''}
       </div></td></tr>`).join('');
 
+    body.querySelectorAll('[data-save-category]').forEach(b => { b.onclick = async () => {
+      const select = body.querySelector(`[data-category-select="${b.dataset.saveCategory}"]`);
+      if (!select || !select.value) { message('Choose a category before saving.', 'error'); return; }
+      b.disabled = true;
+      const { error } = await client.from('newsroom_candidates').update({ category_id: select.value, updated_at: new Date().toISOString() }).eq('id', b.dataset.saveCategory);
+      if (error) message('Could not save category: ' + error.message, 'error');
+      else { message('Category saved. The draft will be routed to that category page.'); await loadCandidates(); }
+      b.disabled = false;
+    }; });
     body.querySelectorAll('[data-source-text]').forEach(b => { b.onclick = () => manualDraftCandidate(b.dataset.sourceText, b, 'source_text'); });
     body.querySelectorAll('[data-detailed-draft]').forEach(b => { b.onclick = () => draftCandidate(b.dataset.detailedDraft, b, 'detailed'); });
     body.querySelectorAll('[data-reject]').forEach(b => { b.onclick = async () => { if (!confirm('Reject this candidate?')) return; const { error } = await client.from('newsroom_candidates').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', b.dataset.reject); if (error) message(error.message, 'error'); else await loadCandidates(); }; });
