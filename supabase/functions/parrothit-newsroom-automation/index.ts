@@ -84,6 +84,32 @@ Deno.serve(async (req) => {
   const { data: profile, error: profileError } = await db.from("admin_profiles").select("role,is_suspended").eq("user_id", userData.user.id).maybeSingle();
   if (profileError || !profile || profile.is_suspended || !["owner", "admin"].includes(profile.role)) return json({ error: "Administrator permission required." }, 403);
 
+  if (action === "clear_drafts") {
+    // Only remove un-published posts linked to newsroom candidates. Preserve published
+    // articles and any unrelated drafts created outside the newsroom workflow.
+    const { data: linked, error: linkedError } = await db.from("newsroom_candidates")
+      .select("id,linked_post_id").not("linked_post_id", "is", null);
+    if (linkedError) return json({ error: `Could not inspect newsroom draft links: ${linkedError.message}` }, 500);
+    const postIds = [...new Set((linked || []).map((row: { linked_post_id: string | null }) => row.linked_post_id).filter((id): id is string => !!id))];
+    let deleted = 0;
+    if (postIds.length) {
+      const { data: removable, error: readError } = await db.from("posts").select("id")
+        .in("id", postIds).in("status", ["draft", "in_review"]);
+      if (readError) return json({ error: `Could not identify removable newsroom drafts: ${readError.message}` }, 500);
+      const ids = (removable || []).map((row: { id: string }) => row.id);
+      if (ids.length) {
+        const { error: deleteError } = await db.from("posts").delete().in("id", ids);
+        if (deleteError) return json({ error: `Could not delete newsroom drafts: ${deleteError.message}` }, 500);
+        deleted = ids.length;
+        const { error: unlinkError } = await db.from("newsroom_candidates").update({
+          linked_post_id: null, status: "discovered", error_message: null, updated_at: new Date().toISOString()
+        }).in("linked_post_id", ids);
+        if (unlinkError) return json({ error: `Deleted ${deleted} drafts, but could not reset candidate links: ${unlinkError.message}` }, 500);
+      }
+    }
+    return json({ ok: true, deleted, message: `Cleared ${deleted} unpublished newsroom draft(s). Published articles and unrelated drafts were preserved.` });
+  }
+
   if (action === "discover") return await runDiscovery(db);
 
   // FREE manual drafting: uses the headline and RSS summary already stored in the candidate.
@@ -246,5 +272,5 @@ Deno.serve(async (req) => {
       return json({ error: message }, 502);
     }
   }
-  return json({ error: "Unsupported action. Use discover, manual_draft, or draft." }, 400);
+  return json({ error: "Unsupported action. Use discover, manual_draft, draft, or clear_drafts." }, 400);
 });
