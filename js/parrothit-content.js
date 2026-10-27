@@ -52,18 +52,32 @@
       const client = window.getParrothitSupabaseClient ? window.getParrothitSupabaseClient() : null;
       if (!client) return result;
       // Fetch independent cloud resources concurrently so news/ad cards are not delayed by serial round trips.
+      const publicationCutoff = new Date().toISOString();
       const [postsReq, categoriesReq, settingsReq] = await Promise.all([
-        client.from('posts').select('id,title,slug,summary,body,image_url,published_at,categories(name)').eq('status', 'published').order('published_at', { ascending: false }).limit(60),
+        // Only show public stories whose publication time has arrived. Newsroom drafts
+        // (draft/in_review/scheduled) must never be rendered on public cards.
+        client.from('posts')
+          .select('id,title,slug,summary,body,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories(name,slug)')
+          .eq('status', 'published')
+          .or('published_at.is.null,published_at.lte.' + publicationCutoff)
+          .order('published_at', { ascending: false, nullsFirst: false })
+          .limit(60),
         client.from('categories').select('name,slug').order('name'),
         client.from('site_settings').select('key,value').in('key', SITE_KEYS)
       ]);
-      if (!postsReq.error) result.posts = (postsReq.data || []).map(p => ({
+      if (postsReq.error) console.warn('PARROTHIT published newsroom stories could not be loaded:', postsReq.error.message);
+      else result.posts = (postsReq.data || []).map(p => ({
         id: p.id, supabaseId: p.id, title: p.title, slug: p.slug, summary: p.summary || '', body: p.body || '',
-        image: p.image_url || '', category: p.categories && p.categories.name || '', status: 'published',
-        createdAt: p.published_at || '', updatedAt: p.published_at || '', remote: true
+        image: p.image_url || '', category: p.categories && p.categories.name || '',
+        categorySlug: p.categories && p.categories.slug || '', status: 'published',
+        publishedAt: p.published_at || '', createdAt: p.created_at || p.published_at || '',
+        updatedAt: p.updated_at || p.published_at || p.created_at || '', author: p.author_name || 'PARROTHIT News Desk',
+        isBreaking: !!p.is_breaking, sourceUrl: p.source_url || '', sourceName: p.source_name || '', remote: true
       }));
       if (!categoriesReq.error) result.categories = categoriesReq.data || [];
+      else console.warn('PARROTHIT category list could not be loaded:', categoriesReq.error.message);
       if (!settingsReq.error) (settingsReq.data || []).forEach(row => { result.settings[row.key] = row.value; });
+      else console.warn('PARROTHIT public site settings could not be loaded:', settingsReq.error.message);
     } catch (err) { console.warn('PARROTHIT cloud publishing is not available on this page.', err); }
     return result;
   }
@@ -106,14 +120,17 @@
     const card = document.createElement('article'); card.className = 'news-card parrothit-managed-card';
     if (post.image) {
       const figure = document.createElement('div'); figure.className = 'managed-story-image';
-      const img = document.createElement('img'); img.alt = post.title || 'News story'; img.loading = 'lazy'; img.setAttribute('data-media-src', post.image); figure.appendChild(img); card.appendChild(figure);
+      const img = document.createElement('img'); img.alt = post.title || 'News story'; img.loading = 'lazy';
+      if (String(post.image).startsWith('idb:')) img.setAttribute('data-media-src', post.image); else img.src = post.image;
+      figure.appendChild(img); card.appendChild(figure);
     }
     const body = document.createElement('div'); body.className = 'news-card-content';
     const cat = document.createElement('span'); cat.className = 'category'; cat.textContent = post.category || 'NEWS';
+    if (post.isBreaking) { const breaking = document.createElement('strong'); breaking.className = 'breaking-label'; breaking.textContent = 'BREAKING NEWS'; body.appendChild(breaking); }
     const title = document.createElement('h3'); const link = document.createElement('a'); link.href = post.remote ? 'article.html?slug=' + encodeURIComponent(post.slug || '') : 'article.html?id=' + encodeURIComponent(post.id); link.textContent = post.title || 'Untitled story'; title.appendChild(link);
     const summary = document.createElement('p'); summary.textContent = post.summary || '';
     const read = document.createElement('a'); read.className = 'read-more'; read.href = link.href; read.textContent = 'Read story →';
-    body.append(cat, title, summary); const stamp=document.createElement('div');stamp.className='news-card-updated';stamp.style.cssText='font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82';const created=post.createdAt||post.publishedAt||'';const updated=post.updatedAt||post.publishedAt||created;const formatDate=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString(undefined,{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};stamp.textContent=created?'Posted: '+formatDate(created)+(updated&&updated!==created?' · Updated: '+formatDate(updated):''):'Post time: not recorded';body.append(stamp,read); card.appendChild(body); return card;
+    body.append(cat, title, summary); const stamp=document.createElement('div');stamp.className='news-card-updated';stamp.style.cssText='font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82';const created=post.publishedAt||post.createdAt||'';const updated=post.updatedAt||created;const formatDate=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};stamp.textContent=created?'Published: '+formatDate(created)+(updated&&updated!==created?' · Updated: '+formatDate(updated):''):'Publication time not recorded';body.append(stamp);if(post.sourceName){const source=document.createElement('small');source.className='news-card-source';source.textContent='Source: '+post.sourceName;source.style.cssText='display:block;margin-top:5px;opacity:.8';body.appendChild(source)}body.append(read); card.appendChild(body); return card;
   }
   function displayStories(localState, cloud) {
     const local = (localState.articles || []).filter(p => p.status === 'published');
@@ -127,12 +144,21 @@
     if (!isHome && !isAbout && !catKey) return;
     let filtered = posts;
     if (!isHome && catKey) {
-      filtered = posts.filter(p => normalizeLabel(p.category) === catKey || (catKey === 'sports' && normalizeLabel(p.category).startsWith('sports')));
-      if (['football','table tennis','basketball','tennis','athletics'].includes(catKey)) filtered = posts.filter(p => normalizeLabel(p.category) === catKey || normalizeLabel(p.category) === 'sports ' + catKey);
+      const matchesCategory = p => {
+        const name = normalizeLabel(p.category), slug = normalizeLabel(p.categorySlug);
+        if (name === catKey || slug === catKey) return true;
+        if (catKey === 'sports') return name.startsWith('sports') || slug.startsWith('sports');
+        if (['football','table tennis','basketball','tennis','athletics'].includes(catKey))
+          return name === catKey || name === 'sports ' + catKey || slug === catKey || slug === 'sports-' + catKey.replace(/ /g, '-');
+        return false;
+      };
+      filtered = posts.filter(matchesCategory);
     }
+    // Avoid duplicate dynamic sections if the public script is initialized more than once.
+    document.querySelectorAll('main > .parrothit-managed-stories:not(.parrothit-admin-feature-cards)').forEach(node => node.remove());
     if (!filtered.length) return;
-    const section = document.createElement('section'); section.className = 'parrothit-managed-stories';
-    const title = document.createElement('h2'); title.textContent = isHome ? 'Latest from the PARROTHIT newsroom' : (isAbout ? 'Latest News' : 'Latest ' + (catKey ? catKey.charAt(0).toUpperCase() + catKey.slice(1) : 'news') + ' stories');
+    const section = document.createElement('section'); section.className = 'parrothit-managed-stories parrothit-newsroom-published-cards';
+    const title = document.createElement('h2'); title.textContent = isHome ? 'Latest News from the PARROTHIT Newsroom' : (isAbout ? 'Latest News' : 'Latest ' + (catKey ? catKey.replace(/\b\w/g, c => c.toUpperCase()) : 'news') + ' stories');
     const grid = document.createElement('div'); grid.className = 'news-grid parrothit-managed-grid';
     filtered.slice(0, 18).forEach(p => grid.appendChild(createStoryCard(p)));
     section.append(title, grid);
