@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- PARROTHIT NEWSROOM DAILY SCHEDULE UPDATE: 2026-10-27 -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PARROTHIT Newsroom Automation</title>
@@ -41,6 +42,13 @@ td{line-height:1.4}
 .small{font-size:.83rem}
 .feed-url{overflow-wrap:anywhere;max-width:340px}
 .top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.schedule-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.schedule-stat{background:#071b13;border:1px solid #28553e;border-radius:10px;padding:13px;min-width:0}
+.schedule-stat .label{font-size:.82rem;color:#b8cdbf}
+.schedule-stat .value{font-size:clamp(1rem,2.3vw,1.45rem);font-weight:800;margin-top:6px;overflow-wrap:anywhere}
+.schedule-status{display:inline-block;border-radius:20px;padding:5px 9px;font-size:.82rem;font-weight:700;background:#3b2d08;color:#fff0b5;border:1px solid #a47b18}
+.schedule-note{background:#07160f;border:1px solid #28553e;border-radius:9px;padding:12px;line-height:1.5}
+@media(max-width:760px){.schedule-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.wrap{padding:10px}.panel,.top{padding:13px}.field{min-width:100%}}
 </style>
 </head>
@@ -50,10 +58,23 @@ td{line-height:1.4}
   <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare manual or AI-assisted drafts → human review → approved publishing.</p></div>
   <div class="top-actions"><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
 </header>
-<div class="warning"><strong>Human approval remains mandatory.</strong> Daily discovery can be enabled through the Supabase scheduler setup guide. It scans enabled feeds and adds source links to this queue; it does not publish stories. Manual and AI-assisted drafts are saved as <em>In Review</em>. Check accuracy, date, attribution, rights, and local context before approving and publishing in Article Editor.</div>
+<div class="schedule-note" style="margin-bottom:16px;border:2px solid #16834a;background:#0d3824"><strong>Daily Schedule &amp; Automation is installed — build 2026-10-27.</strong> If you cannot see the schedule panel above, you may be viewing a cached or different deployed file.</div>
+<div class="warning"><strong>Human approval remains mandatory.</strong> Manual and AI-assisted drafts are saved as <em>In Review</em>. Neither action publishes an article. Check accuracy, date, attribution, rights, and local context before approving and publishing in Article Editor.</div>
 <div id="message" class="msg"></div>
+<section class="panel" id="dailySchedulePanel">
+  <div class="section-head"><div><h2>1. Daily Schedule &amp; Automation</h2><p class="muted">Your existing Supabase cron schedule, shown in Nigeria time. This schedule runs discovery only; it does not automatically publish articles.</p></div><span id="scheduleConfiguredBadge" class="schedule-status">Configured schedule</span></div>
+  <div class="schedule-grid">
+    <div class="schedule-stat"><div class="label">Scheduled time</div><div class="value">7:00 AM</div><div class="muted small">Nigeria time (WAT)</div></div>
+    <div class="schedule-stat"><div class="label">Frequency</div><div class="value">Every day</div><div class="muted small">Cron: 0 6 * * *</div></div>
+    <div class="schedule-stat"><div class="label">Next scheduled run</div><div class="value" id="nextScheduledRun">Calculating…</div><div class="muted small" id="nextScheduledRunDate">Africa/Lagos time</div></div>
+    <div class="schedule-stat"><div class="label">Execution health</div><div class="value" style="font-size:1rem" id="scheduleHealth">Authentication check pending</div><div class="muted small">See latest Supabase HTTP response</div></div>
+  </div>
+  <div class="schedule-note muted small"><strong style="color:#f4f7fb">Important status note:</strong> The cron job is configured, but the latest run reported HTTP 401 <code>UNAUTHORIZED_INVALID_JWT_FORMAT</code>. The schedule can appear here even while its request is failing. We will mark execution healthy only after a successful scheduled request is confirmed. This panel does not change, pause, or recreate the existing cron job.</div>
+  <div class="row" style="margin-top:12px"><button id="runScheduleNow" class="green" type="button">Run discovery now</button><button id="showScheduleHelp" class="secondary" type="button">How to check run history</button></div>
+  <div id="scheduleHelp" class="schedule-note muted small" hidden style="margin-top:10px"><strong style="color:#f4f7fb">Supabase run history:</strong> In SQL Editor, inspect <code>net._http_response</code> ordered by <code>created DESC</code>, and inspect <code>cron.job_run_details</code> if available in your project. A successful cron invocation does not guarantee the Edge Function returned HTTP 200; check the HTTP status and response content too.</div>
+</section>
 <section class="panel">
-  <div class="section-head"><div><h2>1. Feed sources</h2><p class="muted">Add RSS or Atom feeds. Feed URLs are fetched by the secure Supabase Edge Function, not by your browser.</p></div><button id="discoverBtn" class="green">🔎 Discover new stories</button></div>
+  <div class="section-head"><div><h2>2. Feed sources</h2><p class="muted">Add RSS or Atom feeds. Feed URLs are fetched by the secure Supabase Edge Function, not by your browser.</p></div><button id="discoverBtn" class="green">🔎 Discover new stories</button></div>
   <form id="sourceForm"><div class="row">
     <div class="field"><label for="sourceName">Source name</label><input id="sourceName" required maxlength="120" placeholder="Example: BBC News Africa"></div>
     <div class="field" style="flex:2"><label for="feedUrl">RSS / Atom feed URL</label><input id="feedUrl" type="url" required placeholder="https://example.com/rss.xml"></div>
@@ -63,11 +84,11 @@ td{line-height:1.4}
   <div class="table-wrap"><table><thead><tr><th>Source</th><th>Feed URL</th><th>Default category</th><th>Enabled</th><th>Actions</th></tr></thead><tbody id="sourceRows"><tr><td colspan="5" class="empty">Loading sources…</td></tr></tbody></table></div>
 </section>
 <section class="panel">
-  <div class="section-head"><div><h2>2. Discovered story queue</h2><p class="muted">Choose a free manual working draft or optional AI-assisted draft after checking the source. A source link is not yet a finished PARROTHIT article.</p></div><button id="reloadCandidates" class="secondary">Reload queue</button></div>
+  <div class="section-head"><div><h2>3. Discovered story queue</h2><p class="muted">Choose a free manual working draft or optional AI-assisted draft after checking the source. A source link is not yet a finished PARROTHIT article.</p></div><button id="reloadCandidates" class="secondary">Reload queue</button></div>
   <div class="table-wrap"><table><thead><tr><th>Source headline</th><th>Source / date</th><th>Category</th><th>Status</th><th>Action</th></tr></thead><tbody id="candidateRows"><tr><td colspan="5" class="empty">Loading candidates…</td></tr></tbody></table></div>
 </section>
 <section class="panel">
-  <h2>3. Draft and publish workflow</h2>
+  <h2>4. Draft and publish workflow</h2>
   <ol class="muted">
     <li>Run discovery to collect recent links from enabled feeds.</li>
     <li>Check the headline, publisher, and source URL before creating a draft.</li>
@@ -179,14 +200,35 @@ td{line-height:1.4}
     finally { btn.disabled = false; }
   });
 
+  function updateNextScheduledRun() {
+    // Cron is 06:00 UTC daily = 07:00 Africa/Lagos (WAT, UTC+1).
+    const now = new Date();
+    const lagosParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+    const parts = Object.fromEntries(lagosParts.map(p => [p.type, p.value]));
+    let next = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), 6, 0, 0));
+    // The cron runs at 06:00 UTC, equivalent to 07:00 in Lagos.
+    if (now.getTime() >= next.getTime()) next = new Date(next.getTime() + 86400000);
+    $('nextScheduledRun').textContent = new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', hour: 'numeric', minute: '2-digit', hour12: true }).format(next);
+    $('nextScheduledRunDate').textContent = new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(next);
+    $('scheduleHealth').textContent = 'HTTP 401 — needs fix';
+  }
+
+  $('runScheduleNow').onclick = () => $('discoverBtn').click();
+  $('showScheduleHelp').onclick = () => {
+    const help = $('scheduleHelp'); help.hidden = !help.hidden;
+    $('showScheduleHelp').textContent = help.hidden ? 'How to check run history' : 'Hide run history instructions';
+  };
+  updateNextScheduledRun();
+  setInterval(updateNextScheduledRun, 60000);
+
   $('discoverBtn').onclick = async () => {
-    const b = $('discoverBtn'); b.disabled = true; b.textContent = 'Discovering…';
+    const b = $('discoverBtn'); b.disabled = true; $('runScheduleNow').disabled = true; b.textContent = 'Discovering…';
     try {
       const r = await invoke('discover');
       message(`Discovery finished. Enabled feeds: ${r.sources}; feed entries scanned: ${r.scanned}; new candidates: ${r.added}; feed errors: ${r.failed}` + (r.issues?.length ? '\n' + r.issues.join('\n') : ''), r.failed ? 'error' : 'ok');
       await loadCandidates();
     } catch (e) { message(e.message || String(e), 'error'); }
-    finally { b.disabled = false; b.textContent = '🔎 Discover new stories'; }
+    finally { b.disabled = false; $('runScheduleNow').disabled = false; b.textContent = '🔎 Discover new stories'; }
   };
 
   async function manualDraftCandidate(id, b) {
