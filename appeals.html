@@ -54,4 +54,6 @@ message.textContent=action==='accept'?'Appeal accepted. The administrator has be
 }catch(err){console.error(err);message.textContent='Action failed: '+(err.message||'unknown error');if(btn)btn.disabled=false;}}
 list.addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(b)act(b.dataset.action,b.dataset.id)});$('refreshAppeals').addEventListener('click',load);load();
 })();
-</script></body></html>
+</script>
+<script src="js/parrothit-card-watermark.js" defer></script>
+</body></html>
