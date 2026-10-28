@@ -246,3 +246,23 @@ html{scroll-behavior:smooth;scroll-padding-top:1rem}
 .search-form input[type="search"]::placeholder{color:#d71920!important;opacity:1}
 .search-form input[type="search"]::-webkit-input-placeholder{color:#d71920!important;opacity:1}
 .search-form input[type="search"]::-moz-placeholder{color:#d71920!important;opacity:1}
+
+/* PARROTHIT compact printed watermark on public news-card imagery. Defaults: red on white, bottom-left. */
+.parrothit-watermark-box{position:relative!important;isolation:isolate}
+.parrothit-watermark-box::after{content:none!important}
+.parrothit-card-watermark-logo{
+ position:absolute!important;z-index:8;
+ left:var(--parrothit-wm-left,6px);right:var(--parrothit-wm-right,auto);
+ top:var(--parrothit-wm-top,auto);bottom:var(--parrothit-wm-bottom,6px);
+ width:var(--parrothit-wm-size,18px)!important;height:var(--parrothit-wm-size,18px)!important;
+ max-width:none!important;object-fit:cover!important;object-position:center;
+ border-radius:6px!important;opacity:.92;box-shadow:0 1px 4px rgba(0,0,0,.28);
+ pointer-events:none!important;box-sizing:border-box;
+}
+.parrothit-watermark-media{position:relative!important;display:block!important;overflow:hidden;width:100%;line-height:0;isolation:isolate}
+.parrothit-watermark-media img{display:block;max-width:100%;object-fit:cover}
+.news-card>.parrothit-watermark-media{width:100%}
+.side-item>.parrothit-watermark-media{width:112px;height:92px;flex:0 0 112px;align-self:start}
+.side-item>.parrothit-watermark-media img{width:100%;height:100%;object-fit:cover}
+.news-card[tabindex]:focus-visible{outline:3px solid #e51b23;outline-offset:2px}
+@media(max-width:560px){.side-item>.parrothit-watermark-media{width:90px;height:78px;flex-basis:90px}.side-item>.parrothit-watermark-media img{width:100%;height:100%;object-fit:cover}}

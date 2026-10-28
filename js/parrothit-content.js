@@ -4,7 +4,7 @@
 (() => {
   'use strict';
   const STATE_KEY = 'parrothit_control_room_v2';
-  const SITE_KEYS = ['homepage_slides', 'home_video', 'category_images', 'ads', 'moving_text', 'home_tickler', 'news_cards', 'advertisement_cards', 'category_cards', 'scroll_effects', 'news_ads_appearance', 'sports_streams'];
+  const SITE_KEYS = ['homepage_slides', 'home_video', 'category_images', 'ads', 'moving_text', 'home_tickler', 'news_cards', 'advertisement_cards', 'category_cards', 'scroll_effects', 'news_ads_appearance', 'parrothit_watermark_settings', 'sports_streams'];
   const $ = (sel, root = document) => root.querySelector(sel);
   const escHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   // Safe destination handling: external http(s) URLs are allowed; local links must
@@ -566,18 +566,23 @@
       .managed-story-image{display:block;height:160px;overflow:hidden;background:#eee}.managed-story-image img{width:100%;height:100%;object-fit:cover;display:block}.news-card-content{padding:13px}.news-card-content h3{margin:.45rem 0;font-size:1.08rem}.news-card-content h3 a{color:inherit;text-decoration:none}.news-card-content p{color:var(--muted,#555);line-height:1.5}.read-more{font-weight:800;color:#c5161d}
       .parrothit-home-video-frame{display:block;width:min(100%,480px);aspect-ratio:16/9;border:0;border-radius:12px;background:#000}
       .parrothit-managed-article{max-width:900px;margin:20px auto;padding:clamp(16px,3vw,32px);background:var(--card,#fff);border-radius:14px;color:var(--text,#151515)}.parrothit-managed-article h1{font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.15}.managed-article-image{width:100%;max-height:520px;object-fit:cover;border-radius:12px;margin:12px 0 20px}.managed-article-body{font-size:1.08rem;line-height:1.8}.article-summary{font-size:1.1rem;font-weight:700}
-      .parrothit-ads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;width:min(1180px,94%);margin:18px auto;padding:0;align-items:stretch}
-      .parrothit-ad-card{display:flex;min-width:0;min-height:118px;overflow:hidden;flex-direction:row;align-items:stretch;gap:0;border:1px solid #d8e2da;border-radius:10px;background:#fff;color:#18231c;box-shadow:0 2px 9px #0000000b}
-      .parrothit-ad-card .ad-card-content{display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;gap:5px;padding:12px}
-      .parrothit-ad-card .ad-card-content small{font-size:.66rem;letter-spacing:.08em;font-weight:800;color:#647067}
-      .parrothit-ad-card .ad-card-content strong{font-size:1rem;line-height:1.25;overflow-wrap:anywhere;color:#126b3a}
-      .parrothit-ad-card .ad-card-content p{margin:0;font-size:.86rem;line-height:1.4;overflow-wrap:anywhere;color:#26332a}
-      .parrothit-ad-card .ad-card-content img{width:96px;height:86px;object-fit:cover;float:right;border-radius:6px;align-self:flex-end}
-      .parrothit-ad-card .ad-action-button{display:inline-flex;align-items:center;justify-content:center;max-width:100%;margin-top:3px;padding:7px 10px;border-radius:6px;background:#126b3a;color:#fff;text-decoration:none;font-weight:800;font-size:.8rem;overflow-wrap:anywhere}
+      .parrothit-ads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;width:min(1240px,96%);margin:22px auto;padding:0;align-items:stretch}
+      .parrothit-ad-card{display:flex;min-width:0;min-height:var(--parrothit-ad-card-height,310px);height:100%;overflow:hidden;flex-direction:column;align-items:stretch;gap:0;border:1px solid #d8e2da;border-radius:12px;background:#fff;color:#18231c;box-shadow:0 3px 14px #00000012;box-sizing:border-box}
+      .parrothit-ad-card .ad-image-link{display:block;position:relative;flex:0 0 var(--parrothit-ad-image-height,180px);width:100%;height:var(--parrothit-ad-image-height,180px);min-height:90px;overflow:hidden;background:#e5e7eb;line-height:0;text-decoration:none;cursor:pointer}
+      .parrothit-ad-card .ad-image-link img{display:block;width:100%;height:100%;max-width:100%;object-fit:var(--parrothit-ad-image-fit,cover);border-radius:0;transition:transform .35s ease}
+      .parrothit-ad-card .ad-image-link:hover img,.parrothit-ad-card .ad-image-link:focus-visible img{transform:scale(1.035)}
+      .parrothit-ad-card .ad-card-content{display:flex;flex:1;min-width:0;width:100%;box-sizing:border-box;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:8px;padding:15px 16px}
+      .parrothit-ad-card .ad-card-content small{font-size:.7rem;letter-spacing:.08em;font-weight:900;color:#647067}
+      .parrothit-ad-card .ad-card-content strong{display:block;font-size:var(--parrothit-ad-title-size,20px);line-height:1.22;overflow-wrap:anywhere;color:#126b3a}
+      .parrothit-ad-card .ad-card-content p{margin:0;font-size:var(--parrothit-ad-desc-size,16px);line-height:1.48;overflow-wrap:anywhere;color:#26332a}
+      .parrothit-ad-card .ad-action-button{display:inline-flex;align-items:center;justify-content:center;max-width:100%;margin-top:auto;padding:9px 12px;border-radius:7px;background:#126b3a;color:#fff;text-decoration:none;font-weight:850;font-size:.88rem;overflow-wrap:anywhere}
+      .parrothit-ad-card .ad-image-link:focus-visible,.parrothit-ad-card .ad-action-button:focus-visible{outline:3px solid #d71920;outline-offset:2px}
       .parrothit-ad-card.is-placeholder{border-style:dashed;background:linear-gradient(110deg,#fff 0%,#f5faf6 100%)}
-      .parrothit-ad-card.is-placeholder .ad-card-content{min-height:116px}
-      @media(max-width:760px){.parrothit-ads{grid-template-columns:minmax(0,1fr);gap:9px;width:calc(100% - 24px);margin:14px auto}.parrothit-ad-card{min-height:106px;flex-direction:row}.parrothit-ad-card .ad-card-content{padding:10px 12px}.parrothit-ad-card .ad-card-content img{width:88px;height:76px;flex:0 0 88px}.parrothit-ad-card .ad-card-content strong{font-size:.98rem}.parrothit-ad-card .ad-card-content p{font-size:.82rem}.parrothit-ad-card .ad-action-button{font-size:.78rem;padding:6px 9px}}
-      @media(max-width:360px){.parrothit-ad-card .ad-card-content img{width:68px;height:66px;flex-basis:68px}.parrothit-ad-card .ad-card-content{padding:8px}.parrothit-ad-card .ad-card-content strong{font-size:.9rem}}
+      .parrothit-ad-card.is-placeholder .ad-card-content{min-height:220px;justify-content:center}
+      @media(min-width:761px) and (max-width:980px){.parrothit-ads{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      @media(max-width:760px){.parrothit-ads{grid-template-columns:minmax(0,1fr);gap:12px;width:calc(100% - 24px);margin:16px auto}.parrothit-ad-card{min-height:260px;height:auto}.parrothit-ad-card .ad-image-link{height:var(--parrothit-ad-image-height,170px);flex-basis:var(--parrothit-ad-image-height,170px)}.parrothit-ad-card .ad-card-content{padding:13px 14px;gap:7px}.parrothit-ad-card .ad-card-content strong{font-size:var(--parrothit-ad-title-size,20px)}.parrothit-ad-card .ad-card-content p{font-size:var(--parrothit-ad-desc-size,16px)}.parrothit-ad-card .ad-action-button{font-size:.86rem;padding:8px 11px}}
+      @media(max-width:360px){.parrothit-ad-card .ad-image-link{height:min(var(--parrothit-ad-image-height,160px),160px);flex-basis:min(var(--parrothit-ad-image-height,160px),160px)}.parrothit-ad-card .ad-card-content{padding:12px}.parrothit-ad-card .ad-card-content strong{font-size:var(--parrothit-ad-title-size,20px)}}
+      @media(prefers-reduced-motion:reduce){.parrothit-ad-card .ad-image-link img{transition:none}}
       .parrothit-home-tickler{margin:12px auto 16px;width:min(1100px,calc(100% - 24px));padding:10px 14px;border-radius:10px;background:#f4fff7;border:1px solid #c8e8d2;color:#126b3a;font-weight:800;line-height:1.5;overflow:hidden;animation:parrothitTickerColors 7s linear infinite}
       .parrothit-home-tickler span{display:block;overflow-wrap:anywhere}
       @keyframes parrothitTickerColors{0%,100%{color:#126b3a;border-color:#bfe7cb}25%{color:#1457a6;border-color:#b8d6ff}50%{color:#9a3412;border-color:#fed7aa}75%{color:#7e22ce;border-color:#e9d5ff}}
@@ -647,25 +652,25 @@
       card.dataset.adPosition = String(position);
       const content = document.createElement('div'); content.className = 'ad-card-content';
       const label = document.createElement('small'); label.className = 'ad-disclosure-label'; const disclosure = String((ad && (ad.label || ad.disclosure || ad.adType)) || 'ADVERTISEMENT').trim().toUpperCase(); label.textContent = (disclosure === 'SPONSORED' || disclosure === 'SPONSORED CONTENT') ? 'SPONSORED' : 'ADVERTISEMENT'; content.append(label);
+      const rawHref = ad && (ad.link || ad.href || ad.clickUrl || ad.destination || ad.targetUrl || ad.url) || '';
+      const href = cleanHref(rawHref) || 'contact.html?subject=Advertising';
+      const configureAnchor = (link, actionLabel) => { link.href = href; link.target = new URL(href, location.href).origin !== location.origin ? '_blank' : '_self'; link.rel = link.target === '_blank' ? 'sponsored noopener noreferrer' : 'sponsored'; if(actionLabel)link.setAttribute('aria-label',actionLabel); };
       if (hasConfiguredContent) {
         const imageRef = ad.image || ad.imageData || ad.imageUrl || '';
         if (imageRef) {
-          const img = document.createElement('img'); img.alt = ad.title || 'Advertisement'; img.loading = 'eager'; img.decoding = 'async';
+          const imageLink = document.createElement('a'); imageLink.className = 'ad-image-link'; configureAnchor(imageLink, 'Visit advertiser: ' + (ad.title || 'PARROTHIT advertisement'));
+          const img = document.createElement('img'); img.alt = ad.title || 'Advertisement'; img.loading = 'lazy'; img.decoding = 'async';
           if (String(imageRef).startsWith('idb:')) img.setAttribute('data-media-src', imageRef);
           else if (/^(https?:|data:image\/)/i.test(String(imageRef))) img.src = imageRef;
-          content.append(img);
+          imageLink.append(img); card.append(imageLink);
         }
         const title = document.createElement('strong'); title.textContent = ad.title || 'Advertisement';
         const desc = document.createElement('p'); desc.textContent = ad.description || ad.desc || '';
         content.append(title); if (desc.textContent) content.append(desc);
-        const rawHref = ad.link || ad.href || ad.clickUrl || ad.destination || ad.targetUrl || ad.url || '';
-        const href = cleanHref(rawHref);
         card.append(content);
-        if (href) {
-          const link = document.createElement('a'); link.className = 'ad-action-button'; link.href = href;
+        if (rawHref && cleanHref(rawHref)) {
+          const link = document.createElement('a'); link.className = 'ad-action-button'; configureAnchor(link, 'Open offer: ' + (ad.title || 'advertisement'));
           link.textContent = ad.buttonText || ad.cta || 'View offer';
-          link.target = new URL(href, location.href).origin !== location.origin ? '_blank' : '_self';
-          link.rel = link.target === '_blank' ? 'sponsored noopener noreferrer' : 'sponsored';
           content.appendChild(link);
         }
       } else {
@@ -705,6 +710,14 @@
       const animation = ['none','bounce','shake'].includes(cfg.animation) ? cfg.animation : 'none';
       const speed = Math.max(1, Math.min(6, Number(cfg.speed) || 2));
       document.querySelectorAll(selector).forEach(card => {
+        if(key==='ads' && card.matches('.parrothit-ad-card')){
+          card.style.setProperty('--parrothit-ad-card-height',Math.max(220,Math.min(600,Number(cfg.cardHeight)||310))+'px');
+          card.style.setProperty('--parrothit-ad-image-height',Math.max(90,Math.min(360,Number(cfg.imageHeight)||180))+'px');
+          card.style.setProperty('--parrothit-ad-title-size',Math.max(14,Math.min(30,Number(cfg.titleSize)||20))+'px');
+          card.style.setProperty('--parrothit-ad-desc-size',Math.max(12,Math.min(24,Number(cfg.descSize)||16))+'px');
+          card.style.setProperty('--parrothit-ad-image-fit',cfg.imageFit==='contain'?'contain':'cover');
+          card.style.minHeight=Math.max(220,Math.min(600,Number(cfg.cardHeight)||310))+'px';
+        }
         if (bg) card.style.setProperty('background-color', bg, 'important');
         if (fg) card.style.setProperty('color', fg, 'important');
         if (border) card.style.setProperty('border-color', border, 'important');

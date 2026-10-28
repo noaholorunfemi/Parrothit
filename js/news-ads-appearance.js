@@ -4,7 +4,7 @@
   const KEY='parrothit-news-ads-appearance';
   const defaults={
     news:{background:'#ffffff',text:'#172033',border:'#e5e7eb',animation:'none',speed:2},
-    ads:{background:'#fff7ed',text:'#7c2d12',border:'#fed7aa',animation:'none',speed:2}
+    ads:{background:'#fff7ed',text:'#7c2d12',border:'#fed7aa',animation:'none',speed:2,cardHeight:310,imageHeight:180,titleSize:20,descSize:16,imageFit:'cover'}
   };
   const valid=v=>/^#[0-9a-f]{6}$/i.test(v||'');
   function normalize(input){
@@ -27,6 +27,14 @@
     const animation=['none','bounce','shake'].includes(c.animation)?c.animation:'none';
     const speed=Math.max(1,Math.min(6,Number(c.speed)||2));
     document.querySelectorAll(selector).forEach(el=>{
+      if(part==='ads' && el.matches('.parrothit-ad-card')){
+        el.style.setProperty('--parrothit-ad-card-height',Math.max(220,Math.min(600,Number(c.cardHeight)||310))+'px');
+        el.style.setProperty('--parrothit-ad-image-height',Math.max(90,Math.min(360,Number(c.imageHeight)||180))+'px');
+        el.style.setProperty('--parrothit-ad-title-size',Math.max(14,Math.min(30,Number(c.titleSize)||20))+'px');
+        el.style.setProperty('--parrothit-ad-desc-size',Math.max(12,Math.min(24,Number(c.descSize)||16))+'px');
+        el.style.setProperty('--parrothit-ad-image-fit',c.imageFit==='contain'?'contain':'cover');
+        el.style.minHeight=Math.max(220,Math.min(600,Number(c.cardHeight)||310))+'px';
+      }
       if(bg)el.style.setProperty('background-color',bg,'important');
       if(fg)el.style.setProperty('color',fg,'important');
       if(bd)el.style.setProperty('border-color',bd,'important');
