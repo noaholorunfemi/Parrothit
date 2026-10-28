@@ -9,4 +9,6 @@ async function loadMessages(){if(!active)return;const {data,error}=await client.
 $('messageForm').addEventListener('submit',async e=>{e.preventDefault();if(!active||!user)return;const input=$('messageInput'),body=input.value.trim();if(!body)return;input.disabled=true;try{const {error}=await client.from('community_direct_messages').insert({sender_id:user.id,recipient_id:active.user_id,body});if(error)throw error;input.value='';await loadMessages();active.last_message='You: '+body;renderFriends()}catch(err){alert('Message could not be sent: '+err.message+'\nCheck that supabase/private-chat.sql has been applied.')}finally{input.disabled=false;input.focus()}});
 $('friendSearch').addEventListener('input',renderFriends);$('backBtn').onclick=()=>{app.classList.remove('open-chat');if(timer)clearInterval(timer)};window.addEventListener('beforeunload',()=>timer&&clearInterval(timer));init();
 })();
-</script></body></html>
+</script>
+<script src="js/parrothit-card-watermark.js" defer></script>
+</body></html>
