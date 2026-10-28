@@ -153,9 +153,9 @@ appealStatusCheckForm.addEventListener('submit',async e=>{
   }
   const button=appealStatusCheckForm.querySelector('button[type="submit"]');button.disabled=true;
   try{
-    // The deployed PARROTHIT-admin-appeal Edge Function already implements action:"status".
+    // The deployed parrothit-admin-appeals Edge Function already implements action:"status".
     // Do not call the nonexistent check_admin_appeal_status database RPC.
-    const {data,error}=await appealClient.functions.invoke('PARROTHIT-admin-appeal',{
+    const {data,error}=await appealClient.functions.invoke('parrothit-admin-appeals',{
       body:{action:'status',email,username}
     });
     if(error)throw error;
@@ -167,7 +167,7 @@ appealStatusCheckForm.addEventListener('submit',async e=>{
   }catch(err){
     console.error('Appeal status check failed:',err);
     const detail=err && (err.message||err.context?.error||err.context?.message);
-    alert('Could not check your appeal status using the PARROTHIT-admin-appeal Edge Function. Check that this function is deployed and that its name matches exactly.'+(detail?'\n\nDetails: '+detail:''));
+    alert('Could not check your appeal status using the parrothit-admin-appeals Edge Function. Check that this function is deployed and that its name matches exactly.'+(detail?'\n\nDetails: '+detail:''));
   }finally{button.disabled=false;}
 });
 function showAppealStatus(value){
