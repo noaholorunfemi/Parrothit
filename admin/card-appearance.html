@@ -1,2 +1,131 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=news-ads-appearance.html"><title>Redirecting | PARROTHIT</title><script>location.replace('news-ads-appearance.html'+location.search+location.hash);</script></head><body><p>This control has moved. <a href="news-ads-appearance.html">Open News &amp; Ads Appearance</a>.</p></body></html>
+<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>News & Advertisement Card Colors | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script>document.documentElement.classList.add('admin-auth-pending');</script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><script src="../js/admin-auth-guard.js"></script>
+<style>
+:root{--red:#d71920;--green:#15803d;--ink:#172033;--muted:#64748b;--bg:#f3f5f8;--line:#e5e7eb}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:1180px;margin:auto;padding:18px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.btn{display:inline-block;border:0;border-radius:9px;padding:10px 14px;background:var(--red);color:#fff;font-weight:800;text-decoration:none;cursor:pointer}.btn.green{background:var(--green)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px;margin-top:18px}.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 5px 20px #1720330b;min-width:0}.panel.news-panel{border-top:5px solid #2563eb}.panel.ads-panel{border-top:5px solid #c2410c}.panel h2{margin:0 0 5px}.muted{font-size:14px;color:var(--muted)}label{display:block;font-weight:750;margin:12px 0 5px}input[type=color]{display:block;width:100%;height:42px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;padding:4px}select,input[type=number]{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:#fff;color:#111}.preview{padding:16px;border:1px solid #e5e7eb;border-radius:12px;margin-top:14px}.preview strong{display:block;font-size:1.1rem}.preview p{margin:7px 0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.status{min-height:1.4em;margin:12px 0 0;font-size:14px;font-weight:700}.notice{padding:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:9px;margin:14px 0;color:#7c2d12}code{background:#f1f5f9;padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}@media(max-width:540px){.wrap{padding:10px}.panel{padding:13px}}
+</style>
+<style id="parrot-warning-styles">
+#parrot-warning-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,10,20,.68);backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);opacity:0;visibility:hidden;transition:opacity .34s ease,visibility .34s ease,backdrop-filter .34s ease}
+#parrot-warning-overlay.pw-open{opacity:1;visibility:visible;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#parrot-warning-dialog{width:min(100%,430px);position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.78);border-radius:24px;background:linear-gradient(145deg,#fff 0%,#fff8f2 54%,#fff 100%);box-shadow:0 28px 90px rgba(0,0,0,.34);transform:translateY(30px) scale(.88) rotateX(7deg);opacity:0;transition:transform .48s cubic-bezier(.16,1,.3,1),opacity .3s ease;font-family:inherit;color:#171923;will-change:transform,opacity}
+#parrot-warning-overlay.pw-open #parrot-warning-dialog{transform:translateY(0) scale(1) rotateX(0);opacity:1;animation:pw-dialog-pop .52s cubic-bezier(.16,1,.3,1) both}
+#parrot-warning-dialog:before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,#d71920,#ff9b38,#ffe2a8,#d71920);background-size:250% 100%;animation:pw-shimmer 2.6s linear infinite}
+#parrot-warning-dialog:after{content:"";position:absolute;pointer-events:none;width:150px;height:150px;right:-90px;top:-90px;border-radius:50%;background:rgba(255,155,56,.14);filter:blur(2px)}
+#parrot-warning-dialog .pw-content{position:relative;z-index:1;padding:28px 26px 24px;text-align:center}
+#parrot-warning-dialog .pw-logo-wrap{width:86px;height:86px;margin:2px auto 15px;padding:7px;border-radius:25px;background:linear-gradient(145deg,#fff,#ffe4df);box-shadow:0 8px 24px rgba(215,25,32,.18);border:1px solid #ffd1cc;animation:pw-logo-enter .72s cubic-bezier(.16,1,.3,1) both,pw-float 3s ease-in-out .8s infinite;transform-origin:center}
+#parrot-warning-dialog .pw-logo{display:block;width:100%;height:100%;object-fit:contain;border-radius:17px}
+#parrot-warning-dialog h2{font-size:1.5rem;line-height:1.2;margin:0 0 9px;color:#b9141b;font-weight:900;letter-spacing:-.025em;animation:pw-text-enter .42s ease .12s both}
+#parrot-warning-dialog .pw-message{margin:0 auto;color:#4b5563;font-size:.98rem;line-height:1.55;max-width:340px;overflow-wrap:anywhere;animation:pw-text-enter .42s ease .18s both}
+#parrot-warning-dialog .pw-note{font-size:.79rem;color:#8a5260;margin:13px 0 0;animation:pw-text-enter .42s ease .22s both}
+#parrot-warning-dialog .pw-actions{display:flex;gap:10px;margin-top:23px}
+#parrot-warning-dialog .pw-btn{flex:1;border:0;border-radius:12px;padding:12px 14px;font:inherit;font-weight:800;cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease,background .2s ease;animation:pw-button-enter .42s ease .25s both}
+#parrot-warning-dialog .pw-btn:hover{transform:translateY(-3px) scale(1.02)}
+#parrot-warning-dialog .pw-btn:active{transform:translateY(0) scale(.98)}
+#parrot-warning-dialog .pw-cancel{background:#f1f3f6;color:#293244;border:1px solid #dfe3e9}
+#parrot-warning-dialog .pw-cancel:hover{background:#e7ebf1;box-shadow:0 5px 14px rgba(23,32,51,.10)}
+#parrot-warning-dialog .pw-continue{background:linear-gradient(135deg,#d71920,#a80f16);color:white;box-shadow:0 7px 18px rgba(215,25,32,.24)}
+#parrot-warning-dialog .pw-continue:hover{box-shadow:0 11px 26px rgba(215,25,32,.36)}
+@keyframes pw-shimmer{to{background-position:250% 0}}
+@keyframes pw-dialog-pop{0%{filter:blur(3px)}100%{filter:blur(0)}}
+@keyframes pw-logo-enter{0%{opacity:0;transform:translateY(14px) scale(.55) rotate(-12deg)}70%{opacity:1;transform:translateY(-3px) scale(1.06) rotate(3deg)}100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
+@keyframes pw-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes pw-text-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
+</style><link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head><body class="admin-auth-pending"><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px"><a href="../index.html" class="btn">← Back to Home</a><a href="dashboard.html" class="btn green">Control Room</a><a href="news-card-controls.html" class="btn">Featured News Cards</a><a href="ads-controls.html" class="btn">Advertising Controls</a></nav><main class="wrap"><div class="top"><div><h1>News & Advertisement Card Colors</h1><p class="muted">Manage news-card colors separately from advertisement-card colors. Each section has its own controls.</p></div></div><div class="notice"><strong>Important:</strong> These settings are saved in this browser and published to <code>site_settings → news_ads_appearance</code> when an authorized Supabase admin session and policies are configured. For public visitors to see shared colors, run the included SQL migration in the Supabase SQL editor.</div><div class="grid">
+<form id="newsAppearanceForm" class="panel news-panel" data-appearance-form="news"><h2>📰 News Card Appearance</h2><p class="muted">Controls regular homepage news cards, side stories and the 16 featured-story cards.</p><label for="newsBackground">News card background color</label><input id="newsBackground" type="color" value="#ffffff"><label for="newsText">News card text color</label><input id="newsText" type="color" value="#172033"><label for="newsBorder">News card border color</label><input id="newsBorder" type="color" value="#e5e7eb"><label for="newsAnimation">News card motion effect</label><select id="newsAnimation"><option value="none">No animation</option><option value="bounce">Gentle bounce</option><option value="shake">Shake</option></select><label for="newsSpeed">Animation duration (seconds)</label><input id="newsSpeed" type="number" min="1" max="6" step="0.5" value="2"><div id="newsPreview" class="preview" style="background:#fff;color:#172033;border-color:#e5e7eb"><strong>News card preview</strong><p>News headline and summary will use these colors.</p><span>READ STORY →</span></div><div class="actions"><button class="btn green" type="submit">Save News Card Colors</button><button class="btn" type="button" id="resetNews">Reset news colors</button></div><p id="newsStatus" class="status" role="status" aria-live="polite"></p></form>
+<form id="adsAppearanceForm" class="panel ads-panel" data-appearance-form="ads"><h2>▣ Advertisement Card Appearance</h2><p class="muted">Controls sponsored and advertisement cards across homepage and page-specific ad placements.</p><label for="adsBackground">Advertisement background color</label><input id="adsBackground" type="color" value="#fff7ed"><label for="adsText">Advertisement text color</label><input id="adsText" type="color" value="#7c2d12"><label for="adsBorder">Advertisement border color</label><input id="adsBorder" type="color" value="#fed7aa"><label for="adsAnimation">Advertisement motion effect</label><select id="adsAnimation"><option value="none">No animation</option><option value="bounce">Gentle bounce</option><option value="shake">Shake</option></select><label for="adsSpeed">Animation duration (seconds)</label><input id="adsSpeed" type="number" min="1" max="6" step="0.5" value="2"><div id="adsPreview" class="preview" style="background:#fff7ed;color:#7c2d12;border-color:#fed7aa"><strong>Advertisement / Sponsored card</strong><p>Promotion title and details will use these colors.</p><span>VIEW OFFER →</span></div><div class="actions"><button class="btn green" type="submit">Save Advertisement Colors</button><button class="btn" type="button" id="resetAds">Reset ad colors</button></div><p id="adsStatus" class="status" role="status" aria-live="polite"></p></form>
+</div></main>
+<script>
+(()=>{'use strict';
+const KEY='parrothit-news-ads-appearance';
+const DEFAULTS={news:{background:'#ffffff',text:'#172033',border:'#e5e7eb',animation:'none',speed:2},ads:{background:'#fff7ed',text:'#7c2d12',border:'#fed7aa',animation:'none',speed:2}};
+let config=structuredClone(DEFAULTS);
+const $=id=>document.getElementById(id);
+function normalize(raw){raw=raw&&typeof raw==='object'?raw:{};const hasLegacy=['background','text','border','animation','speed'].some(k=>raw[k]!==undefined);const legacy=hasLegacy?raw:null;return {news:{...DEFAULTS.news,...(raw.news||legacy||{})},ads:{...DEFAULTS.ads,...(raw.ads||legacy||{})}}}
+function sectionValue(which){const prefix=which==='news'?'news':'ads';return {background:$(prefix+'Background').value,text:$(prefix+'Text').value,border:$(prefix+'Border').value,animation:$(prefix+'Animation').value,speed:Math.max(1,Math.min(6,Number($(prefix+'Speed').value)||2))}}
+function renderSection(which,value){const prefix=which==='news'?'news':'ads';$(prefix+'Background').value=value.background;$(prefix+'Text').value=value.text;$(prefix+'Border').value=value.border;$(prefix+'Animation').value=value.animation;$(prefix+'Speed').value=value.speed;const preview=$(prefix+'Preview');preview.style.backgroundColor=value.background;preview.style.color=value.text;preview.style.borderColor=value.border;preview.querySelectorAll('*').forEach(el=>el.style.color=value.text);preview.style.animation=value.animation==='bounce'?'parrothit-card-bounce '+value.speed+'s ease-in-out infinite':value.animation==='shake'?'parrothit-card-shake '+value.speed+'s ease-in-out infinite':'none'}
+function render(){renderSection('news',config.news);renderSection('ads',config.ads)}
+async function getAdminClient(){if(window.PARROTHIT_ADMIN_CLIENT)return window.PARROTHIT_ADMIN_CLIENT;for(let i=0;i<30;i++){try{if(window.getParrothitSupabaseClient){const c=window.getParrothitSupabaseClient();const s=await c.auth.getSession();if(s.data&&s.data.session)return c}}catch(e){}await new Promise(r=>setTimeout(r,100))}return null}
+async function load(){try{config=normalize(JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){config=normalize({})}const client=await getAdminClient();if(client){try{const r=await client.from('site_settings').select('value').eq('key','news_ads_appearance').maybeSingle();if(!r.error&&r.data&&r.data.value){config=normalize(r.data.value);localStorage.setItem(KEY,JSON.stringify(config))}}catch(e){console.warn('Could not load shared card colors',e)}}render()}
+function livePreview(which){const data=sectionValue(which);const prefix=which==='news'?'news':'ads';const preview=$(prefix+'Preview');preview.style.backgroundColor=data.background;preview.style.color=data.text;preview.style.borderColor=data.border;preview.querySelectorAll('*').forEach(el=>el.style.color=data.text);preview.style.animation=data.animation==='bounce'?'parrothit-card-bounce '+data.speed+'s ease-in-out infinite':data.animation==='shake'?'parrothit-card-shake '+data.speed+'s ease-in-out infinite':'none'}
+['news','ads'].forEach(which=>{const prefix=which==='news'?'news':'ads';['Background','Text','Border','Animation','Speed'].forEach(part=>$(prefix+part).addEventListener('input',()=>livePreview(which)))});
+async function save(which){const status=$(which+'Status');config[which]=sectionValue(which);config.updatedAt=new Date().toISOString();try{localStorage.setItem(KEY,JSON.stringify(config));status.textContent='Saved in this browser. Publishing to Supabase…'}catch(e){status.textContent='Browser storage could not save these settings.';return}const client=await getAdminClient();if(!client){status.textContent='Saved in this browser only. Configure Supabase and sign in as an administrator to publish for all visitors.';return}try{const saved=await client.from('site_settings').upsert({key:'news_ads_appearance',value:config,updated_at:new Date().toISOString()},{onConflict:'key'});if(saved.error)throw saved.error;status.textContent=(which==='news'?'News-card':'Advertisement-card')+' colors saved and published for all visitors.'}catch(e){console.error('Card color publishing failed',e);status.textContent='Saved locally, but shared publishing failed: '+(e.message||'Check site_settings policies and the included SQL migration.')}}
+$('newsAppearanceForm').addEventListener('submit',e=>{e.preventDefault();save('news')});$('adsAppearanceForm').addEventListener('submit',e=>{e.preventDefault();save('ads')});
+$('resetNews').addEventListener('click',()=>{if(!confirm('Reset the news-card colors to defaults?'))return;config.news={...DEFAULTS.news};render();save('news')});$('resetAds').addEventListener('click',()=>{if(!confirm('Reset the advertisement-card colors to defaults?'))return;config.ads={...DEFAULTS.ads};render();save('ads')});
+load();
+})();
+</script>
+<script id="parrot-warning-script">
+(()=>{
+'use strict';
+if(window.__PARROTHIT_WARNING_READY__)return;window.__PARROTHIT_WARNING_READY__=true;
+const ACTION_WORDS=/\b(save|update|publish|unpublish|delete|remove|clear|upload|replace|approve|dismiss|reset|restore|backup|invite|create|add|submit|sync|import|export|enable|disable|apply|send|post|change password|sign out|logout)\b/i;
+const SKIP_SELECTOR='[data-tab],[data-goto],.side-nav button,.password-toggle,[data-warning-skip],#parrot-warning-cancel,#parrot-warning-continue';
+let pendingResolve=null,queued=null,bypassClick=null,bypassSubmit=null;
+function actionText(el){return (el.getAttribute('data-confirm-action')||el.getAttribute('aria-label')||el.getAttribute('title')||el.innerText||el.value||el.textContent||'').trim().replace(/\s+/g,' ').slice(0,180)}
+function ensureDialog(){if(document.getElementById('parrot-warning-overlay'))return;
+const overlay=document.createElement('div');overlay.id='parrot-warning-overlay';overlay.setAttribute('aria-hidden','true');overlay.innerHTML=`<section id="parrot-warning-dialog" role="alertdialog" aria-modal="true" aria-labelledby="parrot-warning-title" aria-describedby="parrot-warning-message"><div class="pw-content"><div class="pw-logo-wrap"><img class="pw-logo" src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo"></div><h2 id="parrot-warning-title">Parrot Warning!</h2><p class="pw-message" id="parrot-warning-message">You are about to make a change. Would you like to revoke this action or continue?</p><p class="pw-note">Please review before continuing.</p><div class="pw-actions"><button type="button" class="pw-btn pw-cancel" id="parrot-warning-cancel">Revoke action</button><button type="button" class="pw-btn pw-continue" id="parrot-warning-continue">Continue</button></div></div></section>`;
+document.body.appendChild(overlay);
+const finish=answer=>{overlay.classList.remove('pw-open');overlay.setAttribute('aria-hidden','true');document.body.style.removeProperty('overflow');const resolve=pendingResolve;pendingResolve=null;setTimeout(()=>{if(resolve)resolve(answer)},190)};
+overlay.addEventListener('click',e=>{if(e.target===overlay)finish(false)});
+overlay.querySelector('#parrot-warning-cancel').addEventListener('click',()=>finish(false));
+overlay.querySelector('#parrot-warning-continue').addEventListener('click',()=>finish(true));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&overlay.classList.contains('pw-open'))finish(false)});
+overlay.__finish=finish;
+}
+function ask(message){ensureDialog();const overlay=document.getElementById('parrot-warning-overlay');if(pendingResolve){return Promise.resolve(false)}const msg=overlay.querySelector('#parrot-warning-message');msg.textContent=message||'You are about to make a change. Would you like to revoke this action or continue?';overlay.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';requestAnimationFrame(()=>overlay.classList.add('pw-open'));return new Promise(resolve=>{pendingResolve=resolve;setTimeout(()=>overlay.querySelector('#parrot-warning-cancel').focus(),60)})}
+function isAction(el){if(!el||el.closest(SKIP_SELECTOR))return false;const txt=actionText(el).replace(/\s+/g,' ').trim().toLowerCase();return el.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(txt)||el.hasAttribute('data-commit-change');}
+function messageFor(el){const label=actionText(el)||'this action';return `Parrot Warning! You are about to ${label.charAt(0).toLowerCase()+label.slice(1)}. Do you want to revoke this action or continue?`}
+document.addEventListener('click',async e=>{
+ const el=e.target.closest('button,input[type="submit"],input[type="button"],input[type="file"],[role="button"],a[data-confirm-action]');if(!el)return;
+ if(bypassClick===el){bypassClick=null;return}
+ if(!isAction(el))return;
+ e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+ const ok=await ask(messageFor(el));if(!ok)return;
+ if(el.matches('a')){location.href=el.href;return}
+ bypassClick=el;const form=el.form||el.closest('form');if(form)bypassSubmit=form;
+ const oldConfirm=window.confirm;window.confirm=()=>true;
+ try{el.click()}catch(err){console.error('PARROTHIT action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassClick===el)bypassClick=null;if(bypassSubmit===form)bypassSubmit=null},0)}
+},true);
+document.addEventListener('submit',async e=>{
+ const form=e.target;if(!(form instanceof HTMLFormElement))return;
+ if(bypassSubmit===form){bypassSubmit=null;return}
+ const submitter=e.submitter;const submitLabel=submitter?actionText(submitter).replace(/\s+/g,' ').trim().toLowerCase():'';if(!(submitter&&(submitter.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(submitLabel)||submitter.hasAttribute('data-commit-change'))))return;const label=actionText(submitter)||'Commit Change';
+ e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+ const ok=await ask(`Parrot Warning! You are about to ${String(label).trim().toLowerCase()}. Do you want to revoke this action or continue?`);if(!ok)return;
+ bypassSubmit=form;const oldConfirm=window.confirm;window.confirm=()=>true;
+ try{if(form.requestSubmit)form.requestSubmit(submitter||undefined);else HTMLFormElement.prototype.submit.call(form)}catch(err){console.error('PARROTHIT form action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassSubmit===form)bypassSubmit=null},0)}
+},true);
+})();
+</script>
+<script id="parrothit-admin-commit-tools">
+(()=>{'use strict';
+ if(window.__PARROTHIT_ADMIN_COMMIT_TOOLS__)return;window.__PARROTHIT_ADMIN_COMMIT_TOOLS__=true;
+ const style=document.createElement('style');style.textContent=`#parrothit-admin-commit-bar{position:sticky;top:0;z-index:99990;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 12px;margin:8px 0;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;color:#0f172a}#parrothit-admin-commit-bar button{border:0;border-radius:8px;padding:10px 15px;font-weight:700;cursor:pointer;background:#166534;color:white}#parrothit-admin-commit-bar button:disabled{opacity:.55;cursor:not-allowed}#parrothit-admin-commit-status{font-size:13px;color:#334155}#parrothit-admin-toast-stack{position:fixed;right:12px;bottom:12px;z-index:100000;display:grid;gap:8px;max-width:min(92vw,380px)}.parrothit-admin-toast{background:#0f172a;color:#fff;padding:11px 14px;border-radius:9px;box-shadow:0 5px 20px #0002;font:14px/1.4 system-ui,sans-serif}`;document.head.appendChild(style);
+ let stack=document.createElement('div');stack.id='parrothit-admin-toast-stack';stack.setAttribute('aria-live','polite');document.body.appendChild(stack);
+ window.PARROTHITAdminNotice=(message)=>{const t=document.createElement('div');t.className='parrothit-admin-toast';t.textContent=String(message??'');stack.appendChild(t);setTimeout(()=>t.remove(),4500);};
+ // Replace browser alert pop-ups with quiet, non-blocking in-page notices.
+ window.alert=window.PARROTHITAdminNotice;
+ const path=location.pathname.toLowerCase();if(/\/(login|signup|forgot-password|reset-password)\.html$/.test(path))return;
+ const bar=document.createElement('div');bar.id='parrothit-admin-commit-bar';bar.innerHTML='<strong>Admin actions</strong><span id="parrothit-admin-commit-status">Edit a section, then commit its changes here.</span><button type="button" id="parrothit-admin-commit-button">Commit Changes</button>';
+ const firstMain=document.querySelector('main');if(firstMain)firstMain.parentNode.insertBefore(bar,firstMain);else document.body.insertBefore(bar,document.body.firstChild);
+ let activeForm=null,activeSaveButton=null;
+ const isSaveButton=(el)=>el&&el.matches&&el.matches('button,input[type="submit"]')&&/save|publish|update|commit|apply|upload|add|create|restore|import|delete|remove|reset|clear|enable|disable|feature|approve|suspend/i.test((el.innerText||el.value||el.getAttribute('aria-label')||''));
+ document.addEventListener('focusin',e=>{const f=e.target&&e.target.closest&&e.target.closest('form');if(f)activeForm=f;});
+ document.addEventListener('input',e=>{const f=e.target&&e.target.closest&&e.target.closest('form');if(f)activeForm=f;});
+ document.addEventListener('change',e=>{const f=e.target&&e.target.closest&&e.target.closest('form');if(f)activeForm=f;});
+ document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('button,input[type="submit"]');if(b&&b.id!=='parrothit-admin-commit-button'&&isSaveButton(b)){activeSaveButton=b;const f=b.form||b.closest('form');if(f)activeForm=f;}});
+ const status=bar.querySelector('#parrothit-admin-commit-status'),commit=bar.querySelector('#parrothit-admin-commit-button');
+ commit.addEventListener('click',()=>{
+   if(activeForm&&activeForm.isConnected){
+     const submit=activeForm.querySelector('button[type="submit"],input[type="submit"]');
+     if(submit){submit.click();status.textContent='Commit requested for the active section.';return;}
+     if(typeof activeForm.requestSubmit==='function'){activeForm.requestSubmit();status.textContent='Commit requested for the active section.';return;}
+   }
+   if(activeSaveButton&&activeSaveButton.isConnected){activeSaveButton.click();status.textContent='Action submitted.';return;}
+   status.textContent='Select or edit a section first, or use that section’s Save button.';
+ });
+})();
+</script>
+
+<script src="js/parrothit-card-watermark.js" defer></script>
+</body></html>
