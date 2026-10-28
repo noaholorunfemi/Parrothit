@@ -86,7 +86,7 @@
     const file = (location.pathname.split('/').pop() || '').replace(/\.html?$/i, '').toLowerCase();
     const requested = new URLSearchParams(location.search).get('category');
     if(file==='category' && requested) return normalizeLabel(requested);
-    const map = { nigeria:'nigeria', world:'world', politics:'politics', entertainment:'entertainment', sports:'sports', business:'business', technology:'technology', education:'education', health:'health', religion:'religion', culture:'culture', wildlife:'wildlife', 'celebrity-news':'celebrity news', football:'football', nollywood:'nollywood', 'nigerian-celebrity':'nigerian celebrity' };
+    const map = { nigeria:'nigeria', world:'world', politics:'politics', entertainment:'entertainment', sports:'sports', business:'business', technology:'technology', education:'education', health:'health', religion:'religion', culture:'culture', wildlife:'wildlife', 'celebrity-news':'celebrity news', football:'football', nollywood:'nollywood', 'nigerian-celebrity':'nigerian celebrity', volleyball:'volleyball', athlete:'athlete', lifestyle:'lifestyle' };
     if (file.startsWith('sports-')) return normalizeLabel(file.slice('sports-'.length));
     return map[file] || '';
   }
@@ -125,46 +125,194 @@
       figure.appendChild(img); card.appendChild(figure);
     }
     const body = document.createElement('div'); body.className = 'news-card-content';
-    const cat = document.createElement('span'); cat.className = 'category'; cat.textContent = post.category || 'NEWS';
+    const cat = document.createElement('a'); cat.className = 'category'; cat.textContent = post.category || 'NEWS';
+    const categorySlug = String(post.categorySlug || post.category || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const categoryDestinations = {
+      nigeria:'nigeria.html', world:'world.html', politics:'politics.html', entertainment:'entertainment.html', sports:'sports.html',
+      business:'business.html', technology:'technology.html', education:'education.html', health:'health.html', religion:'religion.html',
+      culture:'culture.html', wildlife:'wildlife.html', 'celebrity-news':'celebrity-news.html', football:'football.html',
+      'sports-football':'sports-football.html', nollywood:'nollywood.html', 'nigerian-celebrity':'nigerian-celebrity.html',
+      'table-tennis':'sports-table-tennis.html', 'sports-table-tennis':'sports-table-tennis.html', basketball:'sports-basketball.html',
+      'sports-basketball':'sports-basketball.html', tennis:'sports-tennis.html', 'sports-tennis':'sports-tennis.html',
+      athletics:'sports-athletics.html', athlete:'category.html?category=athlete', 'sports-athletics':'sports-athletics.html',
+      volleyball:'category.html?category=volleyball', lifestyle:'category.html?category=lifestyle'
+    };
+    cat.href = categoryDestinations[categorySlug] || ('category.html?category=' + encodeURIComponent(categorySlug || 'world'));
+    cat.style.textDecoration = 'none'; cat.setAttribute('aria-label', 'Browse ' + (post.category || 'news') + ' category');
     if (post.isBreaking) { const breaking = document.createElement('strong'); breaking.className = 'breaking-label'; breaking.textContent = 'BREAKING NEWS'; body.appendChild(breaking); }
     const title = document.createElement('h3'); const link = document.createElement('a'); link.href = post.remote ? 'article.html?slug=' + encodeURIComponent(post.slug || '') : 'article.html?id=' + encodeURIComponent(post.id); link.textContent = post.title || 'Untitled story'; title.appendChild(link);
     const summary = document.createElement('p'); summary.textContent = post.summary || '';
     const read = document.createElement('a'); read.className = 'read-more'; read.href = link.href; read.textContent = 'Read story →';
     body.append(cat, title, summary); const stamp=document.createElement('div');stamp.className='news-card-updated';stamp.style.cssText='font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82';const created=post.publishedAt||post.createdAt||'';const updated=post.updatedAt||created;const formatDate=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};stamp.textContent=created?'Published: '+formatDate(created)+(updated&&updated!==created?' · Updated: '+formatDate(updated):''):'Publication time not recorded';body.append(stamp);if(post.sourceName){const source=document.createElement('small');source.className='news-card-source';source.textContent='Source: '+post.sourceName;source.style.cssText='display:block;margin-top:5px;opacity:.8';body.appendChild(source)}body.append(read); card.appendChild(body); return card;
   }
-  function displayStories(localState, cloud) {
+  function categoryDatabaseSlugs(categoryKey) {
+    const aliases = {
+      'celebrity news':['celebrity-news'],
+      'nigerian celebrity':['nigerian-celebrity'],
+      'table tennis':['table-tennis','sports-table-tennis'],
+      'sports football':['football','sports-football'],
+      football:['football','sports-football'],
+      'sports table tennis':['table-tennis','sports-table-tennis'],
+      basketball:['basketball','sports-basketball'],
+      'sports basketball':['basketball','sports-basketball'],
+      tennis:['tennis','sports-tennis'],
+      'sports tennis':['tennis','sports-tennis'],
+      athletics:['athlete','athletics','sports-athletics'],
+      athlete:['athlete','athletics','sports-athletics'],
+      'sports athletics':['athlete','athletics','sports-athletics']
+    };
+    const slug = String(categoryKey || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return aliases[categoryKey] || [slug];
+  }
+  function mapPublishedPost(p) {
+    const relation = p && p.categories;
+    const category = Array.isArray(relation) ? relation[0] : relation;
+    return {
+      id: p.id, supabaseId: p.id, title: p.title, slug: p.slug, summary: p.summary || '', body: p.body || '',
+      image: p.image_url || '', category: category && category.name || '', categorySlug: category && category.slug || '',
+      status: 'published', publishedAt: p.published_at || '', createdAt: p.created_at || p.published_at || '',
+      updatedAt: p.updated_at || p.published_at || p.created_at || '', author: p.author_name || 'PARROTHIT News Desk',
+      isBreaking: !!p.is_breaking, sourceUrl: p.source_url || '', sourceName: p.source_name || '', remote: true
+    };
+  }
+  async function fetchPublishedCategoryPosts(categoryKey, offset, pageSize) {
+    const client = window.getParrothitSupabaseClient ? window.getParrothitSupabaseClient() : null;
+    const slugs = categoryDatabaseSlugs(categoryKey);
+    if (!client || !slugs.length) return { posts: [], error: null, available: false };
+    const cutoff = new Date().toISOString();
+    const { data, error } = await client.from('posts')
+      .select('id,title,slug,summary,body,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories!inner(name,slug)')
+      .eq('status', 'published')
+      .in('categories.slug', slugs)
+      .or('published_at.is.null,published_at.lte.' + cutoff)
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + pageSize - 1);
+    return { posts: (data || []).map(mapPublishedPost), error: error || null, available: true };
+  }
+  function sameStory(a, b) {
+    const aId = String(a.supabaseId || a.id || '');
+    const bId = String(b.supabaseId || b.id || '');
+    if (aId && bId && aId === bId) return true;
+    return !!(a.slug && b.slug && String(a.slug) === String(b.slug));
+  }
+  function placeManagedStorySection(section, isHome, isAbout) {
+    const main = $('main'); if (!main) return;
+    if (isHome) {
+      const slider = $('.home-slider');
+      if (slider && slider.parentNode) slider.insertAdjacentElement('afterend', section);
+      else main.insertBefore(section, main.firstChild);
+      return;
+    }
+    if (isAbout) {
+      const heading = $('.page-heading', main);
+      if (heading) heading.insertAdjacentElement('afterend', section);
+      else main.insertBefore(section, main.firstChild);
+      return;
+    }
+    // Keep the six existing, administrator-managed category cards in place.
+    // Newly published newsroom stories are rendered as overflow cards AFTER that block.
+    const contentGrid = main.querySelector('.content-layout, .content-grid');
+    if (contentGrid && contentGrid.parentNode) {
+      contentGrid.insertAdjacentElement('afterend', section);
+      return;
+    }
+    const firstGrid = Array.from(main.querySelectorAll('.news-grid')).find(node => !node.classList.contains('parrothit-managed-grid'));
+    const existingSection = firstGrid && firstGrid.closest('section');
+    if (existingSection && existingSection.parentNode) existingSection.insertAdjacentElement('afterend', section);
+    else {
+      const heading = $('.page-heading', main);
+      if (heading) heading.insertAdjacentElement('afterend', section);
+      else main.insertBefore(section, main.firstChild);
+    }
+  }
+  async function displayStories(localState, cloud) {
     const local = (localState.articles || []).filter(p => p.status === 'published');
     const cloudIds = new Set(cloud.posts.map(p => String(p.supabaseId || p.id)));
     const localNoDuplicate = local.filter(p => !p.supabaseId || !cloudIds.has(String(p.supabaseId)));
-    const posts = cloud.posts.concat(localNoDuplicate).sort((a,b) => String(b.publishedAt || b.createdAt || '').localeCompare(String(a.publishedAt || a.createdAt || '')));
+    const allKnownPosts = cloud.posts.concat(localNoDuplicate).sort((a,b) => String(b.publishedAt || b.createdAt || '').localeCompare(String(a.publishedAt || a.createdAt || '')));
     const file = (location.pathname.split('/').pop() || '').toLowerCase();
     const isHome = file === '' || file === 'index.html';
     const isAbout = file === 'about.html';
     const catKey = currentCategory();
     if (!isHome && !isAbout && !catKey) return;
-    let filtered = posts;
-    if (!isHome && catKey) {
-      const matchesCategory = p => {
-        const name = normalizeLabel(p.category), slug = normalizeLabel(p.categorySlug);
-        if (name === catKey || slug === catKey) return true;
-        if (catKey === 'sports') return name.startsWith('sports') || slug.startsWith('sports');
-        if (['football','table tennis','basketball','tennis','athletics'].includes(catKey))
-          return name === catKey || name === 'sports ' + catKey || slug === catKey || slug === 'sports-' + catKey.replace(/ /g, '-');
-        return false;
-      };
-      filtered = posts.filter(matchesCategory);
-    }
-    // Avoid duplicate dynamic sections if the public script is initialized more than once.
-    document.querySelectorAll('main > .parrothit-managed-stories:not(.parrothit-admin-feature-cards)').forEach(node => node.remove());
-    if (!filtered.length) return;
-    const section = document.createElement('section'); section.className = 'parrothit-managed-stories parrothit-newsroom-published-cards';
-    const title = document.createElement('h2'); title.textContent = isHome ? 'Latest News from the PARROTHIT Newsroom' : (isAbout ? 'Latest News' : 'Latest ' + (catKey ? catKey.replace(/\b\w/g, c => c.toUpperCase()) : 'news') + ' stories');
-    const grid = document.createElement('div'); grid.className = 'news-grid parrothit-managed-grid';
-    filtered.slice(0, 18).forEach(p => grid.appendChild(createStoryCard(p)));
-    section.append(title, grid);
+
+    document.querySelectorAll('main .parrothit-managed-stories:not(.parrothit-admin-feature-cards)').forEach(node => node.remove());
     const main = $('main'); if (!main) return;
-    if (isHome) { const slider = $('.home-slider'); if (slider && slider.parentNode) slider.insertAdjacentElement('afterend', section); else main.insertBefore(section, main.firstChild); }
-    else { const heading = $('.page-heading', main); if (heading) heading.insertAdjacentElement('afterend', section); else main.insertBefore(section, main.firstChild); }
+    const section = document.createElement('section'); section.className = 'parrothit-managed-stories parrothit-newsroom-published-cards';
+    const title = document.createElement('h2');
+    title.textContent = isHome ? 'Latest News from the PARROTHIT Newsroom' : (isAbout ? 'Latest News' : 'Latest ' + (catKey ? catKey.replace(/\b\w/g, c => c.toUpperCase()) : 'news') + ' stories');
+    const grid = document.createElement('div'); grid.className = 'news-grid parrothit-managed-grid';
+    section.append(title, grid);
+
+    if (isHome || isAbout) {
+      allKnownPosts.slice(0, 18).forEach(p => grid.appendChild(createStoryCard(p)));
+      if (!grid.children.length) return;
+      placeManagedStorySection(section, isHome, isAbout);
+      if (window.PARROTHITMediaStore) await window.PARROTHITMediaStore.bindImages(section);
+      return;
+    }
+
+    const matchesCategory = p => {
+      const name = normalizeLabel(p.category), slug = normalizeLabel(p.categorySlug);
+      if (name === catKey || slug === catKey) return true;
+      if (catKey === 'sports') return name.startsWith('sports') || slug.startsWith('sports');
+      if (['football','table tennis','basketball','tennis','athletics'].includes(catKey))
+        return name === catKey || name === 'sports ' + catKey || slug === catKey || slug === 'sports-' + catKey.replace(/ /g, '-');
+      return false;
+    };
+    const localCategoryPosts = localNoDuplicate.filter(matchesCategory);
+    const pageSize = 18;
+    let remoteOffset = 0;
+    const rendered = [];
+    const appendCards = async posts => {
+      for (const post of posts) {
+        if (rendered.some(existing => sameStory(existing, post))) continue;
+        rendered.push(post);
+        grid.appendChild(createStoryCard(post));
+      }
+      if (window.PARROTHITMediaStore) await window.PARROTHITMediaStore.bindImages(grid);
+    };
+
+    let initialRemote = { posts: [], error: null, available: false };
+    try { initialRemote = await fetchPublishedCategoryPosts(catKey, 0, pageSize); }
+    catch (error) { initialRemote.error = error; }
+    if (initialRemote.available && !initialRemote.error) {
+      remoteOffset = initialRemote.posts.length;
+      const initial = initialRemote.posts.concat(localCategoryPosts).sort((a,b) => String(b.publishedAt || b.createdAt || '').localeCompare(String(a.publishedAt || a.createdAt || '')));
+      await appendCards(initial);
+    } else {
+      if (initialRemote.error) console.warn('PARROTHIT could not load the full category archive; showing available recent stories:', initialRemote.error.message || initialRemote.error);
+      await appendCards(allKnownPosts.filter(matchesCategory).slice(0, pageSize).concat(localCategoryPosts));
+      remoteOffset = pageSize;
+    }
+    if (!grid.children.length) return;
+    placeManagedStorySection(section, false, false);
+
+    // The original six category cards remain untouched. Every published newsroom story
+    // is a new managed card in this overflow section. Older cards are fetched in pages.
+    const hasMoreInitially = initialRemote.available && !initialRemote.error && initialRemote.posts.length === pageSize;
+    if (hasMoreInitially) {
+      const moreButton = document.createElement('button');
+      moreButton.type = 'button'; moreButton.className = 'parrothit-load-more-stories';
+      moreButton.textContent = 'Load more stories';
+      section.appendChild(moreButton);
+      moreButton.addEventListener('click', async () => {
+        if (moreButton.disabled) return;
+        moreButton.disabled = true; moreButton.textContent = 'Loading…';
+        try {
+          const next = await fetchPublishedCategoryPosts(catKey, remoteOffset, pageSize);
+          if (next.error) throw next.error;
+          remoteOffset += next.posts.length;
+          await appendCards(next.posts);
+          if (next.posts.length < pageSize) moreButton.remove();
+          else { moreButton.disabled = false; moreButton.textContent = 'Load more stories'; }
+        } catch (error) {
+          console.warn('PARROTHIT could not load more category stories:', error);
+          moreButton.disabled = false; moreButton.textContent = 'Retry loading stories';
+        }
+      });
+    }
+    if (window.PARROTHITMediaStore) await window.PARROTHITMediaStore.bindImages(section);
   }
   async function displayCategoryCards(cloudCards) {
     const file = (location.pathname.split('/').pop() || '').replace(/\.html?$/i, '').toLowerCase();
@@ -177,8 +325,57 @@
     try { records = JSON.parse(localStorage.getItem('parrothit-category-cards-v1-' + categoryKey) || '{}') || {}; } catch (_) {}
     const shared = cloudCards && cloudCards[categoryKey];
     if (shared && typeof shared === 'object') records = { ...records, ...shared };
-    const cards = Array.from(document.querySelectorAll('main .news-card'));
-    for (let i = 1; i <= Math.min(6, cards.length); i++) {
+    // Restrict the click-to-reveal behaviour to the six original cards in the
+    // category page's own grid. Homepage cards, newsroom-added cards, and ads
+    // are deliberately excluded from this selector.
+    const categoryGrid = document.querySelector('main .news-grid:not(.parrothit-managed-grid)');
+    const cards = categoryGrid ? Array.from(categoryGrid.querySelectorAll(':scope > .news-card')).slice(0, 6) : [];
+    cards.forEach((card, index) => {
+      card.classList.add('parrothit-category-card-1-6');
+      if (!card.hasAttribute('data-parrothit-reveal-bound')) {
+        card.setAttribute('data-parrothit-reveal-bound', 'true');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-expanded', 'false');
+        card.setAttribute('aria-label', 'Category news card ' + (index + 1) + '. Click to reveal story text.');
+        card.addEventListener('click', event => {
+          if (event.target.closest('a, button, input, select, textarea, label')) return;
+          const open = card.classList.toggle('parrothit-category-card-revealed');
+          card.setAttribute('aria-expanded', String(open));
+        });
+        card.addEventListener('keydown', event => {
+          if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+          event.preventDefault();
+          const open = card.classList.toggle('parrothit-category-card-revealed');
+          card.setAttribute('aria-expanded', String(open));
+        });
+      }
+    });
+    if (cards.length && !document.getElementById('parrothit-category-card-reveal-style')) {
+      const style = document.createElement('style');
+      style.id = 'parrothit-category-card-reveal-style';
+      style.textContent = `
+        main .news-card.parrothit-category-card-1-6 { cursor: pointer; }
+        main .news-card.parrothit-category-card-1-6:focus-visible { outline: 3px solid #c5161d; outline-offset: 3px; }
+        main .news-card.parrothit-category-card-1-6 > .news-body,
+        main .news-card.parrothit-category-card-1-6 > .news-card-content {
+          box-sizing: border-box; max-height: 0 !important; opacity: 0; overflow: hidden;
+          padding-top: 0 !important; padding-bottom: 0 !important; margin-top: 0 !important;
+          margin-bottom: 0 !important; pointer-events: none;
+          transition: max-height .35s ease, opacity .25s ease, padding .35s ease;
+        }
+        main .news-card.parrothit-category-card-1-6.parrothit-category-card-revealed > .news-body,
+        main .news-card.parrothit-category-card-1-6.parrothit-category-card-revealed > .news-card-content {
+          max-height: 700px !important; opacity: 1; overflow: visible;
+          padding: 13px !important; pointer-events: auto;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          main .news-card.parrothit-category-card-1-6 > .news-body,
+          main .news-card.parrothit-category-card-1-6 > .news-card-content { transition: none; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    for (let i = 1; i <= cards.length; i++) {
       const rec = records[i]; if (!rec || rec.enabled === false || !(rec.title || rec.text || rec.image || rec.imageUrl)) continue;
       const card = cards[i - 1]; if (!card) continue;
       card.hidden = false; card.removeAttribute('data-unpublished-template');
@@ -329,6 +526,22 @@
     let post = localId ? (localState.articles || []).find(p => String(p.id) === localId) : null;
     if (!post && slug) post = cloud.posts.find(p => p.slug === slug) || null;
     if (!post && localId) post = cloud.posts.find(p => String(p.id) === localId || String(p.supabaseId) === localId) || null;
+    // A category archive can contain far more stories than the homepage's recent-post
+    // window. Fetch a requested published article directly so older overflow cards work too.
+    if (!post && (slug || localId) && window.getParrothitSupabaseClient) {
+      try {
+        const client = window.getParrothitSupabaseClient();
+        if (client) {
+          let query = client.from('posts')
+            .select('id,title,slug,summary,body,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories(name,slug)')
+            .eq('status', 'published')
+            .or('published_at.is.null,published_at.lte.' + new Date().toISOString());
+          query = slug ? query.eq('slug', slug) : query.eq('id', localId);
+          const { data, error } = await query.maybeSingle();
+          if (!error && data) post = mapPublishedPost(data);
+        }
+      } catch (error) { console.warn('PARROTHIT could not load the requested published article:', error); }
+    }
     if (!post) return;
     const main = $('main'); if (!main) return;
     const wrap = document.createElement('article'); wrap.className = 'parrothit-managed-article';
@@ -348,6 +561,7 @@
       .parrothit-managed-stories,.parrothit-home-video,.parrothit-category-hero{margin:24px 0;padding:18px;background:var(--card,#fff);border:1px solid var(--line,#ddd);border-radius:14px;color:var(--text,#151515)}
       .parrothit-managed-stories>h2,.parrothit-home-video>h2{margin:0 0 14px;font-size:1.35rem}
       .parrothit-category-hero{display:flex;align-items:center;gap:16px;padding:12px;border-radius:12px;border:1px solid var(--line,#ddd);background:var(--card,#fff)}.parrothit-category-hero img{width:clamp(90px,18vw,170px);height:90px;object-fit:cover;border-radius:8px}.parrothit-category-hero strong{font-size:1.2rem}.parrothit-managed-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+      .parrothit-load-more-stories{display:block;margin:18px auto 2px;padding:11px 18px;border:0;border-radius:9px;background:#126b3a;color:#fff;font-weight:800;cursor:pointer}.parrothit-load-more-stories:disabled{opacity:.7;cursor:wait}
       .parrothit-managed-card{overflow:hidden;border-radius:12px;background:var(--card,#fff);border:1px solid var(--line,#ddd);display:flex;flex-direction:column;min-width:0}
       .managed-story-image{display:block;height:160px;overflow:hidden;background:#eee}.managed-story-image img{width:100%;height:100%;object-fit:cover;display:block}.news-card-content{padding:13px}.news-card-content h3{margin:.45rem 0;font-size:1.08rem}.news-card-content h3 a{color:inherit;text-decoration:none}.news-card-content p{color:var(--muted,#555);line-height:1.5}.read-more{font-weight:800;color:#c5161d}
       .parrothit-home-video-frame{display:block;width:min(100%,480px);aspect-ratio:16/9;border:0;border-radius:12px;background:#000}
@@ -557,7 +771,7 @@
     displayHomeVideo(video);
     await displayCategoryImage(localState, cloud);
     await displayCategoryCards(cloud.settings.category_cards || {});
-    displayStories(localState, cloud);
+    await displayStories(localState, cloud);
     const localFeatureCards = {}; for(let i=1;i<=16;i++){try{const v=JSON.parse(localStorage.getItem('parrothit-news-card-'+String(i).padStart(2,'0'))||'null');if(v)localFeatureCards[String(i).padStart(2,'0')]=v;}catch(_){}}
     displayAdminNewsCards({...localFeatureCards,...(cloud.settings.news_cards || {})});
     const categoryCardHandled = await displayCategoryCardArticle(cloud.settings.category_cards || {});
