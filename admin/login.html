@@ -48,6 +48,24 @@
 .appeal-status{font-size:.9rem;font-weight:700;overflow-wrap:anywhere}
 @keyframes auth-hatch{0%,100%{transform:translateX(0) rotate(0)}12%,36%,60%,84%{transform:translateX(-9px) rotate(-1deg)}24%,48%,72%{transform:translateX(9px) rotate(1deg)}0%{filter:brightness(1.4)}35%{filter:brightness(.8)}70%{filter:brightness(1.2)}}
 @media(prefers-reduced-motion:reduce){.auth-alert-card.unauthorized{animation:none}}
+/* Mobile suspension appeal fix: keep the full form and submit button reachable on short screens. */
+#appealArea[hidden]{display:none!important}
+#authAlertLayer{overflow-y:auto;-webkit-overflow-scrolling:touch}
+#authAlertCard{max-height:92vh;max-height:92dvh;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+#suspendedAppealForm .auth-alert-actions{display:flex;flex-wrap:wrap;gap:9px}
+#suspendedAppealForm .auth-alert-actions button{min-height:44px;flex:1 1 150px;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:600px){
+ .auth-alert-layer{display:none;place-items:start center;padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));}
+ .auth-alert-layer.open{display:grid}
+ #authAlertCard{width:100%;max-width:470px;max-height:calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));margin:auto;overflow-y:auto}
+ .auth-alert-content{padding:16px 14px}
+ #authAlertTitle{font-size:1.25rem}
+ #appealArea p{overflow-wrap:anywhere}
+ #appealStatusCheckForm,#suspendedAppealForm{min-width:0}
+ #suspendedAppealForm .auth-alert-actions{display:grid;grid-template-columns:minmax(0,1fr);width:100%}
+ #suspendedAppealForm .auth-alert-actions button{width:100%;min-width:0;min-height:46px}
+ #appealWordCount{overflow-wrap:anywhere;text-align:right}
+}
 
 </style>
 <link rel="stylesheet" href="../css/admin-responsive.css"></head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
@@ -83,6 +101,10 @@
 </div>
 <script>
 const form=document.getElementById('loginForm');
+if(new URLSearchParams(location.search).get('reason')==='idle-timeout'){
+  const loginNotice=document.getElementById('loginMessage');
+  if(loginNotice)loginNotice.textContent='You were automatically signed out after 5 minutes without activity. Please sign in again.';
+}
 const alertLayer=document.getElementById('authAlertLayer');
 const alertCard=document.getElementById('authAlertCard');
 const alertTitle=document.getElementById('authAlertTitle');

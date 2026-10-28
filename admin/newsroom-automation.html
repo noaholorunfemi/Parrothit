@@ -110,7 +110,27 @@ td{line-height:1.4}
       document.body.innerHTML = `<main class="wrap"><section class="panel"><h1>Administrator access required</h1><p>Your account does not have active newsroom access.</p><a class="btn" href="login.html">Sign in</a></section></main>`;
       return;
     }
+    startIdleTimeout(client, session.user.id);
     await refresh();
+  }
+
+  function startIdleTimeout(authClient, userId) {
+    if (!authClient || !userId || window.PARROTHIT_LOCAL_PREVIEW || window.__PARROTHIT_IDLE_TIMER_STARTED__) return;
+    window.__PARROTHIT_IDLE_TIMER_STARTED__ = true;
+    const limit = 5 * 60 * 1000, key = 'parrothit-admin-last-activity-v1:' + String(userId);
+    let last = Date.now(), lastWrite = 0, loggingOut = false;
+    const read = () => { try { const n = Number(localStorage.getItem(key)); return Number.isFinite(n) && n > 0 ? n : 0; } catch (_) { return 0; } };
+    const write = n => { try { localStorage.setItem(key, String(n)); } catch (_) {} };
+    // Opening or navigating to this authenticated admin page counts as activity across tabs.
+    write(last);
+    const expire = async () => { if (loggingOut) return; loggingOut = true; try { await authClient.auth.signOut(); } catch (_) {} location.replace('login.html?reason=idle-timeout'); };
+    const check = () => { last = Math.max(last, read()); if (Date.now() - last >= limit) expire(); };
+    const activity = () => { if (loggingOut) return; last = Date.now(); if (last - lastWrite > 800) { lastWrite = last; write(last); } };
+    ['pointerdown','keydown','touchstart','click','input','change','scroll'].forEach(type => window.addEventListener(type, activity, {passive:true,capture:true}));
+    let lastMove = 0; window.addEventListener('mousemove', () => { const now = Date.now(); if (now - lastMove > 5000) { lastMove = now; activity(); } }, {passive:true});
+    window.addEventListener('storage', e => { if (e.key === key && e.newValue) last = Math.max(last, Number(e.newValue) || 0); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    window.setInterval(check, 1000);
   }
 
   async function refresh() { await loadCategories(); await Promise.all([loadSources(), loadCandidates()]); }
