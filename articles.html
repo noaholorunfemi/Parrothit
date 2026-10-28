@@ -42,7 +42,7 @@ button.commit-change:hover{background:#166534!important}
  const goLogin=()=>{location.replace('login.html?next=dashboard.html')};
  try{
   if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||String(window.PARROTHIT_SUPABASE_URL).includes('YOUR-PROJECT')||!window.PARROTHIT_SUPABASE_ANON_KEY||String(window.PARROTHIT_SUPABASE_ANON_KEY).includes('YOUR_PUBLIC')){
-   document.documentElement.classList.remove('admin-auth-pending');document.body.classList.remove('admin-auth-pending');document.body.innerHTML='<main style="max-width:680px;margin:8vh auto;padding:24px;background:#fff;color:#111;border-radius:12px;font:700 16px Arial"><h1>Admin access is not configured</h1><p>Set the Supabase project URL and public anon/publishable key in <code>supabase-config.js</code>, then configure an administrator profile in Supabase.</p><a href="login.html">Go to admin sign in</a></main>';document.documentElement.classList.remove('admin-auth-pending');document.body.classList.remove('admin-auth-pending');return;
+   document.documentElement.classList.remove('admin-auth-pending');document.body.classList.remove('admin-auth-pending');document.body.innerHTML='<main style="max-width:680px;margin:8vh auto;padding:24px;background:#fff;color:#111;border-radius:12px;font:700 16px Arial"><h1>Admin access is not configured</h1><div class="parrothit-newsroom-shortcut" style="margin:12px 0;display:flex;gap:10px;flex-wrap:wrap"><a href="newsroom-automation.html" style="display:inline-flex;align-items:center;justify-content:center;background:#15803d;color:#fff;padding:11px 16px;border-radius:9px;text-decoration:none;font-weight:800">🦜 Open Newsroom Automation</a></div><p>Set the Supabase project URL and public anon/publishable key in <code>supabase-config.js</code>, then configure an administrator profile in Supabase.</p><a href="login.html">Go to admin sign in</a></main>';document.documentElement.classList.remove('admin-auth-pending');document.body.classList.remove('admin-auth-pending');return;
   }
   const client=window.getParrothitSupabaseClient();
   const {data,error}=await client.auth.getSession();
@@ -392,4 +392,6 @@ document.addEventListener('submit',async e=>{
  });
 })();
 </script>
+
+<script src="js/parrothit-card-watermark.js" defer></script>
 </body></html>

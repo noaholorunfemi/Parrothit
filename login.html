@@ -247,4 +247,6 @@ document.addEventListener('submit',async e=>{
  try{if(form.requestSubmit)form.requestSubmit(submitter||undefined);else HTMLFormElement.prototype.submit.call(form)}catch(err){console.error('PARROTHIT form action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassSubmit===form)bypassSubmit=null},0)}
 },true);
 })();
-</script></body></html>
+</script>
+<script src="js/parrothit-card-watermark.js" defer></script>
+</body></html>

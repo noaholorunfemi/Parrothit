@@ -6,7 +6,7 @@
 <title>Article | PARROTHIT</title>
 <link rel="stylesheet" href="css/style.css">
 </head><body>
-<div class="back-home-wrap"><a class="back-home-link" href="index.html">← Back home</a></div>
+<div class="back-home-wrap"><a class="back-home-link" href="index.html">← Back home</a></div><div style="max-width:1200px;margin:10px auto;padding:0 16px"><a href="admin/newsroom-automation.html" style="display:inline-flex;align-items:center;background:#15803d;color:#fff;padding:10px 15px;border-radius:9px;text-decoration:none;font-weight:800">🦜 Newsroom Automation</a></div>
 
 <div class="topline"><div class="wrap"><span id="todayDate">PARROTHIT • Your trusted news desk</span><span>Accurate • Timely • Independent</span></div></div>
 <header class="masthead"><div class="wrap brand-row"><a class="brand-image" href="index.html" aria-label="PARROTHIT homepage"><img src="assets/images/parrothit-logo.png" alt="PARROTHIT — News That Speaks!"></a><div class="breaking-badge">BREAKING NEWS</div></div></header>
@@ -70,10 +70,51 @@ const likeBtn=document.getElementById('likePost');if(likeBtn)likeBtn.addEventLis
   if(!shell)return;
   const params=new URLSearchParams(location.search);
   const slug=(params.get('slug')||'').trim();
-  if(!slug)return;
+  const categoryCard=(params.get('categoryCard')||'').trim();
   const fallback=shell.innerHTML;
   function node(tag,cls,text){const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;}
   function safeHttpUrl(raw){try{const u=new URL(raw,location.href);return ['http:','https:'].includes(u.protocol)?u.href:''}catch(_){return ''}}
+  function safeImageUrl(raw){const value=String(raw||'').trim();if(/^data:image\/(png|jpe?g|gif|webp|avif);base64,/i.test(value))return value;if(/^blob:/i.test(value))return value;return safeHttpUrl(value)}
+  if(!slug && categoryCard){
+    (async function loadCategoryCard(){
+      const match=categoryCard.match(/^(.+)-(\d+)$/);
+      if(!match)return;
+      const category=match[1], index=match[2];
+      let record=null;
+      try{
+        const localKey='parrothit-category-cards-v1-'+category;
+        const local=JSON.parse(localStorage.getItem(localKey)||'{}');
+        if(local && local[index] && local[index].enabled!==false) record=local[index];
+      }catch(_){}
+      try{
+        const make=window.getParrothitSupabaseClient;
+        const client=typeof make==='function'?make():null;
+        if(client){
+          const {data,error}=await client.from('site_settings').select('value').eq('key','category_cards').maybeSingle();
+          if(!error && data && data.value && data.value[category] && data.value[category][index] && data.value[category][index].enabled!==false) record=data.value[category][index];
+        }
+      }catch(err){console.warn('PARROTHIT category card shared record unavailable:',err)}
+      if(!record || !(record.title||record.text||record.image||record.imageUrl||record.imageRef)){
+        shell.replaceChildren(node('span','category',category.replace(/-/g,' ')),node('h1','', 'Story not available'),node('p','article-summary','This card does not have published content available yet.'),Object.assign(node('a','button','← Back to category'),{href:category+'.html'}));
+        document.title='Story not available | PARROTHIT'; return;
+      }
+      shell.replaceChildren();
+      shell.appendChild(node('span','category',category.replace(/-/g,' ')));
+      shell.appendChild(node('h1','',record.title||'PARROTHIT News'));
+      shell.appendChild(node('p','article-meta','PARROTHIT News Desk · NEWS THAT SPEAKS!'));
+      let image=record.imageRef||record.image||record.imageUrl||'';
+      if(image && String(image).startsWith('idb:') && window.PARROTHITMediaStore){try{image=await window.PARROTHITMediaStore.resolve(image)}catch(_){image=''}}
+      const src=safeImageUrl(image);
+      if(src){const img=node('img','article-main-image');img.src=src;img.alt=record.title||'PARROTHIT news image';img.loading='lazy';img.onerror=()=>img.remove();shell.appendChild(img)}
+      if(record.text)shell.appendChild(node('div','article-body',record.text));
+      const back=node('p','');const a=node('a','button','← Back to category');a.href=category+'.html';back.appendChild(a);shell.appendChild(back);
+      const interactions=document.querySelector('.visitor-interactions');if(interactions)interactions.hidden=false;
+      document.title=(record.title||'News story')+' | PARROTHIT';
+      const desc=document.querySelector('meta[name="description"]');if(desc)desc.content=String(record.text||record.title||'PARROTHIT — News that speaks!').slice(0,300);
+    })();
+    return;
+  }
+  if(!slug)return;
   try{
     const make=window.getParrothitSupabaseClient;
     const client=typeof make==='function'?make():null;
@@ -102,4 +143,9 @@ const likeBtn=document.getElementById('likePost');if(likeBtn)likeBtn.addEventLis
 })();
 </script>
 
+
+<script src="js/parrothit-card-watermark.js" defer></script>
+<script id="parrothit-clickable-ad-cards">
+(()=>{document.querySelectorAll('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]').forEach(card=>{const getLink=()=>card.querySelector('a[href]');const link=getLink();if(link){card.style.cursor='pointer';card.setAttribute('role','link');card.addEventListener('click',e=>{if(e.defaultPrevented||e.target.closest('a,button,input,select,textarea,label,form'))return;const a=getLink();if(a&&a.href)window.location.href=a.href;});card.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===card){e.preventDefault();const a=getLink();if(a)window.location.href=a.href;}});if(!card.hasAttribute('tabindex'))card.tabIndex=0;}else if(card.matches('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]')){const destination='contact.html?subject=Advertising';card.style.cursor='pointer';card.setAttribute('role','link');card.tabIndex=0;const go=()=>window.location.href=destination;card.addEventListener('click',e=>{if(!e.target.closest('a,button,input,select,textarea,label,form'))go();});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});}});})();
+</script>
 </body></html>
