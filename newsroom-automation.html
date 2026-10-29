@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PARROTHIT Newsroom Automation</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="../supabase-config.js"></script>
+<script src="supabase-config.js"></script>
 <style>
 :root{font-family:Arial,sans-serif;color:#f4f7fb;background:#071b13}
 *{box-sizing:border-box}
@@ -43,12 +43,51 @@ td{line-height:1.4}
 .top-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:600px){.wrap{padding:10px}.panel,.top{padding:13px}.field{min-width:100%}}
 </style>
-<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6">
+<link rel="stylesheet" href="css/admin-responsive.css?v=parrothit-v6">
+<link rel="stylesheet" href="css/admin-responsive-fixes.css">
+<style id="parrothit-newsroom-responsive-fix">
+/* PARROTHIT newsroom layout repair: prevent stretched controls and support small screens */
+html{width:100%;max-width:100%;overflow-x:hidden;scroll-behavior:smooth}
+body{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
+.wrap{width:100%;max-width:1250px;margin:0 auto;padding:clamp(10px,2vw,22px)}
+.top,.panel{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.top{align-items:center;gap:12px}
+.top>*{min-width:0}
+.row{min-width:0;align-items:center}
+.row>*{min-width:0;max-width:100%}
+.field{flex:1 1 220px;min-width:0;max-width:100%}
+input:not([type=checkbox]):not([type=radio]),select,textarea{max-width:100%;min-width:0}
+textarea{width:100%;resize:vertical}
+button,.btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.ai-provider-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.daily-category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.table-wrap,.table-responsive{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{max-width:100%;border-collapse:collapse}
+th,td{overflow-wrap:anywhere}
+img,video,iframe{max-width:100%}
+@media(max-width:900px){.ai-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.daily-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){
+ .wrap{padding:9px}
+ .top,.panel{padding:12px;border-radius:10px;margin-bottom:11px}
+ .top{display:flex;flex-direction:column;align-items:stretch}
+ .top h1{font-size:1.35rem;line-height:1.25;overflow-wrap:anywhere}
+ .row{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+ .row>*{width:100%;max-width:100%}
+ .field{width:100%;flex:1 1 auto}
+ .ai-provider-grid{grid-template-columns:minmax(0,1fr)}
+ .daily-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .daily-category-option{min-width:0}
+ button,.btn{width:auto;max-width:100%}
+ table{font-size:.86rem;min-width:560px}
+}
+@media(max-width:360px){.daily-category-grid{grid-template-columns:minmax(0,1fr)}.wrap{padding:7px}.top,.panel{padding:10px}}
+</style>
+
 </head>
 <body>
 <main class="wrap">
 <header class="top">
-  <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare manual or AI-assisted drafts → review or administrator-selected AI auto-publishing.</p></div>
+  <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → select one of up to six secure AI providers → draft category news → editorial review.</p></div>
   <div class="top-actions"><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
 </header>
 <div class="warning"><strong>Publication mode is controlled by the active administrator.</strong> The default is manual review. You can opt in to automatically publishing AI-assisted drafts after you click Create AI Draft. Free manual working drafts always remain In Review and are never automatically published. Automatic mode does not run unattended feed discovery or generate drafts on a schedule.</div>
@@ -87,6 +126,29 @@ td{line-height:1.4}
   </ol>
   <p class="muted small">If AI credits are exhausted, manual drafting remains available. Never place service-role or AI API keys in public files. This page does not configure scheduled publishing.</p>
 </section>
+<section class="panel" id="aiProviderPanel">
+  <div class="section-head"><div><h2>🤖 4. AI provider selection — up to 6 services</h2><p class="muted">Configure up to six OpenAI-compatible Chat Completions APIs in Supabase Edge Function secrets, then choose which configured service to use now. This choice applies to individual AI drafts and the morning category schedule.</p></div><span class="pill" id="aiProviderBadge">Loading providers…</span></div>
+  <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Security:</strong> API keys are not stored in this page or the public website. Add them as Supabase Edge Function secrets using the included <code>NEWSROOM-AI-PROVIDERS-SETUP.txt</code> guide. The page receives only provider names, models, endpoints and configured/not-configured status.</div>
+  <div class="row">
+    <div class="field" style="flex:2;min-width:260px"><label for="activeAIProvider">Use this AI service for drafting</label><select id="activeAIProvider"><option value="">Checking configured providers…</option></select></div>
+    <button type="button" id="saveAIProvider" class="green">Save selected AI service</button><button type="button" id="refreshAIProviders" class="secondary">Refresh provider status</button>
+  </div>
+  <div id="aiProviderSlots" class="ai-provider-grid"><p class="muted">Loading AI provider slots…</p></div>
+  <p id="aiProviderStatus" class="muted small" role="status" aria-live="polite">Configure at least one service before creating AI drafts. Free manual working drafts do not require an API.</p>
+</section>
+<section class="panel" id="dailySchedulePanel">
+  <div class="section-head"><div><h2>🌅 5. Daily scheduled drafting — all categories</h2><p class="muted">Automatically prepare up to one AI-assisted article draft per selected category each morning. Drafts stay <strong>In Review</strong>; this scheduler never publishes them.</p></div><span class="pill" id="dailyScheduleBadge">Not configured</span></div>
+  <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Schedule:</strong> every day at <strong>7:30 AM Nigeria time (West Africa Time)</strong>, after the existing 7:00 AM feed-discovery job. Categories with no available source candidate are reported as skipped rather than fabricated.</div>
+  <div class="row" style="align-items:center;margin:12px 0"><label style="display:flex;align-items:center;gap:10px;font-weight:800"><input type="checkbox" id="dailyScheduleEnabled" style="width:20px;height:20px"> Enable daily scheduled drafting</label><span class="muted small" id="dailyScheduleCount">Loading categories…</span></div>
+  <div class="row" style="margin:8px 0"><button type="button" id="selectAllDailyCategories" class="secondary">Select all categories</button><button type="button" id="clearDailyCategories" class="secondary">Clear selection</button></div><div id="dailyCategoryChecks" class="daily-category-grid"><p class="muted">Loading categories…</p></div>
+  <div class="row" style="margin-top:14px"><button type="button" id="saveDailySchedule" class="green">Save daily schedule</button><button type="button" id="runDailyScheduleNow" class="blue">Run drafting now for testing</button></div>
+  <p class="muted small" id="dailyScheduleStatus" aria-live="polite">Setup requires the daily category-drafting SQL schedule and the updated Supabase Edge Function. AI provider credits are required to create the drafts.</p>
+  <div id="dailyRunResults" class="table-wrap" hidden><table><thead><tr><th>Category</th><th>Outcome</th><th>Draft</th><th>Details</th></tr></thead><tbody id="dailyRunRows"></tbody></table></div>
+</section>
+<style>
+.ai-provider-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}.ai-provider-slot{min-width:0;border:1px solid #2b4a38;background:#0b2116;padding:12px;border-radius:9px;overflow-wrap:anywhere}.ai-provider-slot strong{display:block;margin-bottom:5px}.ai-provider-slot small{display:block;color:#b8cdbf;line-height:1.45;margin-top:4px}.ai-provider-slot.ready{border-color:#2f9b60}.ai-provider-slot.missing{border-color:#765f35}.ai-provider-grid{min-width:0}.daily-category-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.daily-category-option{display:flex;align-items:flex-start;gap:8px;min-width:0;padding:10px;border:1px solid #2b4a38;border-radius:8px;background:#0b2116;color:#f4f7fb;overflow-wrap:anywhere}.daily-category-option input{width:17px;height:17px;flex:0 0 auto;margin-top:2px}.daily-category-option span{line-height:1.35}.daily-category-option small{display:block;color:#b8cdbf;margin-top:3px}@media(max-width:1000px){.ai-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.daily-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:650px){.ai-provider-grid{grid-template-columns:1fr}.daily-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:380px){.daily-category-grid{grid-template-columns:1fr}}
+</style>
+
 </main>
 <script>
 (() => {
@@ -145,6 +207,109 @@ td{line-height:1.4}
     } finally { button.disabled = false; }
   }
 
+  async function loadAIProviders(keepSelection = true) {
+    const status = $('aiProviderStatus');
+    const select = $('activeAIProvider');
+    if (!select) return;
+    const previous = keepSelection ? select.value : '';
+    select.disabled = true;
+    $('aiProviderBadge').textContent = 'Checking…';
+    status.textContent = 'Checking the six server-side provider slots…';
+    try {
+      const result = await invoke('get_ai_provider_config');
+      const providers = result.providers || [];
+      const available = providers.filter(p => p.configured);
+      select.innerHTML = available.length
+        ? available.map(p => `<option value="${esc(p.id)}">${esc(p.name)} — ${esc(p.model)}</option>`).join('')
+        : '<option value="">No configured AI providers</option>';
+      const intended = previous && available.some(p => p.id === previous) ? previous : String(result.activeProviderId || '');
+      if (intended && available.some(p => p.id === intended)) select.value = intended;
+      $('aiProviderBadge').textContent = `${available.length} of 6 configured`;
+      $('aiProviderSlots').innerHTML = providers.map(p => {
+        const detail = p.configured ? `${p.model} · ${p.apiUrl}` : `Missing: ${(p.missing || []).join(', ')}`;
+        return `<article class="ai-provider-slot ${p.configured ? 'ready' : 'missing'}"><strong>${esc(p.name || ('AI Service ' + p.id))}</strong><span class="pill">${p.configured ? 'Configured' : 'Not configured'}</span><small>${esc(detail)}</small></article>`;
+      }).join('');
+      status.textContent = available.length
+        ? `Currently selected: ${available.find(p => p.id === select.value)?.name || available[0].name}. API keys remain server-side. Save after choosing a different provider.`
+        : 'No provider is fully configured. Add a key, OpenAI-compatible Chat Completions URL, and model for at least one slot using NEWSROOM-AI-PROVIDERS-SETUP.txt.';
+      if (!available.length) status.style.color = '#ffd9d9'; else status.style.color = '';
+    } catch (err) {
+      $('aiProviderBadge').textContent = 'Unavailable';
+      $('aiProviderSlots').innerHTML = `<p class="muted">Could not retrieve provider status: ${esc(err.message || String(err))}</p>`;
+      status.textContent = 'Deploy the updated parrothit-newsroom-automation Edge Function and configure its secrets before selecting an AI provider.';
+      status.style.color = '#ffd9d9';
+    } finally { select.disabled = false; }
+  }
+  async function saveAIProvider() {
+    const button = $('saveAIProvider');
+    const providerId = $('activeAIProvider').value;
+    if (!providerId) { $('aiProviderStatus').textContent = 'No configured provider is available. Configure at least one server-side provider first.'; return; }
+    button.disabled = true;
+    $('aiProviderStatus').textContent = 'Saving the active AI provider…';
+    try {
+      const result = await invoke('set_active_ai_provider', { provider_id: providerId });
+      $('aiProviderStatus').textContent = result.message || 'Active AI provider saved.';
+      $('aiProviderStatus').style.color = '';
+      $('aiProviderBadge').textContent = `Active: ${result.providerName || providerId}`;
+      message(result.message || 'Active AI provider saved.');
+    } catch (err) {
+      $('aiProviderStatus').textContent = 'Could not save provider: ' + (err.message || String(err));
+      $('aiProviderStatus').style.color = '#ffd9d9';
+      message(err.message || String(err), 'error');
+    } finally { button.disabled = false; }
+  }
+
+  const DAILY_SCHEDULE_KEY = 'newsroom_daily_schedule';
+  let dailyScheduleValue = { enabled: true, categoryIds: [] };
+  function dailyStatus(text, bad=false){ const el=$('dailyScheduleStatus'); if(!el)return; el.textContent=text; el.style.color=bad?'#ffd9d9':''; }
+  async function loadDailySchedule(){
+    if(!$('dailyCategoryChecks'))return;
+    const checks=$('dailyCategoryChecks');
+    if(!categories.length){checks.innerHTML='<p class="muted">No categories found. Check the Supabase categories table.</p>';return;}
+    let stored=null;
+    try{const {data,error}=await client.from('site_settings').select('value').eq('key',DAILY_SCHEDULE_KEY).maybeSingle();if(error)throw error;stored=data?.value||null;}
+    catch(err){dailyStatus('Could not read the saved schedule settings: '+(err.message||String(err)),true);}
+    if(stored&&typeof stored==='object'){
+      dailyScheduleValue={enabled:stored.enabled===true,categoryIds:Array.isArray(stored.categoryIds)?stored.categoryIds.map(String):categories.map(c=>String(c.id))};
+    }else{
+      dailyScheduleValue={enabled:true,categoryIds:categories.map(c=>String(c.id))};
+      dailyStatus('Default selection includes every category. Save the schedule to activate it after the SQL scheduler and Edge Function are deployed.');
+    }
+    $('dailyScheduleEnabled').checked=!!dailyScheduleValue.enabled;
+    checks.innerHTML=categories.map(c=>{const checked=dailyScheduleValue.categoryIds.includes(String(c.id));return `<label class="daily-category-option"><input type="checkbox" class="daily-category-check" value="${esc(c.id)}" ${checked?'checked':''}><span><strong>${esc(c.name)}</strong><small>Daily news draft</small></span></label>`}).join('');
+    $('dailyScheduleCount').textContent=`${categories.length} categories available · ${checks.querySelectorAll('input:checked').length} selected`;
+    $('dailyScheduleBadge').textContent=dailyScheduleValue.enabled?'Enabled (save to confirm)':'Disabled';
+    checks.querySelectorAll('input').forEach(box=>box.addEventListener('change',()=>{const n=checks.querySelectorAll('input:checked').length;$('dailyScheduleCount').textContent=`${categories.length} categories available · ${n} selected`;}));
+  }
+  async function saveDailySchedule(){
+    const button=$('saveDailySchedule');button.disabled=true;dailyStatus('Saving daily category schedule…');
+    try{
+      const categoryIds=[...$('dailyCategoryChecks').querySelectorAll('input:checked')].map(el=>String(el.value));
+      if(!categoryIds.length)throw new Error('Select at least one category.');
+      const value={enabled:$('dailyScheduleEnabled').checked,categoryIds,runAt:'07:30',timezone:'Africa/Lagos',updatedAt:new Date().toISOString()};
+      const {error}=await client.from('site_settings').upsert({key:DAILY_SCHEDULE_KEY,value,updated_at:new Date().toISOString()},{onConflict:'key'});if(error)throw error;
+      dailyScheduleValue=value;$('dailyScheduleBadge').textContent=value.enabled?'Enabled':'Disabled';
+      dailyStatus(value.enabled?'Saved and enabled. The scheduled function will draft available categories each morning once the Supabase scheduler and function deployment are in place.':'Saved but disabled. The schedule will not create drafts until enabled.');
+      message('Daily newsroom category schedule saved.');
+    }catch(err){dailyStatus('Could not save schedule: '+(err.message||String(err)),true);message('Could not save the daily schedule: '+(err.message||String(err)),'error');}
+    finally{button.disabled=false;}
+  }
+  async function runDailyScheduleNow(){
+    const button=$('runDailyScheduleNow');button.disabled=true;dailyStatus('Running daily category drafting now. This can use AI credits…');
+    try{
+      const category_ids=[...$('dailyCategoryChecks').querySelectorAll('input:checked')].map(el=>String(el.value));
+      if(!category_ids.length)throw new Error('Select at least one category before running a test.');
+      const result=await invoke('draft_daily_categories_now',{category_ids});
+      const rows=result.results||[];$('dailyRunResults').hidden=false;
+      $('dailyRunRows').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.category||'—')}</td><td><span class="pill">${esc(r.status||'—')}</span></td><td>${r.post_id?`<a href="articles.html?edit=${encodeURIComponent(r.post_id)}" style="color:#b7e4c7">Open draft</a>`:'—'}</td><td>${esc(r.message||'')}</td></tr>`).join(''):`<tr><td colspan="4" class="empty">${esc(result.message||'No category draft results returned.')}</td></tr>`;
+      dailyStatus(`${result.message||'Daily drafting run finished.'} Created ${result.created||0} draft(s); skipped ${result.skipped||0}; failed ${result.failed||0}.`,!!result.error);
+      if(result.error)message(result.error,'error');else message('Daily category drafting run finished. Check the results below.');
+    }catch(err){dailyStatus('Daily drafting could not complete: '+(err.message||String(err)),true);message('Daily drafting failed: '+(err.message||String(err)),'error');}
+    finally{button.disabled=false;}
+  }
+
+
+
   async function init() {
     if (!window.getParrothitSupabaseClient || !window.PARROTHIT_SUPABASE_URL || !window.PARROTHIT_SUPABASE_ANON_KEY) {
       document.body.innerHTML = `<main class="wrap"><section class="panel"><h1>Supabase is not configured</h1><p>Set the project URL and public anon/publishable key in supabase-config.js first.</p><a class="btn" href="articles.html">Back to Article Editor</a></section></main>`;
@@ -161,6 +326,8 @@ td{line-height:1.4}
     }
     await loadPublishMode();
     await refresh();
+    await loadAIProviders(false);
+    await loadDailySchedule();
   }
 
   async function refresh() { await loadCategories(); await Promise.all([loadSources(), loadCandidates()]); }
@@ -271,8 +438,15 @@ td{line-height:1.4}
   }
 
   $('savePublishMode').addEventListener('click', savePublishMode);
-  $('refreshBtn').onclick = refresh;
+  $('saveAIProvider')?.addEventListener('click', saveAIProvider);
+  $('refreshAIProviders')?.addEventListener('click', () => loadAIProviders(false));
+  $('refreshBtn').onclick = async () => { await refresh(); await loadAIProviders(true); await loadDailySchedule(); };
   $('reloadCandidates').onclick = loadCandidates;
+  $('selectAllDailyCategories')?.addEventListener('click', () => { document.querySelectorAll('#dailyCategoryChecks input[type=checkbox]').forEach(box => { box.checked = true; }); $('dailyScheduleCount').textContent = `${categories.length} categories available · ${categories.length} selected`; });
+  $('clearDailyCategories')?.addEventListener('click', () => { document.querySelectorAll('#dailyCategoryChecks input[type=checkbox]').forEach(box => { box.checked = false; }); $('dailyScheduleCount').textContent = `${categories.length} categories available · 0 selected`; });
+  $('saveDailySchedule')?.addEventListener('click', saveDailySchedule);
+  $('runDailyScheduleNow')?.addEventListener('click', runDailyScheduleNow);
+
   init().catch(e => message(e.message || String(e), 'error'));
 })();
 </script>
