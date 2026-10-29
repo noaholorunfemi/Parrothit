@@ -50,7 +50,7 @@ function pageContent(html: string, base: string) {
 }
 async function fetchSourcePage(sourceUrl: string) {
   if (!/^https?:\/\//i.test(sourceUrl)) return { title: "", description: "", imageUrl: "", text: "", headings: [] as string[] };
-  const response = await fetch(sourceUrl, { headers: { "User-Agent": "Mozilla/5.0 (compatible; PARROTHIT-Newsroom/1.0; +editorial research)", "Accept": "text/html,application/xhtml+xml" }, signal: AbortSignal.timeout(6500), redirect: "follow" });
+  const response = await fetch(sourceUrl, { headers: { "User-Agent": "Mozilla/5.0 (compatible; PARROTHIT-Newsroom/1.0; +editorial research)", "Accept": "text/html,application/xhtml+xml" }, signal: AbortSignal.timeout(3500), redirect: "follow" });
   if (!response.ok) throw new Error(`Source page returned HTTP ${response.status}`);
   const type = response.headers.get("content-type") || "";
   if (type && !/text\/html|application\/xhtml\+xml/i.test(type)) throw new Error("The source URL did not return an HTML article page.");
@@ -96,9 +96,22 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: "Request body must be JSON." }, 400); }
   const action = String(body.action || "");
 
-  // Provider slots are configured only as Edge Function secrets; never return API keys to the browser.
+  // Provider slots are discovered from Edge Function secrets at runtime. Any positive
+  // NEWSROOM_AI_<N>_* slot is accepted; there is no hard-coded 1–6 ceiling.
+  // API keys are never returned to the browser.
   const providerConfig = (id: string) => {
-    const n = id.replace(/[^1-6]/g, "");
+    const rawId = String(id || "").trim();
+    if (rawId === "legacy") {
+      const apiKey = Deno.env.get("NEWSROOM_AI_API_KEY") || "";
+      const apiUrl = Deno.env.get("NEWSROOM_AI_API_URL") || "https://api.openai.com/v1/chat/completions";
+      const model = Deno.env.get("NEWSROOM_AI_MODEL") || "gpt-4o-mini";
+      const missing = [!apiKey && "API_KEY", !apiUrl && "API_URL", !model && "MODEL"].filter(Boolean);
+      return { id: "legacy", name: "Legacy AI Provider", apiKey, apiUrl, model, configured: missing.length === 0, missing };
+    }
+    const n = rawId.replace(/^0+/, "");
+    if (!/^\d+$/.test(n) || n === "0") {
+      return { id: rawId, name: `AI Service ${rawId || "?"}`, apiKey: "", apiUrl: "", model: "", configured: false, missing: ["API_KEY", "API_URL", "MODEL"] };
+    }
     const name = Deno.env.get(`NEWSROOM_AI_${n}_NAME`) || `AI Service ${n}`;
     const apiKey = Deno.env.get(`NEWSROOM_AI_${n}_API_KEY`) || "";
     const apiUrl = Deno.env.get(`NEWSROOM_AI_${n}_API_URL`) || "";
@@ -106,37 +119,59 @@ Deno.serve(async (req) => {
     const missing = [!apiKey && "API_KEY", !apiUrl && "API_URL", !model && "MODEL"].filter(Boolean);
     return { id: n, name, apiKey, apiUrl, model, configured: missing.length === 0, missing };
   };
+
+  const providerIds = () => {
+    const ids = new Set<string>();
+    try {
+      const env = Deno.env.toObject();
+      for (const key of Object.keys(env)) {
+        const match = key.match(/^NEWSROOM_AI_(\d+)_(?:NAME|API_KEY|API_URL|MODEL)$/);
+        if (match && Number(match[1]) > 0) ids.add(String(Number(match[1])));
+      }
+    } catch (e) {
+      console.warn("[newsroom] Could not enumerate provider secrets; no provider keys will be exposed.", e instanceof Error ? e.message : String(e));
+    }
+    return [...ids].sort((a, b) => Number(a) - Number(b));
+  };
+  const providerConfigs = () => providerIds().map((id) => providerConfig(id));
+  const configuredProviders = () => providerConfigs().filter((provider) => provider.configured);
+
   const activeProvider = async () => {
     const { data } = await db.from("site_settings").select("value").eq("key", "newsroom_active_ai_provider").maybeSingle();
-    const id = String(data?.value?.provider_id || "1");
-    const configured = providerConfig(id);
-    if (configured.configured) return configured;
-    for (let i = 1; i <= 6; i++) { const candidate = providerConfig(String(i)); if (candidate.configured) return candidate; }
-    // Backward compatibility with the original single-provider secrets.
-    const apiKey = Deno.env.get("NEWSROOM_AI_API_KEY") || "";
-    if (apiKey) return { id: "legacy", name: "Legacy AI Provider", apiKey, apiUrl: Deno.env.get("NEWSROOM_AI_API_URL") || "https://api.openai.com/v1/chat/completions", model: Deno.env.get("NEWSROOM_AI_MODEL") || "gpt-4o-mini", configured: true, missing: [] };
-    return configured;
+    const savedId = String(data?.value?.provider_id || "");
+    const saved = savedId ? providerConfig(savedId) : null;
+    if (saved?.configured) return saved;
+    const first = configuredProviders()[0];
+    if (first) return first;
+    const legacy = providerConfig("legacy");
+    if (legacy.configured) return legacy;
+    return saved || providerConfig("1");
   };
 
   if (action === "get_ai_provider_config") {
-    const providers = Array.from({ length: 6 }, (_, i) => {
-      const p = providerConfig(String(i + 1));
-      return { id: p.id, name: p.name, apiUrl: p.apiUrl, model: p.model, configured: p.configured, missing: p.missing };
-    });
+    const providers = providerConfigs().map((p) => ({ id: p.id, name: p.name, apiUrl: p.apiUrl, model: p.model, configured: p.configured, missing: p.missing }));
+    if (!providers.length) {
+      const legacy = providerConfig("legacy");
+      if (legacy.configured || legacy.missing.some((x: string) => x !== "API_KEY")) {
+        providers.push({ id: legacy.id, name: legacy.name, apiUrl: legacy.apiUrl, model: legacy.model, configured: legacy.configured, missing: legacy.missing });
+      }
+    }
     const { data: active } = await db.from("site_settings").select("value").eq("key", "newsroom_active_ai_provider").maybeSingle();
-    const firstConfigured = providers.find(p => p.configured)?.id || "";
-    return json({ ok: true, providers, activeProviderId: String(active?.value?.provider_id || firstConfigured) });
+    const chosen = String(active?.value?.provider_id || "");
+    const firstConfigured = providers.find((p) => p.configured)?.id || "";
+    const activeProviderId = providers.some((p) => p.id === chosen && p.configured) ? chosen : firstConfigured;
+    return json({ ok: true, providers, activeProviderId });
   }
 
   if (action === "set_active_ai_provider") {
-    const providerId = String(body.provider_id || "");
-    if (!/^[1-6]$/.test(providerId)) return json({ error: "Choose a provider slot from 1 to 6." }, 400);
+    const providerId = String(body.provider_id || "").trim();
+    if (!(providerId === "legacy" || /^[1-9]\d*$/.test(providerId))) return json({ error: "Choose a positive-numbered provider slot, such as 1, 2, 7, or 12." }, 400);
     const provider = providerConfig(providerId);
-    if (!provider.configured) return json({ error: `${provider.name} is missing: ${provider.missing.join(", ")}. Configure these Edge Function secrets first.` }, 400);
+    if (!provider.configured) return json({ error: `${provider.name} is missing: ${provider.missing.join(", ")}. Configure all four NEWSROOM_AI_${providerId}_* secrets in Edge Function Secrets first.` }, 400);
     const value = { provider_id: providerId, updated_at: new Date().toISOString() };
     const { error } = await db.from("site_settings").upsert({ key: "newsroom_active_ai_provider", value, updated_at: new Date().toISOString() }, { onConflict: "key" });
     if (error) return json({ error: `Could not save active AI provider: ${error.message}` }, 500);
-    return json({ ok: true, providerName: provider.name, message: `${provider.name} is now the active AI provider.` });
+    return json({ ok: true, providerName: provider.name, message: `${provider.name} is now the preferred AI provider. Automatic fallback remains enabled.` });
   }
 
   if (action === "draft_daily_categories_now") {
@@ -152,7 +187,7 @@ Deno.serve(async (req) => {
       if (!candidate) { skipped++; results.push({ category: category.name, status: "skipped", message: "No unprocessed discovered story is available in this category. Run Discover new stories first." }); continue; }
       try {
         const base = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-        const resp = await fetch(`${base}/functions/v1/parrothit-newsroom-automation`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "apikey": anon, "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", candidate_id: candidate.id, mode: "daily_schedule" }), signal: AbortSignal.timeout(26000) });
+        const resp = await fetch(`${base}/functions/v1/parrothit-newsroom-automation`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "apikey": anon, "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", candidate_id: candidate.id, mode: "daily_schedule" }), signal: AbortSignal.timeout(38000) });
         const payload = await resp.json().catch(() => ({}));
         if (!resp.ok || payload.error) { failed++; results.push({ category: category.name, status: "failed", message: payload.error || `Draft request returned HTTP ${resp.status}` }); }
         else { created++; results.push({ category: category.name, status: "created", post_id: payload.post?.id, message: `Draft created: ${payload.post?.title || candidate.source_title}. It remains In Review.` }); }
@@ -308,7 +343,7 @@ Deno.serve(async (req) => {
     const candidateId = String(body.candidate_id || "");
     if (!candidateId) return json({ error: "candidate_id is required." }, 400);
     const aiProvider = await activeProvider();
-    if (!aiProvider.configured) return json({ error: `AI drafting is not configured. Configure NEWSROOM_AI_1_API_KEY, NEWSROOM_AI_1_API_URL, and NEWSROOM_AI_1_MODEL (or another slot) as Edge Function secrets. Missing for ${aiProvider.name}: ${aiProvider.missing.join(", ")}.` }, 503);
+    if (!aiProvider.configured) return json({ error: `AI drafting is not configured. Add numbered Edge Function secrets such as NEWSROOM_AI_7_NAME, NEWSROOM_AI_7_API_KEY, NEWSROOM_AI_7_API_URL, and NEWSROOM_AI_7_MODEL. Missing for ${aiProvider.name}: ${aiProvider.missing.join(", ")}.` }, 503);
     const { data: candidate, error: candidateError } = await db.from("newsroom_candidates").select("*").eq("id", candidateId).maybeSingle();
     if (candidateError || !candidate) return json({ error: "News candidate not found." }, 404);
     if (candidate.linked_post_id) return json({ error: "This candidate already has an article draft.", post_id: candidate.linked_post_id }, 409);
@@ -326,45 +361,79 @@ Deno.serve(async (req) => {
       }
       const sourceImageUrl = sourcePage.imageUrl || null;
       const sourceWords = articleContext.trim().split(/\s+/).filter(Boolean).length;
-      const prompt = `Write a substantial, original PARROTHIT News Desk news report using only the factual source material below. Target 900–1,300 words when the source contains enough verified detail; otherwise write the longest responsible report supported by the material and explain any limitation without padding. Do not invent facts, quotes, names, numbers, dates or claims. Paraphrase in original wording; do not copy the publisher's wording or reproduce long source passages. Attribute the information to the named publisher and do not claim independent verification. Use a clear lead, meaningful context, and 6–10 coherent paragraphs when supported. Return valid JSON only with keys title (max 160 chars), summary (1–2 sentences), body (a detailed article as plain text with paragraph breaks), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Approximate available source words: ${sourceWords}. Source material: ${articleContext.slice(0, 20000)}`;
-      // Try the selected provider first, then other configured slots for temporary outages.
-      const providersToTry = [aiProvider, ...Array.from({ length: 6 }, (_, i) => providerConfig(String(i + 1)))
-        .filter((p) => p.configured && p.id !== aiProvider.id)];
-      let completion: any = null;
-      let lastProviderError = "No configured AI provider responded.";
-      for (const provider of providersToTry) {
-        try {
-          const aiResponse = await fetch(provider.apiUrl, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: provider.model, temperature: 0.2, max_tokens: 5800, response_format: { type: "json_object" }, messages: [
-              { role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output valid JSON only." },
-              { role: "user", content: prompt },
-            ] }),
-            signal: AbortSignal.timeout(9000),
-          });
-          const raw = await aiResponse.text();
-          if (!aiResponse.ok) {
-            lastProviderError = `${provider.name} HTTP ${aiResponse.status}: ${raw.slice(0, 350)}`;
-            console.error("[newsroom] AI provider request failed", { provider: provider.name, status: aiResponse.status, detail: raw.slice(0, 350) });
-            if (aiResponse.status === 429 || aiResponse.status >= 500) continue;
-            throw new Error(lastProviderError);
-          }
-          completion = JSON.parse(raw);
-          if (!completion?.choices?.[0]?.message?.content) {
-            lastProviderError = `${provider.name} returned no draft text.`;
-            continue;
-          }
-          break;
-        } catch (providerError) {
-          lastProviderError = providerError instanceof Error ? `${provider.name}: ${providerError.message}` : `${provider.name}: ${String(providerError)}`;
-          console.error("[newsroom] AI provider attempt failed", { provider: provider.name, message: lastProviderError });
-          if (/HTTP 4\d\d/.test(lastProviderError) && !/HTTP 429/.test(lastProviderError)) throw providerError;
+      const prompt = `Write a substantial, original PARROTHIT News Desk news report using only the factual source material below. Target 900–1,300 words when the source contains enough verified detail; otherwise write the longest responsible report supported by the material and explain limitations without padding. Do not invent facts, quotes, names, numbers, dates or claims. Paraphrase in original wording; do not copy the publisher's wording or reproduce long source passages. Attribute the information to the named publisher and do not claim independent verification. Use a clear lead, meaningful context, and 6–10 coherent paragraphs when supported. Return valid JSON only with keys title (max 160 chars), summary (1–2 sentences), body (a detailed article as plain text with paragraph breaks), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Approximate available source words: ${sourceWords}. Source material: ${articleContext.slice(0, 20000)}`;
+
+      // Parse and validate inside each provider attempt. A bad model response must
+      // not win the race and prevent a healthy fallback provider from being tried.
+      const requestProvider = async (provider: any, timeoutSignal: any, timeoutMs?: number) => {
+        const requestSignal = timeoutMs ? AbortSignal.timeout(timeoutMs) : timeoutSignal;
+        const aiResponse = await fetch(provider.apiUrl, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
+          // Avoid response_format: some free-tier OpenAI-compatible endpoints reject it.
+          body: JSON.stringify({ model: provider.model, temperature: 0.2, max_tokens: 4200, messages: [
+            { role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output one valid JSON object only; no markdown fences." },
+            { role: "user", content: prompt },
+          ] }),
+          signal: requestSignal,
+        });
+        const raw = await aiResponse.text();
+        if (!aiResponse.ok) throw new Error(`${provider.name} HTTP ${aiResponse.status}: ${raw.slice(0, 300)}`);
+        let packet: any;
+        try { packet = JSON.parse(raw); } catch { throw new Error(`${provider.name} returned invalid API JSON.`); }
+        const messageContent = packet?.choices?.[0]?.message?.content;
+        const content = typeof messageContent === "string" ? messageContent : Array.isArray(messageContent) ? messageContent.map((part: any) => typeof part === "string" ? part : String(part?.text || "")).join("\n") : "";
+        if (!content.trim()) throw new Error(`${provider.name} returned no draft text.`);
+        const jsonText = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+        let parsed: any;
+        try { parsed = JSON.parse(jsonText); }
+        catch {
+          const first = jsonText.indexOf("{"); const last = jsonText.lastIndexOf("}");
+          if (first < 0 || last <= first) throw new Error(`${provider.name} did not return a valid JSON article.`);
+          try { parsed = JSON.parse(jsonText.slice(first, last + 1)); }
+          catch { throw new Error(`${provider.name} did not return a valid JSON article.`); }
         }
+        const bodyText = String(parsed?.body || "").trim();
+        if (!String(parsed?.title || candidate.source_title).trim() || bodyText.length < 250) throw new Error(`${provider.name} returned an incomplete draft.`);
+        return { provider, draft: parsed };
+      };
+
+      const allConfigured = configuredProviders();
+      const providersToTry = [aiProvider, ...allConfigured].filter((provider, index, arr) => provider.configured && arr.findIndex((item) => item.id === provider.id) === index);
+      let selected: any = null;
+      let primaryError = "Preferred provider did not respond.";
+      try {
+        // A real but bounded window for slower free endpoints; never retry the same provider indefinitely.
+        selected = await requestProvider(aiProvider, AbortSignal.timeout(16000));
+      } catch (providerError) {
+        primaryError = providerError instanceof Error ? providerError.message : String(providerError);
+        console.warn("[newsroom] Preferred provider failed; starting automatic fallback", { provider: aiProvider.name, message: primaryError });
       }
-      const content = completion?.choices?.[0]?.message?.content;
-      if (!content) throw new Error(`All configured AI providers failed. Last error: ${lastProviderError}`);
-      const draft = JSON.parse(content);
+      if (!selected) {
+        const fallbackProviders = providersToTry.filter((provider) => provider.id !== aiProvider.id);
+        if (!fallbackProviders.length) throw new Error(`Preferred AI provider failed and no other configured provider is available. ${primaryError}`);
+        const fallbackController = new AbortController();
+        const fallbackTimer = setTimeout(() => fallbackController.abort(), 11000);
+        const fallbackErrors: string[] = [];
+        try {
+          selected = await Promise.any(fallbackProviders.map(async (provider) => {
+            try { return await requestProvider(provider, fallbackController.signal); }
+            catch (providerError) {
+              const detail = providerError instanceof Error ? providerError.message : String(providerError);
+              fallbackErrors.push(detail.slice(0, 220));
+              console.warn("[newsroom] Fallback provider failed", { provider: provider.name, message: detail.slice(0, 350) });
+              throw providerError;
+            }
+          }));
+          // Stop outstanding requests as soon as one provider supplies a valid article.
+          fallbackController.abort();
+        } catch {
+          const details = fallbackErrors.slice(-4).join(" | ") || "All fallback requests timed out.";
+          throw new Error(`AI provider fallback failed. Preferred provider: ${primaryError}. Fallback results: ${details}`.slice(0, 950));
+        } finally { clearTimeout(fallbackTimer); }
+      }
+      const usedProvider = selected.provider;
+      const draft = selected.draft;
       const title = String(draft.title || candidate.source_title).trim().slice(0, 160);
       const summary = String(draft.summary || candidate.source_summary).trim().slice(0, 1500);
       const articleBody = String(draft.body || "").trim();
@@ -378,10 +447,11 @@ Deno.serve(async (req) => {
         await db.from("posts").delete().eq("id", post.id);
         throw new Error(`Could not link the AI draft to its candidate. The unlinked draft was rolled back: ${linkError.message}`);
       }
-      return json({ ok: true, post, message: "Draft created in In Review. An administrator must fact-check and approve it before publication." });
+      console.info("[newsroom] AI draft saved", { candidateId, provider: usedProvider.name, providerId: usedProvider.id, articleId: post.id });
+      return json({ ok: true, post, providerName: usedProvider.name, message: `Draft created with ${usedProvider.name} in In Review. An administrator must fact-check and approve it before publication.` });
     } catch (e) {
       const message = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
-      console.error("[newsroom] AI draft failed", { candidateId, provider: aiProvider.name, message });
+      console.error("[newsroom] AI draft failed", { candidateId, preferredProvider: aiProvider.name, message });
       await db.from("newsroom_candidates").update({ status: "error", error_message: message, updated_at: new Date().toISOString() }).eq("id", candidateId);
       return json({ error: message }, 502);
     }
