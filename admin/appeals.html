@@ -17,7 +17,7 @@
 .appeal-actions button:disabled{opacity:.58!important}
 @media(max-width:600px){.appeal-wrap{padding:12px}.appeal-actions{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:9px}.appeal-actions button,.top-link,#refreshAppeals{width:100%;min-height:46px;box-sizing:border-box}.appeal-meta span{display:block;max-width:100%;overflow-wrap:anywhere}nav[style]{display:grid!important;grid-template-columns:minmax(0,1fr)!important;margin:8px!important}nav[style] .top-link{display:flex!important;width:100%}}
 </style>
-<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head><body>
+<link rel="stylesheet" href="../css/admin-responsive.css"><link rel="stylesheet" href="../css/admin-responsive-fixes.css"></head><body>
 <nav style="display:flex;gap:10px;flex-wrap:wrap;margin:12px"><a class="top-link" href="dashboard.html">← Control Room</a><a class="top-link" href="admin-accounts.html">Administrator Accounts</a><a class="top-link" href="login.html">Sign in page</a></nav>
 <main class="appeal-wrap"><header class="appeal-head"><div><h1>Administrator Appeals</h1><p>Owner-only desk for reviewing appeals from suspended administrators.</p></div><button class="top-link" id="refreshAppeals" type="button">Refresh appeals</button></header>
 <div class="appeal-note"><b>Admin 1 (Owner) only.</b> Accepting or rejecting records the Owner’s decision. <b>Reactivate appeal</b> uses a server-side transaction to verify the exact email and username, reactivate the matching non-owner account, and update the appeal status together.</div>
@@ -54,6 +54,4 @@ message.textContent=action==='accept'?'Appeal accepted. The administrator has be
 }catch(err){console.error(err);message.textContent='Action failed: '+(err.message||'unknown error');if(btn)btn.disabled=false;}}
 list.addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(b)act(b.dataset.action,b.dataset.id)});$('refreshAppeals').addEventListener('click',load);load();
 })();
-</script>
-<script src="js/parrothit-card-watermark.js" defer></script>
-</body></html>
+</script></body></html>
