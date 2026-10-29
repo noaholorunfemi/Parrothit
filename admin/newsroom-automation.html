@@ -44,7 +44,46 @@ td{line-height:1.4}
 @media(max-width:600px){.wrap{padding:10px}.panel,.top{padding:13px}.field{min-width:100%}}
 </style>
 <link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v8">
-<link rel="stylesheet" href="../css/admin-responsive-fixes.css"></head>
+<link rel="stylesheet" href="../css/admin-responsive-fixes.css">
+<style id="parrothit-newsroom-responsive-fix">
+/* PARROTHIT newsroom layout repair: prevent stretched controls and support small screens */
+html{width:100%;max-width:100%;overflow-x:hidden;scroll-behavior:smooth}
+body{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
+.wrap{width:100%;max-width:1250px;margin:0 auto;padding:clamp(10px,2vw,22px)}
+.top,.panel{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.top{align-items:center;gap:12px}
+.top>*{min-width:0}
+.row{min-width:0;align-items:center}
+.row>*{min-width:0;max-width:100%}
+.field{flex:1 1 220px;min-width:0;max-width:100%}
+input:not([type=checkbox]):not([type=radio]),select,textarea{max-width:100%;min-width:0}
+textarea{width:100%;resize:vertical}
+button,.btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.ai-provider-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.daily-category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.table-wrap,.table-responsive{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{max-width:100%;border-collapse:collapse}
+th,td{overflow-wrap:anywhere}
+img,video,iframe{max-width:100%}
+@media(max-width:900px){.ai-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.daily-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){
+ .wrap{padding:9px}
+ .top,.panel{padding:12px;border-radius:10px;margin-bottom:11px}
+ .top{display:flex;flex-direction:column;align-items:stretch}
+ .top h1{font-size:1.35rem;line-height:1.25;overflow-wrap:anywhere}
+ .row{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+ .row>*{width:100%;max-width:100%}
+ .field{width:100%;flex:1 1 auto}
+ .ai-provider-grid{grid-template-columns:minmax(0,1fr)}
+ .daily-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .daily-category-option{min-width:0}
+ button,.btn{width:auto;max-width:100%}
+ table{font-size:.86rem;min-width:560px}
+}
+@media(max-width:360px){.daily-category-grid{grid-template-columns:minmax(0,1fr)}.wrap{padding:7px}.top,.panel{padding:10px}}
+</style>
+
+</head>
 <body>
 <main class="wrap">
 <header class="top">
