@@ -1,0 +1,41 @@
+/* PARROTHIT responsive admin layout fixes — shared by admin control pages. */
+html{min-width:320px;max-width:100%;}
+body.control-body{width:100%;max-width:100%;overflow-x:hidden;}
+body.control-body .control-shell{width:100%;max-width:1800px;margin-left:auto;margin-right:auto;padding-left:clamp(10px,1.4vw,24px);padding-right:clamp(10px,1.4vw,24px);}
+body.control-body .workspace{width:100%;grid-template-columns:minmax(205px,245px) minmax(0,1fr);gap:clamp(10px,1.2vw,18px);}
+body.control-body .workspace>main{display:block;width:100%;max-width:none;min-width:0;margin:0;padding:0;justify-self:stretch;}
+body.control-body .tab-panel{width:100%;max-width:none;min-width:0;min-height:0;overflow-wrap:anywhere;}
+body.control-body .form-grid,body.control-body .two-col,body.control-body .social-fields{min-width:0;}
+body.control-body .form-grid>* ,body.control-body .two-col>* ,body.control-body .social-fields>*{min-width:0;max-width:100%;}
+body.control-body input,body.control-body select,body.control-body textarea,body.control-body button{max-width:100%;}
+body.control-body .article-editor-field,body.control-body .article-editor-field .article-body-wysiwyg{display:block;width:100%;max-width:none;min-width:0;}
+body.control-body .article-editor-field .article-body-wysiwyg{min-height:500px;line-height:1.65;overflow-wrap:anywhere;white-space:pre-wrap;}
+body.control-body .table-wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto;}
+body.control-body .data-table{width:100%;}
+body.control-body pre,body.control-body code,body.control-body td,body.control-body label,body.control-body p,body.control-body h1,body.control-body h2,body.control-body h3{overflow-wrap:anywhere;}
+body.control-body .control-top,body.control-body .panel-head,body.control-body .top-actions{min-width:0;}
+body.control-body .admin-content,body.admin-shell .admin-panel{min-width:0;max-width:100%;}
+.admin-shell{width:calc(100% - 28px);max-width:1760px;margin:18px auto;padding:0;min-width:0;}
+.admin-grid{width:100%;grid-template-columns:minmax(205px,250px) minmax(0,1fr);gap:clamp(10px,1.4vw,20px);min-width:0;}
+.admin-panel,.admin-menu{min-width:0;max-width:100%;}
+.admin-panel>*{max-width:100%;}
+.admin-shell .admin-form{min-width:0;}
+.wrap{width:100%;max-width:1600px;margin-left:auto;margin-right:auto;}
+body.admin-shell{overflow-x:hidden;}
+@media(min-width:1201px){body.control-body .control-shell{max-width:1900px;}body.control-body .workspace{grid-template-columns:minmax(220px,260px) minmax(0,1fr);}}
+@media(max-width:900px){body.control-body .workspace,.admin-grid{grid-template-columns:minmax(0,1fr);}body.control-body .workspace>main{width:100%;}body.control-body .article-editor-field .article-body-wysiwyg{min-height:380px;}}
+@media(max-width:600px){body.control-body .control-shell{padding:8px;}body.control-body .tab-panel{padding:12px;}body.control-body .article-editor-field .article-body-wysiwyg{min-height:320px;}.admin-shell{width:calc(100% - 16px);}}
+
+/* Wide desktop admin workspace: do not let long article-editor fields collapse into a narrow strip. */
+body.control-body .control-shell{width:100%;max-width:none;margin-left:0;margin-right:0;padding-left:clamp(10px,1.8vw,32px);padding-right:clamp(10px,1.8vw,32px);}
+body.control-body .workspace{display:grid;width:100%;grid-template-columns:minmax(220px,260px) minmax(0,1fr);align-items:start;}
+body.control-body .workspace>main{width:100%;max-width:none;min-width:0;justify-self:stretch;overflow:visible;}
+body.control-body .tab-panel{width:100%;max-width:none;min-width:0;box-sizing:border-box;}
+body.control-body #tab-articles form,body.control-body #tab-articles .form-grid,body.control-body #tab-articles .field{width:100%;max-width:none;min-width:0;}
+body.control-body #tab-articles .field.full{grid-column:1/-1;}
+body.control-body #articleBody{width:100%;min-width:0;min-height:clamp(360px,55vh,760px);line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;resize:vertical;}
+body.control-body .data-table td,body.control-body .data-table th{overflow-wrap:anywhere;word-break:normal;}
+body.control-body .control-top,body.control-body .panel-head,body.control-body .top-actions{max-width:none;min-width:0;}
+body.control-body .table-wrap{width:100%;max-width:100%;overflow-x:auto;}
+@media(min-width:1400px){body.control-body .workspace{grid-template-columns:minmax(235px,280px) minmax(0,1fr);gap:clamp(16px,1.5vw,28px);}body.control-body .tab-panel{padding:clamp(20px,1.6vw,30px);}}
+@media(max-width:900px){body.control-body .workspace{grid-template-columns:minmax(0,1fr);}body.control-body .control-shell{padding:10px;}body.control-body .workspace>main{overflow:visible;}body.control-body #articleBody{min-height:380px;}}
