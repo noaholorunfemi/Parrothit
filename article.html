@@ -6,7 +6,7 @@
 <title>Article | PARROTHIT</title>
 <link rel="stylesheet" href="css/style.css">
 </head><body>
-<div class="back-home-wrap"><a class="back-home-link" href="index.html">← Back home</a></div><div style="max-width:1200px;margin:10px auto;padding:0 16px"><a href="admin/newsroom-automation.html" style="display:inline-flex;align-items:center;background:#15803d;color:#fff;padding:10px 15px;border-radius:9px;text-decoration:none;font-weight:800">🦜 Newsroom Automation</a></div>
+<div class="back-home-wrap"><a class="back-home-link" href="index.html">← Back home</a></div>
 
 <div class="topline"><div class="wrap"><span id="todayDate">PARROTHIT • Your trusted news desk</span><span>Accurate • Timely • Independent</span></div></div>
 <header class="masthead"><div class="wrap brand-row"><a class="brand-image" href="index.html" aria-label="PARROTHIT homepage"><img src="assets/images/parrothit-logo.png" alt="PARROTHIT — News That Speaks!"></a><div class="breaking-badge">BREAKING NEWS</div></div></header>
@@ -148,4 +148,5 @@ const likeBtn=document.getElementById('likePost');if(likeBtn)likeBtn.addEventLis
 <script id="parrothit-clickable-ad-cards">
 (()=>{document.querySelectorAll('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]').forEach(card=>{const getLink=()=>card.querySelector('a[href]');const link=getLink();if(link){card.style.cursor='pointer';card.setAttribute('role','link');card.addEventListener('click',e=>{if(e.defaultPrevented||e.target.closest('a,button,input,select,textarea,label,form'))return;const a=getLink();if(a&&a.href)window.location.href=a.href;});card.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===card){e.preventDefault();const a=getLink();if(a)window.location.href=a.href;}});if(!card.hasAttribute('tabindex'))card.tabIndex=0;}else if(card.matches('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]')){const destination='contact.html?subject=Advertising';card.style.cursor='pointer';card.setAttribute('role','link');card.tabIndex=0;const go=()=>window.location.href=destination;card.addEventListener('click',e=>{if(!e.target.closest('a,button,input,select,textarea,label,form'))go();});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});}});})();
 </script>
+<script src="js/category-navigation-fix.js" defer></script>
 </body></html>

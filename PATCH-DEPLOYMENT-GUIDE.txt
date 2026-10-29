@@ -1,0 +1,39 @@
+PARROTHIT PATCH — UNLIMITED AI PROVIDERS, TIMEOUT AND NAVIGATION
+
+Patch contents are only the files that need changing. Base used: uploaded Parrothit-main archive, commit marker 69ccfb5f5031141caf5402867f2e44fabdd86abe.
+
+1) GitHub
+- Copy/replace every file in this patch ZIP at the same path in the repository.
+- Commit and push the changes.
+- The public pages that use the main navigation include js/category-navigation-fix.js; keep that shared script at the supplied path.
+
+2) Supabase Edge Function
+- Replace supabase/functions/parrothit-newsroom-automation/index.ts in GitHub.
+- Deploy/redeploy the function `parrothit-newsroom-automation` from the updated repository. Do not just add more secrets; the code needs to be redeployed for unlimited provider discovery and fallback.
+- Existing provider secrets 1–6 remain supported. You can also add 7, 8, 9, 10, 11, etc. Missing numbers are allowed. Each provider uses four Supabase Edge Function secrets:
+  NEWSROOM_AI_<N>_NAME
+  NEWSROOM_AI_<N>_API_KEY
+  NEWSROOM_AI_<N>_API_URL
+  NEWSROOM_AI_<N>_MODEL
+- Example Cloudflare slot 7:
+  NEWSROOM_AI_7_NAME = Cloudflare Workers AI
+  NEWSROOM_AI_7_API_URL = https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/v1/chat/completions
+  NEWSROOM_AI_7_MODEL = the exact Workers AI model ID enabled for your account
+  NEWSROOM_AI_7_API_KEY = your Cloudflare API token
+- Keep API keys in Supabase Edge Function Secrets only. Never put them in HTML, this ZIP's public files, or GitHub.
+- The function accepts providers whose API endpoint implements OpenAI-compatible Chat Completions. Use only models/accounts with an available free tier if you do not want paid API usage. Code cannot guarantee an external provider is free or prevent a provider from changing its pricing/limits; check the provider's current plan and usage dashboard.
+- Provider selection is now a *preferred* provider: on failure, the function tries all other discovered configured providers as fallback. Fallback launches together and cancels remaining requests after one valid draft succeeds. The preferred provider attempt has a bounded timeout; a bounded fallback wave prevents the old serial timeout accumulation.
+
+3) Access control
+- The Edge Function checks the current Supabase session and active `owner`/`admin` profile before any action.
+- The admin page stays hidden until it confirms the active admin role. The root `newsroom-automation.html` URL is only an access gate/redirect and does not expose the newsroom UI.
+- The visitor-facing article page no longer displays the Newsroom Automation shortcut. The actual shortcut remains on the guarded admin article editor.
+
+4) Category navigation
+- The shared navigation patch canonicalizes the public desktop header and mobile dropdown to exactly 22 categories. The desktop navigation also includes the separate Home link.
+- Categories are: Nigeria, World, Politics, Entertainment, Sports, Business, Technology, Education, Health, Religion, Culture, Wildlife, Celebrity News, Football, Nollywood, Nigerian Celebrity, Table Tennis, Volleyball, Athlete, Tennis, Basketball, Lifestyle.
+- Volleyball, Athlete and Lifestyle use category.html query routes because dedicated root files for those slugs are not in the uploaded source archive.
+
+5) Timeout test
+- Deploy the Edge Function first, then open Admin → Newsroom Automation, refresh provider status, configure at least two usable free-tier providers, and try one AI draft.
+- If the selected provider is out of quota / down / incompatible, another configured provider is used. If every provider is out of quota, slow, invalid or misconfigured, the draft returns a bounded error and does not publish anything. Every successful draft still remains In Review.
