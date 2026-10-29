@@ -125,11 +125,39 @@ appealStatusCheckForm.addEventListener('submit',async e=>{
   }
   if(!appealClient){if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||!window.PARROTHIT_SUPABASE_ANON_KEY){alert('Appeal status checking is unavailable until Supabase is configured.');return;}appealClient=window.getParrothitSupabaseClient();}
   const button=appealStatusCheckForm.querySelector('button[type="submit"]');button.disabled=true;
-  try{const {data,error}=await appealClient.rpc('check_admin_appeal_status',{p_email:email,p_username:username});if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(!row||!row.status){alert('No appeal was found for that email and username. Check the details and try again.');return;}showAppealStatus(row.status);}
-  catch(err){console.error('Appeal status check failed:',err);alert('Could not check your appeal status. The latest Supabase schema must be installed first.');}
+  try{
+    const {data,error}=await appealClient.functions.invoke('parrothit-admin-appeals',{body:{action:'status',email,username}});
+    if(error)throw error;
+    if(!data||data.error)throw new Error(data?.error||'No status was returned.');
+    showAppealStatus(data);
+  }catch(err){console.error('Appeal/account status check failed:',err);const detail=err&&(err.message||err.context?.error||err.context?.message);alert('Could not check your account and appeal status. Confirm that parrothit-admin-appeals is deployed in Supabase.'+(detail?'\n\nDetails: '+detail:''));}
   finally{button.disabled=false;}
 });
-function showAppealStatus(status){status=String(status||'pending').toLowerCase();if(status==='accepted'){alert("Your appeal has been accepted and is waiting for Admin 1's review.");}else if(status==='rejected'){if(confirm('Sorry, your appeal was rejected. Would you like to resubmit an appeal?')){document.getElementById('appealText').focus();document.getElementById('appealStatus').textContent='You can submit a new appeal below.';}}else if(status==='reactivated'){alert("Congratulations or welcome back, you've been reactivated by admin 1.");}else{alert('Your appeal is still waiting for Admin 1 (Owner) to review.');}}
+function showAppealStatus(value){
+  const result=value&&typeof value==='object'?value:{status:value};
+  const account=String(result.account_status||'').toLowerCase();
+  const status=String(result.status||result.appeal?.status||'').toLowerCase();
+  const note=String(result.review_note||result.appeal?.review_note||'');
+  if(account==='active'){
+    alert('Account status: ACTIVE. Your administrator account is not currently marked as suspended.'+(status?'\nAppeal status: '+status.toUpperCase(): '\nNo appeal record was found for these details.')+(note?'\n\nOwner note: '+note:''));return;
+  }
+  if(account==='suspended'){
+    if(status==='approved'||status==='accepted'){
+      alert('Account status: SUSPENDED. Appeal status: APPROVED. Admin 1 (Owner) must complete the separate reactivation step.'+(note?'\n\nOwner note: '+note:''));return;
+    }
+    if(status==='rejected'){
+      alert('Account status: SUSPENDED. Appeal status: REJECTED.'+(note?'\n\nOwner note: '+note:'')+'\nYou may submit a new appeal if the Owner permits it.');return;
+    }
+    if(status==='pending'){
+      alert('Account status: SUSPENDED. Appeal status: PENDING. Your appeal is waiting for Admin 1 (Owner).'+(result.created_at?'\nSubmitted: '+new Date(result.created_at).toLocaleString():''));return;
+    }
+    alert('Account status: SUSPENDED. No appeal has been found for these details. You can submit an appeal below.');return;
+  }
+  if(status==='rejected'){alert('Appeal status: REJECTED.'+(note?'\n\nOwner note: '+note:''));return;}
+  if(status==='approved'||status==='accepted'){alert('Appeal status: APPROVED.'+(note?'\n\nOwner note: '+note:''));return;}
+  if(status==='pending'){alert('Appeal status: PENDING. Your appeal is waiting for Admin 1 (Owner).');return;}
+  alert('No appeal was found for those details. Check the email and username and try again.');
+}
 function countWords(v){const t=String(v||'').trim();return t?t.split(/\s+/).length:0}
 function updateAppealCount(){const n=countWords(appealText.value);document.getElementById('appealWordCount').textContent=`${n} / 250 words`;document.getElementById('appealWordCount').style.color=n>250?'#b91c1c':'';document.getElementById('submitAppealBtn').disabled=n===0||n>250}
 appealText.addEventListener('input',updateAppealCount);
@@ -143,8 +171,8 @@ document.getElementById('suspendedAppealForm').addEventListener('submit',async e
   }
   if(!appealClient){status.textContent='Appeal submission is unavailable until the Supabase project is configured.';return}
   btn.disabled=true;status.textContent='Submitting appeal securely…';
-  try{const {error}=await appealClient.from('admin_appeals').insert({admin_user_id:(await appealClient.auth.getUser()).data.user.id,email,username,appeal_reason:appeal,status:'pending'});if(error)throw error;status.textContent='Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
-  catch(err){console.error('Appeal submission failed:',err);status.textContent='Could not submit appeal. Ensure the admin_appeals table and policies have been installed in Supabase.'}
+  try{const {data,error}=await appealClient.functions.invoke('parrothit-admin-appeals',{body:{action:'submit',email,username,appeal_reason:appeal}});if(error)throw error;if(!data||data.error)throw new Error(data?.error||'Appeal could not be saved.');status.textContent=data.message||'Appeal submitted to Admin 1 (Owner). Keep a copy of your message.';appealText.value='';updateAppealCount();}
+  catch(err){console.error('Appeal submission failed:',err);status.textContent='Could not submit appeal: '+(err?.message||'check that parrothit-admin-appeals is deployed and the admin_appeals table migration is installed.');}
   finally{btn.disabled=false}
 });
 function getAdminPostLoginDestination(){
