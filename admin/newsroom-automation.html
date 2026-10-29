@@ -224,11 +224,21 @@ img,video,iframe{max-width:100%}
     try{
       const category_ids=[...$('dailyCategoryChecks').querySelectorAll('input:checked')].map(el=>String(el.value));
       if(!category_ids.length)throw new Error('Select at least one category before running a test.');
-      const result=await invoke('draft_daily_categories_now',{category_ids});
-      const rows=result.results||[];$('dailyRunResults').hidden=false;
-      $('dailyRunRows').innerHTML=rows.length?rows.map(r=>`<tr><td>${esc(r.category||'—')}</td><td><span class="pill">${esc(r.status||'—')}</span></td><td>${r.post_id?`<a href="articles.html?edit=${encodeURIComponent(r.post_id)}" style="color:#b7e4c7">Open draft</a>`:'—'}</td><td>${esc(r.message||'')}</td></tr>`).join(''):`<tr><td colspan="4" class="empty">${esc(result.message||'No category draft results returned.')}</td></tr>`;
-      dailyStatus(`${result.message||'Daily drafting run finished.'} Created ${result.created||0} draft(s); skipped ${result.skipped||0}; failed ${result.failed||0}.`,!!result.error);
-      if(result.error)message(result.error,'error');else message('Daily category drafting run finished. Check the results below.');
+      const rows=[];let created=0,skipped=0,failed=0;
+      $('dailyRunResults').hidden=false;
+      $('dailyRunRows').innerHTML='';
+      for(let i=0;i<category_ids.length;i++){
+        dailyStatus(`Processing category ${i+1} of ${category_ids.length}… Each category runs separately to reduce Edge Function timeouts.`);
+        try{
+          const result=await invoke('draft_daily_categories_now',{category_ids:[category_ids[i]]});
+          const part=result.results||[];rows.push(...part);created+=Number(result.created||0);skipped+=Number(result.skipped||0);failed+=Number(result.failed||0);
+          if(result.error){failed++;rows.push({category:category_ids[i],status:'failed',message:result.error});}
+        }catch(err){failed++;rows.push({category:category_ids[i],status:'failed',message:err.message||String(err)});}
+        $('dailyRunRows').innerHTML=rows.map(r=>`<tr><td>${esc(r.category||'—')}</td><td><span class="pill">${esc(r.status||'—')}</span></td><td>${r.post_id?`<a href="articles.html?edit=${encodeURIComponent(r.post_id)}" style="color:#b7e4c7">Open draft</a>`:'—'}</td><td>${esc(r.message||'')}</td></tr>`).join('');
+      }
+      const summary=`Daily drafting finished. Created ${created} draft(s); skipped ${skipped}; failed ${failed}.`;
+      dailyStatus(summary,failed>0);
+      if(failed>0)message(summary+' See the category results below.','error');else message(summary+' All created articles remain In Review.');
     }catch(err){dailyStatus('Daily drafting could not complete: '+(err.message||String(err)),true);message('Daily drafting failed: '+(err.message||String(err)),'error');}
     finally{button.disabled=false;}
   }
