@@ -171,23 +171,24 @@ appealStatusCheckForm.addEventListener('submit',async e=>{
   }finally{button.disabled=false;}
 });
 function showAppealStatus(value){
-  const appeal=value&&typeof value==='object'?value:{status:value};
-  let status=String(appeal.status||'pending').toLowerCase();
-  const note=String(appeal.review_note||'');
-  if(note.toLowerCase().includes('account reactivated'))status='reactivated';
-  if(status==='approved'||status==='accepted'){
-    alert("Your appeal has been approved by Admin 1 (Owner)."+(note?"\n\nOwner's note: "+note:"")+"\n\nIf your account is still suspended, the Owner may need to complete reactivation.");
-  }else if(status==='rejected'){
-    const extra=note?"\n\nOwner's note: "+note:'';
-    if(confirm("Sorry, your appeal was rejected."+extra+"\n\nWould you like to submit a new appeal?")){
-      document.getElementById('appealText').focus();
-      document.getElementById('appealStatus').textContent='You can submit a new appeal below.';
-    }
-  }else if(status==='reactivated'){
-    alert("Your appeal was approved and your administrator account has been reactivated by Admin 1 (Owner)."+(note?"\n\nOwner's note: "+note:""));
-  }else{
-    alert("Your appeal is still waiting for Admin 1 (Owner) to review."+(appeal.created_at?"\n\nSubmitted: "+new Date(appeal.created_at).toLocaleString():""));
+  const result=value&&typeof value==='object'?value:{status:value};
+  const account=String(result.account_status||'').toLowerCase();
+  const status=String(result.status||result.appeal?.status||'').toLowerCase();
+  const note=String(result.review_note||result.appeal?.review_note||'');
+  if(account==='active'){
+    alert('Account status: ACTIVE. Your administrator account is not currently marked as suspended.'+(status?'\nAppeal status: '+status.toUpperCase():'\nNo appeal record was found for these details.')+(note?'\n\nOwner note: '+note:''));return;
   }
+  if(account==='suspended'){
+    if(status==='approved'||status==='accepted'){alert('Account status: SUSPENDED. Appeal status: APPROVED. Admin 1 (Owner) must complete the separate reactivation step.'+(note?'\n\nOwner note: '+note:''));return;}
+    if(status==='rejected'){alert('Account status: SUSPENDED. Appeal status: REJECTED.'+(note?'\n\nOwner note: '+note:''));return;}
+    if(status==='pending'){alert('Account status: SUSPENDED. Appeal status: PENDING. Your appeal is waiting for Admin 1 (Owner).'+(result.created_at?'\nSubmitted: '+new Date(result.created_at).toLocaleString():''));return;}
+    alert('Account status: SUSPENDED. No appeal has been found for these details. You can submit an appeal below.');return;
+  }
+  if(status==='reactivated'||note.toLowerCase().includes('account reactivated')){alert('Your account has been reactivated by Admin 1 (Owner).'+(note?'\n\nOwner note: '+note:''));return;}
+  if(status==='approved'||status==='accepted'){alert('Appeal status: APPROVED.'+(note?'\n\nOwner note: '+note:''));return;}
+  if(status==='rejected'){alert('Appeal status: REJECTED.'+(note?'\n\nOwner note: '+note:''));return;}
+  if(status==='pending'){alert('Appeal status: PENDING. Your appeal is waiting for Admin 1 (Owner).');return;}
+  alert('No appeal was found for those details. Check the email and username and try again.');
 }
 
 function countWords(v){const t=String(v||'').trim();return t?t.split(/\s+/).length:0}
