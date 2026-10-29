@@ -41,6 +41,7 @@ td{line-height:1.4}
 .small{font-size:.83rem}
 .feed-url{overflow-wrap:anywhere;max-width:340px}
 .top-actions{display:flex;gap:8px;flex-wrap:wrap}
+body.newsroom-auth-pending{visibility:hidden}
 @media(max-width:600px){.wrap{padding:10px}.panel,.top{padding:13px}.field{min-width:100%}}
 </style>
 <link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v8">
@@ -86,7 +87,7 @@ img,video,iframe{max-width:100%}
 </style>
 
 </head>
-<body>
+<body class="newsroom-auth-pending">
 <main class="wrap">
 <header class="top">
   <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare manual or AI-assisted drafts → human review → approved publishing.</p></div>
@@ -120,8 +121,8 @@ img,video,iframe{max-width:100%}
   <p class="muted small">If AI credits are exhausted, source-text retrieval remains available. Never place service-role or AI API keys in public files. This page does not configure scheduled publishing.</p>
 </section>
 <section class="panel" id="aiProviderPanel">
-  <div class="section-head"><div><h2>🤖 4. AI provider selection — up to 6 services</h2><p class="muted">Configure up to six OpenAI-compatible Chat Completions APIs in Supabase Edge Function secrets, then choose which configured service to use now. This choice applies to individual AI drafts and the morning category schedule.</p></div><span class="pill" id="aiProviderBadge">Loading providers…</span></div>
-  <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Security:</strong> API keys are not stored in this page or the public website. Add them as Supabase Edge Function secrets using the included <code>NEWSROOM-AI-PROVIDERS-SETUP.txt</code> guide. The page receives only provider name, model, endpoint and configuration status.</div>
+  <div class="section-head"><div><h2>🤖 4. AI provider selection — unlimited numbered services</h2><p class="muted">Configure as many OpenAI-compatible Chat Completions APIs as you need in Supabase Edge Function secrets (slots 1, 2, 7, 8, 12, and so on), then choose the preferred service. The function automatically falls back to other configured providers when the preferred service fails. This choice applies to individual AI drafts and the morning category schedule.</p></div><span class="pill" id="aiProviderBadge">Loading providers…</span></div>
+  <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Security:</strong> API keys are not stored in this page or the public website. Add them as Supabase Edge Function secrets using the <a href="../PATCH-DEPLOYMENT-GUIDE.txt" style="color:#b7f7ca">provider setup guide</a>. The page receives only provider name, model, endpoint and configuration status.</div>
   <div class="row"><div class="field" style="flex:2;min-width:260px"><label for="activeAIProvider">Use this AI service for drafting</label><select id="activeAIProvider"><option value="">Checking configured providers…</option></select></div><button type="button" id="saveAIProvider" class="green">Save selected AI service</button><button type="button" id="refreshAIProviders" class="secondary">Refresh provider status</button></div>
   <div id="aiProviderSlots" class="ai-provider-grid"><p class="muted">Loading AI provider slots…</p></div>
   <p id="aiProviderStatus" class="muted small" role="status" aria-live="polite">Configure at least one service before creating AI drafts. Free source-text retrieval does not require an API.</p>
@@ -163,23 +164,23 @@ img,video,iframe{max-width:100%}
     const status = $('aiProviderStatus'), select = $('activeAIProvider');
     if (!select) return;
     const previous = keepSelection ? select.value : '';
-    select.disabled = true; $('aiProviderBadge').textContent = 'Checking…'; status.textContent = 'Checking the six server-side provider slots…';
+    select.disabled = true; $('aiProviderBadge').textContent = 'Checking…'; status.textContent = 'Checking all numbered server-side provider slots…';
     try {
       const result = await invoke('get_ai_provider_config');
       const providers = result.providers || [], available = providers.filter(p => p.configured);
       select.innerHTML = available.length ? available.map(p => `<option value="${esc(p.id)}">${esc(p.name)} — ${esc(p.model)}</option>`).join('') : '<option value="">No configured AI providers</option>';
       const intended = previous && available.some(p => p.id === previous) ? previous : String(result.activeProviderId || '');
       if (intended && available.some(p => p.id === intended)) select.value = intended;
-      $('aiProviderBadge').textContent = `${available.length} of 6 configured`;
+      $('aiProviderBadge').textContent = `${available.length} configured`;
       $('aiProviderSlots').innerHTML = providers.map(p => { const detail = p.configured ? `${p.model} · ${p.apiUrl}` : `Missing: ${(p.missing || []).join(', ')}`; return `<article class="ai-provider-slot ${p.configured ? 'ready' : 'missing'}"><strong>${esc(p.name || ('AI Service ' + p.id))}</strong><span class="pill">${p.configured ? 'Configured' : 'Not configured'}</span><small>${esc(detail)}</small></article>`; }).join('');
-      status.textContent = available.length ? `Currently selected: ${available.find(p => p.id === select.value)?.name || available[0].name}. API keys remain server-side. Save after choosing a different provider.` : 'No provider is fully configured. Add a key, OpenAI-compatible Chat Completions URL, and model for at least one slot using NEWSROOM-AI-PROVIDERS-SETUP.txt.';
+      status.textContent = available.length ? `Currently preferred: ${available.find(p => p.id === select.value)?.name || available[0].name}. Automatic fallback tries other configured providers if this one fails. API keys remain server-side.` : 'No provider is fully configured. Add NAME, API_KEY, API_URL, and MODEL secrets for a numbered slot such as NEWSROOM_AI_7_*.';
       status.style.color = available.length ? '' : '#ffd9d9';
     } catch (err) { $('aiProviderBadge').textContent = 'Unavailable'; $('aiProviderSlots').innerHTML = `<p class="muted">Could not retrieve provider status: ${esc(err.message || String(err))}</p>`; status.textContent = 'Deploy the updated parrothit-newsroom-automation Edge Function and configure its secrets before selecting an AI provider.'; status.style.color = '#ffd9d9'; }
     finally { select.disabled = false; }
   }
   async function saveAIProvider() {
     const button = $('saveAIProvider'), providerId = $('activeAIProvider').value;
-    if (!providerId) { $('aiProviderStatus').textContent = 'No configured provider is available. Configure at least one server-side provider first.'; return; }
+    if (!providerId) { $('aiProviderStatus').textContent = 'No configured provider is available. Configure at least one numbered server-side provider first.'; return; }
     button.disabled = true; $('aiProviderStatus').textContent = 'Saving the active AI provider…';
     try { const result = await invoke('set_active_ai_provider', { provider_id: providerId }); $('aiProviderStatus').textContent = result.message || 'Active AI provider saved.'; $('aiProviderStatus').style.color = ''; $('aiProviderBadge').textContent = `Active: ${result.providerName || providerId}`; message(result.message || 'Active AI provider saved.'); }
     catch (err) { $('aiProviderStatus').textContent = 'Could not save provider: ' + (err.message || String(err)); $('aiProviderStatus').style.color = '#ffd9d9'; message(err.message || String(err), 'error'); }
@@ -255,12 +256,13 @@ img,video,iframe{max-width:100%}
     client = window.getParrothitSupabaseClient();
     const { data, error } = await client.auth.getSession();
     session = data?.session;
-    if (error || !session) { location.href = 'login.html?next=newsroom-automation.html'; return; }
+    if (error || !session) { location.replace('../login.html?next=admin%2Fnewsroom-automation.html'); return; }
     const { data: profile, error: pe } = await client.from('admin_profiles').select('role,is_suspended').eq('user_id', session.user.id).maybeSingle();
     if (pe || !profile || profile.is_suspended || !['owner', 'admin'].includes(profile.role)) {
-      document.body.innerHTML = `<main class="wrap"><section class="panel"><h1>Administrator access required</h1><p>Your account does not have active newsroom access.</p><a class="btn" href="login.html">Sign in</a></section></main>`;
+      location.replace('../index.html');
       return;
     }
+    document.body.classList.remove('newsroom-auth-pending');
     startIdleTimeout(client, session.user.id);
     await refresh();
     await loadAIProviders(false);
