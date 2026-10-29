@@ -60,12 +60,36 @@ Deno.serve(async (req: Request) => {
   if (action === "status") {
     const email = String(body.email || "").trim().toLowerCase();
     const username = String(body.username || "").trim().toLowerCase();
-    if (!email || !username) return reply(400, { error: "Email and username are required." });
-    const { data, error } = await db.from("admin_appeals").select("status,created_at,review_note")
-      .ilike("email", email).ilike("username", username).order("created_at", { ascending: false }).limit(1);
-    if (error) return reply(500, { error: "Could not check appeal status." });
-    if (!data || !data.length) return reply(404, { error: "No appeal was found for those details." });
-    return reply(200, { appeal: { status: data[0].status, created_at: data[0].created_at, review_note: data[0].review_note } });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !/^[a-z0-9_.-]{2,80}$/i.test(username))
+      return reply(400, { error: "Enter the registered administrator email and username." });
+
+    // Use the service-role client so a suspended user can check status without admin_profiles RLS access.
+    const { data: profile, error: profileError } = await db.from("admin_profiles")
+      .select("user_id,username,email,role,is_suspended")
+      .ilike("email", email).ilike("username", username).maybeSingle();
+    if (profileError) {
+      console.error("Status profile lookup failed:", profileError);
+      return reply(500, { error: "Could not check account status. Verify admin_profiles columns and Edge Function secrets." });
+    }
+    if (!profile || String(profile.role || "").toLowerCase() !== "admin")
+      return reply(404, { error: "No matching administrator account was found for those details." });
+
+    const { data: appeals, error: appealError } = await db.from("admin_appeals")
+      .select("status,created_at,review_note")
+      .eq("admin_user_id", profile.user_id)
+      .order("created_at", { ascending: false }).limit(1);
+    if (appealError) {
+      console.error("Status appeal lookup failed:", appealError);
+      return reply(500, { error: "Account was found, but appeal status could not be read. Verify the admin_appeals table migration." });
+    }
+    const latest = appeals && appeals.length ? appeals[0] : null;
+    return reply(200, {
+      account_status: profile.is_suspended === true ? "suspended" : "active",
+      status: latest?.status || null,
+      created_at: latest?.created_at || null,
+      review_note: latest?.review_note || null,
+      appeal: latest ? { status: latest.status, created_at: latest.created_at, review_note: latest.review_note } : null
+    });
   }
 
   // All other actions require an authenticated, active Owner.
