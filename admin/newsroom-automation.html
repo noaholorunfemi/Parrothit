@@ -58,6 +58,8 @@ body{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
 .field{flex:1 1 220px;min-width:0;max-width:100%}
 input:not([type=checkbox]):not([type=radio]),select,textarea{max-width:100%;min-width:0}
 textarea{width:100%;resize:vertical}
+/* Large article-editor fields stay scrollable instead of stretching the whole page. */
+#articleBody{min-height:320px;max-height:65vh;overflow-y:auto;resize:vertical;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
 button,.btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .ai-provider-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .daily-category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
