@@ -97,8 +97,9 @@ Deno.serve(async (req) => {
   if (action === "draft_daily_categories_now") {
     const categoryIds = Array.isArray(body.category_ids) ? [...new Set(body.category_ids.map((x: unknown) => String(x)).filter(Boolean))].slice(0, 50) : [];
     if (!categoryIds.length) return json({ error: "Select at least one category." }, 400);
+    if (categoryIds.length > 1) return json({ error: "For reliability, submit one category per request. The updated newsroom page does this automatically." }, 400);
     const { data: cats, error: catError } = await db.from("categories").select("id,name").in("id", categoryIds);
-    if (catError) return json({ error: `Could not load categories: ${catError.message}` }, 500);
+    if (catError) { console.error("[newsroom] daily category query failed", { message: catError.message, code: (catError as any).code }); return json({ error: `Could not load categories: ${catError.message}` }, 500); }
     const results: any[] = []; let created = 0, skipped = 0, failed = 0;
     for (const category of (cats || [])) {
       const { data: candidate, error: candidateError } = await db.from("newsroom_candidates").select("id,source_title,status,linked_post_id").eq("category_id", category.id).in("status", ["discovered", "error"]).is("linked_post_id", null).order("discovered_at", { ascending: false }).limit(1).maybeSingle();
@@ -106,11 +107,11 @@ Deno.serve(async (req) => {
       if (!candidate) { skipped++; results.push({ category: category.name, status: "skipped", message: "No unprocessed discovered story is available in this category. Run Discover new stories first." }); continue; }
       try {
         const base = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-        const resp = await fetch(`${base}/functions/v1/parrothit-newsroom-automation`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "apikey": anon, "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", candidate_id: candidate.id, mode: "daily_schedule" }), signal: AbortSignal.timeout(55000) });
+        const resp = await fetch(`${base}/functions/v1/parrothit-newsroom-automation`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "apikey": anon, "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", candidate_id: candidate.id, mode: "daily_schedule" }), signal: AbortSignal.timeout(26000) });
         const payload = await resp.json().catch(() => ({}));
         if (!resp.ok || payload.error) { failed++; results.push({ category: category.name, status: "failed", message: payload.error || `Draft request returned HTTP ${resp.status}` }); }
         else { created++; results.push({ category: category.name, status: "created", post_id: payload.post?.id, message: `Draft created: ${payload.post?.title || candidate.source_title}. It remains In Review.` }); }
-      } catch (e) { failed++; results.push({ category: category.name, status: "failed", message: e instanceof Error ? e.message : String(e) }); }
+      } catch (e) { const detail = e instanceof Error ? e.message : String(e); console.error("[newsroom] daily category request failed", { category: category.name, detail }); failed++; results.push({ category: category.name, status: "failed", message: detail }); }
     }
     return json({ ok: failed === 0, results, created, skipped, failed, message: "Daily category drafting run finished. All created articles remain In Review and are not auto-published." });
   }
@@ -241,9 +242,6 @@ Deno.serve(async (req) => {
     if (!candidateId) return json({ error: "candidate_id is required." }, 400);
     const aiProvider = await activeProvider();
     if (!aiProvider.configured) return json({ error: `AI drafting is not configured. Configure NEWSROOM_AI_1_API_KEY, NEWSROOM_AI_1_API_URL, and NEWSROOM_AI_1_MODEL (or another slot) as Edge Function secrets. Missing for ${aiProvider.name}: ${aiProvider.missing.join(", ")}.` }, 503);
-    const aiKey = aiProvider.apiKey;
-    const aiUrl = aiProvider.apiUrl;
-    const aiModel = aiProvider.model;
     const { data: candidate, error: candidateError } = await db.from("newsroom_candidates").select("*").eq("id", candidateId).maybeSingle();
     if (candidateError || !candidate) return json({ error: "News candidate not found." }, 404);
     if (candidate.linked_post_id) return json({ error: "This candidate already has an article draft.", post_id: candidate.linked_post_id }, 409);
@@ -253,7 +251,7 @@ Deno.serve(async (req) => {
       let articleContext = candidate.source_summary || "";
       // Attempt to retrieve the linked page for additional context; RSS summary remains the fallback.
       try {
-        const r = await fetch(candidate.source_url, { headers: { "User-Agent": "PARROTHIT-Newsroom/1.0" }, signal: AbortSignal.timeout(9000) });
+        const r = await fetch(candidate.source_url, { headers: { "User-Agent": "PARROTHIT-Newsroom/1.0" }, signal: AbortSignal.timeout(3000) });
         if (r.ok) {
           const html = (await r.text()).slice(0, 1_000_000);
           const main = (html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i) || html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) || [])[1] || html;
@@ -261,12 +259,43 @@ Deno.serve(async (req) => {
         }
       } catch { /* Feed summary is still useful. */ }
       const prompt = `Create a fact-conscious PARROTHIT News Desk article draft based ONLY on the source material below. Do not invent facts, quotes, names, numbers, or claims. If the material is too thin, clearly say so in summary/body and do not speculate. Paraphrase; do not reproduce long source passages. Do not claim independent verification. Keep a neutral news tone. Return valid JSON only with keys title (max 160 chars), summary (1-2 sentences), body (3-6 short paragraphs; include an attribution to the named source and do not invent quotes), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Feed summary/page text: ${articleContext.slice(0, 9000)}`;
-      const aiResponse = await fetch(aiUrl, { method: "POST", headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: aiModel, temperature: 0.2, response_format: { type: "json_object" }, messages: [{ role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output valid JSON only." }, { role: "user", content: prompt }] }), signal: AbortSignal.timeout(45000) });
-      const raw = await aiResponse.text();
-      if (!aiResponse.ok) throw new Error(`AI provider HTTP ${aiResponse.status}: ${raw.slice(0, 500)}`);
-      const completion = JSON.parse(raw);
+      // Try the selected provider first, then other configured slots for temporary outages.
+      const providersToTry = [aiProvider, ...Array.from({ length: 6 }, (_, i) => providerConfig(String(i + 1)))
+        .filter((p) => p.configured && p.id !== aiProvider.id)];
+      let completion: any = null;
+      let lastProviderError = "No configured AI provider responded.";
+      for (const provider of providersToTry) {
+        try {
+          const aiResponse = await fetch(provider.apiUrl, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: provider.model, temperature: 0.2, response_format: { type: "json_object" }, messages: [
+              { role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output valid JSON only." },
+              { role: "user", content: prompt },
+            ] }),
+            signal: AbortSignal.timeout(9000),
+          });
+          const raw = await aiResponse.text();
+          if (!aiResponse.ok) {
+            lastProviderError = `${provider.name} HTTP ${aiResponse.status}: ${raw.slice(0, 350)}`;
+            console.error("[newsroom] AI provider request failed", { provider: provider.name, status: aiResponse.status, detail: raw.slice(0, 350) });
+            if (aiResponse.status === 429 || aiResponse.status >= 500) continue;
+            throw new Error(lastProviderError);
+          }
+          completion = JSON.parse(raw);
+          if (!completion?.choices?.[0]?.message?.content) {
+            lastProviderError = `${provider.name} returned no draft text.`;
+            continue;
+          }
+          break;
+        } catch (providerError) {
+          lastProviderError = providerError instanceof Error ? `${provider.name}: ${providerError.message}` : `${provider.name}: ${String(providerError)}`;
+          console.error("[newsroom] AI provider attempt failed", { provider: provider.name, message: lastProviderError });
+          if (/HTTP 4\d\d/.test(lastProviderError) && !/HTTP 429/.test(lastProviderError)) throw providerError;
+        }
+      }
       const content = completion?.choices?.[0]?.message?.content;
-      if (!content) throw new Error("AI provider returned no draft text.");
+      if (!content) throw new Error(`All configured AI providers failed. Last error: ${lastProviderError}`);
       const draft = JSON.parse(content);
       const title = String(draft.title || candidate.source_title).trim().slice(0, 160);
       const summary = String(draft.summary || candidate.source_summary).trim().slice(0, 1500);
@@ -284,6 +313,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, post, message: "Draft created in In Review. An administrator must fact-check and approve it before publication." });
     } catch (e) {
       const message = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
+      console.error("[newsroom] AI draft failed", { candidateId, provider: aiProvider.name, message });
       await db.from("newsroom_candidates").update({ status: "error", error_message: message, updated_at: new Date().toISOString() }).eq("id", candidateId);
       return json({ error: message }, 502);
     }
