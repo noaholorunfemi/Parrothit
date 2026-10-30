@@ -51,26 +51,100 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: "Request body must be JSON." }, 400); }
   const action = String(body.action || "");
 
-  // Provider slots are configured only as Edge Function secrets; never return API keys to the browser.
-  const providerConfig = (id: string) => {
-    const n = id.replace(/[^1-6]/g, "");
-    const name = Deno.env.get(`NEWSROOM_AI_${n}_NAME`) || `AI Service ${n}`;
-    const apiKey = Deno.env.get(`NEWSROOM_AI_${n}_API_KEY`) || "";
-    const apiUrl = Deno.env.get(`NEWSROOM_AI_${n}_API_URL`) || "";
-    const model = Deno.env.get(`NEWSROOM_AI_${n}_MODEL`) || "";
-    const missing = [!apiKey && "API_KEY", !apiUrl && "API_URL", !model && "MODEL"].filter(Boolean);
-    return { id: n, name, apiKey, apiUrl, model, configured: missing.length === 0, missing };
+  // AI provider credentials are kept only in Edge Function secrets. Provider IDs
+  // are discovered dynamically from NEWSROOM_AI_PROVIDER_<ID>_* variables, so
+  // there is no hard-coded six-provider limit. Legacy numbered slots remain valid.
+  type ProviderConfig = { id: string; name: string; apiKey: string; apiUrl: string; model: string; configured: boolean; missing: string[] };
+  let providerJsonConfigError = '';
+  const providerConfigs = (): ProviderConfig[] => {
+    const byId = new Map<string, { NAME?: string; API_KEY?: string; API_URL?: string; MODEL?: string }>();
+    // Recommended for larger lists: one JSON secret avoids spending four secret
+    // slots per provider and works around Supabase's per-project secret-count cap.
+    const providerJson = Deno.env.get('NEWSROOM_AI_PROVIDERS_JSON') || '';
+    providerJsonConfigError = '';
+    if (providerJson) {
+      try {
+        const parsed = JSON.parse(providerJson);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Provider JSON must be an object.');
+        const entries = parsed.providers && typeof parsed.providers === 'object' && !Array.isArray(parsed.providers)
+          ? parsed.providers : parsed;
+        for (const [rawId, rawConfig] of Object.entries(entries as Record<string, any>)) {
+          if (!rawConfig || typeof rawConfig !== 'object' || Array.isArray(rawConfig)) continue;
+          const id = String(rawId).trim().toUpperCase();
+          if (!/^[A-Z0-9][A-Z0-9_]{0,63}$/.test(id)) continue;
+          const value = byId.get(id) || {};
+          value.NAME = String(rawConfig.name ?? rawConfig.NAME ?? value.NAME ?? '');
+          value.API_KEY = String(rawConfig.api_key ?? rawConfig.apiKey ?? rawConfig.API_KEY ?? value.API_KEY ?? '');
+          value.API_URL = String(rawConfig.api_url ?? rawConfig.apiUrl ?? rawConfig.API_URL ?? value.API_URL ?? '');
+          value.MODEL = String(rawConfig.model ?? rawConfig.MODEL ?? value.MODEL ?? '');
+          byId.set(id, value);
+        }
+      } catch {
+        providerJsonConfigError = 'NEWSROOM_AI_PROVIDERS_JSON is not valid JSON. Correct the JSON secret in Supabase Edge Function Secrets.';
+      }
+    }
+    const env = Deno.env.toObject() as Record<string, string>;
+    for (const [key, value] of Object.entries(env)) {
+      const match = key.match(/^NEWSROOM_AI_PROVIDER_([A-Z0-9_]+)_(NAME|API_KEY|API_URL|MODEL)$/);
+      if (!match || !value) continue;
+      const id = match[1].replace(/^_+|_+$/g, '').toUpperCase();
+      if (!id || id.length > 64) continue;
+      const item = byId.get(id) || {};
+      item[match[2] as "NAME" | "API_KEY" | "API_URL" | "MODEL"] = value;
+      byId.set(id, item);
+    }
+    // Compatibility for existing NEWSROOM_AI_1_* through NEWSROOM_AI_6_* secrets.
+    for (let i = 1; i <= 6; i++) {
+      const id = String(i);
+      const legacy = {
+        NAME: Deno.env.get(`NEWSROOM_AI_${id}_NAME`) || '',
+        API_KEY: Deno.env.get(`NEWSROOM_AI_${id}_API_KEY`) || '',
+        API_URL: Deno.env.get(`NEWSROOM_AI_${id}_API_URL`) || '',
+        MODEL: Deno.env.get(`NEWSROOM_AI_${id}_MODEL`) || '',
+      };
+      if (Object.values(legacy).some(Boolean)) {
+        const existing = byId.get(id) || {};
+        for (const field of ["NAME", "API_KEY", "API_URL", "MODEL"] as const) {
+          if (!existing[field] && legacy[field]) existing[field] = legacy[field];
+        }
+        byId.set(id, existing);
+      }
+    }
+    // Compatibility for the original single-provider configuration.
+    const legacySingleKey = Deno.env.get("NEWSROOM_AI_API_KEY") || '';
+    const legacySingle = {
+      NAME: Deno.env.get("NEWSROOM_AI_NAME") || "Legacy AI Provider",
+      API_KEY: legacySingleKey,
+      API_URL: Deno.env.get("NEWSROOM_AI_API_URL") || (legacySingleKey ? "https://api.openai.com/v1/chat/completions" : ''),
+      MODEL: Deno.env.get("NEWSROOM_AI_MODEL") || (legacySingleKey ? "gpt-4o-mini" : ''),
+    };
+    if (legacySingleKey && !byId.has('LEGACY')) byId.set('LEGACY', legacySingle);
+
+    return [...byId.entries()].map(([id, value]) => {
+      const name = value.NAME || id.replace(/_/g, ' ');
+      const apiKey = value.API_KEY || '';
+      const apiUrl = value.API_URL || '';
+      const model = value.MODEL || '';
+      const missing = [!apiKey && 'API_KEY', !apiUrl && 'API_URL', !model && 'MODEL'].filter(Boolean) as string[];
+      return { id, name, apiKey, apiUrl, model, configured: missing.length === 0, missing };
+    }).sort((a, b) => a.name.localeCompare(b.name));
   };
-  const activeProvider = async () => {
+  const providerConfig = (id: string): ProviderConfig => {
+    const normalized = String(id || '').trim().toUpperCase();
+    return providerConfigs().find(p => p.id === normalized) || {
+      id: normalized, name: normalized || 'AI Provider', apiKey: '', apiUrl: '', model: '',
+      configured: false, missing: ['API_KEY', 'API_URL', 'MODEL'],
+    };
+  };
+  const activeProvider = async (): Promise<ProviderConfig> => {
     const { data } = await db.from("site_settings").select("value").eq("key", "newsroom_active_ai_provider").maybeSingle();
-    const id = String(data?.value?.provider_id || "1");
-    const configured = providerConfig(id);
-    if (configured.configured) return configured;
-    for (let i = 1; i <= 6; i++) { const candidate = providerConfig(String(i)); if (candidate.configured) return candidate; }
-    // Backward compatibility with the original single-provider secrets.
-    const apiKey = Deno.env.get("NEWSROOM_AI_API_KEY") || "";
-    if (apiKey) return { id: "legacy", name: "Legacy AI Provider", apiKey, apiUrl: Deno.env.get("NEWSROOM_AI_API_URL") || "https://api.openai.com/v1/chat/completions", model: Deno.env.get("NEWSROOM_AI_MODEL") || "gpt-4o-mini", configured: true, missing: [] };
-    return configured;
+    const id = String(data?.value?.provider_id || "").trim().toUpperCase();
+    const providers = providerConfigs();
+    const selected = providers.find(p => p.id === id);
+    if (selected?.configured) return selected;
+    const firstConfigured = providers.find(p => p.configured);
+    if (firstConfigured) return firstConfigured;
+    return selected || providers[0] || providerConfig(id || 'OPENAI');
   };
 
   // Resolve the destination at draft time, not discovery time. This means an
@@ -98,7 +172,8 @@ Deno.serve(async (req) => {
     }).eq("id", candidateId).is("linked_post_id", null).select("id,review_destination").maybeSingle();
     if (linkError) throw new Error(`Could not link the draft to its newsroom candidate: ${linkError.message}`);
     if (!linked) throw new Error("The candidate is already linked to an article or is no longer available. Reload the newsroom queue.");
-    if (destination === "category_card_manager") {
+    const actualDestination: "articles" | "category_card_manager" = linked.review_destination === "articles" ? "articles" : "category_card_manager";
+    if (actualDestination === "category_card_manager") {
       const { error: queueError } = await db.from("category_card_review_queue").upsert({
         candidate_id: candidateId,
         post_id: postId,
@@ -111,7 +186,7 @@ Deno.serve(async (req) => {
         throw new Error(`The draft was created but could not enter the Category Card review queue: ${queueError.message}. Run supabase/newsroom-access-timeout-repair.sql in the Supabase SQL Editor, then redeploy this Edge Function.`);
       }
     }
-    return destination;
+    return actualDestination;
   };
 
   const unpublishedStatuses = ["draft", "in_review"];
@@ -216,20 +291,19 @@ Deno.serve(async (req) => {
   }
 
   if (action === "get_ai_provider_config") {
-    const providers = Array.from({ length: 6 }, (_, i) => {
-      const p = providerConfig(String(i + 1));
-      return { id: p.id, name: p.name, apiUrl: p.apiUrl, model: p.model, configured: p.configured, missing: p.missing };
-    });
+    const allProviders = providerConfigs();
+    const providers = allProviders.map(p => ({ id: p.id, name: p.name, apiUrl: p.apiUrl, model: p.model, configured: p.configured, missing: p.missing }));
     const { data: active } = await db.from("site_settings").select("value").eq("key", "newsroom_active_ai_provider").maybeSingle();
-    const firstConfigured = providers.find(p => p.configured)?.id || "";
-    return json({ ok: true, providers, activeProviderId: String(active?.value?.provider_id || firstConfigured) });
+    const savedId = String(active?.value?.provider_id || '').trim().toUpperCase();
+    const activeProviderId = allProviders.find(p => p.id === savedId && p.configured)?.id || allProviders.find(p => p.configured)?.id || "";
+    return json({ ok: true, providers, activeProviderId, configuredCount: allProviders.filter(p => p.configured).length, providerLimit: null, configurationError: providerJsonConfigError });
   }
 
   if (action === "set_active_ai_provider") {
-    const providerId = String(body.provider_id || "");
-    if (!/^[1-6]$/.test(providerId)) return json({ error: "Choose a provider slot from 1 to 6." }, 400);
+    const providerId = String(body.provider_id || "").trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9_]{0,63}$/.test(providerId)) return json({ error: "Choose a valid configured AI provider." }, 400);
     const provider = providerConfig(providerId);
-    if (!provider.configured) return json({ error: `${provider.name} is missing: ${provider.missing.join(", ")}. Configure these Edge Function secrets first.` }, 400);
+    if (!provider.configured) return json({ error: `${provider.name} is missing: ${provider.missing.join(", ")}. Add the matching NEWSROOM_AI_PROVIDER_${providerId}_* secrets first.` }, 400);
     const value = { provider_id: providerId, updated_at: new Date().toISOString() };
     const { error } = await db.from("site_settings").upsert({ key: "newsroom_active_ai_provider", value, updated_at: new Date().toISOString() }, { onConflict: "key" });
     if (error) return json({ error: `Could not save active AI provider: ${error.message}` }, 500);
@@ -361,7 +435,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      await linkCandidateToPost(candidateId, post.id, destination);
+      destination = await linkCandidateToPost(candidateId, post.id, destination);
     } catch (e) {
       await db.from("posts").delete().eq("id", post.id);
       const detail = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
@@ -383,7 +457,7 @@ Deno.serve(async (req) => {
     const candidateId = String(body.candidate_id || "");
     if (!candidateId) return json({ error: "candidate_id is required." }, 400);
     const aiProvider = await activeProvider();
-    if (!aiProvider.configured) return json({ error: `AI drafting is not configured. Configure NEWSROOM_AI_1_API_KEY, NEWSROOM_AI_1_API_URL, and NEWSROOM_AI_1_MODEL (or another slot) as Edge Function secrets. Missing for ${aiProvider.name}: ${aiProvider.missing.join(", ")}.` }, 503);
+    if (!aiProvider.configured) return json({ error: providerJsonConfigError || `AI drafting is not configured. Add the NEWSROOM_AI_PROVIDERS_JSON secret or configure NEWSROOM_AI_PROVIDER_<ID>_* secrets. Missing for ${aiProvider.name}: ${aiProvider.missing.join(", ")}.` }, 503);
     const aiKey = aiProvider.apiKey;
     const aiUrl = aiProvider.apiUrl;
     const aiModel = aiProvider.model;
@@ -427,7 +501,7 @@ Deno.serve(async (req) => {
       while (true) { const { data: match } = await db.from("posts").select("id").eq("slug", slug).maybeSingle(); if (!match) break; slug = `${slugify(title)}-${suffix++}`; }
       const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
       if (postError) throw new Error(`Could not save article draft: ${postError.message}`);
-      await linkCandidateToPost(candidateId, post.id, destination);
+      destination = await linkCandidateToPost(candidateId, post.id, destination);
       return json({
         ok: true,
         post,
