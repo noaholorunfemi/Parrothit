@@ -106,7 +106,7 @@
     button.textContent = 'Clearing drafts…';
     try {
       const client = await getAdminClient();
-      const { data, error } = await client.functions.invoke('parrothit-newsroom-automation', {
+      let { data, error } = await client.functions.invoke('parrothit-newsroom-automation', {
         body: { action: 'clear_drafts', destination: 'articles' }
       });
       if (error) {
@@ -121,7 +121,29 @@
             }
           }
         } catch (_) { /* keep the original error */ }
-        throw new Error(data?.error || detail);
+        // Retry a generic mobile SDK transport failure using the active JWT.
+        // This does not bypass authorization; the Edge Function still validates
+        // the administrator profile before it performs any deletion.
+        if (/failed to send a request|fetch failed|networkerror|load failed|signal timed out|timeout/i.test(detail)) {
+          try {
+            const { data: sessionData, error: sessionError } = await client.auth.getSession();
+            if (sessionError) throw sessionError;
+            const token = sessionData?.session?.access_token;
+            if (!token) throw new Error('Your administrator session expired. Sign in again.');
+            const response = await fetch(`${String(window.PARROTHIT_SUPABASE_URL).replace(/\/$/, '')}/functions/v1/parrothit-newsroom-automation`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'apikey': window.PARROTHIT_SUPABASE_ANON_KEY },
+              body: JSON.stringify({ action: 'clear_drafts', destination: 'articles' })
+            });
+            const raw = await response.text();
+            let payload = {}; try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { error: raw }; }
+            if (!response.ok || payload.error) throw new Error(payload.error || payload.message || `Newsroom Edge Function returned HTTP ${response.status}.`);
+            data = payload; error = null;
+          } catch (retryError) {
+            detail = retryError?.message || detail;
+          }
+        }
+        if (error) throw new Error(data?.error || detail);
       }
       if (!data?.ok || data?.error) throw new Error(data?.error || 'The server did not confirm the clear operation.');
       notify(data.message || `Cleared ${data.deleted_posts || 0} Article Editor draft(s).`);
