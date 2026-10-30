@@ -167,7 +167,7 @@ img,video,iframe{max-width:100%}
   }
 
   function destinationUrl(postId='') {
-    return draftDestination === 'category_card_manager' ? `category-card-assignment-manager.html${postId ? '?post=' + encodeURIComponent(postId) : ''}` : 'articles.html';
+    return draftDestination === 'category_card_manager' ? `category-card-assignment-manager.html${postId ? '?post=' + encodeURIComponent(postId) : ''}` : `articles.html${postId ? '?edit=' + encodeURIComponent(postId) : ''}`;
   }
   function destinationName(value=draftDestination) {
     return value === 'category_card_manager' ? 'Category Card 1–6 Assignment Manager' : 'Article Editor';
@@ -362,7 +362,7 @@ img,video,iframe{max-width:100%}
       <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
       <td>${!c.linked_post_id && ['discovered', 'error'].includes(c.status) ? `<div class="actions"><select aria-label="Category for ${esc(c.source_title)}" data-category-select="${esc(c.id)}">${categoryOptions(c.category_id)}</select><button class="secondary" data-save-category="${esc(c.id)}">Save category</button></div>` : esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
       ${['discovered', 'error'].includes(c.status) && !c.linked_post_id ? `<button class="green" data-source-text="${c.id}">Retrieve Source Text — FREE</button><button class="blue" data-detailed-draft="${c.id}">Create Original Detailed Report — AI</button>` : ''}
-      ${c.linked_post_id ? `<a class="btn secondary" href="${esc(c.review_destination === 'category_card_manager' ? 'category-card-assignment-manager.html?post=' + encodeURIComponent(c.linked_post_id) : 'articles.html')}">${c.review_destination === 'category_card_manager' ? (c.status === 'imported' ? 'View card assignment' : 'Open card review') : 'Open in Article Editor'}</a>` : ''}
+      ${c.linked_post_id ? `<a class="btn secondary" href="${esc(c.review_destination === 'category_card_manager' ? 'category-card-assignment-manager.html?post=' + encodeURIComponent(c.linked_post_id) : 'articles.html?edit=' + encodeURIComponent(c.linked_post_id))}">${c.review_destination === 'category_card_manager' ? (c.status === 'imported' ? 'View card assignment' : 'Open card review') : 'Open in Article Editor'}</a>` : ''}
       ${c.status === 'discovered' ? `<button class="secondary" data-reject="${c.id}">Reject</button>` : ''}
       </div></td></tr>`).join('');
 
