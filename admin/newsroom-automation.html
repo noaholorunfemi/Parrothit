@@ -89,10 +89,10 @@ img,video,iframe{max-width:100%}
 <body>
 <main class="wrap">
 <header class="top">
-  <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare manual or AI-assisted drafts → human review → approved publishing.</p></div>
-  <div class="top-actions"><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
+  <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare drafts → send to human review → approve and assign to Category Cards 1–6.</p></div>
+  <div class="top-actions"><a class="btn green" href="category-card-assignment-manager.html">🗂️ Category Card 1–6 Assignment Manager</a><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
 </header>
-<div class="warning"><strong>Human approval remains mandatory.</strong> Manual and AI-assisted drafts are saved as <em>In Review</em>. Neither action publishes an article. Check accuracy, date, attribution, rights, and local context before approving and publishing in Article Editor.</div>
+<div class="warning"><strong>Human approval remains mandatory.</strong> Newsroom drafts are saved as In Review and routed to the separate Category Card 1–6 Assignment Manager. AI cannot publish or occupy a card. An active administrator must review and approve each article, then choose its category and card position.</div>
 <div id="message" class="msg"></div>
 <section class="panel">
   <div class="section-head"><div><h2>1. Feed sources</h2><p class="muted">Add RSS or Atom feeds. Feed URLs are fetched by the secure Supabase Edge Function, not by your browser.</p></div><button id="discoverBtn" class="green">🔎 Discover new stories</button></div>
@@ -115,7 +115,7 @@ img,video,iframe{max-width:100%}
     <li>Check the headline, publisher, and source URL before creating a draft.</li>
     <li><strong>Retrieve Source Text — FREE</strong> attempts to extract readable text from the original webpage. If the publisher blocks access or only exposes a teaser, the draft will say so and fall back to available feed text. Treat retrieved text as editorial reference; check reuse rights and do not publish it verbatim without permission.</li>
     <li><strong>Create Original Detailed Report — AI</strong> asks the configured AI provider to write a detailed, paraphrased report (target about 900–1,300 words) from available source material. It requires AI credits and must not invent details if the source is too short.</li>
-    <li>Open Article Editor, verify facts, rewrite/expand as needed, and explicitly select <strong>Approve &amp; publish</strong> only when ready. Drafts remain In Review until you do so.</li>
+    <li>Open the <strong>Category Card 1–6 Assignment Manager</strong>, review and edit the complete article, then approve it. Only after approval can you choose Category + News Card 1–6 and publish it to that card.</li>
   </ol>
   <p class="muted small">If AI credits are exhausted, source-text retrieval remains available. Never place service-role or AI API keys in public files. This page does not configure scheduled publishing.</p>
 </section>
@@ -134,19 +134,6 @@ img,video,iframe{max-width:100%}
   <div class="row" style="margin-top:14px"><button type="button" id="saveDailySchedule" class="green">Save daily schedule</button><button type="button" id="runDailyScheduleNow" class="blue">Run drafting now for testing</button></div>
   <p class="muted small" id="dailyScheduleStatus" aria-live="polite">Setup requires the daily category-drafting SQL schedule and the updated Supabase Edge Function. AI provider credits are required to create the drafts.</p>
   <div id="dailyRunResults" class="table-wrap" hidden><table><thead><tr><th>Category</th><th>Outcome</th><th>Draft</th><th>Details</th></tr></thead><tbody id="dailyRunRows"></tbody></table></div>
-</section>
-
-<section class="panel" id="categoryCardManager">
-  <div class="section-head"><div><h2>🗂️ 6. Category News Card Manager</h2><p class="muted">Assign an already-published article to one of the six existing cards in a category. This works separately from the Article Editor workflow.</p></div><span class="pill">Cards 1–6</span></div>
-  <div class="warning"><strong>Protection:</strong> This manager only changes the selected card slot in the existing <code>site_settings → category_cards</code> setting. It does not create, edit, publish, or delete posts. Draft and In Review articles cannot be assigned. Other card positions are preserved.</div>
-  <div class="row">
-    <div class="field"><label for="cardManagerCategory">Category</label><select id="cardManagerCategory"><option value="">Select category…</option></select></div>
-    <div class="field"><label for="cardManagerPosition">News card position</label><select id="cardManagerPosition"><option value="1">News Card 1</option><option value="2">News Card 2</option><option value="3">News Card 3</option><option value="4">News Card 4</option><option value="5">News Card 5</option><option value="6">News Card 6</option></select></div>
-    <div class="field" style="flex:2"><label for="cardManagerPost">Published article</label><select id="cardManagerPost"><option value="">Load published articles…</option></select></div>
-  </div>
-  <div class="row" style="margin-top:12px"><button type="button" class="secondary" id="refreshCardPosts">Refresh published articles</button><button type="button" class="green" id="assignCategoryCard">Assign to selected card</button><button type="button" class="secondary" id="clearCategoryCard">Clear selected assignment</button></div>
-  <p class="muted small" id="cardManagerStatus" role="status" aria-live="polite">Choose a category and card position. Existing card assignments will be shown here.</p>
-  <div id="cardManagerCurrent" class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin-top:10px">No card selected.</div>
 </section>
 
 <style>
@@ -250,7 +237,7 @@ img,video,iframe{max-width:100%}
           const part=result.results||[];rows.push(...part);created+=Number(result.created||0);skipped+=Number(result.skipped||0);failed+=Number(result.failed||0);
           if(result.error){failed++;rows.push({category:category_ids[i],status:'failed',message:result.error});}
         }catch(err){failed++;rows.push({category:category_ids[i],status:'failed',message:err.message||String(err)});}
-        $('dailyRunRows').innerHTML=rows.map(r=>`<tr><td>${esc(r.category||'—')}</td><td><span class="pill">${esc(r.status||'—')}</span></td><td>${r.post_id?`<a href="articles.html?edit=${encodeURIComponent(r.post_id)}" style="color:#b7e4c7">Open draft</a>`:'—'}</td><td>${esc(r.message||'')}</td></tr>`).join('');
+        $('dailyRunRows').innerHTML=rows.map(r=>`<tr><td>${esc(r.category||'—')}</td><td><span class="pill">${esc(r.status||'—')}</span></td><td>${r.post_id?`<a href="category-card-assignment-manager.html?post=${encodeURIComponent(r.post_id)}" style="color:#b7e4c7">Open for human review</a>`:'—'}</td><td>${esc(r.message||'')}</td></tr>`).join('');
       }
       const summary=`Daily drafting finished. Created ${created} draft(s); skipped ${skipped}; failed ${failed}.`;
       dailyStatus(summary,failed>0);
@@ -277,7 +264,6 @@ img,video,iframe{max-width:100%}
     }
     startIdleTimeout(client, session.user.id);
     await refresh();
-    await loadPublishedCardPosts();
     await loadAIProviders(false);
     await loadDailySchedule();
   }
@@ -310,8 +296,6 @@ img,video,iframe{max-width:100%}
     const sel = $('sourceCategory'), old = sel.value;
     sel.innerHTML = '<option value="">No default category</option>' + categories.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
     if (old) sel.value = old;
-    const cardSel = $('cardManagerCategory');
-    if (cardSel) { const previous = cardSel.value; cardSel.innerHTML = '<option value="">Select category…</option>' + categories.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join(''); if (previous) cardSel.value = previous; }
   }
 
   async function loadSources() {
@@ -334,7 +318,7 @@ img,video,iframe{max-width:100%}
       <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
       <td>${!c.linked_post_id && ['discovered', 'error'].includes(c.status) ? `<div class="actions"><select aria-label="Category for ${esc(c.source_title)}" data-category-select="${esc(c.id)}">${categoryOptions(c.category_id)}</select><button class="secondary" data-save-category="${esc(c.id)}">Save category</button></div>` : esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
       ${['discovered', 'error'].includes(c.status) && !c.linked_post_id ? `<button class="green" data-source-text="${c.id}">Retrieve Source Text — FREE</button><button class="blue" data-detailed-draft="${c.id}">Create Original Detailed Report — AI</button>` : ''}
-      ${c.linked_post_id ? `<a class="btn secondary" href="articles.html?edit=${encodeURIComponent(c.linked_post_id)}">Open draft</a>` : ''}
+      ${c.linked_post_id ? `<a class="btn secondary" href="category-card-assignment-manager.html?post=${encodeURIComponent(c.linked_post_id)}">${c.status === 'imported' ? 'View assignment' : 'Open for human review'}</a>` : ''}
       ${c.status === 'discovered' ? `<button class="secondary" data-reject="${c.id}">Reject</button>` : ''}
       </div></td></tr>`).join('');
 
@@ -351,54 +335,6 @@ img,video,iframe{max-width:100%}
     body.querySelectorAll('[data-detailed-draft]').forEach(b => { b.onclick = () => draftCandidate(b.dataset.detailedDraft, b, 'detailed'); });
     body.querySelectorAll('[data-reject]').forEach(b => { b.onclick = async () => { if (!confirm('Reject this candidate?')) return; const { error } = await client.from('newsroom_candidates').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', b.dataset.reject); if (error) message(error.message, 'error'); else await loadCandidates(); }; });
   }
-
-  function cardCategoryKey(category) {
-    return String(category.slug || category.name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  }
-  async function loadPublishedCardPosts() {
-    const select = $('cardManagerPost'); if (!select) return;
-    select.innerHTML = '<option value="">Loading published articles…</option>';
-    const { data, error } = await client.from('posts').select('id,title,slug,summary,body,image_url,published_at,status,categories(name)').eq('status','published').order('published_at',{ascending:false}).limit(300);
-    if (error) { select.innerHTML = '<option value="">Could not load articles</option>'; $('cardManagerStatus').textContent = 'Could not load published posts: '+error.message; return; }
-    publishedCardPosts = data || [];
-    select.innerHTML = '<option value="">Select a published article…</option>' + publishedCardPosts.map(p => `<option value="${esc(p.id)}">${esc(p.title || 'Untitled')} — ${esc(p.categories?.name || 'Uncategorised')}</option>`).join('');
-    $('cardManagerStatus').textContent = `${publishedCardPosts.length} published article(s) available. Only published posts are selectable.`;
-    await showCurrentCardAssignment();
-  }
-  async function readCardSettings() {
-    const {data,error}=await client.from('site_settings').select('value').eq('key','category_cards').maybeSingle();
-    if(error) throw new Error('Could not read existing category cards: '+error.message);
-    const value=data?.value && typeof data.value==='object' && !Array.isArray(data.value) ? data.value : {};
-    return value;
-  }
-  async function showCurrentCardAssignment() {
-    const box=$('cardManagerCurrent'), category=categories.find(c=>String(c.id)===$('cardManagerCategory').value), position=$('cardManagerPosition').value;
-    if(!category){box.textContent='Select a category and card position.';return;}
-    try { const all=await readCardSettings(), key=cardCategoryKey(category), record=all[key]?.[position];
-      box.innerHTML=record ? `<strong>Currently assigned — Card ${esc(position)}</strong><br>${esc(record.title||'Untitled')}<br><span class="muted small">${record.enabled===false?'Disabled':'Enabled'} · ${esc(record.targetUrl||'No destination')}</span>` : `<strong>Card ${esc(position)} is not assigned by Newsroom Automation.</strong><br>The category page will continue using its existing card content or fallback.`;
-    } catch(e){box.textContent=e.message||String(e);}
-  }
-  async function saveCardAssignment(clear=false) {
-    const category=categories.find(c=>String(c.id)===$('cardManagerCategory').value), position=String($('cardManagerPosition').value), post=publishedCardPosts.find(p=>String(p.id)===$('cardManagerPost').value);
-    if(!category){$('cardManagerStatus').textContent='Select a category first.';return;}
-    if(!clear&&!post){$('cardManagerStatus').textContent='Select a published article first.';return;}
-    const button=clear?$('clearCategoryCard'):$('assignCategoryCard');button.disabled=true;
-    try {
-      const all=await readCardSettings(), key=cardCategoryKey(category); all[key]=all[key]&&typeof all[key]==='object'?all[key]:{};
-      const existing=all[key][position];
-      if(clear){if(!existing){$('cardManagerStatus').textContent='This card has no saved assignment.';return;} if(!confirm(`Clear only ${category.name} Card ${position}? The article itself will remain published.`))return; delete all[key][position];}
-      else {
-        if(existing && !confirm(`Replace ${category.name} Card ${position} (${existing.title||'existing content'}) with “${post.title}”? The old article will remain published; only this card slot changes.`))return;
-        const target='article.html?slug='+encodeURIComponent(post.slug||post.id);
-        all[key][position]={title:post.title||'',text:post.summary||'',image:existing?.image||'',imageUrl:post.image_url||existing?.imageUrl||'',targetUrl:target,enabled:true,updatedAt:new Date().toISOString(),newsroomPostId:String(post.id)};
-      }
-      const {error}=await client.from('site_settings').upsert({key:'category_cards',value:all,updated_at:new Date().toISOString()},{onConflict:'key'});
-      if(error)throw new Error('Could not save card assignment: '+error.message);
-      $('cardManagerStatus').textContent=clear?'Card assignment cleared. The article remains published.':'Article assigned to the selected card. No post record was changed.';
-      await showCurrentCardAssignment();
-    } catch(e){$('cardManagerStatus').textContent=e.message||String(e);} finally{button.disabled=false;}
-  }
-
   async function invoke(action, extra = {}) {
     const { data, error } = await client.functions.invoke('parrothit-newsroom-automation', { body: { action, ...extra } });
     if (error) {
@@ -467,11 +403,6 @@ img,video,iframe{max-width:100%}
     } finally { b.disabled = false; b.textContent = oldText; }
   }
 
-  $('refreshCardPosts')?.addEventListener('click',loadPublishedCardPosts);
-  $('cardManagerCategory')?.addEventListener('change',showCurrentCardAssignment);
-  $('cardManagerPosition')?.addEventListener('change',showCurrentCardAssignment);
-  $('assignCategoryCard')?.addEventListener('click',()=>saveCardAssignment(false));
-  $('clearCategoryCard')?.addEventListener('click',()=>saveCardAssignment(true));
   $('saveAIProvider')?.addEventListener('click', saveAIProvider);
   $('refreshAIProviders')?.addEventListener('click', () => loadAIProviders(false));
   $('refreshBtn').onclick = async () => { await refresh(); await loadAIProviders(true); await loadDailySchedule(); };
