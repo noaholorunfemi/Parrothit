@@ -161,6 +161,25 @@ img,video,iframe{max-width:100%}
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+  async function directRestGet(table, params) {
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    if (sessionError) throw sessionError;
+    const token = sessionData?.session?.access_token;
+    if (!token) throw new Error('Your administrator session has expired. Sign in again.');
+    const endpoint = new URL('/rest/v1/' + encodeURIComponent(table), String(window.PARROTHIT_SUPABASE_URL));
+    Object.entries(params || {}).forEach(([key, value]) => endpoint.searchParams.set(key, String(value)));
+    const response = await fetch(endpoint.toString(), { method: 'GET', headers: { Accept: 'application/json', apikey: window.PARROTHIT_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token } });
+    const raw = await response.text(); let payload = [];
+    try { payload = raw ? JSON.parse(raw) : []; } catch (_) { payload = []; }
+    if (!response.ok) throw new Error(payload?.message || payload?.details || raw || `Supabase REST returned HTTP ${response.status}`);
+    return payload;
+  }
+  async function readWithTimeoutFallback(query, table, params) {
+    const result = await query;
+    if (!result.error) return result.data;
+    if (!/signal timed out|timed out|timeout|abort/i.test(result.error.message || '')) throw result.error;
+    return await directRestGet(table, params);
+  }
   function categoryName(id) { return categories.find(c => c.id === id)?.name || '—'; }
   function categoryOptions(selectedId) {
     return '<option value="">Select category…</option>' + categories.map(c => `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
@@ -173,8 +192,13 @@ img,video,iframe{max-width:100%}
     return value === 'category_card_manager' ? 'Category Card 1–6 Assignment Manager' : 'Article Editor';
   }
   async function loadDraftDestination() {
-    const {data,error}=await client.from('site_settings').select('value').eq('key','newsroom_draft_destination').maybeSingle();
-    if(error)throw error;
+    const result=await client.from('site_settings').select('value').eq('key','newsroom_draft_destination').maybeSingle();
+    let data=result.data;
+    if(result.error){
+      if(!/signal timed out|timed out|timeout|abort/i.test(result.error.message||''))throw result.error;
+      const rows=await directRestGet('site_settings',{select:'value',key:'eq.newsroom_draft_destination',limit:1});
+      data=rows?.[0]||null;
+    }
     const stored=typeof data?.value==='string'?data.value:(data?.value?.destination||'');
     draftDestination=stored==='articles'?'articles':'category_card_manager';
     $('draftDestination').value=draftDestination;
@@ -334,8 +358,12 @@ img,video,iframe{max-width:100%}
   async function refresh() { await loadCategories(); await Promise.all([loadSources(), loadCandidates()]); }
 
   async function loadCategories() {
-    const { data, error } = await client.from('categories').select('id,name,slug').order('name');
-    if (error) { message('Could not load categories: ' + error.message, 'error'); return; }
+    const result = await client.from('categories').select('id,name,slug').order('name');
+    let data = result.data;
+    if (result.error) {
+      try { data = await readWithTimeoutFallback(result, 'categories', { select: 'id,name,slug', order: 'name.asc' }); }
+      catch (error) { message('Could not load categories: ' + error.message, 'error'); return; }
+    }
     categories = data || [];
     const sel = $('sourceCategory'), old = sel.value;
     sel.innerHTML = '<option value="">No default category</option>' + categories.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
@@ -343,9 +371,12 @@ img,video,iframe{max-width:100%}
   }
 
   async function loadSources() {
-    const { data, error } = await client.from('newsroom_sources').select('id,name,feed_url,category_id,enabled').order('name');
-    const body = $('sourceRows');
-    if (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run supabase/newsroom-automation-phase2.sql first.</td></tr>`; return; }
+    const result = await client.from('newsroom_sources').select('id,name,feed_url,category_id,enabled').order('name');
+    const body = $('sourceRows'); let data = result.data;
+    if (result.error) {
+      try { data = await readWithTimeoutFallback(result, 'newsroom_sources', { select: 'id,name,feed_url,category_id,enabled', order: 'name.asc' }); }
+      catch (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run supabase/newsroom-automation-phase2.sql first.</td></tr>`; return; }
+    }
     if (!data?.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No feed sources yet. Add one above.</td></tr>'; return; }
     body.innerHTML = data.map(s => `<tr><td><strong>${esc(s.name)}</strong></td><td class="feed-url"><a href="${esc(s.feed_url)}" target="_blank" rel="noopener" style="color:#b7e4c7">${esc(s.feed_url)}</a></td><td>${esc(categoryName(s.category_id))}</td><td><span class="pill">${s.enabled ? 'Enabled' : 'Disabled'}</span></td><td><div class="actions"><button class="secondary" data-toggle="${s.id}" data-enabled="${s.enabled}">${s.enabled ? 'Disable' : 'Enable'}</button><button data-delete="${s.id}">Delete</button></div></td></tr>`).join('');
     body.querySelectorAll('[data-toggle]').forEach(b => { b.onclick = async () => { const { error } = await client.from('newsroom_sources').update({ enabled: b.dataset.enabled !== 'true', updated_at: new Date().toISOString() }).eq('id', b.dataset.toggle); if (error) message(error.message, 'error'); else await loadSources(); }; });
@@ -353,9 +384,13 @@ img,video,iframe{max-width:100%}
   }
 
   async function loadCandidates() {
-    const { data, error } = await client.from('newsroom_candidates').select('id,source_name,source_url,source_title,source_summary,source_published_at,category_id,status,linked_post_id,review_destination,error_message,discovered_at').order('discovered_at', { ascending: false }).limit(100);
-    const body = $('candidateRows');
-    if (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run newsroom-automation-phase2.sql and the updated category-card-assignment-manager.sql migrations.</td></tr>`; return; }
+    const candidateColumns='id,source_name,source_url,source_title,source_summary,source_published_at,category_id,status,linked_post_id,review_destination,error_message,discovered_at';
+    const result = await client.from('newsroom_candidates').select(candidateColumns).order('discovered_at', { ascending: false }).limit(60);
+    const body = $('candidateRows'); let data = result.data;
+    if (result.error) {
+      try { data = await readWithTimeoutFallback(result, 'newsroom_candidates', { select: candidateColumns, order: 'discovered_at.desc', limit: 60 }); }
+      catch (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run newsroom-automation-phase2.sql and the updated category-card-assignment-manager.sql migrations.</td></tr>`; return; }
+    }
     if (!data?.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No discovered stories yet. Click “Discover new stories”.</td></tr>'; return; }
     body.innerHTML = data.map(c => `<tr>
       <td><strong>${esc(c.source_title)}</strong><p class="muted small">${esc((c.source_summary || '').slice(0, 220))}</p><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="color:#b7e4c7">Open source ↗</a>${c.error_message ? `<p style="color:#ffb5b5" class="small">${esc(c.error_message)}</p>` : ''}</td>
@@ -396,7 +431,7 @@ img,video,iframe{max-width:100%}
       // Some mobile browsers surface a generic SDK transport error. Retry the
       // same authenticated request directly so Supabase can return its real
       // HTTP/function error instead of the unhelpful network message.
-      if (/failed to send a request|fetch failed|networkerror|load failed/i.test(detail)) {
+      if (/failed to send a request|fetch failed|networkerror|load failed|signal timed out|timed out|timeout|abort/i.test(detail)) {
         try {
           const { data: sessionData } = await client.auth.getSession();
           const token = sessionData?.session?.access_token;

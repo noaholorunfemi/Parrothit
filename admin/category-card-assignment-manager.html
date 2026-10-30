@@ -117,27 +117,128 @@ async function initializeAdminSession(){
  startIdleTimeout(client,session.user.id);
  return true;
 }
+async function directRestGet(table,params){
+ const {data:sessionData,error:sessionError}=await client.auth.getSession();
+ if(sessionError)throw sessionError;
+ const token=sessionData?.session?.access_token;
+ if(!token)throw new Error('Your administrator session has expired. Sign in again.');
+ const endpoint=new URL('/rest/v1/'+encodeURIComponent(table),String(window.PARROTHIT_SUPABASE_URL));
+ Object.entries(params||{}).forEach(([key,value])=>endpoint.searchParams.set(key,String(value)));
+ const response=await fetch(endpoint.toString(),{method:'GET',headers:{'Accept':'application/json','apikey':window.PARROTHIT_SUPABASE_ANON_KEY,'Authorization':'Bearer '+token}});
+ const raw=await response.text();let payload=[];try{payload=raw?JSON.parse(raw):[]}catch{payload=[];}
+ if(!response.ok)throw new Error(payload?.message||payload?.details||raw||('Supabase REST returned HTTP '+response.status));
+ return payload;
+}
+async function fetchFullPost(postId){
+ const columns='id,title,slug,summary,body,image_url,category_id,status,published_at,source_url,source_name,created_at,updated_at';
+ const {data,error}=await client.from('posts').select(columns).eq('id',postId).maybeSingle();
+ if(!error)return data;
+ if(!/signal timed out|timed out|timeout|abort/i.test(error.message||''))throw error;
+ const rows=await directRestGet('posts',{select:columns,id:'eq.'+postId,limit:1});
+ return rows?.[0]||null;
+}
+async function fetchMetadataInBatches(table,columns,ids){
+ const found=[];
+ for(let i=0;i<ids.length;i+=35){
+  const batch=ids.slice(i,i+35);
+  const {data,error}=await client.from(table).select(columns).in('id',batch);
+  if(!error){found.push(...(data||[]));continue;}
+  if(!/signal timed out|timed out|timeout|abort/i.test(error.message||''))throw error;
+  const rows=await directRestGet(table,{select:columns,id:'in.('+batch.join(',')+')',limit:35});
+  found.push(...(rows||[]));
+ }
+ return found;
+}
 function startIdleTimeout(authClient,userId){if(!authClient||!userId||window.PARROTHIT_LOCAL_PREVIEW||window.__PARROTHIT_IDLE_TIMER_STARTED__)return;window.__PARROTHIT_IDLE_TIMER_STARTED__=true;const limit=5*60*1000,key='parrothit-admin-last-activity-v1:'+String(userId);let last=Date.now(),lastWrite=0,loggingOut=false;const read=()=>{try{const n=Number(localStorage.getItem(key));return Number.isFinite(n)&&n>0?n:0;}catch(_){return 0;}};const write=n=>{try{localStorage.setItem(key,String(n));}catch(_){}};write(last);const expire=async()=>{if(loggingOut)return;loggingOut=true;try{await authClient.auth.signOut();}catch(_){}location.replace('login.html?reason=idle-timeout');};const check=()=>{last=Math.max(last,read());if(Date.now()-last>=limit)expire();};const activity=()=>{if(loggingOut)return;last=Date.now();if(last-lastWrite>800){lastWrite=last;write(last);}};['pointerdown','keydown','touchstart','click','input','change','scroll'].forEach(type=>window.addEventListener(type,activity,{passive:true,capture:true}));let lastMove=0;window.addEventListener('mousemove',()=>{const now=Date.now();if(now-lastMove>5000){lastMove=now;activity();}},{passive:true});window.addEventListener('storage',e=>{if(e.key===key&&e.newValue)last=Math.max(last,Number(e.newValue)||0);});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});window.setInterval(check,1000);}
 function renderCounts(){const total=s=>queue.filter(q=>q.review_status===s).length;$('countReview').textContent=total('in_review');$('countChanges').textContent=total('changes_required');$('countApproved').textContent=total('approved');$('countPublished').textContent=total('published');}
-function renderQueue(){const filter=$('queueFilter').value;let rows=queue.slice();if(filter==='active')rows=rows.filter(q=>['in_review','changes_required','approved'].includes(q.review_status));else if(filter!=='all')rows=rows.filter(q=>q.review_status===filter);const body=$('queueRows');if(!rows.length){body.innerHTML='<tr><td colspan="5" class="empty">No unpublished articles are waiting in this review queue. In Newsroom Automation, select Category Card 1–6 as the draft destination before creating a draft.</td></tr>';return;}body.innerHTML=rows.map(q=>{const p=postsById[q.post_id]||{},c=candidatesById[q.candidate_id]||{};const cat=categories.find(x=>x.id===p.category_id);const canDelete=q.review_status!=='published'&&p.status!=='published';return `<tr><td><strong>${esc(p.title||c.source_title||'Untitled article')}</strong><div class="muted small">${esc((p.summary||c.source_summary||'').slice(0,150))}</div></td><td>${esc(p.source_name||c.source_name||'Unknown source')}<br><span class="muted small">${esc(cat?.name||'Uncategorised')}</span></td><td><span class="pill ${esc(q.review_status)}">${esc(statusLabel(q.review_status))}</span></td><td>${q.submitted_at?esc(new Date(q.submitted_at).toLocaleString()):'—'}</td><td><div class="actions"><button type="button" class="secondary" data-open="${esc(q.id)}">${q.review_status==='published'?'View record':'Open review'}</button>${canDelete?`<button type="button" class="red" data-delete-draft="${esc(q.id)}">Delete draft</button>`:''}</div></td></tr>`;}).join('');body.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>openItem(b.dataset.open)));body.querySelectorAll('[data-delete-draft]').forEach(b=>b.addEventListener('click',()=>deleteQueueDraft(b.dataset.deleteDraft,b)));}
+function renderQueue(){const filter=$('queueFilter').value;let rows=queue.slice();if(filter==='active')rows=rows.filter(q=>['in_review','changes_required','approved'].includes(q.review_status));else if(filter!=='all')rows=rows.filter(q=>q.review_status===filter);const body=$('queueRows');if(!rows.length){body.innerHTML='<tr><td colspan="5" class="empty">No unpublished articles are waiting in this review queue. In Newsroom Automation, select Category Card 1–6 as the draft destination before creating a draft.</td></tr>';return;}body.innerHTML=rows.map(q=>{const p=postsById[q.post_id]||{},c=candidatesById[q.candidate_id]||{};const cat=categories.find(x=>x.id===p.category_id);const canDelete=q.review_status!=='published'&&p.status!=='published';return `<tr><td><strong>${esc(p.title||c.source_title||'Untitled article')}</strong><div class="muted small">${esc((p.summary||c.source_summary||'').slice(0,150))}</div></td><td>${esc(p.source_name||c.source_name||'Unknown source')}<br><span class="muted small">${esc(cat?.name||'Uncategorised')}</span></td><td><span class="pill ${esc(q.review_status)}">${esc(statusLabel(q.review_status))}</span></td><td>${q.submitted_at?esc(new Date(q.submitted_at).toLocaleString()):'—'}</td><td><div class="actions"><button type="button" class="secondary" data-open="${esc(q.id)}">${q.review_status==='published'?'View record':'Open review'}</button>${canDelete?`<button type="button" class="red" data-delete-draft="${esc(q.id)}">Delete draft</button>`:''}</div></td></tr>`;}).join('');body.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await openItem(b.dataset.open);}catch(err){const raw=err?.message||String(err);message(/signal timed out|timed out|timeout|abort/i.test(raw)?'Supabase took too long to load this article. Retry opening it; the page will retry large article reads directly.':raw,'error');}finally{b.disabled=false;}}));body.querySelectorAll('[data-delete-draft]').forEach(b=>b.addEventListener('click',()=>deleteQueueDraft(b.dataset.deleteDraft,b)));}
 async function loadQueue(){
- $('queueRows').innerHTML='<tr><td colspan="5" class="empty">Loading review queue…</td></tr>';
- // Repair older drafts that were linked to a candidate before the Edge Function
- // explicitly inserted the queue row. Never backfill an Article Editor draft.
- const legacy=await client.from('newsroom_candidates').select('id,linked_post_id').eq('review_destination','category_card_manager').eq('status','in_review').not('linked_post_id','is',null).limit(1000);
- if(legacy.error)throw legacy.error;
- if((legacy.data||[]).length){const existing=await client.from('category_card_review_queue').select('candidate_id').in('candidate_id',legacy.data.map(x=>x.id));if(existing.error)throw existing.error;const queued=new Set((existing.data||[]).map(x=>x.candidate_id));const missing=legacy.data.filter(x=>!queued.has(x.id));if(missing.length){const repaired=await client.from('category_card_review_queue').upsert(missing.map(x=>({candidate_id:x.id,post_id:x.linked_post_id,review_status:'in_review'})),{onConflict:'candidate_id',ignoreDuplicates:true});if(repaired.error)throw new Error('Could not recover previously drafted manager items: '+repaired.error.message);}}
- const qres=await client.from('category_card_review_queue').select('id,candidate_id,post_id,review_status,review_notes,submitted_at,reviewed_by,reviewed_at,assigned_category_id,assigned_category_key,assigned_card,assigned_at,published_at').order('submitted_at',{ascending:false}).limit(500);
- if(qres.error){$('queueRows').innerHTML=`<tr><td colspan="5" class="empty">${esc(qres.error.message)}. Run supabase/category-card-assignment-manager.sql in Supabase SQL Editor.</td></tr>`;return;}
- queue=qres.data||[];const postIds=[...new Set(queue.map(x=>x.post_id).filter(Boolean))],candidateIds=[...new Set(queue.map(x=>x.candidate_id).filter(Boolean))];postsById={};candidatesById={};
- if(postIds.length){const r=await client.from('posts').select('id,title,slug,summary,body,image_url,category_id,status,published_at,source_url,source_name,created_at').in('id',postIds);if(r.error)throw r.error;(r.data||[]).forEach(p=>postsById[p.id]=p);}
- if(candidateIds.length){const r=await client.from('newsroom_candidates').select('id,source_title,source_summary,source_url,source_name,source_published_at').in('id',candidateIds);if(r.error)throw r.error;(r.data||[]).forEach(c=>candidatesById[c.id]=c);}
+ $('queueRows').innerHTML='<tr><td colspan="5" class="empty">Loading recent review drafts…</td></tr>';
+ // Fetch only the latest queue records first. Full article bodies are fetched only
+ // when an administrator opens one item, preventing large mobile requests/timeouts.
+ const queueColumns='id,candidate_id,post_id,review_status,review_notes,submitted_at,reviewed_by,reviewed_at,assigned_category_id,assigned_category_key,assigned_card,assigned_at,published_at';
+ let qres=await client.from('category_card_review_queue').select(queueColumns).order('submitted_at',{ascending:false}).limit(100);
+ if(qres.error){
+  if(!/signal timed out|timed out|timeout|abort/i.test(qres.error.message||''))throw qres.error;
+  qres={data:await directRestGet('category_card_review_queue',{select:queueColumns,order:'submitted_at.desc',limit:100}),error:null};
+ }
+ // Older projects may have linked candidates that pre-date the queue trigger.
+ // Repair a small batch only when the queue is empty, rather than scanning 1,000
+ // candidates every time this page opens.
+ if(!(qres.data||[]).length){
+  const legacyResult=await client.from('newsroom_candidates').select('id,linked_post_id')
+   .eq('review_destination','category_card_manager').eq('status','in_review')
+   .not('linked_post_id','is',null).order('updated_at',{ascending:false}).limit(40);
+  let legacyRows=legacyResult.data||[];
+  if(legacyResult.error){
+   if(!/signal timed out|timed out|timeout|abort/i.test(legacyResult.error.message||''))throw legacyResult.error;
+   legacyRows=await directRestGet('newsroom_candidates',{select:'id,linked_post_id',review_destination:'eq.category_card_manager',status:'eq.in_review',linked_post_id:'not.is.null',order:'updated_at.desc',limit:40});
+  }
+  if(legacyRows.length){
+   const repaired=await client.from('category_card_review_queue').upsert(
+    legacyRows.map(x=>({candidate_id:x.id,post_id:x.linked_post_id,review_status:'in_review'})),
+    {onConflict:'candidate_id',ignoreDuplicates:true}
+   );
+   if(repaired.error)throw new Error('Could not restore older Category Card drafts. Run supabase/newsroom-access-timeout-repair.sql. '+repaired.error.message);
+   qres=await client.from('category_card_review_queue')
+    .select('id,candidate_id,post_id,review_status,review_notes,submitted_at,reviewed_by,reviewed_at,assigned_category_id,assigned_category_key,assigned_card,assigned_at,published_at')
+    .order('submitted_at',{ascending:false}).limit(100);
+   if(qres.error)throw qres.error;
+  }
+ }
+ queue=qres.data||[];
+ const postIds=[...new Set(queue.map(x=>x.post_id).filter(Boolean))];
+ const candidateIds=[...new Set(queue.map(x=>x.candidate_id).filter(Boolean))];
+ postsById={};candidatesById={};
+ if(postIds.length){
+  const rows=await fetchMetadataInBatches('posts','id,title,slug,summary,image_url,category_id,status,published_at,source_url,source_name,created_at,updated_at',postIds);
+  rows.forEach(p=>postsById[p.id]={...p,body:'',__detailsLoaded:false});
+ }
+ if(candidateIds.length){
+  const rows=await fetchMetadataInBatches('newsroom_candidates','id,source_title,source_summary,source_url,source_name,source_published_at',candidateIds);
+  rows.forEach(c=>candidatesById[c.id]=c);
+ }
  renderCounts();renderQueue();
- const wanted=new URLSearchParams(location.search).get('post');if(wanted){const row=queue.find(x=>x.post_id===wanted);if(row)await openItem(row.id);else message('This newsroom article is not in the review queue. Confirm its review destination and refresh Newsroom Automation.', 'error');}
+ const wanted=new URLSearchParams(location.search).get('post');
+ if(wanted){const row=queue.find(x=>x.post_id===wanted);if(row)await openItem(row.id);else message('This newsroom article is not in the review queue. Check its saved draft destination and refresh.', 'error');}
 }
-async function loadCategories(){const r=await client.from('categories').select('id,name,slug').order('name');if(r.error)throw r.error;categories=r.data||[];$('assignCategory').innerHTML=categories.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} — ${esc(categoryRoute(c).path)}</option>`).join('');renderCategoryRoutes();}
-async function loadCardSettings(){const [s,a]=await Promise.all([client.from('site_settings').select('value').eq('key','category_cards').maybeSingle(),client.from('category_card_assignments').select('category_key,category_id,card_position,post_id')]);if(s.error)throw s.error;if(a.error)throw a.error;cardSettings=s.data?.value&&typeof s.data.value==='object'&&!Array.isArray(s.data.value)?s.data.value:{};assignmentRows=a.data||[];renderCategoryRoutes();}
-async function openItem(id){current=queue.find(x=>x.id===id);if(!current)return;const p=postsById[current.post_id]||{},c=candidatesById[current.candidate_id]||{};$('reviewPanel').hidden=false;$('reviewTitle').value=p.title||c.source_title||'';$('reviewSummary').value=p.summary||c.source_summary||'';$('reviewBody').value=p.body||'';$('reviewImageUrl').value=p.image_url||'';$('reviewSourceName').value=p.source_name||c.source_name||'';$('reviewSourceUrl').value=p.source_url||c.source_url||'';$('reviewNotes').value=current.review_notes||'';$('reviewStatus').textContent=statusLabel(current.review_status);$('reviewStatus').className='pill '+current.review_status;$('reviewMeta').textContent='Source: '+(p.source_name||c.source_name||'Unknown')+' · Candidate date: '+(c.source_published_at?new Date(c.source_published_at).toLocaleString():'not supplied')+' · Article ID: '+current.post_id;$('sourceDetails').textContent=(p.source_name||c.source_name||'Unknown publisher')+' · '+(p.source_url||c.source_url||'No source URL supplied');const src=p.source_url||c.source_url||'';$('openSource').hidden=!src;$('openSource').href=src||'#';await previewImage(p.image_url||'');$('assignmentPanel').hidden=current.review_status!=='approved';if(current.review_status==='approved'){$('assignCategory').value=current.assigned_category_id||p.category_id||categories[0]?.id||'';$('assignPosition').value=String(current.assigned_card||1);await refreshSlotPreview();}else{$('slotPreview').textContent='Approve the article before selecting its card.';}window.scrollTo({top:$('reviewPanel').offsetTop-10,behavior:'smooth'});}
+
+async function loadCategories(){const r=await client.from('categories').select('id,name,slug').order('name');let rows=r.data;if(r.error){if(!/signal timed out|timed out|timeout|abort/i.test(r.error.message||''))throw r.error;rows=await directRestGet('categories',{select:'id,name,slug',order:'name.asc'});}categories=rows||[];$('assignCategory').innerHTML=categories.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} — ${esc(categoryRoute(c).path)}</option>`).join('');renderCategoryRoutes();}
+async function loadCardSettings(){const [s,a]=await Promise.all([client.from('site_settings').select('value').eq('key','category_cards').maybeSingle(),client.from('category_card_assignments').select('category_key,category_id,card_position,post_id')]);let setting=s.data,assignments=a.data;if(s.error){if(!/signal timed out|timed out|timeout|abort/i.test(s.error.message||''))throw s.error;const rows=await directRestGet('site_settings',{select:'value',key:'eq.category_cards',limit:1});setting=rows?.[0]||null;}if(a.error){if(!/signal timed out|timed out|timeout|abort/i.test(a.error.message||''))throw a.error;assignments=await directRestGet('category_card_assignments',{select:'category_key,category_id,card_position,post_id'});}cardSettings=setting?.value&&typeof setting.value==='object'&&!Array.isArray(setting.value)?setting.value:{};assignmentRows=assignments||[];renderCategoryRoutes();}
+async function openItem(id){
+ current=queue.find(x=>x.id===id);if(!current)return;
+ let p=postsById[current.post_id]||{},c=candidatesById[current.candidate_id]||{};
+ if(!p.__detailsLoaded){
+  const detail=await fetchFullPost(current.post_id);
+  if(!detail)throw new Error('The linked draft no longer exists in the posts table.');
+  p={...detail,__detailsLoaded:true};postsById[current.post_id]=p;
+ }
+ if(!c.source_title){
+  const r=await client.from('newsroom_candidates').select('id,source_title,source_summary,source_url,source_name,source_published_at').eq('id',current.candidate_id).maybeSingle();
+  let candidate=r.data;
+  if(r.error){if(!/signal timed out|timed out|timeout|abort/i.test(r.error.message||''))throw r.error;const rows=await directRestGet('newsroom_candidates',{select:'id,source_title,source_summary,source_url,source_name,source_published_at',id:'eq.'+current.candidate_id,limit:1});candidate=rows?.[0]||null;}
+  if(candidate){c=candidate;candidatesById[current.candidate_id]=c;}
+ }
+ $('reviewPanel').hidden=false;
+ $('reviewTitle').value=p.title||c.source_title||'';
+ $('reviewSummary').value=p.summary||c.source_summary||'';
+ $('reviewBody').value=p.body||'';
+ $('reviewImageUrl').value=p.image_url||'';
+ $('reviewSourceName').value=p.source_name||c.source_name||'';
+ $('reviewSourceUrl').value=p.source_url||c.source_url||'';
+ $('reviewNotes').value=current.review_notes||'';
+ $('reviewStatus').textContent=statusLabel(current.review_status);
+ $('reviewStatus').className='pill '+current.review_status;
+ $('reviewMeta').textContent='Source: '+(p.source_name||c.source_name||'Unknown')+' · Candidate date: '+(c.source_published_at?new Date(c.source_published_at).toLocaleString():'not supplied')+' · Article ID: '+current.post_id;
+ $('sourceDetails').textContent=(p.source_name||c.source_name||'Unknown publisher')+' · '+(p.source_url||c.source_url||'No source URL supplied');
+ const src=p.source_url||c.source_url||'';$('openSource').hidden=!src;$('openSource').href=src||'#';
+ await previewImage(p.image_url||'');
+ $('assignmentPanel').hidden=current.review_status!=='approved';
+ if(current.review_status==='approved'){$('assignCategory').value=current.assigned_category_id||p.category_id||categories[0]?.id||'';$('assignPosition').value=String(current.assigned_card||1);await refreshSlotPreview();}
+ else{$('slotPreview').textContent='Approve the article before selecting its card.';}
+ window.scrollTo({top:$('reviewPanel').offsetTop-10,behavior:'smooth'});
+}
+
 async function previewImage(src){const im=$('reviewImagePreview');if(!src){im.hidden=true;im.removeAttribute('src');return;}im.src=src;im.hidden=false;im.onerror=()=>{im.hidden=true;};}
 $('reviewImageUrl').addEventListener('input',()=>previewImage($('reviewImageUrl').value.trim()));
 $('reviewImageFile').addEventListener('change',async()=>{const f=$('reviewImageFile').files?.[0];if(!f)return;if(!f.type.startsWith('image/')){message('Choose an image file.','error');$('reviewImageFile').value='';return;}if(f.size>50*1024*1024){message('Image exceeds 50 MB. Resize it and try again.','error');$('reviewImageFile').value='';return;}try{const clean=(f.name||'image').normalize('NFKD').replace(/[^a-zA-Z0-9._-]+/g,'-').slice(-80);const path='newsroom-card-review/'+Date.now()+'-'+(crypto.randomUUID?crypto.randomUUID():'upload')+'-'+clean;const up=await client.storage.from('parrothit-media').upload(path,f,{cacheControl:'3600',upsert:false,contentType:f.type});if(up.error)throw up.error;const pub=client.storage.from('parrothit-media').getPublicUrl(up.data.path);$('reviewImageUrl').value=pub.data.publicUrl;await previewImage(pub.data.publicUrl);message('Featured image uploaded. Save or approve the review to retain the URL.');}catch(e){message('Image upload failed: '+(e.message||String(e))+' You can paste a public image URL instead.','error');}});
@@ -156,9 +257,9 @@ async function refreshSlotPreview(){const cat=currentCategory();if(!cat){$('cate
 async function publishCard(){if(!current||current.review_status!=='approved')throw new Error('Approve the article before assigning a category card.');const cat=currentCategory();if(!cat)throw new Error('Choose a category.');const pos=Number($('assignPosition').value);if(!Number.isInteger(pos)||pos<1||pos>6)throw new Error('Choose a card position from 1 to 6.');const key=pageKeyForCategory(cat);const record=currentCardRecord();const assignment=assignmentRows.find(a=>a.category_key===key&&Number(a.card_position)===pos);const existingPostId=record?.postId||record?.newsroomPostId||assignment?.post_id||'';let confirmReplace=false;if((record||assignment)&&existingPostId!==current.post_id){const oldTitle=record?.title||postsById[existingPostId]?.title||'the existing article';if(!confirm(`${cat.name} Card ${pos} already contains “${oldTitle}”.
 
 Choose OK to REPLACE this card with the approved article. The old article will remain published but will no longer occupy this card. Choose Cancel to keep the existing card unchanged.`))return;confirmReplace=true;}const {data,error}=await client.rpc('publish_category_card_assignment',{p_queue_id:current.id,p_category_id:cat.id,p_category_key:key,p_card_position:pos,p_confirm_replace:confirmReplace});if(error)throw error;message(`${cat.name} News Card ${pos} is now published. The public category page will display the reviewed article.`);await loadCardSettings();await loadQueue();const q=queue.find(x=>x.id===current.id);if(q)await openItem(q.id);}
-async function withButton(id,fn){const b=$(id);b.disabled=true;try{await fn();}catch(e){message(e.message||String(e),'error');}finally{b.disabled=false;}}
+async function withButton(id,fn){const b=$(id);b.disabled=true;try{await fn();}catch(e){const raw=e?.message||String(e);const friendly=/signal timed out|timed out|timeout|abort/i.test(raw)?'Supabase took too long to respond. The page now loads smaller batches; tap Refresh to retry.':raw;message(friendly,'error');}finally{b.disabled=false;}}
 $('saveEditsBtn').addEventListener('click',()=>withButton('saveEditsBtn',saveEdits));$('approveBtn').addEventListener('click',()=>withButton('approveBtn',approve));$('requestChangesBtn').addEventListener('click',()=>withButton('requestChangesBtn',requestChanges));$('rejectBtn').addEventListener('click',()=>withButton('rejectBtn',reject));$('publishCardBtn').addEventListener('click',()=>withButton('publishCardBtn',publishCard));$('assignCategory').addEventListener('change',refreshSlotPreview);$('assignPosition').addEventListener('change',refreshSlotPreview);$('reloadQueue').addEventListener('click',()=>withButton('reloadQueue',async()=>{await loadQueue();await loadCardSettings();message('Review queue refreshed.');}));$('refreshBtn').addEventListener('click',()=>withButton('refreshBtn',async()=>{await loadQueue();await loadCardSettings();message('Manager refreshed.');}));$('queueFilter').addEventListener('change',renderQueue);$('clearAllDraftsBtn').addEventListener('click',clearAllManagerDrafts);
-(async()=>{try{const ready=await initializeAdminSession();if(!ready)return;await loadCategories();await loadCardSettings();await loadQueue();}catch(e){revealPage();message(e.message||String(e),'error');$('queueRows').innerHTML=`<tr><td colspan="5" class="empty">${esc(e.message||String(e))}</td></tr>`;$('categoryRouteRows').innerHTML=`<tr><td colspan="8" class="empty">${esc(e.message||String(e))}</td></tr>`;}})();
+(async()=>{try{const ready=await initializeAdminSession();if(!ready)return;await loadCategories();await loadCardSettings();await loadQueue();}catch(e){revealPage();const raw=e?.message||String(e);const friendly=/signal timed out|timed out|timeout|abort/i.test(raw)?'Supabase took too long to load the review queue. Tap Refresh to retry.':raw;message(friendly,'error');$('queueRows').innerHTML=`<tr><td colspan="5" class="empty">${esc(friendly)}</td></tr>`;$('categoryRouteRows').innerHTML=`<tr><td colspan="8" class="empty">${esc(e.message||String(e))}</td></tr>`;}})();
 })();
 </script>
 </body>
