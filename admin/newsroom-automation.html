@@ -380,7 +380,9 @@ img,video,iframe{max-width:100%}
     body.querySelectorAll('[data-reject]').forEach(b => { b.onclick = async () => { if (!confirm('Reject this candidate?')) return; const { error } = await client.from('newsroom_candidates').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', b.dataset.reject); if (error) message(error.message, 'error'); else await loadCandidates(); }; });
   }
   async function invoke(action, extra = {}) {
-    const { data, error } = await client.functions.invoke('parrothit-newsroom-automation', { body: { action, ...extra } });
+    const body = { action, ...extra };
+    const result = await client.functions.invoke('parrothit-newsroom-automation', { body });
+    let { data, error } = result;
     if (error) {
       let detail = error.message || 'Edge Function request failed';
       try {
@@ -391,8 +393,27 @@ img,video,iframe{max-width:100%}
           console.error('PARROTHIT Newsroom Function HTTP status:', response.status);
         }
       } catch (readError) { console.warn('Could not read the Edge Function error response:', readError); }
-      console.error('PARROTHIT Newsroom error:', error);
-      throw new Error(detail);
+      // Some mobile browsers surface a generic SDK transport error. Retry the
+      // same authenticated request directly so Supabase can return its real
+      // HTTP/function error instead of the unhelpful network message.
+      if (/failed to send a request|fetch failed|networkerror|load failed/i.test(detail)) {
+        try {
+          const { data: sessionData } = await client.auth.getSession();
+          const token = sessionData?.session?.access_token;
+          if (!token) throw new Error('Your admin session has expired. Sign in again.');
+          const response = await fetch(`${String(window.PARROTHIT_SUPABASE_URL).replace(/\/$/, '')}/functions/v1/parrothit-newsroom-automation`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'apikey': window.PARROTHIT_SUPABASE_ANON_KEY }, body: JSON.stringify(body)
+          });
+          const raw = await response.text();
+          let payload = {}; try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { error: raw }; }
+          if (!response.ok || payload.error) throw new Error(payload.error || payload.message || `Newsroom Edge Function returned HTTP ${response.status}.`);
+          data = payload; error = null;
+        } catch (retryError) {
+          detail = retryError.message || detail;
+          if (/404|not found|failed to send|network|load failed/i.test(detail)) detail += ' — Confirm that supabase/functions/parrothit-newsroom-automation is deployed to this Supabase project. A ZIP update alone cannot deploy an Edge Function.';
+        }
+      }
+      if (error) { console.error('PARROTHIT Newsroom error:', error); throw new Error(detail); }
     }
     if (data?.error) throw new Error(data.error);
     return data;
