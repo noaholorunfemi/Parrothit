@@ -151,42 +151,40 @@ async function fetchMetadataInBatches(table,columns,ids){
 }
 function startIdleTimeout(authClient,userId){if(!authClient||!userId||window.PARROTHIT_LOCAL_PREVIEW||window.__PARROTHIT_IDLE_TIMER_STARTED__)return;window.__PARROTHIT_IDLE_TIMER_STARTED__=true;const limit=5*60*1000,key='parrothit-admin-last-activity-v1:'+String(userId);let last=Date.now(),lastWrite=0,loggingOut=false;const read=()=>{try{const n=Number(localStorage.getItem(key));return Number.isFinite(n)&&n>0?n:0;}catch(_){return 0;}};const write=n=>{try{localStorage.setItem(key,String(n));}catch(_){}};write(last);const expire=async()=>{if(loggingOut)return;loggingOut=true;try{await authClient.auth.signOut();}catch(_){}location.replace('login.html?reason=idle-timeout');};const check=()=>{last=Math.max(last,read());if(Date.now()-last>=limit)expire();};const activity=()=>{if(loggingOut)return;last=Date.now();if(last-lastWrite>800){lastWrite=last;write(last);}};['pointerdown','keydown','touchstart','click','input','change','scroll'].forEach(type=>window.addEventListener(type,activity,{passive:true,capture:true}));let lastMove=0;window.addEventListener('mousemove',()=>{const now=Date.now();if(now-lastMove>5000){lastMove=now;activity();}},{passive:true});window.addEventListener('storage',e=>{if(e.key===key&&e.newValue)last=Math.max(last,Number(e.newValue)||0);});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')check();});window.setInterval(check,1000);}
 function renderCounts(){const total=s=>queue.filter(q=>q.review_status===s).length;$('countReview').textContent=total('in_review');$('countChanges').textContent=total('changes_required');$('countApproved').textContent=total('approved');$('countPublished').textContent=total('published');}
-function renderQueue(){const filter=$('queueFilter').value;let rows=queue.slice();if(filter==='active')rows=rows.filter(q=>['in_review','changes_required','approved'].includes(q.review_status));else if(filter!=='all')rows=rows.filter(q=>q.review_status===filter);const body=$('queueRows');if(!rows.length){body.innerHTML='<tr><td colspan="5" class="empty">No unpublished articles are waiting in this review queue. In Newsroom Automation, select Category Card 1–6 as the draft destination before creating a draft.</td></tr>';return;}body.innerHTML=rows.map(q=>{const p=postsById[q.post_id]||{},c=candidatesById[q.candidate_id]||{};const cat=categories.find(x=>x.id===p.category_id);const canDelete=q.review_status!=='published'&&p.status!=='published';return `<tr><td><strong>${esc(p.title||c.source_title||'Untitled article')}</strong><div class="muted small">${esc((p.summary||c.source_summary||'').slice(0,150))}</div></td><td>${esc(p.source_name||c.source_name||'Unknown source')}<br><span class="muted small">${esc(cat?.name||'Uncategorised')}</span></td><td><span class="pill ${esc(q.review_status)}">${esc(statusLabel(q.review_status))}</span></td><td>${q.submitted_at?esc(new Date(q.submitted_at).toLocaleString()):'—'}</td><td><div class="actions"><button type="button" class="secondary" data-open="${esc(q.id)}">${q.review_status==='published'?'View record':'Open review'}</button>${canDelete?`<button type="button" class="red" data-delete-draft="${esc(q.id)}">Delete draft</button>`:''}</div></td></tr>`;}).join('');body.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await openItem(b.dataset.open);}catch(err){const raw=err?.message||String(err);message(/signal timed out|timed out|timeout|abort/i.test(raw)?'Supabase took too long to load this article. Retry opening it; the page will retry large article reads directly.':raw,'error');}finally{b.disabled=false;}}));body.querySelectorAll('[data-delete-draft]').forEach(b=>b.addEventListener('click',()=>deleteQueueDraft(b.dataset.deleteDraft,b)));}
+function renderQueue(){const filter=$('queueFilter').value;let rows=queue.slice();if(filter==='active')rows=rows.filter(q=>['in_review','changes_required','approved'].includes(q.review_status));else if(filter!=='all')rows=rows.filter(q=>q.review_status===filter);const body=$('queueRows');if(!rows.length){body.innerHTML='<tr><td colspan="5" class="empty">No unpublished articles are waiting in this review queue. Confirm Newsroom Automation is set to Category Card 1–6 before creating new drafts.</td></tr>';return;}body.innerHTML=rows.map(q=>{const p=postsById[q.post_id]||{},c=candidatesById[q.candidate_id]||{};const cat=categories.find(x=>x.id===p.category_id);const canDelete=q.review_status!=='published'&&p.status!=='published';return `<tr><td><strong>${esc(p.title||c.source_title||'Untitled article')}</strong><div class="muted small">${esc((p.summary||c.source_summary||'').slice(0,150))}</div></td><td>${esc(p.source_name||c.source_name||'Unknown source')}<br><span class="muted small">${esc(cat?.name||'Uncategorised')}</span></td><td><span class="pill ${esc(q.review_status)}">${esc(statusLabel(q.review_status))}</span></td><td>${q.submitted_at?esc(new Date(q.submitted_at).toLocaleString()):'—'}</td><td><div class="actions"><button type="button" class="secondary" data-open="${esc(q.id)}">${q.review_status==='published'?'View record':'Open review'}</button>${canDelete?`<button type="button" class="red" data-delete-draft="${esc(q.id)}">Delete draft</button>`:''}</div></td></tr>`;}).join('');body.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await openItem(b.dataset.open);}catch(err){const raw=err?.message||String(err);message(/signal timed out|timed out|timeout|abort/i.test(raw)?'Supabase took too long to load this article. Retry opening it; the page will retry large article reads directly.':raw,'error');}finally{b.disabled=false;}}));body.querySelectorAll('[data-delete-draft]').forEach(b=>b.addEventListener('click',()=>deleteQueueDraft(b.dataset.deleteDraft,b)));}
 async function loadQueue(){
- $('queueRows').innerHTML='<tr><td colspan="5" class="empty">Loading recent review drafts…</td></tr>';
- // Fetch only the latest queue records first. Full article bodies are fetched only
- // when an administrator opens one item, preventing large mobile requests/timeouts.
+ $('queueRows').innerHTML='<tr><td colspan="5" class="empty">Loading and synchronising newsroom review drafts…</td></tr>';
  const queueColumns='id,candidate_id,post_id,review_status,review_notes,submitted_at,reviewed_by,reviewed_at,assigned_category_id,assigned_category_key,assigned_card,assigned_at,published_at';
- let qres=await client.from('category_card_review_queue').select(queueColumns).order('submitted_at',{ascending:false}).limit(100);
- if(qres.error){
-  if(!/signal timed out|timed out|timeout|abort/i.test(qres.error.message||''))throw qres.error;
-  qres={data:await directRestGet('category_card_review_queue',{select:queueColumns,order:'submitted_at.desc',limit:100}),error:null};
- }
- // Older projects may have linked candidates that pre-date the queue trigger.
- // Repair a small batch only when the queue is empty, rather than scanning 1,000
- // candidates every time this page opens.
- if(!(qres.data||[]).length){
-  const legacyResult=await client.from('newsroom_candidates').select('id,linked_post_id')
-   .eq('review_destination','category_card_manager').eq('status','in_review')
-   .not('linked_post_id','is',null).order('updated_at',{ascending:false}).limit(40);
-  let legacyRows=legacyResult.data||[];
-  if(legacyResult.error){
-   if(!/signal timed out|timed out|timeout|abort/i.test(legacyResult.error.message||''))throw legacyResult.error;
-   legacyRows=await directRestGet('newsroom_candidates',{select:'id,linked_post_id',review_destination:'eq.category_card_manager',status:'eq.in_review',linked_post_id:'not.is.null',order:'updated_at.desc',limit:40});
+ const readQueue=async()=>{
+  let result=await client.from('category_card_review_queue').select(queueColumns).order('submitted_at',{ascending:false}).limit(100);
+  if(result.error){
+   if(!/signal timed out|timed out|timeout|abort/i.test(result.error.message||''))throw new Error('Could not read the Category Card review queue. Check that supabase/category-card-assignment-manager.sql has been run and that the admin review-queue policy is active. '+result.error.message);
+   return await directRestGet('category_card_review_queue',{select:queueColumns,order:'submitted_at.desc',limit:100});
   }
-  if(legacyRows.length){
-   const repaired=await client.from('category_card_review_queue').upsert(
-    legacyRows.map(x=>({candidate_id:x.id,post_id:x.linked_post_id,review_status:'in_review'})),
-    {onConflict:'candidate_id',ignoreDuplicates:true}
-   );
-   if(repaired.error)throw new Error('Could not restore older Category Card drafts. Run supabase/newsroom-access-timeout-repair.sql. '+repaired.error.message);
-   qres=await client.from('category_card_review_queue')
-    .select('id,candidate_id,post_id,review_status,review_notes,submitted_at,reviewed_by,reviewed_at,assigned_category_id,assigned_category_key,assigned_card,assigned_at,published_at')
-    .order('submitted_at',{ascending:false}).limit(100);
-   if(qres.error)throw qres.error;
+  return result.data||[];
+ };
+ let queueRows=await readQueue();
+ // Always compare the queue with linked candidates, not only when the queue is
+ // completely empty. This repairs partial/missed trigger inserts as well as older drafts.
+ const candidateColumns='id,linked_post_id,status,review_destination,updated_at';
+ let candidateResult=await client.from('newsroom_candidates').select(candidateColumns)
+  .eq('review_destination','category_card_manager').not('linked_post_id','is',null)
+  .in('status',['in_review','error','drafting']).order('updated_at',{ascending:false}).limit(500);
+ let routedCandidates=candidateResult.data||[];
+ if(candidateResult.error){
+  if(!/signal timed out|timed out|timeout|abort/i.test(candidateResult.error.message||'')){
+   throw new Error('Could not check newsroom drafts routed to the Category Card manager. Confirm that supabase/category-card-assignment-manager.sql has been run (it adds review_destination). '+candidateResult.error.message);
   }
+  routedCandidates=await directRestGet('newsroom_candidates',{select:candidateColumns,review_destination:'eq.category_card_manager',linked_post_id:'not.is.null',status:'in.(in_review,error,drafting)',order:'updated_at.desc',limit:500});
  }
- queue=qres.data||[];
+ const presentCandidates=new Set(queueRows.map(row=>String(row.candidate_id)));
+ const missingRows=routedCandidates.filter(row=>row.linked_post_id&&!presentCandidates.has(String(row.id))).map(row=>({candidate_id:row.id,post_id:row.linked_post_id,review_status:'in_review'}));
+ if(missingRows.length){
+  const repaired=await client.from('category_card_review_queue').upsert(missingRows,{onConflict:'candidate_id',ignoreDuplicates:true});
+  if(repaired.error)throw new Error('Found '+missingRows.length+' newsroom draft(s) missing from the review queue, but could not restore them. Check the Category Card review-queue table permissions and run supabase/category-card-assignment-manager.sql. '+repaired.error.message);
+  queueRows=await readQueue();
+ }
+ queue=queueRows;
  const postIds=[...new Set(queue.map(x=>x.post_id).filter(Boolean))];
  const candidateIds=[...new Set(queue.map(x=>x.candidate_id).filter(Boolean))];
  postsById={};candidatesById={};
@@ -200,7 +198,7 @@ async function loadQueue(){
  }
  renderCounts();renderQueue();
  const wanted=new URLSearchParams(location.search).get('post');
- if(wanted){const row=queue.find(x=>x.post_id===wanted);if(row)await openItem(row.id);else message('This newsroom article is not in the review queue. Check its saved draft destination and refresh.', 'error');}
+ if(wanted){const row=queue.find(x=>x.post_id===wanted);if(row)await openItem(row.id);else message('This newsroom article is not in the Category Card review queue. Refresh the Newsroom Automation destination setting, then run discovery/drafting again. Existing Article Editor drafts are not moved automatically.', 'error');}
 }
 
 async function loadCategories(){const r=await client.from('categories').select('id,name,slug').order('name');let rows=r.data;if(r.error){if(!/signal timed out|timed out|timeout|abort/i.test(r.error.message||''))throw r.error;rows=await directRestGet('categories',{select:'id,name,slug',order:'name.asc'});}categories=rows||[];$('assignCategory').innerHTML=categories.map(c=>`<option value="${esc(c.id)}">${esc(c.name)} — ${esc(categoryRoute(c).path)}</option>`).join('');renderCategoryRoutes();}

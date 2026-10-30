@@ -125,10 +125,30 @@ img,video,iframe{max-width:100%}
   <p class="muted small">If AI credits are exhausted, source-text retrieval remains available. Never place service-role or AI API keys in public files. This page does not configure scheduled publishing.</p>
 </section>
 <section class="panel" id="aiProviderPanel">
-  <div class="section-head"><div><h2>🤖 4. AI provider selection — up to 6 services</h2><p class="muted">Configure up to six OpenAI-compatible Chat Completions APIs in Supabase Edge Function secrets, then choose which configured service to use now. This choice applies to individual AI drafts and the morning category schedule.</p></div><span class="pill" id="aiProviderBadge">Loading providers…</span></div>
-  <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Security:</strong> API keys are not stored in this page or the public website. Add them as Supabase Edge Function secrets using the included <code>NEWSROOM-AI-PROVIDERS-SETUP.txt</code> guide. The page receives only provider name, model, endpoint and configuration status.</div>
+  <div class="section-head"><div><h2>🤖 4. AI service selection — no fixed provider-slot limit</h2><p class="muted">Configure as many OpenAI-compatible Chat Completions services as your Supabase project permits, then choose which configured service to use. This selection applies to individual AI drafts and the morning category schedule.</p></div><span class="pill" id="aiProviderBadge">Loading providers…</span></div>
+  <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Security:</strong> API keys are not stored in this page or the public website. Add them as Supabase Edge Function secrets using the naming guide below. Add a new unique provider ID for every service; API keys are never sent to this page. The page receives only provider name, model, endpoint and configuration status.</div>
   <div class="row"><div class="field" style="flex:2;min-width:260px"><label for="activeAIProvider">Use this AI service for drafting</label><select id="activeAIProvider"><option value="">Checking configured providers…</option></select></div><button type="button" id="saveAIProvider" class="green">Save selected AI service</button><button type="button" id="refreshAIProviders" class="secondary">Refresh provider status</button></div>
-  <div id="aiProviderSlots" class="ai-provider-grid"><p class="muted">Loading AI provider slots…</p></div>
+  <div id="aiProviderSlots" class="ai-provider-grid"><p class="muted">Loading AI provider configurations…</p></div>
+  <details class="provider-setup-help" style="margin:12px 0;padding:12px;border:1px solid #2b6b46;border-radius:9px;background:#0b2116">
+    <summary style="cursor:pointer;font-weight:800;color:#d9ffe5">＋ How to add more AI services (unlimited IDs)</summary>
+    <p class="muted small">Recommended: create <strong>one</strong> secret in Supabase Dashboard → Edge Functions → Secrets. Name it <code>NEWSROOM_AI_PROVIDERS_JSON</code>. Put every provider in this JSON object, using a unique ID as each key. You can list more than six providers without adding four separate secrets for every service.</p>
+    <pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:#07160f;padding:10px;border-radius:8px;color:#d9ffe5">NEWSROOM_AI_PROVIDERS_JSON
+{
+  "OPENAI": {
+    "name": "OpenAI",
+    "api_key": "your-openai-secret-key",
+    "api_url": "https://api.openai.com/v1/chat/completions",
+    "model": "your-openai-model"
+  },
+  "GROQ": {
+    "name": "Groq",
+    "api_key": "your-groq-secret-key",
+    "api_url": "https://your-groq-chat-completions-endpoint",
+    "model": "your-groq-model"
+  }
+}</pre>
+    <p class="muted small">Add more entries (for example DEEPSEEK, GEMINI, OPENROUTER, MISTRAL, or CUSTOM2) before the final closing brace. Every endpoint must support OpenAI-compatible Chat Completions. Save the JSON secret, tap <strong>Refresh provider status</strong>, choose a service, then tap <strong>Save selected AI service</strong>. Existing individual NEWSROOM_AI_PROVIDER_<ID>_* and legacy NEWSROOM_AI_1…NEWSROOM_AI_6… / NEWSROOM_AI_API_KEY secrets remain supported.</p>
+  </details>
   <p id="aiProviderStatus" class="muted small" role="status" aria-live="polite">Configure at least one service before creating AI drafts. Free source-text retrieval does not require an API.</p>
 </section>
 <section class="panel" id="dailySchedulePanel">
@@ -230,16 +250,16 @@ img,video,iframe{max-width:100%}
     const status = $('aiProviderStatus'), select = $('activeAIProvider');
     if (!select) return;
     const previous = keepSelection ? select.value : '';
-    select.disabled = true; $('aiProviderBadge').textContent = 'Checking…'; status.textContent = 'Checking the six server-side provider slots…';
+    select.disabled = true; $('aiProviderBadge').textContent = 'Checking…'; status.textContent = 'Checking all server-side AI provider configurations…';
     try {
       const result = await invoke('get_ai_provider_config');
       const providers = result.providers || [], available = providers.filter(p => p.configured);
       select.innerHTML = available.length ? available.map(p => `<option value="${esc(p.id)}">${esc(p.name)} — ${esc(p.model)}</option>`).join('') : '<option value="">No configured AI providers</option>';
       const intended = previous && available.some(p => p.id === previous) ? previous : String(result.activeProviderId || '');
       if (intended && available.some(p => p.id === intended)) select.value = intended;
-      $('aiProviderBadge').textContent = `${available.length} of 6 configured`;
+      $('aiProviderBadge').textContent = `${available.length} configured`;
       $('aiProviderSlots').innerHTML = providers.map(p => { const detail = p.configured ? `${p.model} · ${p.apiUrl}` : `Missing: ${(p.missing || []).join(', ')}`; return `<article class="ai-provider-slot ${p.configured ? 'ready' : 'missing'}"><strong>${esc(p.name || ('AI Service ' + p.id))}</strong><span class="pill">${p.configured ? 'Configured' : 'Not configured'}</span><small>${esc(detail)}</small></article>`; }).join('');
-      status.textContent = available.length ? `Currently selected: ${available.find(p => p.id === select.value)?.name || available[0].name}. API keys remain server-side. Save after choosing a different provider.` : 'No provider is fully configured. Add a key, OpenAI-compatible Chat Completions URL, and model for at least one slot using NEWSROOM-AI-PROVIDERS-SETUP.txt.';
+      status.textContent = result.configurationError || (available.length ? `Currently selected: ${available.find(p => p.id === select.value)?.name || available[0].name}. ${available.length} service(s) are ready. Add more at any time in the NEWSROOM_AI_PROVIDERS_JSON secret.` : 'No provider is fully configured. Add the NEWSROOM_AI_PROVIDERS_JSON secret or configure individual provider secrets in Supabase Edge Function Secrets.');
       status.style.color = available.length ? '' : '#ffd9d9';
     } catch (err) { $('aiProviderBadge').textContent = 'Unavailable'; $('aiProviderSlots').innerHTML = `<p class="muted">Could not retrieve provider status: ${esc(err.message || String(err))}</p>`; status.textContent = 'Deploy the updated parrothit-newsroom-automation Edge Function and configure its secrets before selecting an AI provider.'; status.style.color = '#ffd9d9'; }
     finally { select.disabled = false; }
