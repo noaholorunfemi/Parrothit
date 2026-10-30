@@ -260,7 +260,13 @@
         return name === catKey || name === 'sports ' + catKey || slug === catKey || slug === 'sports-' + catKey.replace(/ /g, '-');
       return false;
     };
-    const localCategoryPosts = localNoDuplicate.filter(matchesCategory);
+    // Articles assigned to one of this page's six featured cards are already
+    // displayed in the original six-card grid. Exclude them from the overflow
+    // newsroom feed so the same story is not shown twice on its category page.
+    const featuredRecords = (cloud.settings && cloud.settings.category_cards && cloud.settings.category_cards[catKey]) || {};
+    const featuredPostIds = new Set(Object.values(featuredRecords).map(r => String(r && (r.postId || r.newsroomPostId) || '')).filter(Boolean));
+    const isFeaturedOnThisPage = p => featuredPostIds.has(String(p.supabaseId || p.id || ''));
+    const localCategoryPosts = localNoDuplicate.filter(p => matchesCategory(p) && !isFeaturedOnThisPage(p));
     const pageSize = 18;
     let remoteOffset = 0;
     const rendered = [];
@@ -279,10 +285,10 @@
     if (initialRemote.available && !initialRemote.error) {
       remoteOffset = initialRemote.posts.length;
       const initial = initialRemote.posts.concat(localCategoryPosts).sort((a,b) => String(b.publishedAt || b.createdAt || '').localeCompare(String(a.publishedAt || a.createdAt || '')));
-      await appendCards(initial);
+      await appendCards(initial.filter(p => !isFeaturedOnThisPage(p)));
     } else {
       if (initialRemote.error) console.warn('PARROTHIT could not load the full category archive; showing available recent stories:', initialRemote.error.message || initialRemote.error);
-      await appendCards(allKnownPosts.filter(matchesCategory).slice(0, pageSize).concat(localCategoryPosts));
+      await appendCards(allKnownPosts.filter(p => matchesCategory(p) && !isFeaturedOnThisPage(p)).slice(0, pageSize).concat(localCategoryPosts));
       remoteOffset = pageSize;
     }
     if (!grid.children.length) return;
