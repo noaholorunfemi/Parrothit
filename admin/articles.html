@@ -36,7 +36,7 @@ button.commit-change:hover{background:#166534!important}
 @media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
 </style>
 <link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head>
-<body class="control-body admin-auth-pending"><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
+<body class="control-body admin-auth-pending"><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a><a href="newsroom-automation.html" style="display:inline-block;background:#075e36;color:#fff;padding:9px 13px;border-radius:8px;font-weight:800;text-decoration:none">🦜 Newsroom Automation</a></nav>
 <script>
 (async function enforceAdminLogin(){if(window.PARROTHIT_LOCAL_PREVIEW){document.documentElement.classList.remove('admin-auth-pending');if(document.body)document.body.classList.remove('admin-auth-pending');return;}
  const goLogin=()=>{location.replace('login.html?next=dashboard.html')};
@@ -310,6 +310,7 @@ document.addEventListener('DOMContentLoaded',()=>{
      const banner=document.createElement('div'); banner.className='section-page-banner';
      const h=document.createElement('strong'); h.textContent="Articles"; banner.appendChild(h);
      const link=document.createElement('a'); link.href='dashboard.html'; link.textContent='← Control Room'; banner.appendChild(link);
+     const newsroomLink=document.createElement('a'); newsroomLink.href='newsroom-automation.html'; newsroomLink.textContent='🦜 Newsroom Automation'; newsroomLink.style.marginLeft='8px'; banner.appendChild(newsroomLink);
      main.prepend(banner);
    }
  });
