@@ -92,8 +92,13 @@ img,video,iframe{max-width:100%}
   <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare drafts → send to human review → approve and assign to Category Cards 1–6.</p></div>
   <div class="top-actions"><a class="btn green" href="category-card-assignment-manager.html">🗂️ Category Card 1–6 Assignment Manager</a><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
 </header>
-<div class="warning"><strong>Human approval remains mandatory.</strong> Newsroom drafts are saved as In Review and routed to the separate Category Card 1–6 Assignment Manager. AI cannot publish or occupy a card. An active administrator must review and approve each article, then choose its category and card position.</div>
+<div class="warning"><strong>Human approval remains mandatory.</strong> Every newsroom draft stays unpublished until an administrator reviews it. Choose whether new drafts should enter the existing Article Editor or the dedicated Category Card 1–6 review manager. No AI action can publish an article or occupy a card.</div>
 <div id="message" class="msg"></div>
+<section class="panel" id="draftDestinationPanel">
+ <div class="section-head"><div><h2>📥 Draft destination</h2><p class="muted">Choose where newly generated individual and scheduled newsroom drafts should be sent. This setting applies to future drafts only; it does not move existing articles.</p></div><span class="pill" id="draftDestinationBadge">Loading…</span></div>
+ <div class="row" style="align-items:end"><div class="field" style="flex:2;min-width:260px"><label for="draftDestination">Send new drafts to</label><select id="draftDestination"><option value="articles">/admin/articles.html — Existing Article Editor</option><option value="category_card_manager">/admin/category-card-assignment-manager.html — Category Card 1–6 Assignment Manager</option></select></div><button type="button" id="saveDraftDestination" class="green">Save draft destination</button></div>
+ <p class="muted small" id="draftDestinationStatus" role="status" aria-live="polite">Loading the saved destination…</p>
+</section>
 <section class="panel">
   <div class="section-head"><div><h2>1. Feed sources</h2><p class="muted">Add RSS or Atom feeds. Feed URLs are fetched by the secure Supabase Edge Function, not by your browser.</p></div><button id="discoverBtn" class="green">🔎 Discover new stories</button></div>
   <form id="sourceForm"><div class="row">
@@ -115,7 +120,7 @@ img,video,iframe{max-width:100%}
     <li>Check the headline, publisher, and source URL before creating a draft.</li>
     <li><strong>Retrieve Source Text — FREE</strong> attempts to extract readable text from the original webpage. If the publisher blocks access or only exposes a teaser, the draft will say so and fall back to available feed text. Treat retrieved text as editorial reference; check reuse rights and do not publish it verbatim without permission.</li>
     <li><strong>Create Original Detailed Report — AI</strong> asks the configured AI provider to write a detailed, paraphrased report (target about 900–1,300 words) from available source material. It requires AI credits and must not invent details if the source is too short.</li>
-    <li>Open the <strong>Category Card 1–6 Assignment Manager</strong>, review and edit the complete article, then approve it. Only after approval can you choose Category + News Card 1–6 and publish it to that card.</li>
+    <li>Open the destination selected above. In the Category Card 1–6 manager, review and edit the complete article, approve it, then choose a category and card position. In the existing Article Editor, continue using its normal article workflow.</li>
   </ol>
   <p class="muted small">If AI credits are exhausted, source-text retrieval remains available. Never place service-role or AI API keys in public files. This page does not configure scheduled publishing.</p>
 </section>
@@ -146,6 +151,7 @@ img,video,iframe{max-width:100%}
 (() => {
   const $ = id => document.getElementById(id);
   let client, session, categories = [], publishedCardPosts = [];
+  let draftDestination = 'category_card_manager';
 
   function message(text, type = 'ok') {
     const el = $('message');
@@ -158,6 +164,42 @@ img,video,iframe{max-width:100%}
   function categoryName(id) { return categories.find(c => c.id === id)?.name || '—'; }
   function categoryOptions(selectedId) {
     return '<option value="">Select category…</option>' + categories.map(c => `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  }
+
+  function destinationUrl(postId='') {
+    return draftDestination === 'category_card_manager' ? `category-card-assignment-manager.html${postId ? '?post=' + encodeURIComponent(postId) : ''}` : 'articles.html';
+  }
+  function destinationName(value=draftDestination) {
+    return value === 'category_card_manager' ? 'Category Card 1–6 Assignment Manager' : 'Article Editor';
+  }
+  async function loadDraftDestination() {
+    const {data,error}=await client.from('site_settings').select('value').eq('key','newsroom_draft_destination').maybeSingle();
+    if(error)throw error;
+    const stored=typeof data?.value==='string'?data.value:(data?.value?.destination||'');
+    draftDestination=stored==='articles'?'articles':'category_card_manager';
+    $('draftDestination').value=draftDestination;
+    $('draftDestinationBadge').textContent='Saved: '+destinationName();
+    $('draftDestinationStatus').textContent='New individual and scheduled drafts will be routed to '+destinationName()+'. Existing drafts are not moved.';
+  }
+  async function saveDraftDestination(showMessage=true) {
+    const button=$('saveDraftDestination');
+    const selected=$('draftDestination').value==='articles'?'articles':'category_card_manager';
+    if(button)button.disabled=true;
+    $('draftDestinationStatus').textContent='Saving the new-draft destination…';
+    try {
+      const {error}=await client.from('site_settings').upsert({key:'newsroom_draft_destination',value:selected,updated_at:new Date().toISOString()},{onConflict:'key'});
+      if(error)throw error;
+      draftDestination=selected;
+      $('draftDestinationBadge').textContent='Saved: '+destinationName();
+      $('draftDestinationStatus').textContent='Saved. New individual and scheduled drafts will go to '+destinationName()+'. This does not move older drafts.';
+      if(showMessage)message('New newsroom drafts will be sent to '+destinationName()+'.');
+      return true;
+    } catch(err) {
+      $('draftDestinationStatus').textContent='Could not save destination: '+(err.message||String(err));
+      $('draftDestinationBadge').textContent='Not saved';
+      if(showMessage)message('Could not save the draft destination: '+(err.message||String(err)),'error');
+      throw err;
+    } finally { if(button)button.disabled=false; }
   }
 
   async function loadAIProviders(keepSelection = true) {
@@ -223,6 +265,7 @@ img,video,iframe{max-width:100%}
     finally{button.disabled=false;}
   }
   async function runDailyScheduleNow(){
+    try { await saveDraftDestination(false); } catch (e) { message(e.message || String(e), 'error'); return; }
     const button=$('runDailyScheduleNow');button.disabled=true;dailyStatus('Running daily category drafting now. This can use AI credits…');
     try{
       const category_ids=[...$('dailyCategoryChecks').querySelectorAll('input:checked')].map(el=>String(el.value));
@@ -237,7 +280,7 @@ img,video,iframe{max-width:100%}
           const part=result.results||[];rows.push(...part);created+=Number(result.created||0);skipped+=Number(result.skipped||0);failed+=Number(result.failed||0);
           if(result.error){failed++;rows.push({category:category_ids[i],status:'failed',message:result.error});}
         }catch(err){failed++;rows.push({category:category_ids[i],status:'failed',message:err.message||String(err)});}
-        $('dailyRunRows').innerHTML=rows.map(r=>`<tr><td>${esc(r.category||'—')}</td><td><span class="pill">${esc(r.status||'—')}</span></td><td>${r.post_id?`<a href="category-card-assignment-manager.html?post=${encodeURIComponent(r.post_id)}" style="color:#b7e4c7">Open for human review</a>`:'—'}</td><td>${esc(r.message||'')}</td></tr>`).join('');
+        $('dailyRunRows').innerHTML=rows.map(r=>`<tr><td>${esc(r.category||'—')}</td><td><span class="pill">${esc(r.status||'—')}</span></td><td>${r.post_id?`<a href="${esc(destinationUrl(r.post_id))}" style="color:#b7e4c7">Open in ${esc(destinationName())}</a>`:'—'}</td><td>${esc(r.message||'')}</td></tr>`).join('');
       }
       const summary=`Daily drafting finished. Created ${created} draft(s); skipped ${skipped}; failed ${failed}.`;
       dailyStatus(summary,failed>0);
@@ -264,6 +307,7 @@ img,video,iframe{max-width:100%}
     }
     startIdleTimeout(client, session.user.id);
     await refresh();
+    await loadDraftDestination();
     await loadAIProviders(false);
     await loadDailySchedule();
   }
@@ -309,16 +353,16 @@ img,video,iframe{max-width:100%}
   }
 
   async function loadCandidates() {
-    const { data, error } = await client.from('newsroom_candidates').select('id,source_name,source_url,source_title,source_summary,source_published_at,category_id,status,linked_post_id,error_message,discovered_at').order('discovered_at', { ascending: false }).limit(100);
+    const { data, error } = await client.from('newsroom_candidates').select('id,source_name,source_url,source_title,source_summary,source_published_at,category_id,status,linked_post_id,review_destination,error_message,discovered_at').order('discovered_at', { ascending: false }).limit(100);
     const body = $('candidateRows');
-    if (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run the Phase 2 migration first.</td></tr>`; return; }
+    if (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run newsroom-automation-phase2.sql and the updated category-card-assignment-manager.sql migrations.</td></tr>`; return; }
     if (!data?.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No discovered stories yet. Click “Discover new stories”.</td></tr>'; return; }
     body.innerHTML = data.map(c => `<tr>
       <td><strong>${esc(c.source_title)}</strong><p class="muted small">${esc((c.source_summary || '').slice(0, 220))}</p><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="color:#b7e4c7">Open source ↗</a>${c.error_message ? `<p style="color:#ffb5b5" class="small">${esc(c.error_message)}</p>` : ''}</td>
       <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
       <td>${!c.linked_post_id && ['discovered', 'error'].includes(c.status) ? `<div class="actions"><select aria-label="Category for ${esc(c.source_title)}" data-category-select="${esc(c.id)}">${categoryOptions(c.category_id)}</select><button class="secondary" data-save-category="${esc(c.id)}">Save category</button></div>` : esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
       ${['discovered', 'error'].includes(c.status) && !c.linked_post_id ? `<button class="green" data-source-text="${c.id}">Retrieve Source Text — FREE</button><button class="blue" data-detailed-draft="${c.id}">Create Original Detailed Report — AI</button>` : ''}
-      ${c.linked_post_id ? `<a class="btn secondary" href="category-card-assignment-manager.html?post=${encodeURIComponent(c.linked_post_id)}">${c.status === 'imported' ? 'View assignment' : 'Open for human review'}</a>` : ''}
+      ${c.linked_post_id ? `<a class="btn secondary" href="${esc(c.review_destination === 'category_card_manager' ? 'category-card-assignment-manager.html?post=' + encodeURIComponent(c.linked_post_id) : 'articles.html')}">${c.review_destination === 'category_card_manager' ? (c.status === 'imported' ? 'View card assignment' : 'Open card review') : 'Open in Article Editor'}</a>` : ''}
       ${c.status === 'discovered' ? `<button class="secondary" data-reject="${c.id}">Reject</button>` : ''}
       </div></td></tr>`).join('');
 
@@ -375,6 +419,7 @@ img,video,iframe{max-width:100%}
   };
 
   async function manualDraftCandidate(id, b, mode = 'source_text') {
+    try { await saveDraftDestination(false); } catch (e) { message(e.message || String(e), 'error'); return; }
     const prompt = 'Retrieve readable text from the original source page for editorial review. If the publisher blocks access, the draft will fall back to the available RSS summary. Retrieved text must not be published verbatim unless PARROTHIT has permission or a suitable licence. The draft will remain In Review. Continue?';
     if (!confirm(prompt)) return;
     const oldText = b.textContent; b.disabled = true; b.textContent = 'Retrieving source text…';
@@ -387,6 +432,7 @@ img,video,iframe{max-width:100%}
   }
 
   async function draftCandidate(id, b, mode = 'detailed') {
+    try { await saveDraftDestination(false); } catch (e) { message(e.message || String(e), 'error'); return; }
     if (!confirm('Create an original, detailed report using the configured AI provider? It targets about 900–1,300 words when the source material supports that length, uses AI credits, and remains In Review. The AI must not invent facts or copy the source verbatim. Continue?')) return;
     const oldText = b.textContent; b.disabled = true; b.textContent = 'Creating detailed report…';
     try {
@@ -403,6 +449,8 @@ img,video,iframe{max-width:100%}
     } finally { b.disabled = false; b.textContent = oldText; }
   }
 
+  $('saveDraftDestination')?.addEventListener('click', () => saveDraftDestination(true).catch(()=>{}));
+  $('draftDestination')?.addEventListener('change', () => saveDraftDestination(true).catch(()=>{}));
   $('saveAIProvider')?.addEventListener('click', saveAIProvider);
   $('refreshAIProviders')?.addEventListener('click', () => loadAIProviders(false));
   $('refreshBtn').onclick = async () => { await refresh(); await loadAIProviders(true); await loadDailySchedule(); };
