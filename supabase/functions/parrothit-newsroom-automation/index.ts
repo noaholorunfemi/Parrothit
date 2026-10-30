@@ -13,51 +13,6 @@ const clean = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
   .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
   .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
   .replace(/\s+/g, " ").trim();
-function decodeEntities(s: string) {
-  return s.replace(/&nbsp;/gi, " ").replace(/&mdash;/gi, "—").replace(/&ndash;/gi, "–")
-    .replace(/&rsquo;|&lsquo;/gi, "'").replace(/&rdquo;|&ldquo;/gi, '"');
-}
-function absoluteUrl(raw: string, base: string) {
-  try { const u = new URL(decodeEntities(raw.trim()), base); return /^https?:$/.test(u.protocol) ? u.href : ""; }
-  catch { return ""; }
-}
-function pageImage(html: string, base: string) {
-  const patterns = [
-    /<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image|twitter:image:src)["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:image|twitter:image|twitter:image:src)["'][^>]*>/i,
-    /<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["'][^>]*>/i,
-    /<img[^>]+(?:src|data-src|data-original|data-lazy-src)=["']([^"']+)["'][^>]*>/i,
-  ];
-  for (const re of patterns) { const m = html.match(re); if (m?.[1]) { const u = absoluteUrl(m[1], base); if (u) return u; } }
-  return "";
-}
-function pageContent(html: string, base: string) {
-  const imageUrl = pageImage(html, base);
-  const title = clean((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "").slice(0, 300);
-  const descriptionMatch = html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']*)["'][^>]*>/i)
-    || html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+(?:name|property)=["'](?:description|og:description)["'][^>]*>/i);
-  const description = clean(descriptionMatch?.[1] || "").slice(0, 1200);
-  const mainMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)
-    || html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)
-    || html.match(/<div[^>]+(?:class|id)=["'][^"']*(?:article-body|story-body|post-content|entry-content|article-content)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
-  let region = mainMatch?.[1] || html;
-  region = region.replace(/<(script|style|noscript|svg|nav|footer|header|aside|form|button)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/section|\/article)\b[^>]*>/gi, "\n")
-    .replace(/<[^>]+>/g, " ");
-  const text = decodeEntities(clean(region)).replace(/\s*\n\s*/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, 22000);
-  const headings = [...html.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)].map(m => clean(m[1])).filter(Boolean).slice(0, 16);
-  return { title, description, imageUrl, text, headings };
-}
-async function fetchSourcePage(sourceUrl: string) {
-  if (!/^https?:\/\//i.test(sourceUrl)) return { title: "", description: "", imageUrl: "", text: "", headings: [] as string[] };
-  const response = await fetch(sourceUrl, { headers: { "User-Agent": "Mozilla/5.0 (compatible; PARROTHIT-Newsroom/1.0; +editorial research)", "Accept": "text/html,application/xhtml+xml" }, signal: AbortSignal.timeout(3500), redirect: "follow" });
-  if (!response.ok) throw new Error(`Source page returned HTTP ${response.status}`);
-  const type = response.headers.get("content-type") || "";
-  if (type && !/text\/html|application\/xhtml\+xml/i.test(type)) throw new Error("The source URL did not return an HTML article page.");
-  const html = (await response.text()).slice(0, 1_500_000);
-  return pageContent(html, sourceUrl);
-}
-
 function tag(block: string, names: string[]) {
   for (const name of names) {
     const re = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${name}>`, "i");
@@ -96,22 +51,9 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: "Request body must be JSON." }, 400); }
   const action = String(body.action || "");
 
-  // Provider slots are discovered from Edge Function secrets at runtime. Any positive
-  // NEWSROOM_AI_<N>_* slot is accepted; there is no hard-coded 1–6 ceiling.
-  // API keys are never returned to the browser.
+  // Provider slots are configured only as Edge Function secrets; never return API keys to the browser.
   const providerConfig = (id: string) => {
-    const rawId = String(id || "").trim();
-    if (rawId === "legacy") {
-      const apiKey = Deno.env.get("NEWSROOM_AI_API_KEY") || "";
-      const apiUrl = Deno.env.get("NEWSROOM_AI_API_URL") || "https://api.openai.com/v1/chat/completions";
-      const model = Deno.env.get("NEWSROOM_AI_MODEL") || "gpt-4o-mini";
-      const missing = [!apiKey && "API_KEY", !apiUrl && "API_URL", !model && "MODEL"].filter(Boolean);
-      return { id: "legacy", name: "Legacy AI Provider", apiKey, apiUrl, model, configured: missing.length === 0, missing };
-    }
-    const n = rawId.replace(/^0+/, "");
-    if (!/^\d+$/.test(n) || n === "0") {
-      return { id: rawId, name: `AI Service ${rawId || "?"}`, apiKey: "", apiUrl: "", model: "", configured: false, missing: ["API_KEY", "API_URL", "MODEL"] };
-    }
+    const n = id.replace(/[^1-6]/g, "");
     const name = Deno.env.get(`NEWSROOM_AI_${n}_NAME`) || `AI Service ${n}`;
     const apiKey = Deno.env.get(`NEWSROOM_AI_${n}_API_KEY`) || "";
     const apiUrl = Deno.env.get(`NEWSROOM_AI_${n}_API_URL`) || "";
@@ -119,67 +61,186 @@ Deno.serve(async (req) => {
     const missing = [!apiKey && "API_KEY", !apiUrl && "API_URL", !model && "MODEL"].filter(Boolean);
     return { id: n, name, apiKey, apiUrl, model, configured: missing.length === 0, missing };
   };
-
-  const providerIds = () => {
-    const ids = new Set<string>();
-    try {
-      const env = Deno.env.toObject();
-      for (const key of Object.keys(env)) {
-        const match = key.match(/^NEWSROOM_AI_(\d+)_(?:NAME|API_KEY|API_URL|MODEL)$/);
-        if (match && Number(match[1]) > 0) ids.add(String(Number(match[1])));
-      }
-    } catch (e) {
-      console.warn("[newsroom] Could not enumerate provider secrets; no provider keys will be exposed.", e instanceof Error ? e.message : String(e));
-    }
-    return [...ids].sort((a, b) => Number(a) - Number(b));
-  };
-  const providerConfigs = () => providerIds().map((id) => providerConfig(id));
-  const configuredProviders = () => providerConfigs().filter((provider) => provider.configured);
-
   const activeProvider = async () => {
     const { data } = await db.from("site_settings").select("value").eq("key", "newsroom_active_ai_provider").maybeSingle();
-    const savedId = String(data?.value?.provider_id || "");
-    const saved = savedId ? providerConfig(savedId) : null;
-    if (saved?.configured) return saved;
-    const first = configuredProviders()[0];
-    if (first) return first;
-    const legacy = providerConfig("legacy");
-    if (legacy.configured) return legacy;
-    return saved || providerConfig("1");
+    const id = String(data?.value?.provider_id || "1");
+    const configured = providerConfig(id);
+    if (configured.configured) return configured;
+    for (let i = 1; i <= 6; i++) { const candidate = providerConfig(String(i)); if (candidate.configured) return candidate; }
+    // Backward compatibility with the original single-provider secrets.
+    const apiKey = Deno.env.get("NEWSROOM_AI_API_KEY") || "";
+    if (apiKey) return { id: "legacy", name: "Legacy AI Provider", apiKey, apiUrl: Deno.env.get("NEWSROOM_AI_API_URL") || "https://api.openai.com/v1/chat/completions", model: Deno.env.get("NEWSROOM_AI_MODEL") || "gpt-4o-mini", configured: true, missing: [] };
+    return configured;
   };
 
-  if (action === "get_ai_provider_config") {
-    const providers = providerConfigs().map((p) => ({ id: p.id, name: p.name, apiUrl: p.apiUrl, model: p.model, configured: p.configured, missing: p.missing }));
-    if (!providers.length) {
-      const legacy = providerConfig("legacy");
-      if (legacy.configured || legacy.missing.some((x: string) => x !== "API_KEY")) {
-        providers.push({ id: legacy.id, name: legacy.name, apiUrl: legacy.apiUrl, model: legacy.model, configured: legacy.configured, missing: legacy.missing });
+  // Resolve the destination at draft time, not discovery time. This means an
+  // administrator can change the selector after discovering a feed item.
+  const getDraftDestination = async (): Promise<"articles" | "category_card_manager"> => {
+    const { data, error } = await db.from("site_settings").select("value").eq("key", "newsroom_draft_destination").maybeSingle();
+    if (error) throw new Error(`Could not read the saved newsroom draft destination: ${error.message}`);
+    let value: any = data?.value;
+    if (value && typeof value === "object") value = value.destination ?? value.value ?? value.review_destination;
+    const normalized = String(value ?? "category_card_manager").replace(/^\"|\"$/g, "");
+    return normalized === "articles" ? "articles" : "category_card_manager";
+  };
+
+  // The SQL trigger normally creates this row. The explicit upsert is a
+  // defensive fallback for projects where the trigger was not installed or
+  // an older candidate was linked before the trigger existed.
+  const linkCandidateToPost = async (candidateId: string, postId: string, destination: "articles" | "category_card_manager") => {
+    const now = new Date().toISOString();
+    const { data: linked, error: linkError } = await db.from("newsroom_candidates").update({
+      status: "in_review",
+      linked_post_id: postId,
+      review_destination: destination,
+      error_message: null,
+      updated_at: now,
+    }).eq("id", candidateId).is("linked_post_id", null).select("id,review_destination").maybeSingle();
+    if (linkError) throw new Error(`Could not link the draft to its newsroom candidate: ${linkError.message}`);
+    if (!linked) throw new Error("The candidate is already linked to an article or is no longer available. Reload the newsroom queue.");
+    if (destination === "category_card_manager") {
+      const { error: queueError } = await db.from("category_card_review_queue").upsert({
+        candidate_id: candidateId,
+        post_id: postId,
+        review_status: "in_review",
+        updated_at: now,
+      }, { onConflict: "candidate_id", ignoreDuplicates: true });
+      if (queueError) {
+        // Restore the candidate to an unlinked error state; callers roll back the post.
+        await db.from("newsroom_candidates").update({ status: "error", linked_post_id: null, error_message: queueError.message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", candidateId);
+        throw new Error(`The draft was created but could not enter the Category Card review queue: ${queueError.message}`);
       }
     }
+    return destination;
+  };
+
+  const unpublishedStatuses = ["draft", "in_review"];
+
+  if (action === "clear_drafts") {
+    const destination: "articles" | "category_card_manager" = body.destination === "articles" ? "articles" : "category_card_manager";
+    const now = new Date().toISOString();
+    let candidateIds: string[] = [];
+    let postIds: string[] = [];
+
+    if (destination === "category_card_manager") {
+      const [queueResult, candidateResult] = await Promise.all([
+        db.from("category_card_review_queue").select("candidate_id,post_id,review_status").neq("review_status", "published").limit(10000),
+        // Include drafts that were linked before the review-queue insert was reliable.
+        db.from("newsroom_candidates").select("id,linked_post_id,status").eq("review_destination", "category_card_manager").not("linked_post_id", "is", null).in("status", ["in_review", "drafting", "error"]).limit(10000),
+      ]);
+      if (queueResult.error) return json({ error: `Could not load Category Card drafts: ${queueResult.error.message}` }, 500);
+      if (candidateResult.error) return json({ error: `Could not recover routed Category Card drafts: ${candidateResult.error.message}` }, 500);
+      const ids = new Set<string>();
+      (queueResult.data || []).filter((q: any) => q.review_status !== "published").forEach((q: any) => { if (q.post_id) ids.add(String(q.post_id)); });
+      (candidateResult.data || []).forEach((c: any) => { if (c.linked_post_id) ids.add(String(c.linked_post_id)); });
+      const routedIds = [...ids];
+      if (routedIds.length) {
+        const { data: posts, error: postError } = await db.from("posts").select("id")
+          .in("id", routedIds).in("status", unpublishedStatuses).is("published_at", null).limit(10000);
+        if (postError) return json({ error: `Could not verify Category Card drafts: ${postError.message}` }, 500);
+        postIds = (posts || []).map((p: any) => String(p.id));
+      }
+    } else {
+      const [postResult, queueResult, managerCandidateResult] = await Promise.all([
+        db.from("posts").select("id").in("status", unpublishedStatuses).is("published_at", null).limit(10000),
+        db.from("category_card_review_queue").select("post_id").limit(10000),
+        db.from("newsroom_candidates").select("linked_post_id").eq("review_destination", "category_card_manager").not("linked_post_id", "is", null).limit(10000),
+      ]);
+      if (postResult.error) return json({ error: `Could not load Article Editor drafts: ${postResult.error.message}` }, 500);
+      if (queueResult.error) return json({ error: `Could not protect Category Card drafts: ${queueResult.error.message}` }, 500);
+      if (managerCandidateResult.error) return json({ error: `Could not protect routed Category Card drafts: ${managerCandidateResult.error.message}` }, 500);
+      const protectedIds = new Set<string>();
+      (queueResult.data || []).forEach((q: any) => { if (q.post_id) protectedIds.add(String(q.post_id)); });
+      (managerCandidateResult.data || []).forEach((c: any) => { if (c.linked_post_id) protectedIds.add(String(c.linked_post_id)); });
+      postIds = (postResult.data || []).map((p: any) => String(p.id)).filter((id: string) => !protectedIds.has(id));
+    }
+
+    if (!postIds.length) return json({ ok: true, destination, deleted_posts: 0, message: `There are no unpublished drafts to clear in ${destination === "articles" ? "the Article Editor" : "the Category Card 1–6 Assignment Manager"}. Published articles were left untouched.` });
+
+    const { data: linkedCandidates, error: candidateReadError } = await db.from("newsroom_candidates")
+      .select("id,linked_post_id,status,review_destination")
+      .in("linked_post_id", postIds).limit(10000);
+    if (candidateReadError) return json({ error: `Could not prepare linked newsroom candidates: ${candidateReadError.message}` }, 500);
+    candidateIds = (linkedCandidates || []).map((c: any) => String(c.id));
+
+    if (candidateIds.length) {
+      const { error: unlinkError } = await db.from("newsroom_candidates").update({
+        status: "discovered", linked_post_id: null, error_message: null,
+        review_destination: destination, updated_at: now,
+      }).in("id", candidateIds);
+      if (unlinkError) return json({ error: `No drafts were deleted because candidates could not be unlinked: ${unlinkError.message}` }, 500);
+    }
+
+    const { error: deleteError } = await db.from("posts").delete().in("id", postIds)
+      .in("status", unpublishedStatuses).is("published_at", null);
+    if (deleteError) {
+      // Best-effort rollback keeps candidates linked if the post deletion failed.
+      for (const candidate of (linkedCandidates || [])) {
+        await db.from("newsroom_candidates").update({
+          status: candidate.status || "in_review", linked_post_id: candidate.linked_post_id,
+          review_destination: candidate.review_destination || destination, updated_at: new Date().toISOString(),
+        }).eq("id", candidate.id);
+      }
+      return json({ error: `Could not delete drafts: ${deleteError.message}` }, 500);
+    }
+    return json({ ok: true, destination, deleted_posts: postIds.length, message: `Cleared ${postIds.length} unpublished draft(s) from ${destination === "articles" ? "the Article Editor" : "the Category Card 1–6 Assignment Manager"}. Published articles and drafts in the other destination were left untouched.` });
+  }
+
+  if (action === "delete_card_draft") {
+    const queueId = String(body.queue_id || "");
+    if (!queueId) return json({ error: "queue_id is required." }, 400);
+    const { data: queueItem, error: queueReadError } = await db.from("category_card_review_queue")
+      .select("id,candidate_id,post_id,review_status").eq("id", queueId).maybeSingle();
+    if (queueReadError) return json({ error: `Could not read the review item: ${queueReadError.message}` }, 500);
+    if (!queueItem) return json({ error: "The Category Card draft no longer exists. Refresh the queue." }, 404);
+    if (queueItem.review_status === "published") return json({ error: "Published card assignments cannot be deleted from the draft queue." }, 409);
+    const { data: post, error: postReadError } = await db.from("posts").select("id,status,published_at").eq("id", queueItem.post_id).maybeSingle();
+    if (postReadError) return json({ error: `Could not verify the article: ${postReadError.message}` }, 500);
+    if (!post) return json({ error: "The linked article was already deleted." }, 404);
+    if (!unpublishedStatuses.includes(post.status) || post.published_at) return json({ error: "Only unpublished drafts can be deleted from this manager." }, 409);
+    const { data: candidate } = await db.from("newsroom_candidates").select("id,status,review_destination").eq("id", queueItem.candidate_id).maybeSingle();
+    if (candidate) {
+      const { error: unlinkError } = await db.from("newsroom_candidates").update({
+        status: "discovered", linked_post_id: null, error_message: null,
+        review_destination: "category_card_manager", updated_at: new Date().toISOString(),
+      }).eq("id", candidate.id);
+      if (unlinkError) return json({ error: `The draft was not deleted because its candidate could not be unlinked: ${unlinkError.message}` }, 500);
+    }
+    const { error: deleteError } = await db.from("posts").delete().eq("id", post.id)
+      .in("status", unpublishedStatuses).is("published_at", null);
+    if (deleteError) {
+      if (candidate) await db.from("newsroom_candidates").update({ status: candidate.status || "in_review", linked_post_id: post.id, review_destination: candidate.review_destination || "category_card_manager", updated_at: new Date().toISOString() }).eq("id", candidate.id);
+      return json({ error: `Could not delete the draft: ${deleteError.message}` }, 500);
+    }
+    return json({ ok: true, deleted_posts: 1, message: "The unpublished newsroom draft was deleted. Its feed candidate is available for drafting again." });
+  }
+
+  if (action === "get_ai_provider_config") {
+    const providers = Array.from({ length: 6 }, (_, i) => {
+      const p = providerConfig(String(i + 1));
+      return { id: p.id, name: p.name, apiUrl: p.apiUrl, model: p.model, configured: p.configured, missing: p.missing };
+    });
     const { data: active } = await db.from("site_settings").select("value").eq("key", "newsroom_active_ai_provider").maybeSingle();
-    const chosen = String(active?.value?.provider_id || "");
-    const firstConfigured = providers.find((p) => p.configured)?.id || "";
-    const activeProviderId = providers.some((p) => p.id === chosen && p.configured) ? chosen : firstConfigured;
-    return json({ ok: true, providers, activeProviderId });
+    const firstConfigured = providers.find(p => p.configured)?.id || "";
+    return json({ ok: true, providers, activeProviderId: String(active?.value?.provider_id || firstConfigured) });
   }
 
   if (action === "set_active_ai_provider") {
-    const providerId = String(body.provider_id || "").trim();
-    if (!(providerId === "legacy" || /^[1-9]\d*$/.test(providerId))) return json({ error: "Choose a positive-numbered provider slot, such as 1, 2, 7, or 12." }, 400);
+    const providerId = String(body.provider_id || "");
+    if (!/^[1-6]$/.test(providerId)) return json({ error: "Choose a provider slot from 1 to 6." }, 400);
     const provider = providerConfig(providerId);
-    if (!provider.configured) return json({ error: `${provider.name} is missing: ${provider.missing.join(", ")}. Configure all four NEWSROOM_AI_${providerId}_* secrets in Edge Function Secrets first.` }, 400);
+    if (!provider.configured) return json({ error: `${provider.name} is missing: ${provider.missing.join(", ")}. Configure these Edge Function secrets first.` }, 400);
     const value = { provider_id: providerId, updated_at: new Date().toISOString() };
     const { error } = await db.from("site_settings").upsert({ key: "newsroom_active_ai_provider", value, updated_at: new Date().toISOString() }, { onConflict: "key" });
     if (error) return json({ error: `Could not save active AI provider: ${error.message}` }, 500);
-    return json({ ok: true, providerName: provider.name, message: `${provider.name} is now the preferred AI provider. Automatic fallback remains enabled.` });
+    return json({ ok: true, providerName: provider.name, message: `${provider.name} is now the active AI provider.` });
   }
 
   if (action === "draft_daily_categories_now") {
     const categoryIds = Array.isArray(body.category_ids) ? [...new Set(body.category_ids.map((x: unknown) => String(x)).filter(Boolean))].slice(0, 50) : [];
     if (!categoryIds.length) return json({ error: "Select at least one category." }, 400);
-    if (categoryIds.length > 1) return json({ error: "For reliability, submit one category per request. The updated newsroom page does this automatically." }, 400);
     const { data: cats, error: catError } = await db.from("categories").select("id,name").in("id", categoryIds);
-    if (catError) { console.error("[newsroom] daily category query failed", { message: catError.message, code: (catError as any).code }); return json({ error: `Could not load categories: ${catError.message}` }, 500); }
+    if (catError) return json({ error: `Could not load categories: ${catError.message}` }, 500);
     const results: any[] = []; let created = 0, skipped = 0, failed = 0;
     for (const category of (cats || [])) {
       const { data: candidate, error: candidateError } = await db.from("newsroom_candidates").select("id,source_title,status,linked_post_id").eq("category_id", category.id).in("status", ["discovered", "error"]).is("linked_post_id", null).order("discovered_at", { ascending: false }).limit(1).maybeSingle();
@@ -187,11 +248,11 @@ Deno.serve(async (req) => {
       if (!candidate) { skipped++; results.push({ category: category.name, status: "skipped", message: "No unprocessed discovered story is available in this category. Run Discover new stories first." }); continue; }
       try {
         const base = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
-        const resp = await fetch(`${base}/functions/v1/parrothit-newsroom-automation`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "apikey": anon, "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", candidate_id: candidate.id, mode: "daily_schedule" }), signal: AbortSignal.timeout(38000) });
+        const resp = await fetch(`${base}/functions/v1/parrothit-newsroom-automation`, { method: "POST", headers: { "Authorization": `Bearer ${token}`, "apikey": anon, "Content-Type": "application/json" }, body: JSON.stringify({ action: "draft", candidate_id: candidate.id, mode: "daily_schedule" }), signal: AbortSignal.timeout(55000) });
         const payload = await resp.json().catch(() => ({}));
         if (!resp.ok || payload.error) { failed++; results.push({ category: category.name, status: "failed", message: payload.error || `Draft request returned HTTP ${resp.status}` }); }
         else { created++; results.push({ category: category.name, status: "created", post_id: payload.post?.id, message: `Draft created: ${payload.post?.title || candidate.source_title}. It remains In Review.` }); }
-      } catch (e) { const detail = e instanceof Error ? e.message : String(e); console.error("[newsroom] daily category request failed", { category: category.name, detail }); failed++; results.push({ category: category.name, status: "failed", message: detail }); }
+      } catch (e) { failed++; results.push({ category: category.name, status: "failed", message: e instanceof Error ? e.message : String(e) }); }
     }
     return json({ ok: failed === 0, results, created, skipped, failed, message: "Daily category drafting run finished. All created articles remain In Review and are not auto-published." });
   }
@@ -236,6 +297,10 @@ Deno.serve(async (req) => {
     const title = String(candidate.source_title || "").trim().slice(0, 160);
     if (!title) return json({ error: "This candidate has no source headline. It cannot be drafted." }, 400);
 
+    let destination: "articles" | "category_card_manager";
+    try { destination = await getDraftDestination(); }
+    catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 500); }
+
     // Claim the candidate so two clicks cannot normally create duplicate drafts.
     const { data: claim, error: claimError } = await db.from("newsroom_candidates")
       .update({ status: "drafting", error_message: null, updated_at: new Date().toISOString() })
@@ -246,40 +311,19 @@ Deno.serve(async (req) => {
 
     const sourceName = String(candidate.source_name || "Original source").slice(0, 240);
     const sourceUrl = String(candidate.source_url || "").trim();
-    const sourceSummary = String(candidate.source_summary || "").trim().slice(0, 12000);
-    let sourcePage: any = { title: "", description: "", imageUrl: "", text: "", headings: [] };
-    let pageFetchNote = "The publisher did not provide a readable article page; only feed metadata is available.";
-    try {
-      sourcePage = await fetchSourcePage(sourceUrl);
-      if (sourcePage.text.length > 500) pageFetchNote = `Retrieved ${sourcePage.text.length.toLocaleString()} characters from the source page for editorial reference.`;
-      else pageFetchNote = "The source page was reachable, but it did not expose enough readable article text. The draft uses available feed metadata.";
-    } catch (e) { console.warn("[newsroom] manual source extraction unavailable", { candidateId, message: e instanceof Error ? e.message : String(e) }); }
-    const usableDescription = String(sourcePage.description || "").trim();
-    const summary = (sourceSummary || usableDescription || `Working draft based on the headline from ${sourceName}. Verify and expand it before publication.`).slice(0, 400);
-    const headingNotes = Array.isArray(sourcePage.headings) && sourcePage.headings.length
-      ? sourcePage.headings.map((h: string) => `• ${h}`).join("\n") : "No article subheadings could be extracted.";
-    // Do not copy a publisher's full article verbatim into PARROTHIT. This manual draft captures
-    // source metadata and a detailed editorial checklist; use AI draft for a paraphrased long-form report.
+    const sourceSummary = String(candidate.source_summary || "").trim().slice(0, 8000);
+    const summary = (sourceSummary || `Working draft based on the headline from ${sourceName}. An editor must verify the source and write/expand the report before publication.`).slice(0, 400);
     const articleBody = [
-      "MANUAL SOURCE-REVIEW DRAFT — NOT READY FOR PUBLICATION",
+      "MANUAL WORKING DRAFT — EDIT AND VERIFY BEFORE PUBLICATION",
       "",
-      `Original headline: ${title}`,
-      `Publisher: ${sourceName}`,
-      `Source page title: ${sourcePage.title || "Not detected"}`,
-      `Source URL: ${sourceUrl}`,
-      `Source page retrieval: ${pageFetchNote}`,
+      sourceSummary
+        ? `Source-provided RSS summary (review and rewrite before publication):\n${sourceSummary}`
+        : "The RSS feed did not provide a summary. Open the original source and write an original report before publication.",
       "",
-      "AVAILABLE FEED SUMMARY:",
-      sourceSummary || "The RSS feed did not supply a summary.",
+      `Source: ${sourceName}`,
+      `Original source URL: ${sourceUrl}`,
       "",
-      "SOURCE DESCRIPTION:",
-      usableDescription || "No page description could be extracted.",
-      "",
-      "SOURCE ARTICLE SUBHEADINGS:",
-      headingNotes,
-      "",
-      "EDITORIAL NEXT STEPS:",
-      "Use the source link to verify the full report. Write an original, paraphrased article in PARROTHIT's own words; do not reproduce the publisher's article verbatim. Add verified names, dates and context, then fact-check before approval. For a long-form draft based on the retrieved page text, use Create Original Detailed Report — AI.",
+      "EDITORIAL CHECK: This draft was created without AI from feed metadata. Verify all details against the original report, write an original article, confirm dates and local context, and review attribution and rights before approving it."
     ].join("\n");
 
     let slug = slugify(title), suffix = 2;
@@ -298,7 +342,6 @@ Deno.serve(async (req) => {
       slug,
       summary,
       body: articleBody,
-      image_url: sourcePage.imageUrl || null,
       category_id: candidate.category_id,
       author_name: "PARROTHIT News Desk (manual draft)",
       status: "in_review",
@@ -317,25 +360,22 @@ Deno.serve(async (req) => {
       return json({ error: `Could not save manual draft: ${detail}` }, 500);
     }
 
-    const { data: linked, error: linkError } = await db.from("newsroom_candidates").update({
-      status: "in_review",
-      linked_post_id: post.id,
-      error_message: null,
-      updated_at: new Date().toISOString(),
-    }).eq("id", candidateId).is("linked_post_id", null).select("id").maybeSingle();
-
-    if (linkError || !linked) {
-      // Avoid leaving an unlinked duplicate article if the candidate could not be updated.
+    try {
+      await linkCandidateToPost(candidateId, post.id, destination);
+    } catch (e) {
       await db.from("posts").delete().eq("id", post.id);
-      const detail = linkError?.message || "Candidate was no longer available to link.";
-      await db.from("newsroom_candidates").update({ status: "error", error_message: detail.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", candidateId).is("linked_post_id", null);
-      return json({ error: `The draft could not be linked to its candidate: ${detail}. Please reload the queue and try again.` }, 409);
+      const detail = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
+      await db.from("newsroom_candidates").update({ status: "error", linked_post_id: null, error_message: detail, updated_at: new Date().toISOString() }).eq("id", candidateId);
+      return json({ error: detail }, 500);
     }
 
     return json({
       ok: true,
       post,
-      message: "Free manual draft created in In Review. Open Article Editor, verify the source, edit the article, and explicitly approve it before publication.",
+      review_destination: destination,
+      message: destination === "category_card_manager"
+        ? "Free manual draft created and added to the Category Card 1–6 human-review queue. It remains unpublished."
+        : "Free manual draft created in Article Editor (In Review). Verify and approve it before publication.",
     });
   }
 
@@ -343,118 +383,64 @@ Deno.serve(async (req) => {
     const candidateId = String(body.candidate_id || "");
     if (!candidateId) return json({ error: "candidate_id is required." }, 400);
     const aiProvider = await activeProvider();
-    if (!aiProvider.configured) return json({ error: `AI drafting is not configured. Add numbered Edge Function secrets such as NEWSROOM_AI_7_NAME, NEWSROOM_AI_7_API_KEY, NEWSROOM_AI_7_API_URL, and NEWSROOM_AI_7_MODEL. Missing for ${aiProvider.name}: ${aiProvider.missing.join(", ")}.` }, 503);
+    if (!aiProvider.configured) return json({ error: `AI drafting is not configured. Configure NEWSROOM_AI_1_API_KEY, NEWSROOM_AI_1_API_URL, and NEWSROOM_AI_1_MODEL (or another slot) as Edge Function secrets. Missing for ${aiProvider.name}: ${aiProvider.missing.join(", ")}.` }, 503);
+    const aiKey = aiProvider.apiKey;
+    const aiUrl = aiProvider.apiUrl;
+    const aiModel = aiProvider.model;
     const { data: candidate, error: candidateError } = await db.from("newsroom_candidates").select("*").eq("id", candidateId).maybeSingle();
     if (candidateError || !candidate) return json({ error: "News candidate not found." }, 404);
     if (candidate.linked_post_id) return json({ error: "This candidate already has an article draft.", post_id: candidate.linked_post_id }, 409);
     if (!["discovered", "error"].includes(candidate.status)) return json({ error: `Candidate status is ${candidate.status}; only discovered/error candidates can be drafted.` }, 409);
-    await db.from("newsroom_candidates").update({ status: "drafting", error_message: null, updated_at: new Date().toISOString() }).eq("id", candidateId);
+    let destination: "articles" | "category_card_manager";
+    try { destination = await getDraftDestination(); }
+    catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 500); }
+    const { data: claim, error: claimError } = await db.from("newsroom_candidates")
+      .update({ status: "drafting", error_message: null, updated_at: new Date().toISOString() })
+      .eq("id", candidateId).is("linked_post_id", null).in("status", ["discovered", "error"])
+      .select("id").maybeSingle();
+    if (claimError) return json({ error: `Could not reserve this candidate: ${claimError.message}` }, 500);
+    if (!claim) return json({ error: "This candidate is already being processed or has already been linked to an article. Reload the queue." }, 409);
     try {
-      let articleContext = String(candidate.source_summary || "").slice(0, 12000);
-      let sourcePage: any = { title: "", description: "", imageUrl: "", text: "", headings: [] };
+      let articleContext = candidate.source_summary || "";
+      // Attempt to retrieve the linked page for additional context; RSS summary remains the fallback.
       try {
-        sourcePage = await fetchSourcePage(String(candidate.source_url || ""));
-        const pageParts = [sourcePage.title, sourcePage.description, ...(sourcePage.headings || []), sourcePage.text].filter(Boolean).join("\n\n");
-        if (pageParts.length > articleContext.length) articleContext = pageParts.slice(0, 20000);
-      } catch (e) {
-        console.warn("[newsroom] AI source extraction unavailable; using feed summary", { candidateId, message: e instanceof Error ? e.message : String(e) });
-      }
-      const sourceImageUrl = sourcePage.imageUrl || null;
-      const sourceWords = articleContext.trim().split(/\s+/).filter(Boolean).length;
-      const prompt = `Write a substantial, original PARROTHIT News Desk news report using only the factual source material below. Target 900–1,300 words when the source contains enough verified detail; otherwise write the longest responsible report supported by the material and explain limitations without padding. Do not invent facts, quotes, names, numbers, dates or claims. Paraphrase in original wording; do not copy the publisher's wording or reproduce long source passages. Attribute the information to the named publisher and do not claim independent verification. Use a clear lead, meaningful context, and 6–10 coherent paragraphs when supported. Return valid JSON only with keys title (max 160 chars), summary (1–2 sentences), body (a detailed article as plain text with paragraph breaks), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Approximate available source words: ${sourceWords}. Source material: ${articleContext.slice(0, 20000)}`;
-
-      // Parse and validate inside each provider attempt. A bad model response must
-      // not win the race and prevent a healthy fallback provider from being tried.
-      const requestProvider = async (provider: any, timeoutSignal: any, timeoutMs?: number) => {
-        const requestSignal = timeoutMs ? AbortSignal.timeout(timeoutMs) : timeoutSignal;
-        const aiResponse = await fetch(provider.apiUrl, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-          // Avoid response_format: some free-tier OpenAI-compatible endpoints reject it.
-          body: JSON.stringify({ model: provider.model, temperature: 0.2, max_tokens: 4200, messages: [
-            { role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output one valid JSON object only; no markdown fences." },
-            { role: "user", content: prompt },
-          ] }),
-          signal: requestSignal,
-        });
-        const raw = await aiResponse.text();
-        if (!aiResponse.ok) throw new Error(`${provider.name} HTTP ${aiResponse.status}: ${raw.slice(0, 300)}`);
-        let packet: any;
-        try { packet = JSON.parse(raw); } catch { throw new Error(`${provider.name} returned invalid API JSON.`); }
-        const messageContent = packet?.choices?.[0]?.message?.content;
-        const content = typeof messageContent === "string" ? messageContent : Array.isArray(messageContent) ? messageContent.map((part: any) => typeof part === "string" ? part : String(part?.text || "")).join("\n") : "";
-        if (!content.trim()) throw new Error(`${provider.name} returned no draft text.`);
-        const jsonText = content.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-        let parsed: any;
-        try { parsed = JSON.parse(jsonText); }
-        catch {
-          const first = jsonText.indexOf("{"); const last = jsonText.lastIndexOf("}");
-          if (first < 0 || last <= first) throw new Error(`${provider.name} did not return a valid JSON article.`);
-          try { parsed = JSON.parse(jsonText.slice(first, last + 1)); }
-          catch { throw new Error(`${provider.name} did not return a valid JSON article.`); }
+        const r = await fetch(candidate.source_url, { headers: { "User-Agent": "PARROTHIT-Newsroom/1.0" }, signal: AbortSignal.timeout(9000) });
+        if (r.ok) {
+          const html = (await r.text()).slice(0, 1_000_000);
+          const main = (html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i) || html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) || [])[1] || html;
+          const text = clean(main).slice(0, 9000); if (text.length > articleContext.length) articleContext = text;
         }
-        const bodyText = String(parsed?.body || "").trim();
-        if (!String(parsed?.title || candidate.source_title).trim() || bodyText.length < 250) throw new Error(`${provider.name} returned an incomplete draft.`);
-        return { provider, draft: parsed };
-      };
-
-      const allConfigured = configuredProviders();
-      const providersToTry = [aiProvider, ...allConfigured].filter((provider, index, arr) => provider.configured && arr.findIndex((item) => item.id === provider.id) === index);
-      let selected: any = null;
-      let primaryError = "Preferred provider did not respond.";
-      try {
-        // A real but bounded window for slower free endpoints; never retry the same provider indefinitely.
-        selected = await requestProvider(aiProvider, AbortSignal.timeout(16000));
-      } catch (providerError) {
-        primaryError = providerError instanceof Error ? providerError.message : String(providerError);
-        console.warn("[newsroom] Preferred provider failed; starting automatic fallback", { provider: aiProvider.name, message: primaryError });
-      }
-      if (!selected) {
-        const fallbackProviders = providersToTry.filter((provider) => provider.id !== aiProvider.id);
-        if (!fallbackProviders.length) throw new Error(`Preferred AI provider failed and no other configured provider is available. ${primaryError}`);
-        const fallbackController = new AbortController();
-        const fallbackTimer = setTimeout(() => fallbackController.abort(), 11000);
-        const fallbackErrors: string[] = [];
-        try {
-          selected = await Promise.any(fallbackProviders.map(async (provider) => {
-            try { return await requestProvider(provider, fallbackController.signal); }
-            catch (providerError) {
-              const detail = providerError instanceof Error ? providerError.message : String(providerError);
-              fallbackErrors.push(detail.slice(0, 220));
-              console.warn("[newsroom] Fallback provider failed", { provider: provider.name, message: detail.slice(0, 350) });
-              throw providerError;
-            }
-          }));
-          // Stop outstanding requests as soon as one provider supplies a valid article.
-          fallbackController.abort();
-        } catch {
-          const details = fallbackErrors.slice(-4).join(" | ") || "All fallback requests timed out.";
-          throw new Error(`AI provider fallback failed. Preferred provider: ${primaryError}. Fallback results: ${details}`.slice(0, 950));
-        } finally { clearTimeout(fallbackTimer); }
-      }
-      const usedProvider = selected.provider;
-      const draft = selected.draft;
+      } catch { /* Feed summary is still useful. */ }
+      const prompt = `Create a fact-conscious PARROTHIT News Desk article draft based ONLY on the source material below. Do not invent facts, quotes, names, numbers, or claims. If the material is too thin, clearly say so in summary/body and do not speculate. Paraphrase; do not reproduce long source passages. Do not claim independent verification. Keep a neutral news tone. Return valid JSON only with keys title (max 160 chars), summary (1-2 sentences), body (3-6 short paragraphs; include an attribution to the named source and do not invent quotes), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Feed summary/page text: ${articleContext.slice(0, 9000)}`;
+      const aiResponse = await fetch(aiUrl, { method: "POST", headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: aiModel, temperature: 0.2, response_format: { type: "json_object" }, messages: [{ role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output valid JSON only." }, { role: "user", content: prompt }] }), signal: AbortSignal.timeout(45000) });
+      const raw = await aiResponse.text();
+      if (!aiResponse.ok) throw new Error(`AI provider HTTP ${aiResponse.status}: ${raw.slice(0, 500)}`);
+      const completion = JSON.parse(raw);
+      const content = completion?.choices?.[0]?.message?.content;
+      if (!content) throw new Error("AI provider returned no draft text.");
+      const draft = JSON.parse(content);
       const title = String(draft.title || candidate.source_title).trim().slice(0, 160);
       const summary = String(draft.summary || candidate.source_summary).trim().slice(0, 1500);
       const articleBody = String(draft.body || "").trim();
-      if (!title || articleBody.length < 250) throw new Error("AI draft was incomplete or too short; no article was saved. Retry or check the configured model's output-token limit.");
+      if (!title || articleBody.length < 80) throw new Error("AI draft was incomplete; no article was saved.");
       let slug = slugify(title), suffix = 2;
       while (true) { const { data: match } = await db.from("posts").select("id").eq("slug", slug).maybeSingle(); if (!match) break; slug = `${slugify(title)}-${suffix++}`; }
-      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, image_url: sourceImageUrl, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
+      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
       if (postError) throw new Error(`Could not save article draft: ${postError.message}`);
-      const { error: linkError } = await db.from("newsroom_candidates").update({ status: "in_review", linked_post_id: post.id, error_message: null, updated_at: new Date().toISOString() }).eq("id", candidateId);
-      if (linkError) {
-        await db.from("posts").delete().eq("id", post.id);
-        throw new Error(`Could not link the AI draft to its candidate. The unlinked draft was rolled back: ${linkError.message}`);
-      }
-      console.info("[newsroom] AI draft saved", { candidateId, provider: usedProvider.name, providerId: usedProvider.id, articleId: post.id });
-      return json({ ok: true, post, providerName: usedProvider.name, message: `Draft created with ${usedProvider.name} in In Review. An administrator must fact-check and approve it before publication.` });
+      await linkCandidateToPost(candidateId, post.id, destination);
+      return json({
+        ok: true,
+        post,
+        review_destination: destination,
+        message: destination === "category_card_manager"
+          ? "AI-assisted draft created and added to the Category Card 1–6 human-review queue. It remains unpublished."
+          : "AI-assisted draft created in Article Editor (In Review). An administrator must fact-check and approve it before publication.",
+      });
     } catch (e) {
       const message = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
-      console.error("[newsroom] AI draft failed", { candidateId, preferredProvider: aiProvider.name, message });
       await db.from("newsroom_candidates").update({ status: "error", error_message: message, updated_at: new Date().toISOString() }).eq("id", candidateId);
       return json({ error: message }, 502);
     }
   }
-  return json({ error: "Unsupported action. Use discover, manual_draft, draft, get_ai_provider_config, set_active_ai_provider, or draft_daily_categories_now." }, 400);
+  return json({ error: "Unsupported action. Use discover, manual_draft, draft, clear_drafts, delete_card_draft, get_ai_provider_config, set_active_ai_provider, or draft_daily_categories_now." }, 400);
 });
