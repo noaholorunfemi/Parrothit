@@ -31,6 +31,16 @@ create index if not exists category_card_review_queue_status_idx
 create index if not exists category_card_review_queue_post_idx
   on public.category_card_review_queue(post_id);
 
+-- The newsroom page stores one of two destinations: the existing Article Editor
+-- or this dedicated Category Card 1–6 review manager. Default keeps the current
+-- newsroom-to-card-manager workflow until an administrator changes the choice.
+insert into public.site_settings(key, value, updated_at)
+values ('newsroom_draft_destination', to_jsonb('category_card_manager'::text), now())
+on conflict (key) do nothing;
+
+alter table public.newsroom_candidates
+  add column if not exists review_destination text;
+
 create table if not exists public.category_card_assignments (
   id uuid primary key default gen_random_uuid(),
   category_key text not null check (category_key ~ '^[a-z0-9-]{1,80}$'),
@@ -44,6 +54,32 @@ create table if not exists public.category_card_assignments (
 
 create index if not exists category_card_assignments_post_idx
   on public.category_card_assignments(post_id);
+
+-- Keep routing metadata per candidate, so changing the newsroom preference does
+-- not move previously-created drafts to a different editor.
+update public.newsroom_candidates c
+set review_destination = case
+  when exists (select 1 from public.category_card_review_queue q where q.candidate_id = c.id)
+    then 'category_card_manager'
+  else coalesce((select s.value #>> '{}' from public.site_settings s where s.key = 'newsroom_draft_destination'), 'category_card_manager')
+end
+where c.review_destination is null or c.review_destination not in ('articles','category_card_manager');
+
+alter table public.newsroom_candidates
+  alter column review_destination set default 'articles';
+
+DO $$
+BEGIN
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.newsroom_candidates'::regclass
+      and conname = 'newsroom_candidates_review_destination_check'
+  ) then
+    alter table public.newsroom_candidates
+      add constraint newsroom_candidates_review_destination_check
+      check (review_destination in ('articles','category_card_manager'));
+  end if;
+END $$;
 
 alter table public.category_card_review_queue enable row level security;
 alter table public.category_card_assignments enable row level security;
@@ -63,8 +99,50 @@ create policy "active admins manage category card assignments"
 grant select, insert, update, delete on public.category_card_review_queue to authenticated;
 grant select, insert, update, delete on public.category_card_assignments to authenticated;
 
--- Every newsroom candidate linked to an In Review post enters the separate manager queue.
--- The trigger runs for both AI detailed drafts and free source-text drafts.
+-- Stamp the selected destination on a candidate exactly when its first post is linked.
+-- The Edge Function does not need to know about the editor preference; this database
+-- trigger reads the saved site setting at the moment the newsroom links the draft.
+create or replace function public.stamp_parrothit_newsroom_draft_destination()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_destination text;
+begin
+  if new.linked_post_id is not null then
+    if tg_op = 'INSERT' then
+      select value #>> '{}' into v_destination
+      from public.site_settings
+      where key = 'newsroom_draft_destination';
+      if v_destination not in ('articles','category_card_manager') or v_destination is null then
+        v_destination := 'category_card_manager';
+      end if;
+      new.review_destination := v_destination;
+    elsif old.linked_post_id is null or old.linked_post_id is distinct from new.linked_post_id then
+      select value #>> '{}' into v_destination
+      from public.site_settings
+      where key = 'newsroom_draft_destination';
+      if v_destination not in ('articles','category_card_manager') or v_destination is null then
+        v_destination := 'category_card_manager';
+      end if;
+      new.review_destination := v_destination;
+    elsif new.review_destination is null then
+      new.review_destination := 'articles';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.stamp_parrothit_newsroom_draft_destination() from public, anon, authenticated;
+drop trigger if exists newsroom_candidate_stamp_draft_destination on public.newsroom_candidates;
+create trigger newsroom_candidate_stamp_draft_destination
+  before insert or update on public.newsroom_candidates
+  for each row execute function public.stamp_parrothit_newsroom_draft_destination();
+
+-- Only candidates explicitly routed to the card manager enter its human-review queue.
 create or replace function public.enqueue_parrothit_newsroom_card_review()
 returns trigger
 language plpgsql
@@ -72,7 +150,9 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.linked_post_id is not null and new.status = 'in_review' then
+  if new.linked_post_id is not null
+     and new.status = 'in_review'
+     and new.review_destination = 'category_card_manager' then
     insert into public.category_card_review_queue(candidate_id, post_id)
     values (new.id, new.linked_post_id)
     on conflict (candidate_id) do nothing;
@@ -95,6 +175,7 @@ join public.posts p on p.id = c.linked_post_id
 where c.linked_post_id is not null
   and c.status = 'in_review'
   and p.status in ('in_review','draft')
+  and c.review_destination = 'category_card_manager'
 on conflict (candidate_id) do nothing;
 
 -- If an administrator deletes an already assigned post from the existing Article Editor,
@@ -338,9 +419,6 @@ begin
   update public.newsroom_candidates set status = 'imported', updated_at = v_now
   where id = v_queue.candidate_id;
 
-  insert into public.admin_audit_log(actor, action, target_type, target_id, details)
-  values (auth.uid(), 'publish_category_card_article', 'posts', v_post.id::text,
-    jsonb_build_object('category',v_category.name,'category_key',p_category_key,'card_position',p_card_position,'replaced_post_id',v_old_post_id));
 
   return jsonb_build_object('ok',true,'post_id',v_post.id,'category',v_category.name,'category_key',p_category_key,'card_position',p_card_position,'replaced_post_id',v_old_post_id,'published_at',v_now);
 end;
