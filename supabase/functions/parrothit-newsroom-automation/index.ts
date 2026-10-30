@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
       if (queueError) {
         // Restore the candidate to an unlinked error state; callers roll back the post.
         await db.from("newsroom_candidates").update({ status: "error", linked_post_id: null, error_message: queueError.message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", candidateId);
-        throw new Error(`The draft was created but could not enter the Category Card review queue: ${queueError.message}`);
+        throw new Error(`The draft was created but could not enter the Category Card review queue: ${queueError.message}. Run supabase/newsroom-access-timeout-repair.sql in the Supabase SQL Editor, then redeploy this Edge Function.`);
       }
     }
     return destination;
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
         // Include drafts that were linked before the review-queue insert was reliable.
         db.from("newsroom_candidates").select("id,linked_post_id,status").eq("review_destination", "category_card_manager").not("linked_post_id", "is", null).in("status", ["in_review", "drafting", "error"]).limit(10000),
       ]);
-      if (queueResult.error) return json({ error: `Could not load Category Card drafts: ${queueResult.error.message}` }, 500);
+      if (queueResult.error) return json({ error: `Could not load Category Card drafts: ${queueResult.error.message}. Run supabase/newsroom-access-timeout-repair.sql to grant the Edge Function service role access to category_card_review_queue.` }, 500);
       if (candidateResult.error) return json({ error: `Could not recover routed Category Card drafts: ${candidateResult.error.message}` }, 500);
       const ids = new Set<string>();
       (queueResult.data || []).filter((q: any) => q.review_status !== "published").forEach((q: any) => { if (q.post_id) ids.add(String(q.post_id)); });
@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
         db.from("newsroom_candidates").select("linked_post_id").eq("review_destination", "category_card_manager").not("linked_post_id", "is", null).limit(10000),
       ]);
       if (postResult.error) return json({ error: `Could not load Article Editor drafts: ${postResult.error.message}` }, 500);
-      if (queueResult.error) return json({ error: `Could not protect Category Card drafts: ${queueResult.error.message}` }, 500);
+      if (queueResult.error) return json({ error: `Could not protect Category Card drafts: ${queueResult.error.message}. Run supabase/newsroom-access-timeout-repair.sql to grant the Edge Function service role access to category_card_review_queue.` }, 500);
       if (managerCandidateResult.error) return json({ error: `Could not protect routed Category Card drafts: ${managerCandidateResult.error.message}` }, 500);
       const protectedIds = new Set<string>();
       (queueResult.data || []).forEach((q: any) => { if (q.post_id) protectedIds.add(String(q.post_id)); });
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
     if (!queueId) return json({ error: "queue_id is required." }, 400);
     const { data: queueItem, error: queueReadError } = await db.from("category_card_review_queue")
       .select("id,candidate_id,post_id,review_status").eq("id", queueId).maybeSingle();
-    if (queueReadError) return json({ error: `Could not read the review item: ${queueReadError.message}` }, 500);
+    if (queueReadError) return json({ error: `Could not read the review item: ${queueReadError.message}. Run supabase/newsroom-access-timeout-repair.sql to repair service-role access.` }, 500);
     if (!queueItem) return json({ error: "The Category Card draft no longer exists. Refresh the queue." }, 404);
     if (queueItem.review_status === "published") return json({ error: "Published card assignments cannot be deleted from the draft queue." }, 409);
     const { data: post, error: postReadError } = await db.from("posts").select("id,status,published_at").eq("id", queueItem.post_id).maybeSingle();
