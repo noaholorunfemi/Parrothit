@@ -37,6 +37,7 @@ declare
   v_now timestamptz := now();
   v_occupied boolean := false;
   v_old_post_id uuid;
+  v_occupied_standard integer := 0;
 begin
   if not exists (
     select 1 from public.admin_profiles ap
@@ -77,6 +78,31 @@ begin
   select value into v_settings from public.site_settings where key = 'category_cards' for update;
   v_settings := coalesce(v_settings, '{}'::jsonb);
   v_category_settings := coalesce(v_settings -> p_category_key, '{}'::jsonb);
+
+  -- Positions 7+ are legal only after all six original category cards are occupied.
+  -- Count both normalized assignment rows and the shared JSON records used by public pages.
+  if p_card_position > 6 then
+    select count(*) into v_occupied_standard
+    from generate_series(1, 6) as slot(position)
+    where exists (
+      select 1 from public.category_card_assignments a
+      where a.category_key = p_category_key and a.card_position = slot.position
+    ) or (
+      jsonb_typeof(v_category_settings -> slot.position::text) = 'object'
+      and (
+        coalesce(v_category_settings -> slot.position::text ->> 'postId', '') <> ''
+        or coalesce(v_category_settings -> slot.position::text ->> 'newsroomPostId', '') <> ''
+        or coalesce(v_category_settings -> slot.position::text ->> 'title', '') <> ''
+        or coalesce(v_category_settings -> slot.position::text ->> 'text', '') <> ''
+        or coalesce(v_category_settings -> slot.position::text ->> 'image', '') <> ''
+        or coalesce(v_category_settings -> slot.position::text ->> 'imageUrl', '') <> ''
+      )
+    );
+    if v_occupied_standard < 6 then
+      raise exception 'ADDITIONAL_CARD_NOT_ALLOWED: Use an available original category card (1–6) before creating an additional card.';
+    end if;
+  end if;
+
   v_current_card := v_category_settings -> p_card_position::text;
   if v_current_card is not null and v_current_card <> 'null'::jsonb then
     if coalesce(v_current_card ->> 'postId', v_current_card ->> 'newsroomPostId','') <> v_post.id::text then
