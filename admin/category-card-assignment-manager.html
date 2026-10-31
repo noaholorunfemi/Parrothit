@@ -107,18 +107,37 @@ function renderCategoryRoutes(){const body=$('categoryRouteRows');if(!body)retur
 async function removePublishedCard(categoryKey,position,categoryName,button){
  const info=cardSettings?.[categoryKey]?.[String(position)]||{};
  const assignment=assignmentRows.find(a=>a.category_key===categoryKey&&Number(a.card_position)===Number(position));
- const title=info.title||info.headline||postsById[assignment?.post_id]?.title||'the selected published story';
- const confirmed=confirm(`Remove ${title} from ${categoryName} Card ${position}?\n\nThis removes the story from this featured card only. The article itself remains published and may still appear in the category's Latest News feed.`);
- if(!confirmed)return;
+ const postId=info.postId||info.newsroomPostId||assignment?.post_id||'';
+ const title=info.title||info.headline||postsById[postId]?.title||'the selected published story';
+ const action=await chooseDeleteCardAction(categoryName,position,title);
+ if(!action)return;
  button.disabled=true;
  try{
   const {error}=await client.rpc('remove_category_card_assignment',{p_category_key:categoryKey,p_card_position:Number(position)});
   if(error)throw error;
-  message(`${categoryName} Card ${position} content was removed. The article itself remains published.`);
+  // Remove any legacy JSON card record too; otherwise the old card can still appear publicly.
+  const next={...(cardSettings||{})};
+  if(next[categoryKey]){next[categoryKey]={...next[categoryKey]};delete next[categoryKey][String(position)];}
+  const {error:settingsError}=await client.from('site_settings').upsert({key:'category_cards',value:next,updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(settingsError)throw settingsError;
+  if(action==='unpublish'&&postId){
+   const {error:postError}=await client.from('posts').update({status:'draft',published_at:null}).eq('id',postId);
+   if(postError)throw postError;
+  }
+  message(action==='unpublish'?`${categoryName} Card ${position} was removed and its article was moved back to Draft.`:`${categoryName} Card ${position} was removed. The article remains published and can still appear in Latest News.`);
   await loadCardSettings();
  }catch(error){message(error?.message||String(error),'error');}
  finally{button.disabled=false;}
 }
+function chooseDeleteCardAction(category,position,title){return new Promise(resolve=>{
+ const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:100002;background:rgba(2,6,23,.72);display:grid;place-items:center;padding:18px';
+ const box=document.createElement('section');box.setAttribute('role','alertdialog');box.setAttribute('aria-modal','true');box.style.cssText='width:min(100%,480px);background:#fff;color:#172033;border-radius:16px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.35);font:inherit';
+ box.innerHTML=`<h2 style="margin:0 0 10px;font-size:1.25rem">Delete ${esc(category)} Card ${position}?</h2><p style="line-height:1.55">Selected story: <strong>${esc(title)}</strong></p><p style="line-height:1.55">What should happen to the article after removing it from this category card?</p><div style="display:grid;gap:9px;margin-top:18px"><button type="button" data-choice="keep" style="border:0;background:#0c7942;color:#fff;padding:12px;border-radius:9px;font-weight:800">Remove card, keep article published</button><button type="button" data-choice="unpublish" style="border:0;background:#b91c1c;color:#fff;padding:12px;border-radius:9px;font-weight:800">Remove card and unpublish article</button><button type="button" data-choice="cancel" style="border:1px solid #94a3b8;background:#fff;color:#172033;padding:11px;border-radius:9px;font-weight:700">Cancel</button></div>`;
+ overlay.appendChild(box);document.body.appendChild(overlay);
+ const finish=value=>{overlay.remove();resolve(value)};
+ box.querySelector('[data-choice="keep"]').onclick=()=>finish('keep');box.querySelector('[data-choice="unpublish"]').onclick=()=>finish('unpublish');box.querySelector('[data-choice="cancel"]').onclick=()=>finish(null);
+ overlay.addEventListener('click',e=>{if(e.target===overlay)finish(null)});const key=e=>{if(e.key==='Escape'){document.removeEventListener('keydown',key);finish(null)}};document.addEventListener('keydown',key);
+ });}
 document.addEventListener('click',event=>{const button=event.target.closest('[data-remove-card]');if(!button)return;removePublishedCard(button.dataset.removeCard,button.dataset.removePosition,button.dataset.removeCategory,button);});
 function revealPage(){document.documentElement.classList.remove('admin-auth-pending');document.body?.classList.remove('admin-auth-pending');}
 async function initializeAdminSession(){
