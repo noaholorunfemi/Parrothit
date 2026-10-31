@@ -823,8 +823,12 @@
     await displayStories(localState, cloud);
     const localFeatureCards = {}; for(let i=1;i<=16;i++){try{const v=JSON.parse(localStorage.getItem('parrothit-news-card-'+String(i).padStart(2,'0'))||'null');if(v)localFeatureCards[String(i).padStart(2,'0')]=v;}catch(_){}}
     displayAdminNewsCards({...localFeatureCards,...(cloud.settings.news_cards || {})});
-    const categoryCardHandled = await displayCategoryCardArticle(cloud.settings.category_cards || {});
-    if (!categoryCardHandled) await displayManagedArticle(localState, cloud);
+    // The dedicated public article loader resolves full posts.body content for both
+    // direct slug links and category-card links. Avoid competing legacy renderers.
+    if (!window.__PARROTHIT_PUBLIC_ARTICLE_LOADER_ACTIVE__) {
+      const categoryCardHandled = await displayCategoryCardArticle(cloud.settings.category_cards || {});
+      if (!categoryCardHandled) await displayManagedArticle(localState, cloud);
+    }
     applyExistingImageRefs();
     // Resolve references in advertisements rendered by the older ad runtime.
     document.querySelectorAll('img[src^="idb:"]').forEach(img => { const ref=img.getAttribute('src'); img.setAttribute('data-media-src',ref); img.removeAttribute('src'); });
