@@ -264,7 +264,7 @@
     // displayed in the original six-card grid. Exclude them from the overflow
     // newsroom feed so the same story is not shown twice on its category page.
     const featuredRecords = (cloud.settings && cloud.settings.category_cards && cloud.settings.category_cards[catKey]) || {};
-    const featuredPostIds = new Set(Object.entries(featuredRecords).filter(([position]) => Number(position) >= 1 && Number(position) <= 6).map(([, r]) => String(r && (r.postId || r.newsroomPostId) || '')).filter(Boolean));
+    const featuredPostIds = new Set(Object.entries(featuredRecords).filter(([position]) => Number(position) >= 1).map(([, r]) => String(r && (r.postId || r.newsroomPostId) || '')).filter(Boolean));
     const isFeaturedOnThisPage = p => featuredPostIds.has(String(p.supabaseId || p.id || ''));
     const localCategoryPosts = localNoDuplicate.filter(p => matchesCategory(p) && !isFeaturedOnThisPage(p));
     const pageSize = 18;
@@ -325,8 +325,7 @@
     const params = new URLSearchParams(location.search);
     const dynamicSlug = file === 'category' ? String(params.get('category') || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') : '';
     const categoryKey = dynamicSlug || file;
-    const allowed = new Set(['business','education','entertainment','politics','technology','culture','nigeria','sports','wildlife','religion','world','health','sports-football','sports-table-tennis','sports-basketball','sports-tennis','sports-athletics','celebrity-news','nollywood','nigerian-celebrity','football']);
-    if (!allowed.has(file) && !dynamicSlug) return;
+    if (!/^[a-z0-9-]{1,80}$/.test(categoryKey)) return;
     let records = {};
     try { records = JSON.parse(localStorage.getItem('parrothit-category-cards-v1-' + categoryKey) || '{}') || {}; } catch (_) {}
     const shared = cloudCards && cloudCards[categoryKey];
@@ -381,14 +380,12 @@
       `;
       document.head.appendChild(style);
     }
-    for (let i = 1; i <= cards.length; i++) {
-      const rec = records[i]; if (!rec || rec.enabled === false || !(rec.title || rec.text || rec.image || rec.imageUrl)) continue;
-      const card = cards[i - 1]; if (!card) continue;
-      card.hidden = false; card.removeAttribute('data-unpublished-template');
-      card.replaceChildren();
-      const rawTarget = String(rec.targetUrl || ('article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + i))).trim();
-      const href = cleanHref(rawTarget) || ('article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + i));
+    const buildManagedCard = (rec, position, card) => {
+      if (!rec || rec.enabled === false || !(rec.title || rec.text || rec.image || rec.imageUrl)) return;
+      const rawTarget = String(rec.targetUrl || ('article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + position))).trim();
+      const href = cleanHref(rawTarget) || ('article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + position));
       const imageRef = rec.image || rec.imageUrl || '';
+      card.hidden = false; card.removeAttribute('data-unpublished-template'); card.replaceChildren();
       if (imageRef) {
         const imageWrap = document.createElement('div'); imageWrap.className = 'managed-story-image';
         const img = document.createElement('img'); img.alt = rec.title || 'News image'; img.loading = 'lazy';
@@ -403,6 +400,39 @@
       const summary = document.createElement('p'); summary.textContent = rec.text || '';
       const read = document.createElement('a'); read.className = 'read-more'; read.href = href; read.textContent = 'READ STORY →';
       body.append(category, heading, summary, read); card.appendChild(body);
+    };
+    for (let i = 1; i <= 6; i++) {
+      const card = cards[i - 1];
+      if (card) buildManagedCard(records[i], i, card);
+    }
+    // Render every additional assigned card in its own responsive grid. Do not
+    // rely on desktop-only layout containers: the section is part of normal flow
+    // and explicitly switches to one column on narrow mobile screens.
+    const extraPositions = Object.keys(records).map(Number).filter(n => Number.isInteger(n) && n > 6).sort((a,b) => a-b)
+      .filter(n => records[n] && records[n].enabled !== false && (records[n].title || records[n].text || records[n].image || records[n].imageUrl));
+    const main = document.querySelector('main');
+    const oldExtra = main && main.querySelector('.parrothit-additional-category-cards-section');
+    if (oldExtra) oldExtra.remove();
+    if (main && extraPositions.length) {
+      const extraSection = document.createElement('section');
+      extraSection.className = 'parrothit-additional-category-cards-section';
+      const extraHeading = document.createElement('h2'); extraHeading.textContent = 'More ' + categoryKey.replace(/-/g, ' ') + ' stories';
+      const extraGrid = document.createElement('div'); extraGrid.className = 'parrothit-additional-category-cards-grid';
+      extraSection.append(extraHeading, extraGrid);
+      extraPositions.forEach(position => {
+        const card = document.createElement('article'); card.className = 'news-card parrothit-additional-category-card';
+        buildManagedCard(records[position], position, card); extraGrid.appendChild(card);
+      });
+      const firstGrid = main.querySelector('.news-grid:not(.parrothit-managed-grid)');
+      const originalSection = firstGrid && firstGrid.closest('section');
+      if (originalSection && originalSection.parentNode) originalSection.insertAdjacentElement('afterend', extraSection);
+      else if (firstGrid && firstGrid.parentNode) firstGrid.insertAdjacentElement('afterend', extraSection);
+      else main.appendChild(extraSection);
+      if (!document.getElementById('parrothit-additional-category-cards-style')) {
+        const style = document.createElement('style'); style.id = 'parrothit-additional-category-cards-style';
+        style.textContent = `.parrothit-additional-category-cards-section{display:block!important;width:100%;max-width:1200px;margin:28px auto;padding:0 16px;box-sizing:border-box}.parrothit-additional-category-cards-section>h2{margin:0 0 16px}.parrothit-additional-category-cards-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;width:100%}.parrothit-additional-category-card{display:flex!important;flex-direction:column;min-width:0;width:100%;max-width:none;visibility:visible!important;opacity:1!important}.parrothit-additional-category-card img{display:block;width:100%;height:auto;max-height:240px;object-fit:cover}@media(max-width:900px){.parrothit-additional-category-cards-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}@media(max-width:600px){.parrothit-additional-category-cards-section{padding:0 12px;margin:20px auto}.parrothit-additional-category-cards-grid{grid-template-columns:minmax(0,1fr);gap:12px}.parrothit-additional-category-card{display:flex!important}}`;
+        document.head.appendChild(style);
+      }
     }
     if (window.PARROTHITMediaStore) await window.PARROTHITMediaStore.bindImages(document.querySelector('main'));
   }
