@@ -264,7 +264,7 @@
     // displayed in the original six-card grid. Exclude them from the overflow
     // newsroom feed so the same story is not shown twice on its category page.
     const featuredRecords = (cloud.settings && cloud.settings.category_cards && cloud.settings.category_cards[catKey]) || {};
-    const featuredPostIds = new Set(Object.values(featuredRecords).map(r => String(r && (r.postId || r.newsroomPostId) || '')).filter(Boolean));
+    const featuredPostIds = new Set(Object.entries(featuredRecords).filter(([position]) => Number(position) >= 1 && Number(position) <= 6).map(([, r]) => String(r && (r.postId || r.newsroomPostId) || '')).filter(Boolean));
     const isFeaturedOnThisPage = p => featuredPostIds.has(String(p.supabaseId || p.id || ''));
     const localCategoryPosts = localNoDuplicate.filter(p => matchesCategory(p) && !isFeaturedOnThisPage(p));
     const pageSize = 18;
