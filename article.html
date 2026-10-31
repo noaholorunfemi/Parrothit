@@ -86,12 +86,22 @@ const likeBtn=document.getElementById('likePost');if(likeBtn)likeBtn.addEventLis
         const local=JSON.parse(localStorage.getItem(localKey)||'{}');
         if(local && local[index] && local[index].enabled!==false) record=local[index];
       }catch(_){}
+      let client=null;
       try{
         const make=window.getParrothitSupabaseClient;
-        const client=typeof make==='function'?make():null;
+        client=typeof make==='function'?make():null;
         if(client){
           const {data,error}=await client.from('site_settings').select('value').eq('key','category_cards').maybeSingle();
           if(!error && data && data.value && data.value[category] && data.value[category][index] && data.value[category][index].enabled!==false) record=data.value[category][index];
+          // Newsroom assignments are stored separately from legacy category_cards JSON.
+          // Resolve the assigned published post so every category-card link opens its full story.
+          if(!record){
+            const {data:assignment,error:assignmentError}=await client.from('category_card_assignments').select('post_id').eq('category_key',category).eq('card_position',Number(index)).maybeSingle();
+            if(!assignmentError && assignment?.post_id){
+              const {data:post,error:postError}=await client.from('posts').select('title,summary,body,image_url,status,published_at,slug').eq('id',assignment.post_id).eq('status','published').maybeSingle();
+              if(!postError && post && (!post.published_at || new Date(post.published_at)<=new Date())) record={title:post.title,text:post.body||post.summary||'',image:post.image_url||'',enabled:true,slug:post.slug||''};
+            }
+          }
         }
       }catch(err){console.warn('PARROTHIT category card shared record unavailable:',err)}
       if(!record || !(record.title||record.text||record.image||record.imageUrl||record.imageRef)){
