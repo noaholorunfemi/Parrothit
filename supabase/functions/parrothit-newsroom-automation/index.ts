@@ -30,6 +30,48 @@ function entries(xml: string) {
   }).filter(x => x.title && /^https?:\/\//i.test(x.url));
 }
 function slugify(s: string) { return s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90) || `story-${Date.now()}`; }
+function absoluteUrl(value: string, base: string): string {
+  try { const u = new URL(value, base); return /^https?:$/.test(u.protocol) ? u.href : ""; } catch { return ""; }
+}
+function extractMeta(html: string, names: string[]): string {
+  for (const name of names) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`<meta\\b(?=[^>]*(?:property|name)=["']${escaped}["'])[^>]*content=["']([^"']+)["'][^>]*>`, "i");
+    const match = html.match(re); if (match?.[1]) return match[1].replace(/&amp;/g, "&");
+    const reverse = new RegExp(`<meta\\b(?=[^>]*content=["']([^"']+)["'])[^>]*(?:property|name)=["']${escaped}["'][^>]*>`, "i");
+    const other = html.match(reverse); if (other?.[1]) return other[1].replace(/&amp;/g, "&");
+  }
+  return "";
+}
+async function fetchSourceArticle(sourceUrl: string, fallbackText = ""): Promise<{ text: string; imageUrl: string; fetched: boolean }> {
+  if (!/^https?:\/\//i.test(sourceUrl)) return { text: fallbackText, imageUrl: "", fetched: false };
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; PARROTHIT-Newsroom/1.0; +https://parrothit.noaholorunfemi98.workers.dev)", "Accept": "text/html,application/xhtml+xml" },
+      redirect: "follow", signal: AbortSignal.timeout(16000),
+    });
+    if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`);
+    const type = response.headers.get("content-type") || "";
+    if (type && !/html|xhtml/i.test(type)) return { text: fallbackText, imageUrl: "", fetched: false };
+    const html = (await response.text()).slice(0, 2_000_000);
+    const pageBase = response.url || sourceUrl;
+    let image = extractMeta(html, ["og:image", "twitter:image", "twitter:image:src"]);
+    if (!image) {
+      const articleBlock = (html.match(/<(?:article|main)\b[^>]*>([\s\S]*?)<\/(?:article|main)>/i) || [])[1] || html;
+      image = (articleBlock.match(/<img\b[^>]*src=["']([^"']+)["']/i) || [])[1] || "";
+    }
+    image = absoluteUrl(image, pageBase);
+    let main = (html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i) || html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) || [])[1] || html;
+    main = main.replace(/<(script|style|noscript|svg|nav|footer|header|aside|form|button|iframe)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?\s*>/gi, "\n").replace(/<\/(p|h[1-6]|li|div|section)>/gi, "\n\n");
+    const text = clean(main).slice(0, 18000);
+    return { text: text.length > 250 ? text : fallbackText, imageUrl: image, fetched: text.length > 250 };
+  } catch (error) {
+    console.warn("PARROTHIT source fetch failed:", error instanceof Error ? error.message : String(error));
+    return { text: fallbackText, imageUrl: "", fetched: false };
+  }
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -386,18 +428,24 @@ Deno.serve(async (req) => {
     const sourceName = String(candidate.source_name || "Original source").slice(0, 240);
     const sourceUrl = String(candidate.source_url || "").trim();
     const sourceSummary = String(candidate.source_summary || "").trim().slice(0, 8000);
-    const summary = (sourceSummary || `Working draft based on the headline from ${sourceName}. An editor must verify the source and write/expand the report before publication.`).slice(0, 400);
+    const sourcePage = await fetchSourceArticle(sourceUrl, sourceSummary);
+    const sourceText = sourcePage.text || sourceSummary;
+    const summary = (sourceSummary || sourceText.slice(0, 360) || `Working draft based on the headline from ${sourceName}. An editor must verify the source and write/expand the report before publication.`).slice(0, 400);
+    // Manual mode fetches the full source page and its featured image, but does not
+    // reproduce the publisher's full article. It gives the editor source notes and
+    // requires an original report before approval/publication.
+    const sourceNotes = sourceText ? sourceText.slice(0, 1400) : "The source page could not be retrieved. Open the original source and write an original report.";
     const articleBody = [
       "MANUAL WORKING DRAFT — EDIT AND VERIFY BEFORE PUBLICATION",
       "",
-      sourceSummary
-        ? `Source-provided RSS summary (review and rewrite before publication):\n${sourceSummary}`
-        : "The RSS feed did not provide a summary. Open the original source and write an original report before publication.",
+      "SOURCE NOTES (editorial reference only — do not publish verbatim):",
+      sourceNotes,
       "",
       `Source: ${sourceName}`,
       `Original source URL: ${sourceUrl}`,
+      sourcePage.fetched ? "Source page retrieval: Full page text retrieved for editorial reference." : "Source page retrieval: RSS fallback used; source page could not be fully retrieved.",
       "",
-      "EDITORIAL CHECK: This draft was created without AI from feed metadata. Verify all details against the original report, write an original article, confirm dates and local context, and review attribution and rights before approving it."
+      "EDITORIAL CHECK: Write an original report in your own words. Verify all facts, dates, names and local context; do not copy the source wording; review attribution and image rights before approval."
     ].join("\n");
 
     let slug = slugify(title), suffix = 2;
@@ -422,6 +470,7 @@ Deno.serve(async (req) => {
       published_at: null,
       source_url: sourceUrl || null,
       source_name: sourceName,
+      image_url: sourcePage.imageUrl || null,
       seo_title: title.slice(0, 70),
       seo_description: summary.slice(0, 160),
       reviewed_at: null,
@@ -475,17 +524,10 @@ Deno.serve(async (req) => {
     if (claimError) return json({ error: `Could not reserve this candidate: ${claimError.message}` }, 500);
     if (!claim) return json({ error: "This candidate is already being processed or has already been linked to an article. Reload the queue." }, 409);
     try {
-      let articleContext = candidate.source_summary || "";
-      // Attempt to retrieve the linked page for additional context; RSS summary remains the fallback.
-      try {
-        const r = await fetch(candidate.source_url, { headers: { "User-Agent": "PARROTHIT-Newsroom/1.0" }, signal: AbortSignal.timeout(9000) });
-        if (r.ok) {
-          const html = (await r.text()).slice(0, 1_000_000);
-          const main = (html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i) || html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i) || [])[1] || html;
-          const text = clean(main).slice(0, 9000); if (text.length > articleContext.length) articleContext = text;
-        }
-      } catch { /* Feed summary is still useful. */ }
-      const prompt = `Create a fact-conscious PARROTHIT News Desk article draft based ONLY on the source material below. Do not invent facts, quotes, names, numbers, or claims. If the material is too thin, clearly say so in summary/body and do not speculate. Paraphrase; do not reproduce long source passages. Do not claim independent verification. Keep a neutral news tone. Return valid JSON only with keys title (max 160 chars), summary (1-2 sentences), body (3-6 short paragraphs; include an attribution to the named source and do not invent quotes), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Feed summary/page text: ${articleContext.slice(0, 9000)}`;
+      const sourcePage = await fetchSourceArticle(String(candidate.source_url || ""), String(candidate.source_summary || ""));
+      const articleContext = sourcePage.text || String(candidate.source_summary || "");
+      if (articleContext.length < 180) throw new Error("The source page could not be retrieved and the RSS summary is too short. Open the source or try another candidate.");
+      const prompt = `Create a fact-conscious PARROTHIT News Desk article draft based ONLY on the source material below. The source page has been retrieved for fuller context. Do not invent facts, quotes, names, numbers, or claims. If the material is too thin, clearly say so in summary/body and do not speculate. Paraphrase; do not reproduce long source passages. Do not claim independent verification. Keep a neutral news tone. Return valid JSON only with keys title (max 160 chars), summary (1-2 sentences), body (3-6 short paragraphs; include an attribution to the named source and do not invent quotes), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Full extracted source page text: ${articleContext.slice(0, 16000)}`;
       const aiResponse = await fetch(aiUrl, { method: "POST", headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: aiModel, temperature: 0.2, response_format: { type: "json_object" }, messages: [{ role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output valid JSON only." }, { role: "user", content: prompt }] }), signal: AbortSignal.timeout(45000) });
       const raw = await aiResponse.text();
       if (!aiResponse.ok) throw new Error(`AI provider HTTP ${aiResponse.status}: ${raw.slice(0, 500)}`);
@@ -499,7 +541,7 @@ Deno.serve(async (req) => {
       if (!title || articleBody.length < 80) throw new Error("AI draft was incomplete; no article was saved.");
       let slug = slugify(title), suffix = 2;
       while (true) { const { data: match } = await db.from("posts").select("id").eq("slug", slug).maybeSingle(); if (!match) break; slug = `${slugify(title)}-${suffix++}`; }
-      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
+      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, image_url: sourcePage.imageUrl || null, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
       if (postError) throw new Error(`Could not save article draft: ${postError.message}`);
       destination = await linkCandidateToPost(candidateId, post.id, destination);
       return json({
