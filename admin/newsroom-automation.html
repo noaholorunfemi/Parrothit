@@ -90,13 +90,13 @@ img,video,iframe{max-width:100%}
 <main class="wrap">
 <header class="top">
   <div><h1>🦜 PARROTHIT Newsroom Automation</h1><p class="muted">Discover feeds → prepare drafts → send to human review → approve and assign to Category Cards 1–6.</p></div>
-  <div class="top-actions"><a class="btn green" href="category-card-assignment-manager.html">🗂️ Category Card 1–6 Assignment Manager</a><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
+  <div class="top-actions"><a class="btn green" href="category-card-assignment-manager.html">🗂️ Category Card 1–6 Assignment Manager</a><a class="btn secondary" href="homepage-news-card-assignment-manager.html">🏠 Homepage Cards 1–15</a><a class="btn secondary" href="featured-story-card-destination-manager.html">⭐ Featured Cards 1–16</a><a class="btn secondary" href="articles.html">Article Editor</a><a class="btn secondary" href="dashboard.html">Control Room</a><button id="refreshBtn" class="green">Refresh</button></div>
 </header>
-<div class="warning"><strong>Human approval remains mandatory.</strong> Every newsroom draft stays unpublished until an administrator reviews it. Choose whether new drafts should enter the existing Article Editor or the dedicated Category Card 1–6 review manager. No AI action can publish an article or occupy a card.</div>
+<div class="warning"><strong>Human approval remains mandatory.</strong> Every newsroom draft stays unpublished until an administrator reviews it. Choose one of four human-review destinations: Article Editor, Category Cards 1–6, Homepage Cards 1–15, or Featured Story Cards 1–16. No AI action can publish an article or occupy a card.</div>
 <div id="message" class="msg"></div>
 <section class="panel" id="draftDestinationPanel">
  <div class="section-head"><div><h2>📥 Draft destination</h2><p class="muted">Choose where newly generated individual and scheduled newsroom drafts should be sent. This setting applies to future drafts only; it does not move existing articles.</p></div><span class="pill" id="draftDestinationBadge">Loading…</span></div>
- <div class="row" style="align-items:end"><div class="field" style="flex:2;min-width:260px"><label for="draftDestination">Send new drafts to</label><select id="draftDestination"><option value="articles">/admin/articles.html — Existing Article Editor</option><option value="category_card_manager">/admin/category-card-assignment-manager.html — Category Card 1–6 Assignment Manager</option></select></div><button type="button" id="saveDraftDestination" class="green">Save draft destination</button></div>
+ <div class="row" style="align-items:end"><div class="field" style="flex:2;min-width:260px"><label for="draftDestination">Send new drafts to</label><select id="draftDestination"><option value="articles">/admin/articles.html — Existing Article Editor</option><option value="category_card_manager">/admin/category-card-assignment-manager.html — Category Card 1–6 Assignment Manager</option><option value="homepage_news_card_manager">/admin/homepage-news-card-assignment-manager.html — Homepage News Card 1–15 Assignment Manager</option><option value="featured_story_card_manager">/admin/featured-story-card-destination-manager.html — Featured Story Card 1–16 Destination Manager</option></select></div><button type="button" id="saveDraftDestination" class="green">Save draft destination</button></div>
  <p class="muted small" id="draftDestinationStatus" role="status" aria-live="polite">Loading the saved destination…</p>
 </section>
 <section class="panel">
@@ -206,11 +206,15 @@ img,video,iframe{max-width:100%}
   }
 
   function destinationUrl(postId='') {
-    return draftDestination === 'category_card_manager' ? `category-card-assignment-manager.html${postId ? '?post=' + encodeURIComponent(postId) : ''}` : `articles.html${postId ? '?edit=' + encodeURIComponent(postId) : ''}`;
+    const pages={articles:'articles.html',category_card_manager:'category-card-assignment-manager.html',homepage_news_card_manager:'homepage-news-card-assignment-manager.html',featured_story_card_manager:'featured-story-card-destination-manager.html'};
+    const page=pages[draftDestination]||pages.articles;
+    return page+(postId?(draftDestination==='articles'?'?edit=':'?post=')+encodeURIComponent(postId):'');
   }
   function destinationName(value=draftDestination) {
-    return value === 'category_card_manager' ? 'Category Card 1–6 Assignment Manager' : 'Article Editor';
+    return ({articles:'Article Editor',category_card_manager:'Category Card 1–6 Assignment Manager',homepage_news_card_manager:'Homepage News Card 1–15 Assignment Manager',featured_story_card_manager:'Featured Story Card 1–16 Destination Manager'})[value]||'Article Editor';
   }
+  function destinationPage(value,postId){const pages={articles:'articles.html?edit=',category_card_manager:'category-card-assignment-manager.html?post=',homepage_news_card_manager:'homepage-news-card-assignment-manager.html?post=',featured_story_card_manager:'featured-story-card-destination-manager.html?post='};return (pages[value]||pages.articles)+encodeURIComponent(postId);}
+  function destinationLabel(value){return ({articles:'Open in Article Editor',category_card_manager:'Open Category Card review',homepage_news_card_manager:'Open Homepage Card review',featured_story_card_manager:'Open Featured Story review'})[value]||'Open in Article Editor';}
   async function loadDraftDestination() {
     const result=await client.from('site_settings').select('value').eq('key','newsroom_draft_destination').maybeSingle();
     let data=result.data;
@@ -220,14 +224,15 @@ img,video,iframe{max-width:100%}
       data=rows?.[0]||null;
     }
     const stored=typeof data?.value==='string'?data.value:(data?.value?.destination||'');
-    draftDestination=stored==='articles'?'articles':'category_card_manager';
+    draftDestination=['articles','category_card_manager','homepage_news_card_manager','featured_story_card_manager'].includes(stored)?stored:'category_card_manager';
     $('draftDestination').value=draftDestination;
     $('draftDestinationBadge').textContent='Saved: '+destinationName();
     $('draftDestinationStatus').textContent='New individual and scheduled drafts will be routed to '+destinationName()+'. Existing drafts are not moved.';
   }
   async function saveDraftDestination(showMessage=true) {
     const button=$('saveDraftDestination');
-    const selected=$('draftDestination').value==='articles'?'articles':'category_card_manager';
+    const allowed=['articles','category_card_manager','homepage_news_card_manager','featured_story_card_manager'];
+    const selected=allowed.includes($('draftDestination').value)?$('draftDestination').value:'articles';
     if(button)button.disabled=true;
     $('draftDestinationStatus').textContent='Saving the new-draft destination…';
     try {
@@ -417,7 +422,7 @@ img,video,iframe{max-width:100%}
       <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
       <td>${!c.linked_post_id && ['discovered', 'error'].includes(c.status) ? `<div class="actions"><select aria-label="Category for ${esc(c.source_title)}" data-category-select="${esc(c.id)}">${categoryOptions(c.category_id)}</select><button class="secondary" data-save-category="${esc(c.id)}">Save category</button></div>` : esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
       ${['discovered', 'error'].includes(c.status) && !c.linked_post_id ? `<button class="green" data-source-text="${c.id}">Retrieve Source Text — FREE</button><button class="blue" data-detailed-draft="${c.id}">Create Original Detailed Report — AI</button>` : ''}
-      ${c.linked_post_id ? `<a class="btn secondary" href="${esc(c.review_destination === 'category_card_manager' ? 'category-card-assignment-manager.html?post=' + encodeURIComponent(c.linked_post_id) : 'articles.html?edit=' + encodeURIComponent(c.linked_post_id))}">${c.review_destination === 'category_card_manager' ? (c.status === 'imported' ? 'View card assignment' : 'Open card review') : 'Open in Article Editor'}</a>` : ''}
+      ${c.linked_post_id ? `<a class="btn secondary" href="${esc(destinationPage(c.review_destination,c.linked_post_id))}">${destinationLabel(c.review_destination)}</a>` : ''}
       ${c.status === 'discovered' ? `<button class="secondary" data-reject="${c.id}">Reject</button>` : ''}
       </div></td></tr>`).join('');
 
