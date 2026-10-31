@@ -191,19 +191,19 @@ Deno.serve(async (req) => {
 
   // Resolve the destination at draft time, not discovery time. This means an
   // administrator can change the selector after discovering a feed item.
-  const getDraftDestination = async (): Promise<"articles" | "category_card_manager"> => {
+  const getDraftDestination = async (): Promise<"articles" | "category_card_manager" | "homepage_news_card_manager" | "featured_story_card_manager"> => {
     const { data, error } = await db.from("site_settings").select("value").eq("key", "newsroom_draft_destination").maybeSingle();
     if (error) throw new Error(`Could not read the saved newsroom draft destination: ${error.message}`);
     let value: any = data?.value;
     if (value && typeof value === "object") value = value.destination ?? value.value ?? value.review_destination;
     const normalized = String(value ?? "category_card_manager").replace(/^\"|\"$/g, "");
-    return normalized === "articles" ? "articles" : "category_card_manager";
+    return (["articles", "category_card_manager", "homepage_news_card_manager", "featured_story_card_manager"] as string[]).includes(normalized) ? normalized as any : "category_card_manager";
   };
 
   // The SQL trigger normally creates this row. The explicit upsert is a
   // defensive fallback for projects where the trigger was not installed or
   // an older candidate was linked before the trigger existed.
-  const linkCandidateToPost = async (candidateId: string, postId: string, destination: "articles" | "category_card_manager") => {
+  const linkCandidateToPost = async (candidateId: string, postId: string, destination: "articles" | "category_card_manager" | "homepage_news_card_manager" | "featured_story_card_manager") => {
     const now = new Date().toISOString();
     const { data: linked, error: linkError } = await db.from("newsroom_candidates").update({
       status: "in_review",
@@ -214,8 +214,8 @@ Deno.serve(async (req) => {
     }).eq("id", candidateId).is("linked_post_id", null).select("id,review_destination").maybeSingle();
     if (linkError) throw new Error(`Could not link the draft to its newsroom candidate: ${linkError.message}`);
     if (!linked) throw new Error("The candidate is already linked to an article or is no longer available. Reload the newsroom queue.");
-    const actualDestination: "articles" | "category_card_manager" = linked.review_destination === "articles" ? "articles" : "category_card_manager";
-    if (actualDestination === "category_card_manager") {
+    const actualDestination: "articles" | "category_card_manager" | "homepage_news_card_manager" | "featured_story_card_manager" = (["articles", "category_card_manager", "homepage_news_card_manager", "featured_story_card_manager"] as string[]).includes(String(linked.review_destination)) ? linked.review_destination as any : "category_card_manager";
+    if (actualDestination !== "articles") {
       const { error: queueError } = await db.from("category_card_review_queue").upsert({
         candidate_id: candidateId,
         post_id: postId,
@@ -225,54 +225,57 @@ Deno.serve(async (req) => {
       if (queueError) {
         // Restore the candidate to an unlinked error state; callers roll back the post.
         await db.from("newsroom_candidates").update({ status: "error", linked_post_id: null, error_message: queueError.message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", candidateId);
-        throw new Error(`The draft was created but could not enter the Category Card review queue: ${queueError.message}. Run supabase/newsroom-access-timeout-repair.sql in the Supabase SQL Editor, then redeploy this Edge Function.`);
+        throw new Error(`The draft was created but could not enter its human-review queue: ${queueError.message}. Run supabase/newsroom-four-draft-destinations.sql in the Supabase SQL Editor, then redeploy this Edge Function.`);
       }
     }
     return actualDestination;
   };
 
   const unpublishedStatuses = ["draft", "in_review"];
+  const destinationName = (value: string) => ({ articles: "the Article Editor", category_card_manager: "Category Card 1–6 Assignment Manager", homepage_news_card_manager: "Homepage News Card 1–15 Assignment Manager", featured_story_card_manager: "Featured Story Card 1–16 Destination Manager" } as Record<string,string>)[value] || "the selected review destination";
 
   if (action === "clear_drafts") {
-    const destination: "articles" | "category_card_manager" = body.destination === "articles" ? "articles" : "category_card_manager";
+    const allowedDestinations = ["articles", "category_card_manager", "homepage_news_card_manager", "featured_story_card_manager"];
+    const destination: "articles" | "category_card_manager" | "homepage_news_card_manager" | "featured_story_card_manager" = allowedDestinations.includes(String(body.destination)) ? body.destination as any : "category_card_manager";
     const now = new Date().toISOString();
     let candidateIds: string[] = [];
     let postIds: string[] = [];
 
-    if (destination === "category_card_manager") {
+    if (destination !== "articles") {
       const [queueResult, candidateResult] = await Promise.all([
         db.from("category_card_review_queue").select("candidate_id,post_id,review_status").neq("review_status", "published").limit(10000),
         // Include drafts that were linked before the review-queue insert was reliable.
-        db.from("newsroom_candidates").select("id,linked_post_id,status").eq("review_destination", "category_card_manager").not("linked_post_id", "is", null).in("status", ["in_review", "drafting", "error"]).limit(10000),
+        db.from("newsroom_candidates").select("id,linked_post_id,status").eq("review_destination", destination).not("linked_post_id", "is", null).in("status", ["in_review", "drafting", "error"]).limit(10000),
       ]);
-      if (queueResult.error) return json({ error: `Could not load Category Card drafts: ${queueResult.error.message}. Run supabase/newsroom-access-timeout-repair.sql to grant the Edge Function service role access to category_card_review_queue.` }, 500);
-      if (candidateResult.error) return json({ error: `Could not recover routed Category Card drafts: ${candidateResult.error.message}` }, 500);
+      if (queueResult.error) return json({ error: `Could not load routed manager drafts: ${queueResult.error.message}. Run supabase/newsroom-access-timeout-repair.sql to grant the Edge Function service role access to category_card_review_queue.` }, 500);
+      if (candidateResult.error) return json({ error: `Could not recover routed manager drafts: ${candidateResult.error.message}` }, 500);
       const ids = new Set<string>();
-      (queueResult.data || []).filter((q: any) => q.review_status !== "published").forEach((q: any) => { if (q.post_id) ids.add(String(q.post_id)); });
+      const routedCandidateIds = new Set((candidateResult.data || []).map((c: any) => String(c.id)));
+      (queueResult.data || []).filter((q: any) => q.review_status !== "published" && routedCandidateIds.has(String(q.candidate_id))).forEach((q: any) => { if (q.post_id) ids.add(String(q.post_id)); });
       (candidateResult.data || []).forEach((c: any) => { if (c.linked_post_id) ids.add(String(c.linked_post_id)); });
       const routedIds = [...ids];
       if (routedIds.length) {
         const { data: posts, error: postError } = await db.from("posts").select("id")
           .in("id", routedIds).in("status", unpublishedStatuses).is("published_at", null).limit(10000);
-        if (postError) return json({ error: `Could not verify Category Card drafts: ${postError.message}` }, 500);
+        if (postError) return json({ error: `Could not verify routed manager drafts: ${postError.message}` }, 500);
         postIds = (posts || []).map((p: any) => String(p.id));
       }
     } else {
       const [postResult, queueResult, managerCandidateResult] = await Promise.all([
         db.from("posts").select("id").in("status", unpublishedStatuses).is("published_at", null).limit(10000),
         db.from("category_card_review_queue").select("post_id").limit(10000),
-        db.from("newsroom_candidates").select("linked_post_id").eq("review_destination", "category_card_manager").not("linked_post_id", "is", null).limit(10000),
+        db.from("newsroom_candidates").select("linked_post_id").neq("review_destination", "articles").not("linked_post_id", "is", null).limit(10000),
       ]);
       if (postResult.error) return json({ error: `Could not load Article Editor drafts: ${postResult.error.message}` }, 500);
-      if (queueResult.error) return json({ error: `Could not protect Category Card drafts: ${queueResult.error.message}. Run supabase/newsroom-access-timeout-repair.sql to grant the Edge Function service role access to category_card_review_queue.` }, 500);
-      if (managerCandidateResult.error) return json({ error: `Could not protect routed Category Card drafts: ${managerCandidateResult.error.message}` }, 500);
+      if (queueResult.error) return json({ error: `Could not protect manager drafts: ${queueResult.error.message}. Run supabase/newsroom-access-timeout-repair.sql to grant the Edge Function service role access to category_card_review_queue.` }, 500);
+      if (managerCandidateResult.error) return json({ error: `Could not protect routed manager drafts: ${managerCandidateResult.error.message}` }, 500);
       const protectedIds = new Set<string>();
       (queueResult.data || []).forEach((q: any) => { if (q.post_id) protectedIds.add(String(q.post_id)); });
       (managerCandidateResult.data || []).forEach((c: any) => { if (c.linked_post_id) protectedIds.add(String(c.linked_post_id)); });
       postIds = (postResult.data || []).map((p: any) => String(p.id)).filter((id: string) => !protectedIds.has(id));
     }
 
-    if (!postIds.length) return json({ ok: true, destination, deleted_posts: 0, message: `There are no unpublished drafts to clear in ${destination === "articles" ? "the Article Editor" : "the Category Card 1–6 Assignment Manager"}. Published articles were left untouched.` });
+    if (!postIds.length) return json({ ok: true, destination, deleted_posts: 0, message: `There are no unpublished drafts to clear in ${destinationName(destination)}. Published articles were left untouched.` });
 
     const { data: linkedCandidates, error: candidateReadError } = await db.from("newsroom_candidates")
       .select("id,linked_post_id,status,review_destination")
@@ -300,7 +303,7 @@ Deno.serve(async (req) => {
       }
       return json({ error: `Could not delete drafts: ${deleteError.message}` }, 500);
     }
-    return json({ ok: true, destination, deleted_posts: postIds.length, message: `Cleared ${postIds.length} unpublished draft(s) from ${destination === "articles" ? "the Article Editor" : "the Category Card 1–6 Assignment Manager"}. Published articles and drafts in the other destination were left untouched.` });
+    return json({ ok: true, destination, deleted_posts: postIds.length, message: `Cleared ${postIds.length} unpublished draft(s) from ${destinationName(destination)}. Published articles and drafts in other destinations were left untouched.` });
   }
 
   if (action === "delete_card_draft") {
@@ -319,7 +322,7 @@ Deno.serve(async (req) => {
     if (candidate) {
       const { error: unlinkError } = await db.from("newsroom_candidates").update({
         status: "discovered", linked_post_id: null, error_message: null,
-        review_destination: "category_card_manager", updated_at: new Date().toISOString(),
+        review_destination: candidate.review_destination || "category_card_manager", updated_at: new Date().toISOString(),
       }).eq("id", candidate.id);
       if (unlinkError) return json({ error: `The draft was not deleted because its candidate could not be unlinked: ${unlinkError.message}` }, 500);
     }
@@ -413,7 +416,7 @@ Deno.serve(async (req) => {
     const title = String(candidate.source_title || "").trim().slice(0, 160);
     if (!title) return json({ error: "This candidate has no source headline. It cannot be drafted." }, 400);
 
-    let destination: "articles" | "category_card_manager";
+    let destination: "articles" | "category_card_manager" | "homepage_news_card_manager" | "featured_story_card_manager";
     try { destination = await getDraftDestination(); }
     catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 500); }
 
@@ -496,9 +499,9 @@ Deno.serve(async (req) => {
       ok: true,
       post,
       review_destination: destination,
-      message: destination === "category_card_manager"
-        ? "Free manual draft created and added to the Category Card 1–6 human-review queue. It remains unpublished."
-        : "Free manual draft created in Article Editor (In Review). Verify and approve it before publication.",
+      message: destination === "articles"
+        ? "Free manual draft created in Article Editor (In Review). Verify and approve it before publication."
+        : `Free manual draft created and added to ${destinationName(destination)}. It remains unpublished.`,
     });
   }
 
@@ -514,7 +517,7 @@ Deno.serve(async (req) => {
     if (candidateError || !candidate) return json({ error: "News candidate not found." }, 404);
     if (candidate.linked_post_id) return json({ error: "This candidate already has an article draft.", post_id: candidate.linked_post_id }, 409);
     if (!["discovered", "error"].includes(candidate.status)) return json({ error: `Candidate status is ${candidate.status}; only discovered/error candidates can be drafted.` }, 409);
-    let destination: "articles" | "category_card_manager";
+    let destination: "articles" | "category_card_manager" | "homepage_news_card_manager" | "featured_story_card_manager";
     try { destination = await getDraftDestination(); }
     catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 500); }
     const { data: claim, error: claimError } = await db.from("newsroom_candidates")
@@ -548,9 +551,9 @@ Deno.serve(async (req) => {
         ok: true,
         post,
         review_destination: destination,
-        message: destination === "category_card_manager"
-          ? "AI-assisted draft created and added to the Category Card 1–6 human-review queue. It remains unpublished."
-          : "AI-assisted draft created in Article Editor (In Review). An administrator must fact-check and approve it before publication.",
+        message: destination === "articles"
+          ? "AI-assisted draft created in Article Editor (In Review). An administrator must fact-check and approve it before publication."
+          : `AI-assisted draft created and added to ${destinationName(destination)}. It remains unpublished.`,
       });
     } catch (e) {
       const message = (e instanceof Error ? e.message : String(e)).slice(0, 1000);
