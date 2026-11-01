@@ -26,7 +26,7 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id), list=$('appealList'), message=$('appealMessage');
 let client=null, owner=false, busy=false;
-const FUNCTION_NAME='parrothit-admin-appeals';
+const FUNCTION_NAME='parrothit-admin-appeal';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=v=>{if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?esc(v):d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});};
 function localItems(){try{return JSON.parse(localStorage.getItem('parrothit-local-admin-appeals-v1')||'[]')}catch{return []}}
@@ -45,7 +45,7 @@ function showAccessError(err){
  if(/only the active admin 1|only.*owner|permission denied|not authorized/i.test(msg)){
   document.querySelector('main').innerHTML='<h1>Access denied</h1><p>Only an active Admin 1 (Owner) can review administrator appeals.</p><a class="top-link" href="dashboard.html">Return to Control Room</a>';
  }else{
-  message.textContent='Could not load appeals: '+msg+'. Confirm that the parrothit-admin-appeals Edge Function is deployed.';
+  message.textContent='Could not load appeals: '+msg+'. Confirm that the parrothit-admin-appeal Edge Function is deployed.';
   list.innerHTML='';
  }
 }
