@@ -448,10 +448,10 @@
     const main = $('main'); if (!main) return false;
     const article = document.createElement('article'); article.className = 'parrothit-managed-article';
     if (!rec || rec.enabled === false || !(rec.title || rec.text || rec.image || rec.imageUrl)) {
-      const h = document.createElement('h1'); h.textContent = 'News story not available yet';
+      const h = document.createElement('h1'); h.textContent = 'Content loading';
       const note = document.createElement('p'); note.textContent = 'This story has not been published yet. Return to the category page to browse available coverage.';
       const back = document.createElement('a'); back.href = category + '.html'; back.textContent = 'Return to ' + category.replace(/-/g, ' ') + ' news';
-      article.append(h, note, back); main.replaceChildren(article); document.title = 'Story not available | PARROTHIT'; return true;
+      article.append(h, note, back); main.replaceChildren(article); document.title = 'Content loading | PARROTHIT'; return true;
     }
     const h = document.createElement('h1'); h.textContent = rec.title || 'News story'; article.appendChild(h);
     const imageRef = rec.image || rec.imageUrl || '';
