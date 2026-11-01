@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="../css/style.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><script src="../js/local-preview.js"></script><script src="../js/admin-auth-guard.js"></script>
 <style>
-.appeal-wrap{max-width:1250px;margin:24px auto;padding:16px}.appeal-head{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.appeal-card{background:#fff;color:#172033;border:1px solid #d8dee8;border-radius:12px;padding:18px;margin:14px 0;box-shadow:0 5px 20px #10182812}.appeal-meta{display:flex;gap:12px;flex-wrap:wrap;color:#475569;font-size:.9rem}.appeal-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}.status{display:inline-block;padding:5px 10px;border-radius:20px;font-weight:800;font-size:.8rem;background:#e2e8f0;color:#334155}.status.pending{background:#fef3c7;color:#92400e}.status.accepted,.status.reactivated{background:#dcfce7;color:#166534}.status.rejected{background:#fee2e2;color:#991b1b}.appeal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.appeal-actions button{border:0;border-radius:8px;padding:10px 12px;font-weight:800;color:white;background:#166534;cursor:pointer}.appeal-actions .reject{background:#991b1b}.appeal-actions .reactivate{background:#1d4ed8}.appeal-actions button:disabled{opacity:.5;cursor:not-allowed}.appeal-note{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:9px;padding:12px}.appeal-empty{padding:28px;text-align:center;color:#64748b}.appeal-msg{font-weight:700;margin:12px 0}.top-link{display:inline-block;padding:9px 12px;border-radius:8px;text-decoration:none;background:#166534;color:#fff;font-weight:800}
+.appeal-wrap{max-width:1250px;margin:24px auto;padding:16px}.appeal-head{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.appeal-card{background:#fff;color:#172033;border:1px solid #d8dee8;border-radius:12px;padding:18px;margin:14px 0;box-shadow:0 5px 20px #10182812}.appeal-meta{display:flex;gap:12px;flex-wrap:wrap;color:#475569;font-size:.9rem}.appeal-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}.status{display:inline-block;padding:5px 10px;border-radius:20px;font-weight:800;font-size:.8rem;background:#e2e8f0;color:#334155}.status.pending{background:#fef3c7;color:#92400e}.status.approved,.status.accepted,.status.reactivated{background:#dcfce7;color:#166534}.status.rejected{background:#fee2e2;color:#991b1b}.appeal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.appeal-actions button{border:0;border-radius:8px;padding:10px 12px;font-weight:800;color:white;background:#166534;cursor:pointer}.appeal-actions .reject{background:#991b1b}.appeal-actions .reactivate{background:#1d4ed8}.appeal-actions button:disabled{opacity:.5;cursor:not-allowed}.appeal-note{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:9px;padding:12px}.appeal-empty{padding:28px;text-align:center;color:#64748b}.appeal-msg{font-weight:700;margin:12px 0}.top-link{display:inline-block;padding:9px 12px;border-radius:8px;text-decoration:none;background:#166534;color:#fff;font-weight:800}
 
 /* Mobile visibility fix: preserve readable, tappable appeal actions. */
 .appeal-wrap{width:100%;min-width:0;box-sizing:border-box;overflow:visible}
@@ -20,38 +20,92 @@
 <link rel="stylesheet" href="../css/admin-responsive.css"><link rel="stylesheet" href="../css/admin-responsive-fixes.css"></head><body>
 <nav style="display:flex;gap:10px;flex-wrap:wrap;margin:12px"><a class="top-link" href="dashboard.html">← Control Room</a><a class="top-link" href="admin-accounts.html">Administrator Accounts</a><a class="top-link" href="login.html">Sign in page</a></nav>
 <main class="appeal-wrap"><header class="appeal-head"><div><h1>Administrator Appeals</h1><p>Owner-only desk for reviewing appeals from suspended administrators.</p></div><button class="top-link" id="refreshAppeals" type="button">Refresh appeals</button></header>
-<div class="appeal-note"><b>Admin 1 (Owner) only.</b> Accepting or rejecting records the Owner’s decision. <b>Reactivate appeal</b> uses a server-side transaction to verify the exact email and username, reactivate the matching non-owner account, and update the appeal status together.</div>
+<div class="appeal-note"><b>Admin 1 (Owner) only.</b> Approving or rejecting records the Owner’s decision. Reactivation is handled securely by the server after verifying the matching non-owner administrator account.</div>
 <p id="appealMessage" class="appeal-msg" role="status" aria-live="polite">Checking administrator permissions…</p><section id="appealList" aria-live="polite"></section></main>
 <script>
 (()=>{'use strict';
-const $=id=>document.getElementById(id), list=$('appealList'), message=$('appealMessage');let client=null, owner=false;
+const $=id=>document.getElementById(id), list=$('appealList'), message=$('appealMessage');
+let client=null, owner=false, busy=false;
+const FUNCTION_NAME='parrothit-admin-appeals';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=v=>{if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?esc(v):d.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});};
 function localItems(){try{return JSON.parse(localStorage.getItem('parrothit-local-admin-appeals-v1')||'[]')}catch{return []}}
 function saveLocal(items){localStorage.setItem('parrothit-local-admin-appeals-v1',JSON.stringify(items))}
-function render(items){if(!items.length){list.innerHTML='<div class="appeal-card appeal-empty">No administrator appeals have been submitted yet.</div>';return;}
-list.innerHTML=items.map(a=>{const st=String(a.status||'pending').toLowerCase();const pending=st==='pending';return `<article class="appeal-card"><div class="appeal-head"><h2>${esc(a.username||'Unnamed administrator')}</h2><span class="status ${esc(st)}">${esc(st.toUpperCase())}</span></div><div class="appeal-meta"><span><b>Email:</b> ${esc(a.email)}</span><span><b>Submitted:</b> ${fmt(a.created_at)}</span><span><b>Appeal ID:</b> ${esc(a.id)}</span></div><h3>Appeal message</h3><p class="appeal-text">${esc(a.appeal_reason)}</p><div class="appeal-actions"><button type="button" data-action="accept" data-id="${esc(a.id)}" ${pending?'':'disabled'}>Accept appeal</button><button type="button" class="reject" data-action="reject" data-id="${esc(a.id)}" ${pending?'':'disabled'}>Reject appeal</button><button type="button" class="reactivate" data-action="reactivate" data-id="${esc(a.id)}" ${st==='rejected'?'disabled':''}>Reactivate appeal</button></div><p class="muted">${a.reviewed_at?'Last action: '+fmt(a.reviewed_at):'Awaiting owner review.'}</p></article>`}).join('');}
-async function load(){message.textContent='Loading appeals…';try{if(window.PARROTHIT_LOCAL_PREVIEW){owner=true;render(localItems().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));message.textContent='Local preview mode. Appeals shown here are stored only in this browser; they are not live submissions.';return;}
-if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||String(window.PARROTHIT_SUPABASE_URL).includes('YOUR-PROJECT'))throw new Error('Supabase is not configured.');
-client=client||window.getParrothitSupabaseClient();
-const {data:sessionData}=await client.auth.getSession();if(!sessionData.session){location.href='login.html';return;}
-const {data:profile,error:profileError}=await client.from('admin_profiles').select('role,is_suspended').eq('user_id',sessionData.session.user.id).maybeSingle();if(profileError||!profile||profile.role!=='owner'||profile.is_suspended){document.querySelector('main').innerHTML='<h1>Access denied</h1><p>Only an active Admin 1 (Owner) can review administrator appeals.</p><a class="top-link" href="dashboard.html">Return to Control Room</a>';return;}owner=true;
-const {data,error}=await client.from('admin_appeals').select('*').order('created_at',{ascending:false});if(error)throw error;render(data||[]);message.textContent=`Loaded ${(data||[]).length} appeal(s).`;}
-catch(err){console.error(err);message.textContent='Could not load appeals: '+(err.message||'unknown error')+'. Ensure the admin_appeals table and owner-only policies are installed.';list.innerHTML='';}}
-async function act(action,id){if(!owner)return;const btn=document.querySelector(`[data-action="${action}"][data-id="${CSS.escape(String(id))}"]`);if(btn)btn.disabled=true;message.textContent='Applying owner decision…';try{
-if(window.PARROTHIT_LOCAL_PREVIEW){const items=localItems(),a=items.find(x=>String(x.id)===String(id));if(!a)throw new Error('Appeal not found.');if(action==='accept')a.status='accepted';else if(action==='reject')a.status='rejected';else if(action==='reactivate'){a.status='reactivated';a.reviewed_at=new Date().toISOString();a.note='Local preview only: live admin account was not changed.';}a.reviewed_at=new Date().toISOString();saveLocal(items);render(items);message.textContent=action==='reactivate'?'Local appeal marked reactivated. No real account was changed.':'Local appeal '+(action==='accept'?'accepted':'rejected')+'.';return;}
-const {data:appeal,error:fetchError}=await client.from('admin_appeals').select('*').eq('id',id).single();if(fetchError)throw fetchError;
-if(action==='reactivate'){
- const {data:result,error:reactivateError}=await client.rpc('owner_reactivate_admin_appeal',{p_appeal_id:id});
- if(reactivateError)throw reactivateError;
- if(result===false)throw new Error('Reactivation was not completed. Verify the appeal and matching administrator details.');
- message.textContent='Appeal reactivated. The matching suspended administrator can now sign in again.';
- await load();return;
+function normalizedStatus(value){const s=String(value||'pending').toLowerCase();return s==='accepted'?'approved':s;}
+function wasReactivated(a){return /account reactivated by admin 1/i.test(String(a.review_note||a.note||''));}
+function render(items){
+ if(!items.length){list.innerHTML='<div class="appeal-card appeal-empty">No administrator appeals have been submitted yet.</div>';return;}
+ list.innerHTML=items.map(a=>{
+  const st=normalizedStatus(a.status), pending=st==='pending', approved=st==='approved', reactivated=wasReactivated(a);
+  return `<article class="appeal-card"><div class="appeal-head"><h2>${esc(a.username||'Unnamed administrator')}</h2><span class="status ${esc(st)}">${esc(st.toUpperCase())}${reactivated?' · REACTIVATED':''}</span></div><div class="appeal-meta"><span><b>Email:</b> ${esc(a.email)}</span><span><b>Submitted:</b> ${fmt(a.created_at)}</span><span><b>Appeal ID:</b> ${esc(a.id)}</span></div><h3>Appeal message</h3><p class="appeal-text">${esc(a.appeal_reason||a.appeal_text||'No appeal message was supplied.')}</p>${a.review_note?`<p class="appeal-note"><b>Owner note:</b> ${esc(a.review_note)}</p>`:''}<div class="appeal-actions"><button type="button" data-action="approve" data-id="${esc(a.id)}" ${pending?'':'disabled'}>Approve appeal</button><button type="button" class="reject" data-action="reject" data-id="${esc(a.id)}" ${pending?'':'disabled'}>Reject appeal</button><button type="button" class="reactivate" data-action="reactivate" data-id="${esc(a.id)}" ${approved&&!reactivated?'':'disabled'}>Reactivate account</button></div><p class="muted">${a.reviewed_at?'Last reviewed: '+fmt(a.reviewed_at):'Awaiting Owner review.'}</p></article>`;
+ }).join('');
 }
-const status=action==='accept'?'accepted':'rejected';
-const {error:updateError}=await client.from('admin_appeals').update({status,reviewed_at:new Date().toISOString()}).eq('id',id);if(updateError)throw updateError;
-message.textContent=action==='accept'?'Appeal accepted. The administrator has been informed of the decision.':'Appeal rejected. The administrator may submit a new appeal.';await load();
-}catch(err){console.error(err);message.textContent='Action failed: '+(err.message||'unknown error');if(btn)btn.disabled=false;}}
-list.addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(b)act(b.dataset.action,b.dataset.id)});$('refreshAppeals').addEventListener('click',load);load();
+function showAccessError(err){
+ const msg=String(err?.message||err||'Unknown error');
+ if(/only the active admin 1|only.*owner|permission denied|not authorized/i.test(msg)){
+  document.querySelector('main').innerHTML='<h1>Access denied</h1><p>Only an active Admin 1 (Owner) can review administrator appeals.</p><a class="top-link" href="dashboard.html">Return to Control Room</a>';
+ }else{
+  message.textContent='Could not load appeals: '+msg+'. Confirm that the parrothit-admin-appeals Edge Function is deployed.';
+  list.innerHTML='';
+ }
+}
+async function invoke(action,extra={}){
+ const {data,error}=await client.functions.invoke(FUNCTION_NAME,{body:{action,...extra}});
+ if(error){
+  const detail=error.context?.error||error.context?.message||error.message;
+  throw new Error(detail||'The appeal service request failed.');
+ }
+ if(data?.error)throw new Error(data.error);
+ return data||{};
+}
+async function load(){
+ if(busy)return; message.textContent='Loading appeals…';
+ try{
+  if(window.PARROTHIT_LOCAL_PREVIEW){owner=true;render(localItems().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));message.textContent='Local preview mode. Appeals shown here are stored only in this browser; they are not live submissions.';return;}
+  if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||String(window.PARROTHIT_SUPABASE_URL).includes('YOUR-PROJECT'))throw new Error('Supabase is not configured.');
+  client=client||window.getParrothitSupabaseClient();
+  const {data:sessionData,error:sessionError}=await client.auth.getSession();
+  if(sessionError)throw sessionError;
+  if(!sessionData?.session){location.href='login.html';return;}
+  // The Edge Function performs the authoritative owner-role check and reads appeals with service-role access.
+  const data=await invoke('list');
+  owner=true;
+  const items=Array.isArray(data.appeals)?data.appeals:[];
+  render(items);message.textContent=`Loaded ${items.length} appeal(s).`;
+ }catch(err){console.error('Appeal list load failed:',err);showAccessError(err);}
+}
+async function act(action,id){
+ if(!owner||busy)return;
+ const btn=document.querySelector(`[data-action="${CSS.escape(String(action))}"][data-id="${CSS.escape(String(id))}"]`);
+ let reviewNote='';
+ if(action==='approve'||action==='reject'){
+  const entered=window.prompt('Optional note for the administrator (leave blank for no note):','');
+  if(entered===null)return;
+  reviewNote=entered.trim().slice(0,1000);
+ }
+ if(action==='reactivate'&&!window.confirm('Reactivate this suspended administrator account?'))return;
+ busy=true;if(btn)btn.disabled=true;message.textContent='Applying Owner decision…';
+ try{
+  if(window.PARROTHIT_LOCAL_PREVIEW){
+   const items=localItems(),a=items.find(x=>String(x.id)===String(id));if(!a)throw new Error('Appeal not found.');
+   if(action==='approve')a.status='approved';else if(action==='reject')a.status='rejected';else if(action==='reactivate'){a.note='Local preview only: live admin account was not changed.';a.review_note=a.note;}
+   a.reviewed_at=new Date().toISOString();saveLocal(items);render(items);
+   message.textContent=action==='reactivate'?'Local preview only: no real account was changed.':'Local appeal '+(action==='approve'?'approved':'rejected')+'.';return;
+  }
+  if(action==='approve'||action==='reject'){
+   const decision=action==='approve'?'approved':'rejected';
+   const result=await invoke('review',{appeal_id:id,decision,review_note:reviewNote});
+   message.textContent=result.message||(decision==='approved'?'Appeal approved. The Owner can now reactivate the account.':'Appeal rejected.');
+  }else if(action==='reactivate'){
+   const result=await invoke('reactivate',{appeal_id:id});
+   message.textContent=result.message||'Administrator account reactivated.';
+  }else throw new Error('Unsupported appeal action.');
+  await load();
+ }catch(err){console.error('Appeal action failed:',err);message.textContent='Action failed: '+(err.message||'unknown error');if(btn)btn.disabled=false;}
+ finally{busy=false;}
+}
+list.addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(b)act(b.dataset.action,b.dataset.id)});
+$('refreshAppeals').addEventListener('click',load);
+load();
 })();
 </script></body></html>
