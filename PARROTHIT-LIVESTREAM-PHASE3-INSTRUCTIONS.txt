@@ -1,0 +1,40 @@
+PARROTHIT LIVESTREAM — PHASE 3 PATCH
+
+This patch builds on the Phase 2 files already deployed and preserves the existing sports_streams JSONB settings and all eight standard channels.
+
+NEW FEATURES
+1. Featured broadcasts: mark any enabled channel as Featured. Featured broadcasts appear in a dedicated section on /live-streams.html and are prioritized in the homepage live panel.
+2. Custom categories: add a category name to a channel (for example Rugby, Boxing, Local League). The public Livestream hub automatically builds a category filter.
+3. Channel switcher: visitors can select a live/upcoming channel and jump to its card.
+4. Per-channel sponsor placements: optional sponsor message, image and HTTPS click-through link are shown with the relevant live/upcoming/replay card. This is an in-stream page placement, not an ad network or automatic ad server.
+5. Playback diagnostics: direct MP4/HLS playback starts and errors, and third-party embed loads, are recorded when the analytics migration is installed. Third-party iframe providers do not expose reliable play/error events to another website due to browser cross-origin restrictions.
+6. Admin analytics: the Control Centre shows the last 30 days of recorded page/card views, direct-player playback starts, errors and approximate unique browser sessions.
+7. Improved cache-busting for the public renderer on the homepage and sports pages.
+
+IMPORTANT ANALYTICS SETUP (ONE-TIME SQL MIGRATION)
+1. Open Supabase > SQL Editor > New Query.
+2. Open the included file: supabase/livestream-phase3-analytics.sql
+3. Copy its full contents into SQL Editor and run it.
+4. The migration creates a small anonymous event table. It stores only event type, channel ID, a random browser session token, limited event details and timestamp. It does not store names, email addresses, IP addresses or auth IDs.
+5. Anonymous visitors can INSERT events. Only authenticated PARROTHIT admins accepted by public.is_parrothit_admin() can SELECT analytics. No public update/delete policy is created.
+6. Return to /admin/live-stream-controls.html and click Refresh analytics.
+
+DEPLOYMENT
+1. Extract the patch ZIP.
+2. Copy the included Parrothit-main files into the existing repository, preserving folder structure.
+3. Replace only matching files; do not delete unrelated files.
+4. Commit and deploy.
+5. Run the SQL migration above. The rest of Phase 3 works with the existing sports_streams JSONB row; no changes to that row are required.
+
+ADMIN USE
+- Featured: tick “Feature this broadcast on homepage / Live hub” and save.
+- Custom category: enter a category in “Custom category” and save. The category appears in the public filter when the channel is visible.
+- Sponsor: enter a sponsor message, optional image URL and optional click-through URL. All supplied URLs must use HTTPS.
+- Analytics: after running the SQL migration, open the Control Centre and click Refresh analytics.
+
+METRIC LIMITATIONS
+- These analytics count recorded website events; they are not verified concurrent viewers or a provider's official viewer count.
+- A browser session is represented by a random local browser token, so clearing browser storage or using another browser creates another session.
+- YouTube, Facebook, Vimeo, Twitch and other third-party iframe players restrict cross-origin telemetry. For those providers, the site can record that the embed loaded, but cannot reliably read their actual play state or viewer count. Official provider APIs and credentials would be required for provider-side viewer metrics.
+- Direct MP4/HLS playback can report browser playback starts and media errors.
+- This system embeds third-party video. It does not ingest, originate, record or transcode broadcasts.
