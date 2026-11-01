@@ -123,10 +123,14 @@ Deno.serve(async (req: Request) => {
     if (!["approved", "rejected"].includes(decision)) return reply(400, { error: "Decision must be approved or rejected." });
     if (appeal.status !== "pending") return reply(409, { error: "This appeal has already been reviewed." });
     const note = String(body.review_note || "").trim().slice(0, 1000);
-    const { error } = await db.from("admin_appeals").update({
+    const { data: updatedAppeal, error } = await db.from("admin_appeals").update({
       status: decision, reviewed_by: userData.user.id, review_note: note || null, reviewed_at: new Date().toISOString()
-    }).eq("id", appealId).eq("status", "pending");
-    if (error) return reply(500, { error: "Could not record the Owner's decision." });
+    }).eq("id", appealId).eq("status", "pending").select("id,status").maybeSingle();
+    if (error) {
+      console.error("Appeal review update failed:", error);
+      return reply(500, { error: "Could not record the Owner's decision. Verify the admin_appeals status constraint allows pending, approved and rejected." });
+    }
+    if (!updatedAppeal) return reply(409, { error: "This appeal has already been reviewed. Refresh the appeal list." });
     return reply(200, { success: true, status: decision, message: decision === "approved" ? "Appeal approved. Reactivate the account using the separate button." : "Appeal rejected." });
   }
 
@@ -139,8 +143,13 @@ Deno.serve(async (req: Request) => {
         String(target.username || "").toLowerCase() !== String(appeal.username || "").toLowerCase() ||
         String(target.email || "").toLowerCase() !== String(appeal.email || "").toLowerCase())
       return reply(409, { error: "Account details no longer match this appeal. Reactivation was blocked." });
-    const { error: updateError } = await db.from("admin_profiles").update({ is_suspended: false }).eq("user_id", target.user_id).eq("role", "admin");
+    if (target.is_suspended !== true) {
+      return reply(200, { success: true, already_reactivated: true, message: "This administrator account is already active." });
+    }
+    const { data: updatedProfile, error: updateError } = await db.from("admin_profiles").update({ is_suspended: false })
+      .eq("user_id", target.user_id).eq("role", "admin").eq("is_suspended", true).select("user_id").maybeSingle();
     if (updateError) return reply(500, { error: "Could not reactivate the administrator profile." });
+    if (!updatedProfile) return reply(409, { error: "The administrator account changed while reactivation was being processed. Refresh and verify its status." });
     const finalNote = [appeal.review_note, "Account reactivated by Admin 1 (Owner)."].filter(Boolean).join("\n").slice(0, 1000);
     const { error: appealUpdateError } = await db.from("admin_appeals").update({ review_note: finalNote, reviewed_by: userData.user.id, reviewed_at: new Date().toISOString() }).eq("id", appealId).eq("status", "approved");
     if (appealUpdateError) return reply(500, { error: "Account was reactivated, but the appeal record note could not be updated. Refresh and verify the account." });
