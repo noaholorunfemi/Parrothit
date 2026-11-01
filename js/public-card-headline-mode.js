@@ -1,129 +1,166 @@
-/* PARROTHIT public card presentation: image + headline only; the whole card opens its story. */
+/* PARROTHIT public cards: keep story photos visible and make only headlines links.
+   Handles both pre-rendered cards and cards inserted later by the async publisher. */
 (function () {
   'use strict';
+  if (window.__PARROTHIT_CARD_IMAGE_FIX__) return;
+  window.__PARROTHIT_CARD_IMAGE_FIX__ = true;
+
   const css = `
-    /* Public news cards: show only the editorial image and linked headline. */
     .news-card .news-body > :not(h1):not(h2):not(h3):not(h4),
+    .news-card .news-card-content > :not(h1):not(h2):not(h3):not(h4),
     .side-item > div:not(.thumb) > :not(h1):not(h2):not(h3):not(h4),
     .news-card .category, .news-card p, .news-card .meta, .news-card .read-more,
     .news-card .article-meta, .news-card .card-summary, .news-card .excerpt,
+    .news-card .news-card-updated, .news-card .news-card-source, .news-card .breaking-label,
     .side-item .category, .side-item .meta, .side-item .read-more,
     .side-item p, .side-item .article-meta, .side-item .card-summary, .side-item .excerpt {
       display: none !important;
     }
     .news-card, .side-item { cursor: default; }
-    .news-card .thumb img, .side-item .thumb img {
-      display: block; width: 100%; height: 100%; object-fit: cover;
+    .news-card .thumb, .side-item .thumb, .news-card .managed-story-image {
+      display:block; padding:0; overflow:hidden;
     }
-    .news-card .thumb:empty, .side-item .thumb:empty,
-    .news-card .thumb[hidden], .side-item .thumb[hidden] { display: none !important; }
+    .news-card .thumb img, .side-item .thumb img,
+    .news-card .managed-story-image img, .news-card img[data-media-src] {
+      display:block !important; width:100% !important; height:100% !important;
+      min-height:120px; object-fit:cover;
+    }
+    .news-card .thumb:empty, .side-item .thumb:empty { display:none !important; }
     .news-card h1 a, .news-card h2 a, .news-card h3 a, .news-card h4 a,
     .side-item h1 a, .side-item h2 a, .side-item h3 a, .side-item h4 a {
-      color: inherit; text-decoration: none; cursor: pointer;
+      color:inherit; text-decoration:none; cursor:pointer;
     }
     .news-card h1 a:hover, .news-card h2 a:hover, .news-card h3 a:hover, .news-card h4 a:hover,
-    .side-item h1 a:hover, .side-item h2 a:hover, .side-item h3 a:hover, .side-item h4 a:hover {
-      text-decoration: underline;
-    }
+    .side-item h1 a:hover, .side-item h2 a:hover, .side-item h3 a:hover, .side-item h4 a:hover { text-decoration:underline; }
   `;
-  const style = document.createElement('style'); style.id = 'parrothit-headline-image-only'; style.textContent = css; document.head.appendChild(style);
-  const safeUrl = value => { try { const u = new URL(String(value || '').trim(), location.href); return ['http:', 'https:', 'file:'].includes(u.protocol) ? u.href : ''; } catch (_) { return ''; } };
+  const style = document.createElement('style');
+  style.id = 'parrothit-headline-image-only'; style.textContent = css; document.head.appendChild(style);
+
+  const safeUrl = value => {
+    try { const u = new URL(String(value || '').trim(), location.href); return ['http:', 'https:', 'file:', 'blob:'].includes(u.protocol) ? u.href : ''; }
+    catch (_) { return ''; }
+  };
   const getClient = () => { try { return typeof window.getParrothitSupabaseClient === 'function' ? window.getParrothitSupabaseClient() : null; } catch (_) { return null; } };
-  const pageCategory = () => location.pathname.split('/').pop().replace(/\.html?$/i, '').toLowerCase();
+  const categoryName = () => location.pathname.split('/').pop().replace(/\.html?$/i, '').toLowerCase();
+  let sharedCards = {};
   async function loadShared() {
     const client = getClient(); if (!client) return {};
-    try { const r = await client.from('site_settings').select('value').eq('key', 'category_cards').maybeSingle(); return !r.error && r.data && r.data.value && typeof r.data.value === 'object' ? r.data.value : {}; }
-    catch (e) { console.warn('PARROTHIT shared card settings unavailable:', e); return {}; }
+    try {
+      const r = await client.from('site_settings').select('value').eq('key', 'category_cards').maybeSingle();
+      return !r.error && r.data && r.data.value && typeof r.data.value === 'object' ? r.data.value : {};
+    } catch (e) { console.warn('PARROTHIT card settings unavailable:', e); return {}; }
   }
-  function localRecord(category, position) { try { const all = JSON.parse(localStorage.getItem('parrothit-category-cards-v1-' + category) || '{}'); return all[position] || all[String(position)] || null; } catch (_) { return null; } }
-  async function imageSource(record) {
-    const ref = record && (record.imageRef || record.image || record.imageData || record.imageUrl || record.image_url);
-    if (!ref) return '';
-    if (String(ref).startsWith('idb:') && window.PARROTHITMediaStore) { try { return await window.PARROTHITMediaStore.resolve(ref); } catch (_) { return ''; } }
-    return safeUrl(ref);
+  function localRecord(category, position) {
+    try { const all = JSON.parse(localStorage.getItem('parrothit-category-cards-v1-' + category) || '{}'); return all[position] || all[String(position)] || null; }
+    catch (_) { return null; }
   }
-  function cardDestination(card, record) {
-    // Prefer the article-detail destination already attached to the card.
-    const articleAnchor = card.querySelector('a[href*="article.html"], a[href*="slug="], a[href*="postId="], a[href*="categoryCard="]');
+  async function resolveImage(record) {
+    if (!record) return '';
+    const raw = record.imageRef || record.image || record.imageData || record.imageUrl || record.image_url || record.imageDataUrl || record.image_data || '';
+    if (!raw) return '';
+    if (String(raw).startsWith('idb:')) {
+      if (!window.PARROTHITMediaStore || typeof window.PARROTHITMediaStore.resolve !== 'function') return '';
+      try { return safeUrl(await window.PARROTHITMediaStore.resolve(raw)); } catch (_) { return ''; }
+    }
+    return safeUrl(raw);
+  }
+  function recordFor(card) {
+    const a = card.querySelector('a[href*="categoryCard="]');
+    if (!a) return null;
+    try {
+      const raw = new URL(a.href, location.href).searchParams.get('categoryCard') || '';
+      const m = raw.match(/^(.+)-(\d+)$/); if (!m) return null;
+      const key = m[1].toLowerCase(), pos = m[2];
+      return (sharedCards[key] && (sharedCards[key][pos] || sharedCards[key][Number(pos)])) || localRecord(key, pos);
+    } catch (_) { return null; }
+  }
+  function findHeadline(card) { return card.querySelector('h1,h2,h3,h4'); }
+  function findDestination(card, record, heading) {
+    const current = heading && heading.querySelector('a[href]');
+    const preferred = card.querySelector('a[href*="article.html"],a[href*="slug="],a[href*="postId="],a[href*="categoryCard="]');
     let target = record && (record.targetUrl || record.target_url || record.destination || record.url);
     if (!target && record && record.slug) target = 'article.html?slug=' + encodeURIComponent(record.slug);
     if (!target && record && (record.postId || record.post_id || record.id)) target = 'article.html?id=' + encodeURIComponent(record.postId || record.post_id || record.id);
-    if (!target && articleAnchor) target = articleAnchor.getAttribute('href');
-    if (!target) {
-      const fallback = card.querySelector('a.read-more[href]');
-      if (fallback) target = fallback.getAttribute('href');
-    }
+    if (!target && current) target = current.getAttribute('href');
+    if (!target && preferred) target = preferred.getAttribute('href');
     return safeUrl(target);
   }
-  async function enhanceCard(card, record) {
-    if (!card || card.dataset.parrothitCardEnhanced === '1') return;
-    if (record && record.enabled === false) { card.hidden = true; return; }
-    const heading = card.querySelector('h1,h2,h3,h4'); if (!heading) return;
-    if (record) {
-      const title = record.title || record.headline;
-      if (title) heading.textContent = title;
-      const src = await imageSource(record);
-      if (src) {
-        let holder = card.querySelector('.thumb');
-        if (!holder) { holder = document.createElement('div'); holder.className = 'thumb'; card.insertBefore(holder, card.firstChild); }
-        let img = holder.querySelector('img');
-        if (!img) { holder.textContent = ''; img = document.createElement('img'); holder.appendChild(img); }
-        img.src = src; img.alt = title || heading.textContent || 'PARROTHIT news image'; img.loading = 'lazy';
+  async function enhance(card) {
+    if (!card || card.dataset.parrothitHeadlineImageBusy === '1') return;
+    card.dataset.parrothitHeadlineImageBusy = '1';
+    try {
+      const record = recordFor(card);
+      if (record && record.enabled === false) { card.hidden = true; return; }
+      const heading = findHeadline(card);
+      if (record && heading) {
+        const title = record.title || record.headline;
+        if (title && !heading.querySelector('a[data-parrothit-headline-link]')) heading.textContent = title;
+        const src = await resolveImage(record);
+        if (src) {
+          let holder = card.querySelector('.thumb, .managed-story-image');
+          if (!holder) { holder = document.createElement('div'); holder.className = 'thumb'; card.insertBefore(holder, card.firstChild); }
+          let img = holder.querySelector('img');
+          if (!img) { holder.replaceChildren(); img = document.createElement('img'); holder.appendChild(img); }
+          if (img.src !== src) img.src = src;
+          img.alt = title || heading.textContent.trim() || 'PARROTHIT news image';
+          img.loading = 'lazy'; img.style.cssText = 'display:block;width:100%;height:100%;min-height:120px;object-fit:cover;';
+          holder.hidden = false;
+        }
       }
-    }
-    const destination = cardDestination(card, record);
-    if (destination) {
-      let headlineLink = heading.querySelector('a');
-      if (!headlineLink) {
-        headlineLink = document.createElement('a');
-        headlineLink.href = destination;
-        headlineLink.textContent = heading.textContent;
-        heading.replaceChildren(headlineLink);
-      } else {
-        headlineLink.href = destination;
-        headlineLink.textContent = headlineLink.textContent || heading.textContent;
+      // Resolve local IndexedDB media references already rendered by the publisher.
+      if (window.PARROTHITMediaStore && typeof window.PARROTHITMediaStore.bindImages === 'function') {
+        try { await window.PARROTHITMediaStore.bindImages(card); } catch (_) {}
       }
-      headlineLink.setAttribute('aria-label', 'Read full article: ' + heading.textContent.trim());
-      headlineLink.setAttribute('data-parrothit-headline-link', 'true');
-    }
-    // Images stay visible; hide placeholder text in image holders until a real image exists.
-    const thumb = card.querySelector('.thumb');
-    if (thumb) {
-      const hasImage = !!thumb.querySelector('img') || /url\(/i.test(getComputedStyle(thumb).backgroundImage || '');
-      if (!hasImage) {
-        thumb.hidden = true;
-        const observer = new MutationObserver(() => {
-          const ready = !!thumb.querySelector('img') || /url\(/i.test(getComputedStyle(thumb).backgroundImage || '');
-          if (ready) { thumb.hidden = false; observer.disconnect(); }
-        });
-        observer.observe(thumb, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+      // Keep any real image already supplied by the article publisher visible.
+      const images = Array.from(card.querySelectorAll('.thumb img, .managed-story-image img, img[data-media-src]'));
+      images.forEach(img => {
+        img.style.setProperty('display', 'block', 'important');
+        img.style.setProperty('max-width', '100%', 'important');
+        img.style.setProperty('object-fit', 'cover', 'important');
+        const holder = img.closest('.thumb, .managed-story-image'); if (holder) holder.hidden = false;
+      });
+      if (heading) {
+        const destination = findDestination(card, record, heading);
+        if (destination) {
+          let link = heading.querySelector('a');
+          if (!link) { link = document.createElement('a'); link.textContent = heading.textContent; heading.replaceChildren(link); }
+          link.href = destination; link.setAttribute('data-parrothit-headline-link', 'true');
+          link.setAttribute('aria-label', 'Read full article: ' + heading.textContent.trim());
+        }
       }
-    }
-    card.dataset.parrothitCardEnhanced = '1';
-  }
-  async function run() {
-    const shared = await loadShared(); const category = pageCategory();
-    let homeShared = {};
-    if (window.PARROTHITHomepageCards && typeof window.PARROTHITHomepageCards.loadAll === 'function') { try { homeShared = await window.PARROTHITHomepageCards.loadAll() || {}; } catch (_) {} }
-    const cards = Array.from(document.querySelectorAll('.news-grid .news-card, .content-layout .news-card, .side-stories .side-item, .content-layout .side-item'));
-    for (const card of cards) {
-      const anchor = card.querySelector('a[href*="categoryCard="]'); let key = category, position = 0;
-      if (anchor) { try { const u = new URL(anchor.href, location.href); const raw = u.searchParams.get('categoryCard') || ''; const m = raw.match(/^(.+)-(\d+)$/); if (m) { key = m[1].toLowerCase(); position = Number(m[2]); } } catch (_) {} }
-      let record = position ? ((shared[key] && (shared[key][position] || shared[key][String(position)])) || localRecord(key, position)) : null;
-      if (!record && (card.matches('.side-item') || location.pathname.endsWith('/index.html') || location.pathname.endsWith('/'))) {
-        const slot = card.matches('.side-item') ? cards.filter(c => c.matches('.side-item')).indexOf(card) + 1 : cards.indexOf(card) + 4;
-        const slotKey = String(slot).padStart(2, '0');
-        record = homeShared[slotKey] || null;
-        if (!record) { try { record = JSON.parse(localStorage.getItem('parrothit-home-card-' + slotKey) || 'null'); } catch (_) {} }
-      }
-      await enhanceCard(card, record);
-      const thumb = card.querySelector('.thumb');
-      if (thumb && !thumb.querySelector('img')) {
-        thumb.hidden = true;
-        const observer = new MutationObserver(() => { if (thumb.querySelector('img')) { thumb.hidden = false; observer.disconnect(); } });
-        observer.observe(thumb, { childList: true, subtree: true });
-      } else if (thumb) thumb.hidden = false;
+    } finally {
+      delete card.dataset.parrothitHeadlineImageBusy;
+      card.dataset.parrothitCardEnhanced = '1';
     }
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(run, 0), { once: true }); else setTimeout(run, 0);
+  let scheduled = false;
+  function scan(root) {
+    if (scheduled) return; scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      const scope = root && root.querySelectorAll ? root : document;
+      const cards = [];
+      if (scope.matches && scope.matches('.news-card,.side-item')) cards.push(scope);
+      cards.push(...scope.querySelectorAll('.news-card,.side-item'));
+      cards.forEach(card => { if (card.dataset.parrothitHeadlineImageBusy !== '1') enhance(card); });
+    });
+  }
+  async function start() {
+    sharedCards = await loadShared();
+    scan(document);
+    // Publisher scripts add or replace cards after their Supabase request completes.
+    const observer = new MutationObserver(records => {
+      for (const mutation of records) {
+        if (mutation.addedNodes && mutation.addedNodes.length) {
+          mutation.addedNodes.forEach(node => { if (node.nodeType === 1) scan(node); });
+        }
+        if (mutation.type === 'attributes' && mutation.target.matches && mutation.target.matches('.news-card,.side-item')) scan(mutation.target);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    // One delayed pass catches cards whose markup was updated in place by async rendering.
+    setTimeout(() => scan(document), 900);
+    setTimeout(() => scan(document), 2200);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })();
