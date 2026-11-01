@@ -1,0 +1,34 @@
+PARROTHIT LIVESTREAM — PHASE 2 PATCH
+
+WHAT THIS PATCH ADDS
+1. Upcoming broadcasts on /live-streams.html, sorted by start time with a live countdown.
+2. Visitor-controlled browser reminders for scheduled broadcasts (only after permission is granted). The page must remain open for the reminder timer to fire. This is not background web push.
+3. Optional external live-chat links on public live cards. Chat is opened in a new tab because provider chat embeds are restricted by the providers and their domain rules.
+4. Replay/archive support: administrators can add a recorded video URL and archive title; the replay appears in the public Replays & Archive section. The recording must already exist on a supported provider.
+5. Schedule times are stored as UTC timestamps after being entered in the administrator's local time zone, so visitors in other time zones see a consistent start instant.
+6. Fixes custom-channel deletion so deleted custom channels are removed from the shared Supabase JSON configuration.
+7. Cache-busting query strings for the updated public renderer.
+
+FILES
+- admin/live-stream-controls.html
+- js/live-stream-slots.js
+- live-streams.html
+- index.html, sports.html, football.html, sports-football.html, sports-table-tennis.html, sports-basketball.html, sports-tennis.html, sports-athletics.html (renderer cache-busting only)
+
+INSTALLATION
+1. Extract the ZIP.
+2. Copy the included Parrothit-main files into the existing GitHub repository, preserving folder structure.
+3. Replace only files with matching paths. Do not delete or replace unrelated files.
+4. Commit and deploy.
+5. No SQL migration is required. The patch uses the existing public.site_settings row with key sports_streams.
+
+ADMIN USE
+- Set a channel's start date/time in the Schedule start field and save it. Keep the channel enabled and provide its stream URL. It appears under Upcoming Broadcasts until its start time, then under Live Now.
+- Set Notify visitors about this schedule to allow visitors who grant browser notification permission to receive a reminder while the page remains open.
+- Set Live chat URL to show an Open live chat link.
+- Set Replay / archive URL and Archive title to add a recording to Replays & Archive. Archive entries can remain available even when the live channel is disabled.
+
+LIMITATIONS
+- This patch embeds third-party streams and recordings; it does not ingest, record, transcode, or host live video.
+- True push notifications while the visitor's browser is closed require a service worker, push subscription storage, VAPID keys, and a trusted server/edge function. Those are not configured by this patch.
+- Chat availability is controlled by the streaming provider and may require its own embed setup.
