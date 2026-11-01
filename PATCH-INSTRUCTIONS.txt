@@ -1,0 +1,18 @@
+PARROTHIT NEWS CARD DISPLAY PATCH
+
+This patch updates the public news-card presentation only.
+
+Changes:
+- News cards show the news image (when one is available) and headline only.
+- Category labels, summaries, descriptions, author/date metadata, and read-more buttons are hidden.
+- The headline itself links to the full article detail destination.
+- Clicking elsewhere on the card does not navigate.
+- The card script cache version is updated in the included public pages.
+
+Install:
+1. Back up your current project.
+2. Extract this ZIP.
+3. Copy the included Parrothit-main folder contents into the matching folder in your existing project, allowing overwrite.
+4. Commit and deploy.
+
+No database migration is required. This patch assumes the previous headline/image card patch is already installed.
