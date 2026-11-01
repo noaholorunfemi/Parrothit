@@ -1,0 +1,25 @@
+PARROTHIT LIVESTREAM CONTROL CENTRE UPDATE
+
+Files updated:
+- admin/live-stream-controls.html: expanded multi-channel administration UI
+- js/live-stream-slots.js: remote-first public renderer and supported embed adapters
+- live-streams.html: dedicated public livestream hub
+- sports.html and sports category pages: public integration
+- admin/control-directory.html: updated administration entry
+- index.html: LIVE navigation link and homepage stream mount (when configured)
+
+Database:
+Uses existing public.site_settings row with key sports_streams and JSONB value. No new table or SQL migration is required. The eight standard slot keys are retained. Custom channels are also supported. Existing Supabase policies must permit public SELECT for key sports_streams and authorized admins to INSERT/UPDATE.
+
+Supported embeds/playback:
+YouTube, Vimeo, Twitch (requires correct parent host), Facebook video embeds where allowed, TikTok embeds where allowed, HTTPS generic embeds, HLS (.m3u8) via hls.js where browser-native HLS is unavailable, and direct MP4. Platform restrictions and browser autoplay policies apply.
+
+Security/operations:
+- Stream URLs must use HTTPS.
+- Never paste private stream keys or broadcaster credentials into this interface.
+- This feature embeds external providers; it does not ingest, transcode, or originate live video.
+- Admin page saves shared JSONB configuration to Supabase.
+- Public renderer loads Supabase first and uses local cache only as a fallback, avoiding stale browser values overriding server settings.
+- Twitch player needs the deployed site hostname accepted as its parent domain by Twitch.
+
+Deployment: publish the updated site files. No SQL changes are required for the already-created sports_streams JSONB record.
