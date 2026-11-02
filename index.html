@@ -65,14 +65,14 @@ if(dateNode){dateNode.textContent=new Date().toLocaleDateString("en-NG",{weekday
 // Unpublished sample-link popups removed; story destinations are handled by the site links.
 // Search forms use Google Search; native GET submission safely encodes the query.
 
-// Slider is controlled by js/parrothit-content.js to prevent competing timers.
+// Slider is controlled by js/parrothit-content.js?v=20261102-headline-datetime-loading to prevent competing timers.
 </script>
 <script>
 // PARROTHIT front-end helpers. Live database features activate after Supabase setup.
 (function(){
  // Homepage search submits the visitor's query to Google in a new tab.
  document.querySelectorAll('[data-share]').forEach(btn=>btn.addEventListener('click',async()=>{const url=location.href;try{if(navigator.share)await navigator.share({title:document.title,url});else{await navigator.clipboard.writeText(url);alert('Link copied');}}catch(e){}}));
- // Slider timer is owned by js/parrothit-content.js.
+ // Slider timer is owned by js/parrothit-content.js?v=20261102-headline-datetime-loading.
 })();
 </script>
 
@@ -102,13 +102,13 @@ if(dateNode){dateNode.textContent=new Date().toLocaleDateString("en-NG",{weekday
 <script src="supabase-config.js"></script>
 <script src="js/live-stream-slots.js?v=20261101-phase3"></script>
 <script src="js/media-store.js"></script>
-<script src="js/home-card-runtime.js"></script>
-<script src="js/parrothit-content.js?v=20261102-card-image-fix"></script>
+<script src="js/home-card-runtime.js?v=20261102-headline-datetime-loading"></script>
+<script src="js/parrothit-content.js?v=20261102-headline-datetime-loading"></script>
 
 <script id="parrothitMovingTextRuntime">(()=>{'use strict';try{const cfg=JSON.parse(localStorage.getItem('parrothit_control_room_v2')||'{}');const mt=cfg.settings&&cfg.settings.movingText;const box=document.querySelector('.moving-news');if(!box||!mt)return;if(mt.enabled===false){box.hidden=true;return}box.hidden=false;const label=box.querySelector('strong');const text=box.querySelector('.ticker-text');if(label)label.textContent=String(mt.label||'PARROTHIT UPDATE');if(text&&typeof mt.text==='string')text.textContent=mt.text;}catch(e){console.warn('Moving text settings unavailable',e)}})();</script>
 
 <script id="parrothit-home-hero-card-runtime">(()=>{'use strict';const KEY='parrothit-home-hero-card-v1';try{const cfg=JSON.parse(localStorage.getItem(KEY)||'null');if(!cfg)return;const card=document.querySelector('.hero-card');if(!card)return;if(cfg.enabled===false){card.hidden=true;return}card.hidden=false;const visual=card.querySelector('.hero-visual');const label=card.querySelector('.category');const headline=card.querySelector('h2');const summary=card.querySelector('p');const byline=card.querySelector('.meta');const link=card.querySelector('.read-more');if(visual&&typeof cfg.visualText==='string')visual.textContent=cfg.visualText;if(label&&cfg.eyebrow)label.textContent=cfg.eyebrow;if(headline&&cfg.headline)headline.textContent=cfg.headline;if(summary&&typeof cfg.summary==='string')summary.textContent=cfg.summary;if(byline&&typeof cfg.byline==='string')byline.textContent=cfg.byline;if(link&&cfg.destination){try{const u=new URL(cfg.destination,location.href);if(['http:','https:'].includes(u.protocol))link.href=u.href}catch(e){}}}catch(e){console.warn('Homepage lead card settings could not be applied.',e)}})();</script>
-<script src="js/news-card-timestamps.js"></script>
+<script src="js/news-card-timestamps.js?v=20261102-headline-datetime-loading"></script>
 <script src="js/news-card-reactions-share.js" defer></script><script src="js/public-notifications.js"></script><script src="js/public-scroll-effects.js" defer></script>
 <script src="js/news-ads-appearance.js"></script>
 <script src="js/category-ad-slider.js" defer></script>

@@ -1,0 +1,25 @@
+PARROTHIT NEWS HEADLINE LINKS + DATE/TIME + CONTENT LOADING PATCH
+Date: 2 November 2026
+
+WHAT THIS PATCH DOES
+1. Makes the headlines on all category news cards open the full PARROTHIT article detail page.
+2. Adds whole-card navigation as a convenience while preserving direct headline links.
+3. Displays the saved publication date and time on published-story cards across the 22 category pages and homepage cards.
+4. Keeps card content compact: image, category label, headline, and date/time only. Summaries and Read Story buttons remain hidden.
+5. Replaces the unavailable category-card article message with the short text: "Content loading".
+6. Supports homepage card detail destinations by card number, resolving the saved post ID/slug where available.
+7. Adds cache-busting query strings to public page script references so browsers fetch the patched scripts.
+
+INSTALLATION
+- Copy the contents of this ZIP into the root of the existing PARROTHIT website, preserving the folders.
+- Allow the files to overwrite the existing files when prompted.
+- The JS files go into the existing /js/ folder.
+- The included HTML files go into the website root and update public page script cache versions.
+- Do not replace the whole website with this patch ZIP.
+- After deploying, hard-refresh the homepage, category pages, and article page.
+
+DATE/TIME NOTE
+The date and time are read from saved publication/creation metadata. The patch does not invent dates for records that have no saved timestamp.
+
+SCOPE
+This patch changes public news-card display and public article navigation only. It does not change Supabase tables, admin permissions, newsroom automation workflows, livestream settings, or article content.
