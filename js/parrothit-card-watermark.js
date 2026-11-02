@@ -139,27 +139,7 @@
       card.addEventListener('keydown',function(event){if((event.key==='Enter'||event.key===' ')&&event.target===card){event.preventDefault();goToCardLink(card)}});
     });
   }
-  function applyHeadlineOnlyCards(){
-    if(document.getElementById('parrothit-headline-only-card-style')) return;
-    const style=document.createElement('style');
-    style.id='parrothit-headline-only-card-style';
-    style.textContent=`
-      .news-card,.side-item,.hero-card,.category-card,.story-card,.parrothit-managed-card,.parrothit-category-card,[data-news-card="true"]{cursor:pointer}
-      .news-card > .managed-story-image,.news-card > .thumb,.news-card > .hero-visual,.side-item .thumb,.hero-card .hero-visual,.category-card .thumb,.story-card .thumb{display:none!important}
-      .news-card .news-card-content > :not(h1):not(h2):not(h3):not(h4),
-      .news-card .news-body > :not(h1):not(h2):not(h3):not(h4),
-      .side-item > :not(h1):not(h2):not(h3):not(h4),
-      .hero-card > :not(h1):not(h2):not(h3):not(h4),
-      .category-card > :not(h1):not(h2):not(h3):not(h4),
-      .story-card > :not(h1):not(h2):not(h3):not(h4),
-      .parrothit-managed-card .news-card-content > :not(h1):not(h2):not(h3):not(h4){display:none!important}
-      .news-card h1,.news-card h2,.news-card h3,.news-card h4,.side-item h1,.side-item h2,.side-item h3,.side-item h4,.hero-card h1,.hero-card h2,.hero-card h3,.hero-card h4,.category-card h1,.category-card h2,.category-card h3,.category-card h4,.story-card h1,.story-card h2,.story-card h3,.story-card h4{display:block!important;margin:0!important;padding:14px!important}
-      .news-card h1 a,.news-card h2 a,.news-card h3 a,.news-card h4 a,.side-item h1 a,.side-item h2 a,.side-item h3 a,.side-item h4 a{display:block;color:inherit;text-decoration:none}
-    `;
-    document.head.appendChild(style);
-  }
   function init(){
-    applyHeadlineOnlyCards();
     applySettings(loadLocal());process(document);makeCardsClickable();loadSharedCategoryCards();loadShared();
     if(!window.__PARROTHIT_WATERMARK_OBSERVER__){
       window.__PARROTHIT_WATERMARK_OBSERVER__=new MutationObserver(mutations=>{

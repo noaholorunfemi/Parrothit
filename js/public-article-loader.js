@@ -42,8 +42,13 @@
   function showUnavailable(message) {
     const info = categoryInfo();
     shell.replaceChildren();
-    shell.appendChild(makeNode('h1', '', 'content loading'));
-    document.title = 'content loading | PARROTHIT';
+    shell.appendChild(makeNode('span', 'category', info ? info.key.replace(/-/g, ' ').toUpperCase() : 'PARROTHIT NEWS'));
+    shell.appendChild(makeNode('h1', '', 'Story not available'));
+    shell.appendChild(makeNode('p', 'article-summary', message || 'This story is not currently available. Please return to the news category and choose another story.'));
+    const back = makeNode('a', 'button', info ? '← Back to category' : '← Back to Home');
+    back.href = info ? info.key + '.html' : 'index.html';
+    shell.appendChild(back);
+    document.title = 'Story not available | PARROTHIT';
   }
 
   async function getClient() {
@@ -244,7 +249,7 @@
 
     // Do not leave the original static placeholder in place when a card/post URL
     // has been recognized but the requested publication cannot be resolved.
-    showUnavailable('');
+    showUnavailable(client ? 'This story could not be found as a published article. Please return to the category page and choose another story.' : 'The news database is not available right now. Please try again shortly.');
   }
 
   const start = () => load().catch(error => {
