@@ -1,0 +1,29 @@
+PARROTHIT — PARROT SEARCH 2.0 PATCH
+
+PATCH CONTENTS
+- search.html: dedicated internal search page
+- css/parrot-search.css: responsive PARROTHIT search styling
+- js/parrot-search.js: quick suggestions, filters, typo-tolerant results, trending terms and local search history
+- js/parrot-global-search.js: routes public search forms internally (no Google redirect)
+- admin/parrot-search.html: admin-only search analytics page
+- supabase/parrot-search-v2.sql: search indexes, RPC functions and aggregate analytics
+- index.html: homepage search now points to internal Parrot Search
+
+INSTALLATION
+1. Back up your current repository.
+2. Extract the patch into the root of the existing Parrothit-main project folder, preserving folders and replacing js/parrot-global-search.js and index.html when prompted.
+3. Open Supabase Dashboard → SQL Editor → New query.
+4. Run the complete supabase/parrot-search-v2.sql file once. Wait for Success. It creates pg_trgm indexes, public published-news search RPCs, suggestion/trending RPCs and privacy-minimized search analytics.
+5. Push the changed/new files to the existing GitHub repository. Do not create a new repository.
+6. Wait for Cloudflare deployment, then open /search.html.
+7. Test searches with a headline, a word from article body, a misspelled headline, category filter and date filter.
+8. Admins can open /admin/parrot-search.html after signing in through the existing admin system.
+
+IMPORTANT NOTES
+- Search results are restricted to posts.status='published' and stories whose published_at is not in the future.
+- Article links use article.html?slug=... or article.html?id=... to match existing PARROTHIT routing.
+- Search covers all categories from the public categories table; it does not hard-code a subset.
+- Search history stays in the visitor's browser localStorage. Aggregate search terms/result counts are stored in Supabase without visitor email, IP address or account ID.
+- The SQL expects the current PARROTHIT schema: posts.image_url, posts.status, posts.published_at, posts.category_id and admin_profiles.user_id/is_suspended.
+- If SQL reports a missing column/table, stop and share the exact error; do not delete or recreate existing tables.
+- The existing supabase/parrot-search-complete.sql is not required to be rerun for this patch. Run only parrot-search-v2.sql.
