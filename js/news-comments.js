@@ -36,6 +36,38 @@
   const voterToken = uuidToken('parrothit-news-comment-voter-v1');
   const GOOGLE_PHOTO_KEY = 'parrothit-news-comment-google-photo-v1';
   function savedGooglePhoto() { try { const item = JSON.parse(localStorage.getItem(GOOGLE_PHOTO_KEY) || 'null'); return item && item.url ? item.url : ''; } catch (_) { return ''; } }
+  function validGooglePhoto(value) {
+    try {
+      const url = new URL(String(value || ''));
+      return url.protocol === 'https:' && (url.hostname === 'googleusercontent.com' || url.hostname.endsWith('.googleusercontent.com')) ? url.href : '';
+    } catch (_) { return ''; }
+  }
+  async function googleProfilePhoto(session) {
+    const user = session && session.user;
+    if (!user) return '';
+    const candidates = [user.user_metadata && user.user_metadata.avatar_url, user.user_metadata && user.user_metadata.picture];
+    (user.identities || []).forEach(identity => {
+      if (identity && identity.provider === 'google' && identity.identity_data) {
+        candidates.push(identity.identity_data.picture, identity.identity_data.avatar_url);
+      }
+    });
+    for (const candidate of candidates) { const valid = validGooglePhoto(candidate); if (valid) return valid; }
+    // Supabase may not copy Google's picture into user_metadata. Ask Google's
+    // user-info endpoint using the OAuth provider token when it is available.
+    if (session.provider_token) {
+      try {
+        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + session.provider_token }
+        });
+        if (response.ok) {
+          const profile = await response.json();
+          const valid = validGooglePhoto(profile.picture);
+          if (valid) return valid;
+        }
+      } catch (error) { console.warn('Google user profile photo lookup failed:', error); }
+    }
+    return '';
+  }
   function avatarMarkup(url, fallback) { const safe = /^https:\/\/(lh3\.googleusercontent\.com|googleusercontent\.com)\//i.test(String(url || '')) ? esc(url) : ''; return safe ? `<img class="nc-avatar-img" src="${safe}" alt="Commenter profile picture" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nc-avatar-fallback',textContent:'${fallback}'}))">` : `<span class="nc-avatar-fallback">${fallback}</span>`; }
   const client = () => typeof window.getParrothitSupabaseClient === 'function' ? window.getParrothitSupabaseClient() : null;
 
@@ -130,11 +162,14 @@
         const sessionResult = await db.auth.getSession();
         const session = sessionResult.data && sessionResult.data.session;
         if (session && session.user) {
-          const picture = session.user.user_metadata && (session.user.user_metadata.avatar_url || session.user.user_metadata.picture);
-          if (picture && /^https:\/\/(lh3\.googleusercontent\.com|googleusercontent\.com)\//i.test(picture)) {
+          const picture = await googleProfilePhoto(session);
+          if (picture) {
             localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ googleEmail: String(session.user.email || '').toLowerCase(), url: picture }));
             const status = $(root, '[data-nc-google-status]');
             if (status) status.textContent = 'Google profile photo connected for ' + pendingEmail + '.';
+          } else {
+            const status = $(root, '[data-nc-google-status]');
+            if (status) status.textContent = 'Google sign-in completed, but no public profile photo was available. Email-only commenting still works.';
           }
         }
         localStorage.removeItem('parrothit-news-comment-google-pending-email');
@@ -236,8 +271,8 @@
           if (sessionResult.error) throw sessionResult.error;
           const session = sessionResult.data && sessionResult.data.session;
           if (session && session.user) {
-            const picture = session.user.user_metadata && (session.user.user_metadata.avatar_url || session.user.user_metadata.picture);
-            if (!picture || !/^https:\/\/(lh3\.googleusercontent\.com|googleusercontent\.com)\//i.test(picture)) throw new Error('Google did not provide a usable profile picture for this account.');
+            const picture = await googleProfilePhoto(session);
+            if (!picture) throw new Error('Google sign-in is connected, but this account has no accessible profile photo. You can still comment by email; try another Google account with a profile picture.');
             localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ googleEmail: String(session.user.email || '').toLowerCase(), url: picture }));
             if (status) status.textContent = 'Google profile photo connected. It can be used with any comment email.';
             setMessage(root, 'Google profile photo connected. Your email remains private.', 'success');
