@@ -143,7 +143,7 @@
     const title = document.createElement('h3'); const link = document.createElement('a'); link.href = post.remote ? 'article.html?slug=' + encodeURIComponent(post.slug || '') : 'article.html?id=' + encodeURIComponent(post.id); link.textContent = post.title || 'Untitled story'; title.appendChild(link);
     const summary = document.createElement('p'); summary.textContent = post.summary || '';
     const read = document.createElement('a'); read.className = 'read-more'; read.href = link.href; read.textContent = 'Read story →';
-    body.append(cat, title, summary); const stamp=document.createElement('div');stamp.className='news-card-updated';stamp.style.cssText='font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82';const created=post.publishedAt||post.createdAt||'';const updated=post.updatedAt||created;const formatDate=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};stamp.textContent=created?'Published: '+formatDate(created)+(updated&&updated!==created?' · Updated: '+formatDate(updated):''):'Publication time not recorded';body.append(stamp);if(post.sourceName){const source=document.createElement('small');source.className='news-card-source';source.textContent='Source: '+post.sourceName;source.style.cssText='display:block;margin-top:5px;opacity:.8';body.appendChild(source)}body.append(read); card.appendChild(body); return card;
+    body.append(cat, title); const stamp=document.createElement('div');stamp.className='news-card-updated';stamp.style.cssText='font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82';const created=post.publishedAt||post.createdAt||'';const formatDate=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};stamp.textContent=created?formatDate(created):'';if(created)body.append(stamp); card.appendChild(body); card.style.cursor='pointer'; card.setAttribute('role','link'); card.tabIndex=0; const go=e=>{if(e.target.closest('a,button,input,select,textarea,label'))return;location.href=link.href};card.addEventListener('click',go);card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();location.href=link.href}}); return card;
   }
   function categoryDatabaseSlugs(categoryKey) {
     const aliases = {
@@ -384,9 +384,10 @@
       const body = document.createElement('div'); body.className = 'news-body news-card-content';
       const category = document.createElement('span'); category.className = 'category'; category.textContent = categoryKey.replace(/-/g, ' ').toUpperCase();
       const heading = document.createElement('h3'); const titleLink = document.createElement('a'); titleLink.href = href; titleLink.textContent = rec.title; heading.appendChild(titleLink);
-      const summary = document.createElement('p'); summary.textContent = rec.text || '';
-      const read = document.createElement('a'); read.className = 'read-more'; read.href = href; read.textContent = 'READ STORY →';
-      body.append(category, heading, summary, read); card.appendChild(body);
+      body.append(category, heading);
+      const dateValue = rec.publishedAt || rec.published_at || rec.updatedAt || rec.createdAt || '';
+      if (dateValue) { const stamp = document.createElement('div'); stamp.className = 'news-card-updated'; stamp.textContent = new Date(dateValue).toLocaleString('en-NG', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); stamp.style.cssText = 'font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82'; body.appendChild(stamp); }
+      card.appendChild(body);
       card.style.cursor = 'pointer';
       if (!card.hasAttribute('data-parrothit-assigned-click')) {
         card.setAttribute('data-parrothit-assigned-click', 'true');
@@ -448,10 +449,8 @@
     const main = $('main'); if (!main) return false;
     const article = document.createElement('article'); article.className = 'parrothit-managed-article';
     if (!rec || rec.enabled === false || !(rec.title || rec.text || rec.image || rec.imageUrl)) {
-      const h = document.createElement('h1'); h.textContent = 'News story not available yet';
-      const note = document.createElement('p'); note.textContent = 'This story has not been published yet. Return to the category page to browse available coverage.';
-      const back = document.createElement('a'); back.href = category + '.html'; back.textContent = 'Return to ' + category.replace(/-/g, ' ') + ' news';
-      article.append(h, note, back); main.replaceChildren(article); document.title = 'Story not available | PARROTHIT'; return true;
+      const h = document.createElement('h1'); h.textContent = 'Content loading';
+      article.append(h); main.replaceChildren(article); document.title = 'Content loading | PARROTHIT'; return true;
     }
     const h = document.createElement('h1'); h.textContent = rec.title || 'News story'; article.appendChild(h);
     const imageRef = rec.image || rec.imageUrl || '';
@@ -589,6 +588,24 @@
     document.querySelectorAll('img[src^="idb:"]').forEach(img => { const ref = img.getAttribute('src'); img.setAttribute('data-media-src', ref); img.removeAttribute('src'); });
     if (window.PARROTHITMediaStore) window.PARROTHITMediaStore.bindImages(document);
   }
+  function enableWholeNewsCardNavigation() {
+    if (document.documentElement.dataset.parrothitCardNavigation === '1') return;
+    document.documentElement.dataset.parrothitCardNavigation = '1';
+    document.addEventListener('click', event => {
+      const card = event.target.closest('.news-card, .side-item, .hero-card');
+      if (!card || event.target.closest('a,button,input,select,textarea,label')) return;
+      const headlineLink = card.querySelector('h1 a[href],h2 a[href],h3 a[href],h4 a[href],.headline a[href],a.read-more[href]');
+      if (headlineLink) location.href = headlineLink.href;
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const card = event.target.closest('.news-card, .side-item, .hero-card');
+      if (!card || event.target !== card) return;
+      const headlineLink = card.querySelector('h1 a[href],h2 a[href],h3 a[href],h4 a[href],.headline a[href],a.read-more[href]');
+      if (headlineLink) { event.preventDefault(); location.href = headlineLink.href; }
+    });
+  }
+
   function addStyles() {
     const style = document.createElement('style'); style.textContent = `
       .parrothit-managed-stories,.parrothit-home-video,.parrothit-category-hero{margin:24px 0;padding:18px;background:var(--card,#fff);border:1px solid var(--line,#ddd);border-radius:14px;color:var(--text,#151515)}
@@ -596,7 +613,7 @@
       .parrothit-category-hero{display:flex;align-items:center;gap:16px;padding:12px;border-radius:12px;border:1px solid var(--line,#ddd);background:var(--card,#fff)}.parrothit-category-hero img{width:clamp(90px,18vw,170px);height:90px;object-fit:cover;border-radius:8px}.parrothit-category-hero strong{font-size:1.2rem}.parrothit-managed-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
       .parrothit-load-more-stories{display:block;margin:18px auto 2px;padding:11px 18px;border:0;border-radius:9px;background:#126b3a;color:#fff;font-weight:800;cursor:pointer}.parrothit-load-more-stories:disabled{opacity:.7;cursor:wait}
       .parrothit-managed-card{overflow:hidden;border-radius:12px;background:var(--card,#fff);border:1px solid var(--line,#ddd);display:flex;flex-direction:column;min-width:0}
-      .managed-story-image{display:block;height:160px;overflow:hidden;background:#eee}.managed-story-image img{width:100%;height:100%;object-fit:cover;display:block}.news-card-content{padding:13px}.news-card-content h3{margin:.45rem 0;font-size:1.08rem}.news-card-content h3 a{color:inherit;text-decoration:none}.news-card-content p{color:var(--muted,#555);line-height:1.5}.read-more{font-weight:800;color:#c5161d}
+      .managed-story-image{display:block;height:160px;overflow:hidden;background:#eee}.managed-story-image img{width:100%;height:100%;object-fit:cover;display:block}.news-card-content{padding:13px}.news-card-content h3{margin:.45rem 0;font-size:1.08rem}.news-card-content h3 a{color:inherit;text-decoration:none}.news-card-content p,.news-card-content .read-more,.news-card-content .news-card-source{display:none!important}.news-card-content .news-card-updated{display:block!important;color:var(--muted,#555)}.read-more{font-weight:800;color:#c5161d}
       .parrothit-home-video-frame{display:block;width:min(100%,480px);aspect-ratio:16/9;border:0;border-radius:12px;background:#000}
       .parrothit-managed-article{max-width:900px;margin:20px auto;padding:clamp(16px,3vw,32px);background:var(--card,#fff);border-radius:14px;color:var(--text,#151515)}.parrothit-managed-article h1{font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.15}.managed-article-image{width:100%;max-height:520px;object-fit:cover;border-radius:12px;margin:12px 0 20px}.managed-article-body{font-size:1.08rem;line-height:1.8}.article-summary{font-size:1.1rem;font-weight:700}
       .parrothit-ads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;width:min(1240px,96%);margin:22px auto;padding:0;align-items:stretch}
@@ -779,6 +796,7 @@
     }
   }
   async function init() {
+    enableWholeNewsCardNavigation();
     addStyles(); const localState = readLocalState();
     const sliderInterval = localState.settings && localState.settings.slideInterval || 4;
     const initialSlider = replaceSlider(localState.slides && localState.slides.length ? localState.slides : [], sliderInterval);

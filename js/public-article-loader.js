@@ -40,15 +40,9 @@
   }
 
   function showUnavailable(message) {
-    const info = categoryInfo();
     shell.replaceChildren();
-    shell.appendChild(makeNode('span', 'category', info ? info.key.replace(/-/g, ' ').toUpperCase() : 'PARROTHIT NEWS'));
-    shell.appendChild(makeNode('h1', '', 'Story not available'));
-    shell.appendChild(makeNode('p', 'article-summary', message || 'This story is not currently available. Please return to the news category and choose another story.'));
-    const back = makeNode('a', 'button', info ? '← Back to category' : '← Back to Home');
-    back.href = info ? info.key + '.html' : 'index.html';
-    shell.appendChild(back);
-    document.title = 'Story not available | PARROTHIT';
+    shell.appendChild(makeNode('h1', '', 'Content loading'));
+    document.title = 'Content loading | PARROTHIT';
   }
 
   async function getClient() {
