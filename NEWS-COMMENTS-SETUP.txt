@@ -1,0 +1,41 @@
+PARROTHIT NEWS ARTICLE COMMENTS — COMPACT STYLE (OPTION 2)
+
+WHAT IS INCLUDED
+- One shared email-only guest comment system for the full article page used by all PARROTHIT news categories.
+- Readers enter only an email address and comment. No news account or community account is required.
+- Public comments show the label "Reader". Email addresses are stored in a separate private table and are never sent to the public comment markup.
+- Six reactions: Like, Love, Haha, Wow, Sad and Angry.
+- One reaction per browser token per comment; a reader can change or remove their reaction.
+- Replies (one reply level), sorting by relevance/newest/most liked/most replied, and comment reporting.
+- A separate admin moderation page at /admin/news-comments.html.
+
+REQUIRED SUPABASE STEP
+1. Open the Supabase project used by PARROTHIT.
+2. Open SQL Editor and create a new query.
+3. Copy and run the complete contents of:
+   supabase/news-comments-email-only.sql
+4. Wait for Supabase to confirm the query completed successfully.
+5. Deploy the updated website files from this patch.
+6. Sign in as an active PARROTHIT administrator, open the Control Directory, then choose "News Article Comments".
+
+IMPORTANT NOTES
+- The public interface will not work against the live database until the SQL migration above has been run.
+- Existing comments table and existing published posts are reused. No 22 separate category tables are created.
+- A comment belongs to the published post ID, so replies and reactions stay attached to the correct article.
+- The database checks that the referenced post is published and rate-limits a normalized email address to five submissions in ten minutes. A hidden honeypot field is also used as a basic spam trap.
+- Comments are immediately visible after successful submission. Admins can approve/restore, hide, mark spam, or delete comments and clear reports.
+- Email addresses are not publicly visible. Active admins can technically inspect the private email table in Supabase; the moderation screen intentionally does not display those addresses.
+- This version does not send an email verification code or prove that the commenter owns the entered email address. It stores the supplied email privately for accountability and rate limiting. Email ownership verification or Cloudflare Turnstile can be added as a later security phase.
+- Reactions are limited by a random browser token. Clearing browser storage or switching browsers can create a new token, so this is a practical anti-repeat measure, not identity verification.
+- This is the News article comment system only. It does not connect to or modify Parrots Community.
+
+FILES IN THIS PATCH
+- article.html
+- js/public-article-loader.js
+- js/news-comments.js (new)
+- css/news-comments.css (new)
+- supabase/news-comments-email-only.sql (new)
+- admin/news-comments.html (new)
+- admin/control-directory.html
+- control-directory.html
+- NEWS-COMMENTS-SETUP.txt (new)
