@@ -172,8 +172,8 @@ Deno.serve(async (req) => {
       item[match[2] as "NAME" | "API_KEY" | "API_URL" | "MODEL"] = value;
       byId.set(id, item);
     }
-    // Compatibility for existing NEWSROOM_AI_1_* through NEWSROOM_AI_6_* secrets.
-    for (let i = 1; i <= 6; i++) {
+    // Compatibility for existing NEWSROOM_AI_1_* through NEWSROOM_AI_32_* secrets.
+    for (let i = 1; i <= 32; i++) {
       const id = String(i);
       const legacy = {
         NAME: Deno.env.get(`NEWSROOM_AI_${id}_NAME`) || '',
@@ -238,11 +238,18 @@ Deno.serve(async (req) => {
     const originalIds = ["OPENAI", "GROQ"];
     const builtInIds = Object.keys(providerPresets);
     const prioritized = originalIds.map(id => all.find(p => p.id === id)).filter(Boolean) as ProviderConfig[];
-    const builtIn = builtInIds.map(id => all.find(p => p.id === id)).filter(Boolean) as ProviderConfig[];
-    const custom = all.filter(p => !originalIds.includes(p.id) && !builtInIds.includes(p.id)).sort((a, b) => a.name.localeCompare(b.name));
-    // Hard ceiling: 2 original providers + 30 built-in profiles = 32 total.
-    // Any unrelated custom IDs are shown only if a slot remains.
-    return [...prioritized, ...builtIn, ...custom].slice(0, 32);
+    const isOriginal = (p: ProviderConfig) => originalIds.includes(p.id);
+    const isBuiltIn = (p: ProviderConfig) => builtInIds.includes(p.id);
+    const configuredLegacy = all.filter(p => !isOriginal(p) && !isBuiltIn(p) && p.configured)
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const configuredBuiltIn = all.filter(p => isBuiltIn(p) && p.configured);
+    const remainingBuiltIn = builtInIds.map(id => all.find(p => p.id === id))
+      .filter((p): p is ProviderConfig => !!p && !p.configured);
+    const remainingCustom = all.filter(p => !isOriginal(p) && !isBuiltIn(p) && !p.configured)
+      .sort((a, b) => a.name.localeCompare(b.name));
+    // Keep every configured existing provider visible first. Fill remaining
+    // spaces with built-in presets, while enforcing the 32-profile ceiling.
+    return [...prioritized, ...configuredLegacy, ...configuredBuiltIn, ...remainingBuiltIn, ...remainingCustom].slice(0, 32);
   };
   const providerConfig = (id: string): ProviderConfig => {
     const normalized = String(id || '').trim().toUpperCase();
