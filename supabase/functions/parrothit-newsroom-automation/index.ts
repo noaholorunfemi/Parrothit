@@ -100,6 +100,43 @@ Deno.serve(async (req) => {
   let providerJsonConfigError = '';
   const providerConfigs = (): ProviderConfig[] => {
     const byId = new Map<string, { NAME?: string; API_KEY?: string; API_URL?: string; MODEL?: string }>();
+    // Exactly 30 additional provider/model profiles are available alongside
+    // the two original providers (OpenAI and Groq): 32 selectable profiles max.
+    // Model aliases inherit credentials and endpoint from their parent provider,
+    // but each alias has its own model setting in NEWSROOM_AI_PROVIDERS_JSON.
+    const providerPresets: Record<string, { NAME: string; API_URL: string; MODEL: string }> = {
+      GEMINI: { NAME: "Google AI Studio (Gemini)", API_URL: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", MODEL: "" },
+      OPENROUTER: { NAME: "OpenRouter", API_URL: "https://openrouter.ai/api/v1/chat/completions", MODEL: "" },
+      MISTRAL: { NAME: "Mistral AI", API_URL: "https://api.mistral.ai/v1/chat/completions", MODEL: "" },
+      CLOUDFLARE: { NAME: "Cloudflare Workers AI", API_URL: "", MODEL: "" },
+      COHERE: { NAME: "Cohere", API_URL: "https://api.cohere.ai/compatibility/v1/chat/completions", MODEL: "" },
+      NVIDIA: { NAME: "NVIDIA NIM", API_URL: "https://integrate.api.nvidia.com/v1/chat/completions", MODEL: "" },
+      SAMBANOVA: { NAME: "SambaNova Cloud", API_URL: "https://api.sambanova.ai/v1/chat/completions", MODEL: "" },
+      ZAI: { NAME: "Z.ai", API_URL: "https://api.z.ai/api/paas/v4/chat/completions", MODEL: "" },
+      HUGGINGFACE: { NAME: "Hugging Face Inference", API_URL: "https://router.huggingface.co/v1/chat/completions", MODEL: "" },
+      CEREBRAS: { NAME: "Cerebras Inference", API_URL: "https://api.cerebras.ai/v1/chat/completions", MODEL: "" },
+      GEMINI_FLASH: { NAME: "Gemini — Flash profile", API_URL: "", MODEL: "" },
+      GEMINI_FLASH_LITE: { NAME: "Gemini — Flash-Lite profile", API_URL: "", MODEL: "" },
+      GEMINI_PRO: { NAME: "Gemini — Pro profile", API_URL: "", MODEL: "" },
+      OPENROUTER_LLAMA: { NAME: "OpenRouter — Llama profile", API_URL: "", MODEL: "" },
+      OPENROUTER_QWEN: { NAME: "OpenRouter — Qwen profile", API_URL: "", MODEL: "" },
+      OPENROUTER_GEMMA: { NAME: "OpenRouter — Gemma profile", API_URL: "", MODEL: "" },
+      OPENROUTER_DEEPSEEK: { NAME: "OpenRouter — DeepSeek profile", API_URL: "", MODEL: "" },
+      MISTRAL_SMALL: { NAME: "Mistral — Small profile", API_URL: "", MODEL: "" },
+      MISTRAL_NEMO: { NAME: "Mistral — Nemo profile", API_URL: "", MODEL: "" },
+      MISTRAL_PIXTRAL: { NAME: "Mistral — Pixtral profile", API_URL: "", MODEL: "" },
+      CLOUDFLARE_LLAMA: { NAME: "Cloudflare Workers AI — Llama profile", API_URL: "", MODEL: "" },
+      CLOUDFLARE_GPT_OSS: { NAME: "Cloudflare Workers AI — GPT-OSS profile", API_URL: "", MODEL: "" },
+      CLOUDFLARE_QWEN: { NAME: "Cloudflare Workers AI — Qwen profile", API_URL: "", MODEL: "" },
+      CLOUDFLARE_DEEPSEEK: { NAME: "Cloudflare Workers AI — DeepSeek profile", API_URL: "", MODEL: "" },
+      NVIDIA_LLAMA: { NAME: "NVIDIA NIM — Llama profile", API_URL: "", MODEL: "" },
+      NVIDIA_QWEN: { NAME: "NVIDIA NIM — Qwen profile", API_URL: "", MODEL: "" },
+      HUGGINGFACE_LLAMA: { NAME: "Hugging Face — Llama profile", API_URL: "", MODEL: "" },
+      HUGGINGFACE_QWEN: { NAME: "Hugging Face — Qwen profile", API_URL: "", MODEL: "" },
+      CEREBRAS_LLAMA: { NAME: "Cerebras — Llama profile", API_URL: "", MODEL: "" },
+      SAMBANOVA_LLAMA: { NAME: "SambaNova — Llama profile", API_URL: "", MODEL: "" },
+    };
+    for (const [id, preset] of Object.entries(providerPresets)) byId.set(id, { ...preset });
     // Recommended for larger lists: one JSON secret avoids spending four secret
     // slots per provider and works around Supabase's per-project secret-count cap.
     const providerJson = Deno.env.get('NEWSROOM_AI_PROVIDERS_JSON') || '';
@@ -152,6 +189,34 @@ Deno.serve(async (req) => {
         byId.set(id, existing);
       }
     }
+    // Reuse the Cloudflare credentials already stored in Supabase Secrets.
+    // Supports the common secret names as well as the provider-specific names.
+    const cfToken = Deno.env.get("CLOUDFLARE_API_TOKEN") || Deno.env.get("CLOUDFLARE_API_KEY") || Deno.env.get("CF_API_TOKEN") || '';
+    const cfAccount = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") || Deno.env.get("CF_ACCOUNT_ID") || '';
+    const cf = byId.get("CLOUDFLARE") || {};
+    if (!cf.API_KEY && cfToken) cf.API_KEY = cfToken;
+    if (!cf.API_URL && cfAccount) cf.API_URL = `https://api.cloudflare.com/client/v4/accounts/${cfAccount}/ai/v1/chat/completions`;
+    byId.set("CLOUDFLARE", cf);
+
+    // Model profiles reuse the parent provider's secret key and endpoint. Their
+    // model names are intentionally supplied by the admin for their account.
+    const profileParents: Record<string, string> = {
+      GEMINI_FLASH: "GEMINI", GEMINI_FLASH_LITE: "GEMINI", GEMINI_PRO: "GEMINI",
+      OPENROUTER_LLAMA: "OPENROUTER", OPENROUTER_QWEN: "OPENROUTER", OPENROUTER_GEMMA: "OPENROUTER", OPENROUTER_DEEPSEEK: "OPENROUTER",
+      MISTRAL_SMALL: "MISTRAL", MISTRAL_NEMO: "MISTRAL", MISTRAL_PIXTRAL: "MISTRAL",
+      CLOUDFLARE_LLAMA: "CLOUDFLARE", CLOUDFLARE_GPT_OSS: "CLOUDFLARE", CLOUDFLARE_QWEN: "CLOUDFLARE", CLOUDFLARE_DEEPSEEK: "CLOUDFLARE",
+      NVIDIA_LLAMA: "NVIDIA", NVIDIA_QWEN: "NVIDIA",
+      HUGGINGFACE_LLAMA: "HUGGINGFACE", HUGGINGFACE_QWEN: "HUGGINGFACE",
+      CEREBRAS_LLAMA: "CEREBRAS", SAMBANOVA_LLAMA: "SAMBANOVA",
+    };
+    for (const [profileId, parentId] of Object.entries(profileParents)) {
+      const profile = byId.get(profileId) || {};
+      const parent = byId.get(parentId) || {};
+      if (!profile.API_KEY) profile.API_KEY = parent.API_KEY;
+      if (!profile.API_URL) profile.API_URL = parent.API_URL;
+      byId.set(profileId, profile);
+    }
+
     // Compatibility for the original single-provider configuration.
     const legacySingleKey = Deno.env.get("NEWSROOM_AI_API_KEY") || '';
     const legacySingle = {
@@ -162,14 +227,22 @@ Deno.serve(async (req) => {
     };
     if (legacySingleKey && !byId.has('LEGACY')) byId.set('LEGACY', legacySingle);
 
-    return [...byId.entries()].map(([id, value]) => {
+    const all = [...byId.entries()].map(([id, value]) => {
       const name = value.NAME || id.replace(/_/g, ' ');
       const apiKey = value.API_KEY || '';
       const apiUrl = value.API_URL || '';
       const model = value.MODEL || '';
       const missing = [!apiKey && 'API_KEY', !apiUrl && 'API_URL', !model && 'MODEL'].filter(Boolean) as string[];
       return { id, name, apiKey, apiUrl, model, configured: missing.length === 0, missing };
-    }).sort((a, b) => a.name.localeCompare(b.name));
+    });
+    const originalIds = ["OPENAI", "GROQ"];
+    const builtInIds = Object.keys(providerPresets);
+    const prioritized = originalIds.map(id => all.find(p => p.id === id)).filter(Boolean) as ProviderConfig[];
+    const builtIn = builtInIds.map(id => all.find(p => p.id === id)).filter(Boolean) as ProviderConfig[];
+    const custom = all.filter(p => !originalIds.includes(p.id) && !builtInIds.includes(p.id)).sort((a, b) => a.name.localeCompare(b.name));
+    // Hard ceiling: 2 original providers + 30 built-in profiles = 32 total.
+    // Any unrelated custom IDs are shown only if a slot remains.
+    return [...prioritized, ...builtIn, ...custom].slice(0, 32);
   };
   const providerConfig = (id: string): ProviderConfig => {
     const normalized = String(id || '').trim().toUpperCase();
@@ -341,7 +414,7 @@ Deno.serve(async (req) => {
     const { data: active } = await db.from("site_settings").select("value").eq("key", "newsroom_active_ai_provider").maybeSingle();
     const savedId = String(active?.value?.provider_id || '').trim().toUpperCase();
     const activeProviderId = allProviders.find(p => p.id === savedId && p.configured)?.id || allProviders.find(p => p.configured)?.id || "";
-    return json({ ok: true, providers, activeProviderId, configuredCount: allProviders.filter(p => p.configured).length, providerLimit: null, configurationError: providerJsonConfigError });
+    return json({ ok: true, providers, activeProviderId, configuredCount: allProviders.filter(p => p.configured).length, providerLimit: 32, configurationError: providerJsonConfigError });
   }
 
   if (action === "set_active_ai_provider") {
@@ -531,8 +604,16 @@ Deno.serve(async (req) => {
       const articleContext = sourcePage.text || String(candidate.source_summary || "");
       if (articleContext.length < 180) throw new Error("The source page could not be retrieved and the RSS summary is too short. Open the source or try another candidate.");
       const prompt = `Create a fact-conscious PARROTHIT News Desk article draft based ONLY on the source material below. The source page has been retrieved for fuller context. Do not invent facts, quotes, names, numbers, or claims. If the material is too thin, clearly say so in summary/body and do not speculate. Paraphrase; do not reproduce long source passages. Do not claim independent verification. Keep a neutral news tone. Return valid JSON only with keys title (max 160 chars), summary (1-2 sentences), body (3-6 short paragraphs; include an attribution to the named source and do not invent quotes), seo_title (max 70 chars), seo_description (max 160 chars). Source name: ${candidate.source_name}. Original headline: ${candidate.source_title}. Source URL: ${candidate.source_url}. Full extracted source page text: ${articleContext.slice(0, 16000)}`;
-      const aiResponse = await fetch(aiUrl, { method: "POST", headers: { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: aiModel, temperature: 0.2, response_format: { type: "json_object" }, messages: [{ role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output valid JSON only." }, { role: "user", content: prompt }] }), signal: AbortSignal.timeout(45000) });
-      const raw = await aiResponse.text();
+      const aiHeaders = { "Authorization": `Bearer ${aiKey}`, "Content-Type": "application/json" };
+      const aiMessages = [{ role: "system", content: "You are a cautious newsroom drafting assistant. Never invent facts. Output valid JSON only." }, { role: "user", content: prompt }];
+      let aiResponse = await fetch(aiUrl, { method: "POST", headers: aiHeaders, body: JSON.stringify({ model: aiModel, temperature: 0.2, response_format: { type: "json_object" }, messages: aiMessages }), signal: AbortSignal.timeout(45000) });
+      let raw = await aiResponse.text();
+      // Some OpenAI-compatible services do not implement response_format. Retry
+      // once without that optional parameter when the provider explicitly rejects it.
+      if (!aiResponse.ok && [400, 422].includes(aiResponse.status) && /response[_ -]?format|json[_ -]?object|unsupported.*parameter|unknown.*parameter/i.test(raw)) {
+        aiResponse = await fetch(aiUrl, { method: "POST", headers: aiHeaders, body: JSON.stringify({ model: aiModel, temperature: 0.2, messages: aiMessages }), signal: AbortSignal.timeout(45000) });
+        raw = await aiResponse.text();
+      }
       if (!aiResponse.ok) throw new Error(`AI provider HTTP ${aiResponse.status}: ${raw.slice(0, 500)}`);
       const completion = JSON.parse(raw);
       const content = completion?.choices?.[0]?.message?.content;
