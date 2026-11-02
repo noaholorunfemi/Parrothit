@@ -143,7 +143,7 @@
     const title = document.createElement('h3'); const link = document.createElement('a'); link.href = post.remote ? 'article.html?slug=' + encodeURIComponent(post.slug || '') : 'article.html?id=' + encodeURIComponent(post.id); link.textContent = post.title || 'Untitled story'; title.appendChild(link);
     const summary = document.createElement('p'); summary.textContent = post.summary || '';
     const read = document.createElement('a'); read.className = 'read-more'; read.href = link.href; read.textContent = 'Read story →';
-    body.append(cat, title); const stamp=document.createElement('div');stamp.className='news-card-updated';stamp.style.cssText='font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82';const created=post.publishedAt||post.published_at||post.createdAt||post.created_at||'';const formatDate=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};stamp.textContent=created?formatDate(created):'';if(created)body.append(stamp); card.appendChild(body); card.style.cursor='pointer'; card.setAttribute('role','link'); card.tabIndex=0; const go=e=>{if(e.target.closest('a,button,input,select,textarea,label'))return;location.href=link.href};card.addEventListener('click',go);card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();location.href=link.href}}); return card;
+    body.append(cat, title); const stamp=document.createElement('div');stamp.className='news-card-updated';stamp.style.cssText='font-size:.78rem;line-height:1.4;margin-top:8px;opacity:.82';const created=post.publishedAt||post.published_at||post.createdAt||post.created_at||'';const formatDate=v=>{const d=new Date(v);return Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};stamp.textContent=created?formatDate(created):'';if(created)body.append(stamp);card.appendChild(body);card.style.cursor='pointer';card.setAttribute('role','link');card.tabIndex=0;const go=e=>{if(e&&e.target&&e.target.closest('a,button,input,select,textarea,label'))return;location.href=link.href};card.addEventListener('click',go);card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();location.href=link.href}});return card;
   }
   function categoryDatabaseSlugs(categoryKey) {
     const aliases = {
@@ -362,8 +362,10 @@
       const image = record.image || record.imageUrl || record.image_url || post?.image || '';
       const slug = record.slug || post?.slug || '';
       if (!(title || summary || image || postId)) return null;
-      const fallback = slug ? 'article.html?slug=' + encodeURIComponent(slug) : 'article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + position);
-      return { ...record, title: title || 'News update', text: summary, image, targetUrl: record.targetUrl || fallback };
+      const fallback = slug ? 'article.html?slug=' + encodeURIComponent(slug) : (record.postId || record.post_id ? 'article.html?id=' + encodeURIComponent(record.postId || record.post_id) : 'article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + position));
+      const supplied = String(record.targetUrl || record.target_url || '').trim();
+      const isArticleDestination = /(?:^|\/)article\.html(?:[?#]|$)/i.test(supplied) || /^https?:\/\/[^/]+\/article\.html(?:[?#]|$)/i.test(supplied);
+      return { ...record, title: title || 'News update', text: summary, image, targetUrl: isArticleDestination ? supplied : fallback };
     };
     const buildCard = (record, position, card) => {
       const rec = normalizeRecord(record, position);
@@ -384,9 +386,10 @@
       const body = document.createElement('div'); body.className = 'news-body news-card-content';
       const category = document.createElement('span'); category.className = 'category'; category.textContent = categoryKey.replace(/-/g, ' ').toUpperCase();
       const heading = document.createElement('h3'); const titleLink = document.createElement('a'); titleLink.href = href; titleLink.textContent = rec.title; heading.appendChild(titleLink);
-      const summary = document.createElement('p'); summary.textContent = rec.text || '';
-      const read = document.createElement('a'); read.className = 'read-more'; read.href = href; read.textContent = 'READ STORY →';
-      body.append(category, heading, summary, read); card.appendChild(body);
+      body.append(category, heading);
+      const stampValue = rec.publishedAt || rec.published_at || rec.createdAt || rec.created_at || rec.updatedAt || rec.updated_at || '';
+      if (stampValue) { const stamp = document.createElement('div'); stamp.className = 'news-card-updated'; const date = new Date(stampValue); stamp.textContent = Number.isFinite(date.getTime()) ? date.toLocaleString('en-NG', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : ''; if (stamp.textContent) body.appendChild(stamp); }
+      card.appendChild(body);
       card.style.cursor = 'pointer';
       if (!card.hasAttribute('data-parrothit-assigned-click')) {
         card.setAttribute('data-parrothit-assigned-click', 'true');
@@ -483,8 +486,8 @@
     list.forEach(item => {
       const card = document.createElement('article'); card.className = 'news-card parrothit-managed-card';
       const slotNo = Number(item.card) || 0;
-      const raw = item.targetUrl || item.url || item.link || featureDestinations[slotNo] || 'article.html';
-      const href = cleanHref(raw) || featureDestinations[slotNo] || 'article.html';
+      const raw = item.targetUrl || item.url || item.link || '';
+      const href = item.slug ? 'article.html?slug=' + encodeURIComponent(item.slug) : (item.postId || item.post_id ? 'article.html?id=' + encodeURIComponent(item.postId || item.post_id) : ((cleanHref(raw) && /(?:^|\/)article\.html(?:[?#]|$)/i.test(cleanHref(raw))) ? cleanHref(raw) : (raw ? cleanHref(raw) : 'article.html')));
       const imgRef = item.imageData || item.imageUrl || item.image || '';
       if (imgRef) { const imageWrap = document.createElement('div'); imageWrap.className='managed-story-image';
         const img = document.createElement('img'); img.alt=item.headline || 'Featured news'; img.loading='lazy';
@@ -496,7 +499,7 @@
       body.append(category,h);
       const stampValue=item.publishedAt||item.published_at||item.updatedAt||item.updated_at||item.createdAt||item.created_at||'';
       if(stampValue){const stamp=document.createElement('div');stamp.className='news-card-updated';const d=new Date(stampValue);stamp.textContent=Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';if(stamp.textContent)body.appendChild(stamp)}
-      card.appendChild(body); card.style.cursor='pointer'; grid.appendChild(card);
+      card.appendChild(body);card.style.cursor='pointer';card.addEventListener('click',e=>{if(!e.target.closest('a,button,input,select,textarea,label'))location.href=href});grid.appendChild(card);
     });
     section.append(heading,grid);
     const slider=$('.home-slider'); if(slider&&slider.parentNode)slider.insertAdjacentElement('afterend',section); else { const latest=main.querySelector('.parrothit-managed-stories'); if(file==='about.html'&&latest)latest.insertAdjacentElement('afterend',section); else main.insertBefore(section,main.firstChild); }
@@ -596,11 +599,9 @@
       .parrothit-category-hero{display:flex;align-items:center;gap:16px;padding:12px;border-radius:12px;border:1px solid var(--line,#ddd);background:var(--card,#fff)}.parrothit-category-hero img{width:clamp(90px,18vw,170px);height:90px;object-fit:cover;border-radius:8px}.parrothit-category-hero strong{font-size:1.2rem}.parrothit-managed-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
       .parrothit-load-more-stories{display:block;margin:18px auto 2px;padding:11px 18px;border:0;border-radius:9px;background:#126b3a;color:#fff;font-weight:800;cursor:pointer}.parrothit-load-more-stories:disabled{opacity:.7;cursor:wait}
       .parrothit-managed-card{overflow:hidden;border-radius:12px;background:var(--card,#fff);border:1px solid var(--line,#ddd);display:flex;flex-direction:column;min-width:0}
-      /* Public news-card presentation: headline, category, real date/time and image only. Applies to homepage and every category page. */
+      /* Public card view: image, category, headline and saved publication date/time only. */
       .news-card p,.news-card .read-more,.news-card .news-card-source,.news-card .breaking-label{display:none!important}
-      .news-card .news-body,.news-card .news-card-content{min-width:0}
       .news-card .news-card-updated{display:block!important;font-size:.78rem;line-height:1.4;margin-top:7px;opacity:.82}
-      .side-item .meta,.side-item .read-more,.hero-card p,.hero-card .meta,.hero-card .read-more{display:none!important}
       .news-card,.side-item,.hero-card,.parrothit-managed-card{cursor:pointer}
       .news-card h3 a,.side-item h3 a,.hero-card h1 a,.hero-card h2 a{color:inherit;text-decoration:none}
       .managed-story-image{display:block;height:160px;overflow:hidden;background:#eee}.managed-story-image img{width:100%;height:100%;object-fit:cover;display:block}.news-card-content{padding:13px}.news-card-content h3{margin:.45rem 0;font-size:1.08rem}.news-card-content h3 a{color:inherit;text-decoration:none}.news-card-content p,.news-card-content .read-more,.news-card-content .news-card-source{display:none!important}.news-card-content .news-card-updated{display:block!important;color:var(--muted,#555)}.read-more{font-weight:800;color:#c5161d}

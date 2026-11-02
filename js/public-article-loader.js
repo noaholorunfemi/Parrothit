@@ -40,7 +40,13 @@
   }
 
   function showUnavailable(message) {
+    const info = categoryInfo();
     shell.replaceChildren();
+    if (info) {
+      shell.appendChild(makeNode('h1', '', 'Content loading'));
+      document.title = 'Content loading | PARROTHIT';
+      return;
+    }
     shell.appendChild(makeNode('h1', '', 'Content loading'));
     document.title = 'Content loading | PARROTHIT';
   }
@@ -170,7 +176,7 @@
 
     const back = makeNode('p', '');
     const backLink = makeNode('a', 'button', info ? '← Back to category' : '← Back to Home');
-    backLink.href = info ? info.key + '.html' : 'index.html';
+    backLink.href = info && info.key !== 'homepage' ? info.key + '.html' : 'index.html';
     back.appendChild(backLink);
     shell.appendChild(back);
 
@@ -185,7 +191,7 @@
   function renderLegacyCard(record, info) {
     if (!record || !(record.title || record.text || record.image || record.imageUrl || record.imageRef)) return false;
     shell.replaceChildren();
-    shell.appendChild(makeNode('span', 'category', info.key.replace(/-/g, ' ').toUpperCase()));
+    shell.appendChild(makeNode('span', 'category', record.category || record.categoryName || info.key.replace(/-/g, ' ').toUpperCase()));
     shell.appendChild(makeNode('h1', '', record.title || 'PARROTHIT News'));
     shell.appendChild(makeNode('p', 'article-meta', 'PARROTHIT News Desk · NEWS THAT SPEAKS!'));
     const imageRef = String(record.imageRef || record.image || record.imageUrl || '').trim();
@@ -203,7 +209,7 @@
     shell.appendChild(body);
     const back = makeNode('p', '');
     const link = makeNode('a', 'button', '← Back to category');
-    link.href = info.key + '.html';
+    link.href = info.key === 'homepage' ? 'index.html' : info.key + '.html';
     back.appendChild(link);
     shell.appendChild(back);
     const interactions = document.querySelector('.visitor-interactions');
@@ -214,7 +220,10 @@
 
   async function load() {
     const info = categoryInfo();
-    if (!requestedSlug && !requestedId && !info) return;
+    const homeCardParam = String(params.get('homepageCard') || '').trim();
+    const homeCardNumber = /^\d{1,2}$/.test(homeCardParam) ? Number(homeCardParam) : 0;
+    const homeInfo = homeCardNumber >= 1 && homeCardNumber <= 15 ? { key: 'homepage', position: String(homeCardNumber) } : null;
+    if (!requestedSlug && !requestedId && !info && !homeInfo) return;
 
     const client = await getClient();
     let record = null;
@@ -233,13 +242,24 @@
     if (info) {
       record = await loadCategoryRecord(client, info);
       if (client && !post) post = await resolvePost(client, record);
+    } else if (homeInfo) {
+      try { record = JSON.parse(localStorage.getItem('parrothit-home-card-' + String(homeCardNumber).padStart(2, '0')) || 'null'); } catch (_) {}
+      if (client) {
+        try {
+          const result = await client.from('site_settings').select('value').eq('key', 'homepage_cards').maybeSingle();
+          const shared = result.data && result.data.value;
+          if (!result.error && shared && typeof shared === 'object') record = shared[String(homeCardNumber).padStart(2, '0')] || record;
+        } catch (error) { console.warn('PARROTHIT could not load the homepage card record:', error); }
+      }
+      if (client && !post) post = await resolvePost(client, record);
     }
 
     if (post) {
-      renderPost(post, info);
+      renderPost(post, info || (homeInfo ? { key: 'homepage' } : null));
       return;
     }
     if (info && renderLegacyCard(record, info)) return;
+    if (homeInfo && renderLegacyCard({ ...record, title: record && (record.headline || record.title), text: record && (record.body || record.text) }, { key: 'homepage' })) return;
 
     // Do not leave the original static placeholder in place when a card/post URL
     // has been recognized but the requested publication cannot be resolved.
