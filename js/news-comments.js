@@ -34,6 +34,9 @@
     }
   }
   const voterToken = uuidToken('parrothit-news-comment-voter-v1');
+  const GOOGLE_PHOTO_KEY = 'parrothit-news-comment-google-photo-v1';
+  function savedGooglePhoto(email) { try { const item = JSON.parse(localStorage.getItem(GOOGLE_PHOTO_KEY) || 'null'); return item && item.email === String(email || '').trim().toLowerCase() ? item.url : ''; } catch (_) { return ''; } }
+  function avatarMarkup(url, fallback) { const safe = /^https:\/\/(lh3\.googleusercontent\.com|googleusercontent\.com)\//i.test(String(url || '')) ? esc(url) : ''; return safe ? `<img class="nc-avatar-img" src="${safe}" alt="Commenter profile picture" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nc-avatar-fallback',textContent:'${fallback}'}))">` : `<span class="nc-avatar-fallback">${fallback}</span>`; }
   const client = () => typeof window.getParrothitSupabaseClient === 'function' ? window.getParrothitSupabaseClient() : null;
 
   function mountMarkup() {
@@ -57,6 +60,7 @@
       <form class="nc-compose" data-nc-compose>
         <div class="nc-compose-fields">
           <input class="nc-input" name="email" type="email" required maxlength="254" autocomplete="email" placeholder="Your email address">
+          <div class="nc-google-connect"><button class="nc-google-btn" type="button" data-nc-google>G&nbsp; Connect Google profile photo (optional)</button><span data-nc-google-status>Commenting by email works without Google sign-in.</span></div>
           <textarea class="nc-textarea" name="body" required minlength="2" maxlength="2000" placeholder="Write a comment…"></textarea>
           <span class="nc-email-note">🔒 Your email is private and will never appear publicly. Your comment displays as “Reader”.</span>
         </div>
@@ -92,9 +96,9 @@
   function commentMarkup(comment, totals, replies, isReply) {
     const counts = reactionCountMap(comment, totals);
     const reactionButtons = EMOJIS.map(item => `<button type="button" class="nc-action nc-react" data-nc-react="${item.value}" data-comment-id="${comment.id}" aria-label="${item.label} ${counts[item.value]}">${item.value} ${counts[item.value]}</button>`).join('');
-    const avatar = isReply ? '👤' : '🦜';
+    const avatar = avatarMarkup(comment.avatar_url, isReply ? '👤' : '🦜');
     return `<article class="nc-comment ${isReply ? 'nc-reply' : ''}" data-comment-card="${comment.id}">
-      <div class="nc-avatar" aria-hidden="true">${avatar}</div>
+      <div class="nc-avatar">${avatar}</div>
       <div class="nc-comment-main">
         <div class="nc-comment-meta"><span class="nc-reader">Reader</span><span class="nc-reader-badge">Reader</span><time class="nc-time" datetime="${esc(comment.created_at)}">${relativeTime(comment.created_at)}</time></div>
         <p class="nc-comment-text">${esc(comment.body)}</p>
@@ -120,12 +124,28 @@
     root.dataset.postTitle = title || '';
     const db = client();
     if (!db) { setMessage(root, 'The comment service is not connected. Please try again later.', 'error'); return; }
+    try {
+      const pendingEmail = localStorage.getItem('parrothit-news-comment-google-pending-email');
+      if (pendingEmail) {
+        const sessionResult = await db.auth.getSession();
+        const session = sessionResult.data && sessionResult.data.session;
+        if (session && session.user && String(session.user.email || '').toLowerCase() === pendingEmail.toLowerCase()) {
+          const picture = session.user.user_metadata && (session.user.user_metadata.avatar_url || session.user.user_metadata.picture);
+          if (picture && /^https:\/\/(lh3\.googleusercontent\.com|googleusercontent\.com)\//i.test(picture)) {
+            localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ email: pendingEmail.toLowerCase(), url: picture }));
+            const status = $(root, '[data-nc-google-status]');
+            if (status) status.textContent = 'Google profile photo connected for ' + pendingEmail + '.';
+          }
+        }
+        localStorage.removeItem('parrothit-news-comment-google-pending-email');
+      }
+    } catch (oauthError) { console.warn('Google photo callback could not be completed:', oauthError); }
 
     async function load() {
       setMessage(root, 'Loading comments…', 'info');
       try {
         const result = await db.from('comments')
-          .select('id,post_id,visitor_name,body,parent_comment_id,created_at,status')
+          .select('id,post_id,visitor_name,body,parent_comment_id,created_at,status,avatar_url')
           .eq('post_id', postId).eq('status', 'approved').order('created_at', { ascending: true });
         if (result.error) throw result.error;
         const comments = result.data || [];
@@ -201,6 +221,39 @@
         } finally { reactButton.disabled = false; }
         return;
       }
+      const googleButton = event.target.closest('[data-nc-google]');
+      if (googleButton) {
+        const status = $(root, '[data-nc-google-status]');
+        const emailField = $(root, '[data-nc-compose] [name="email"]');
+        const email = String(emailField && emailField.value || '').trim().toLowerCase();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          setMessage(root, 'Enter your email address first, then connect your Google profile photo.', 'error');
+          if (emailField) emailField.focus();
+          return;
+        }
+        try {
+          const sessionResult = await db.auth.getSession();
+          if (sessionResult.error) throw sessionResult.error;
+          const session = sessionResult.data && sessionResult.data.session;
+          if (session && session.user) {
+            const userEmail = String(session.user.email || '').toLowerCase();
+            const picture = session.user.user_metadata && (session.user.user_metadata.avatar_url || session.user.user_metadata.picture);
+            if (userEmail !== email) throw new Error('The connected Google email does not match the email entered for this comment.');
+            if (!picture || !/^https:\/\/(lh3\.googleusercontent\.com|googleusercontent\.com)\//i.test(picture)) throw new Error('Google did not provide a usable profile picture for this account.');
+            localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ email, url: picture }));
+            if (status) status.textContent = 'Google profile photo connected for ' + email + '.';
+            setMessage(root, 'Google profile photo connected. Your email remains private.', 'success');
+            return;
+          }
+          localStorage.setItem('parrothit-news-comment-google-pending-email', email);
+          const result = await db.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href, scopes: 'openid email profile', queryParams: { access_type: 'online', prompt: 'select_account' } } });
+          if (result.error) throw result.error;
+        } catch (error) {
+          console.error('Google profile photo connection failed:', error);
+          setMessage(root, error.message || 'Could not connect your Google profile photo. Email-only comments remain available.', 'error');
+        }
+        return;
+      }
       const reportButton = event.target.closest('[data-nc-report]');
       if (reportButton) {
         const reason = window.prompt('Why are you reporting this comment?');
@@ -230,7 +283,8 @@
           p_email: email,
           p_body: body,
           p_parent_comment_id: parentId,
-          p_honeypot: honeypot
+          p_honeypot: honeypot,
+          p_avatar_url: savedGooglePhoto(email)
         });
         if (response.error) throw response.error;
         form.reset();
