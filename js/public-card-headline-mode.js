@@ -18,8 +18,15 @@
     }
     .news-card, .side-item { cursor: default; }
     .news-card .thumb, .side-item .thumb, .news-card .managed-story-image {
-      display:block; padding:0; overflow:hidden;
+      display:block; padding:0; overflow:hidden; width:100%; min-width:0;
     }
+    .news-card .managed-story-image, .news-card .thumb:has(img) { height:clamp(150px, 22vw, 260px); }
+    .side-item .thumb:has(img) { height:150px; }
+    .news-card .thumb:not(:has(img)), .side-item .thumb:not(:has(img)) { display:none !important; }
+    .news-card .managed-story-image img { width:100% !important; height:100% !important; min-height:150px; object-fit:cover !important; }
+    .news-card .news-card-content, .news-card .news-body { padding:10px 12px; }
+    .news-card h1, .news-card h2, .news-card h3, .news-card h4, .side-item h1, .side-item h2, .side-item h3, .side-item h4 { margin:0; line-height:1.35; }
+    .news-card h1 a, .news-card h2 a, .news-card h3 a, .news-card h4 a { display:inline; }
     .news-card .thumb img, .side-item .thumb img,
     .news-card .managed-story-image img, .news-card img[data-media-src] {
       display:block !important; width:100% !important; height:100% !important;
@@ -56,7 +63,7 @@
   }
   async function resolveImage(record) {
     if (!record) return '';
-    const raw = record.imageRef || record.image || record.imageData || record.imageUrl || record.image_url || record.imageDataUrl || record.image_data || '';
+    const raw = record.imageRef || record.image || record.imageData || record.imageUrl || record.image_url || record.imageDataUrl || record.image_data || record.photo || record.thumbnail || '';
     if (!raw) return '';
     if (String(raw).startsWith('idb:')) {
       if (!window.PARROTHITMediaStore || typeof window.PARROTHITMediaStore.resolve !== 'function') return '';
@@ -112,8 +119,9 @@
         try { await window.PARROTHITMediaStore.bindImages(card); } catch (_) {}
       }
       // Keep any real image already supplied by the article publisher visible.
-      const images = Array.from(card.querySelectorAll('.thumb img, .managed-story-image img, img[data-media-src]'));
+      const images = Array.from(card.querySelectorAll('.thumb img, .managed-story-image img, img[data-media-src], img[src]'));
       images.forEach(img => {
+        if (!img.getAttribute('src') && !img.getAttribute('data-media-src')) return;
         img.style.setProperty('display', 'block', 'important');
         img.style.setProperty('max-width', '100%', 'important');
         img.style.setProperty('object-fit', 'cover', 'important');

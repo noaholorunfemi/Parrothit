@@ -359,7 +359,7 @@
       const post = postId ? postById.get(postId) : null;
       const title = record.title || record.headline || post?.title || '';
       const summary = record.text || record.summary || record.description || post?.summary || (post?.body ? String(post.body).slice(0, 500) : '');
-      const image = record.image || record.imageUrl || record.image_url || post?.image || '';
+      const image = record.imageRef || record.image || record.imageData || record.imageUrl || record.image_url || record.image_data || record.imageDataUrl || record.photo || post?.image || post?.imageUrl || post?.image_url || '';
       const slug = record.slug || post?.slug || '';
       if (!(title || summary || image || postId)) return null;
       const fallback = slug ? 'article.html?slug=' + encodeURIComponent(slug) : 'article.html?categoryCard=' + encodeURIComponent(categoryKey + '-' + position);
@@ -373,12 +373,12 @@
       card.removeAttribute('data-unpublished-template');
       card.dataset.parrothitAssignedCard = String(position);
       card.replaceChildren();
-      const imageRef = rec.image || '';
+      const imageRef = rec.imageRef || rec.image || rec.imageData || rec.imageUrl || rec.image_url || rec.image_data || rec.imageDataUrl || rec.photo || '';
       if (imageRef) {
         const imageWrap = document.createElement('div'); imageWrap.className = 'managed-story-image';
         const img = document.createElement('img'); img.alt = rec.title; img.loading = 'lazy';
         if (String(imageRef).startsWith('idb:')) img.setAttribute('data-media-src', imageRef);
-        else if (/^(https?:|data:image\/)/i.test(String(imageRef))) img.src = imageRef;
+        else if (String(imageRef).trim()) img.src = String(imageRef).trim();
         imageWrap.appendChild(img); card.appendChild(imageWrap);
       }
       const body = document.createElement('div'); body.className = 'news-body news-card-content';
@@ -455,7 +455,7 @@
     }
     const h = document.createElement('h1'); h.textContent = rec.title || 'News story'; article.appendChild(h);
     const imageRef = rec.image || rec.imageUrl || '';
-    if (imageRef) { const img = document.createElement('img'); img.className = 'managed-article-image'; img.alt = rec.title || 'Story image'; if (String(imageRef).startsWith('idb:')) img.setAttribute('data-media-src', imageRef); else if (/^(https?:|data:image\/)/i.test(String(imageRef))) img.src = imageRef; article.appendChild(img); }
+    if (imageRef) { const img = document.createElement('img'); img.className = 'managed-article-image'; img.alt = rec.title || 'Story image'; if (String(imageRef).startsWith('idb:')) img.setAttribute('data-media-src', imageRef); else if (String(imageRef).trim()) img.src = String(imageRef).trim(); article.appendChild(img); }
     const body = document.createElement('div'); body.className = 'managed-article-body'; body.textContent = rec.text || ''; body.style.whiteSpace = 'pre-wrap'; article.appendChild(body);
     main.replaceChildren(article); document.title = (rec.title || 'News story') + ' | PARROTHIT';
     if (window.PARROTHITMediaStore) await window.PARROTHITMediaStore.bindImages(article);
@@ -487,10 +487,10 @@
       const slotNo = Number(item.card) || 0;
       const raw = item.targetUrl || item.url || item.link || featureDestinations[slotNo] || 'article.html';
       const href = cleanHref(raw) || featureDestinations[slotNo] || 'article.html';
-      const imgRef = item.imageData || item.imageUrl || item.image || '';
+      const imgRef = item.imageRef || item.imageData || item.imageUrl || item.image_url || item.image_data || item.imageDataUrl || item.photo || item.image || '';
       if (imgRef) { const imageWrap = document.createElement('div'); imageWrap.className='managed-story-image';
         const img = document.createElement('img'); img.alt=item.headline || 'Featured news'; img.loading='lazy';
-        if (String(imgRef).startsWith('idb:')) img.setAttribute('data-media-src',imgRef); else img.src=imgRef;
+        if (String(imgRef).startsWith('idb:')) img.setAttribute('data-media-src',imgRef); else img.src=String(imgRef).trim();
         imageWrap.appendChild(img); card.appendChild(imageWrap); }
       const body = document.createElement('div'); body.className='news-card-content';
       const h = document.createElement('h3'); const a = document.createElement('a'); a.href=href; a.textContent=item.headline || item.title || 'Featured news'; h.appendChild(a);
@@ -694,7 +694,7 @@
           const imageLink = document.createElement('a'); imageLink.className = 'ad-image-link'; configureAnchor(imageLink, 'Visit advertiser: ' + (ad.title || 'PARROTHIT advertisement'));
           const img = document.createElement('img'); img.alt = ad.title || 'Advertisement'; img.loading = 'lazy'; img.decoding = 'async';
           if (String(imageRef).startsWith('idb:')) img.setAttribute('data-media-src', imageRef);
-          else if (/^(https?:|data:image\/)/i.test(String(imageRef))) img.src = imageRef;
+          else if (String(imageRef).trim()) img.src = String(imageRef).trim();
           imageLink.append(img); card.append(imageLink);
         }
         const title = document.createElement('strong'); title.textContent = ad.title || 'Advertisement';
