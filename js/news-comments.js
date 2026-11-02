@@ -166,7 +166,7 @@
       totals.forEach(row => { if (totalReactions[row.reaction] !== undefined) totalReactions[row.reaction] += Number(row.reaction_count) || 0; });
       const count = $(root, '[data-nc-comment-count]');
       if (count) count.textContent = `Comments (${all.length})`;
-      EMOJIS.forEach(item => { const node = $(`[data-nc-total="${item.value}"]`, root); if (node) node.textContent = totalReactions[item.value]; });
+      EMOJIS.forEach(item => { const node = $(root, `[data-nc-total="${item.value}"]`); if (node) node.textContent = totalReactions[item.value]; });
       const list = $(root, '[data-nc-list]');
       list.innerHTML = roots.length ? roots.map(comment => {
         const replies = (childMap.get(comment.id) || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -181,7 +181,7 @@
     root.addEventListener('click', async event => {
       const replyButton = event.target.closest('[data-nc-reply]');
       if (replyButton) {
-        const form = $(`[data-nc-reply-form="${replyButton.dataset.ncReply}"]`, root);
+        const form = $(root, `[data-nc-reply-form="${replyButton.dataset.ncReply}"]`);
         if (form) form.classList.toggle('nc-hidden');
         return;
       }
