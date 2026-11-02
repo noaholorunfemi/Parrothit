@@ -56,3 +56,37 @@
   box-shadow: 0 0 0 1000px #151515 inset !important;
   caret-color: #fff !important;
 }
+
+
+/* Desktop-friendly comment composer: wider, taller writing area. */
+@media (min-width: 651px) {
+  .news-comments .nc-compose-fields {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+  .news-comments .nc-compose-fields .nc-input,
+  .news-comments .nc-compose-fields .nc-textarea {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: 100%;
+  }
+  .news-comments .nc-textarea {
+    height: 150px;
+    min-height: 150px;
+    padding: 14px 15px;
+    line-height: 1.55;
+    resize: vertical;
+  }
+}
+
+/* Keep the comment sort control readable against the black/red theme. */
+.news-comments select.nc-sort,
+.news-comments select.nc-sort option {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+  background-color: #151515 !important;
+}
+.news-comments select.nc-sort:focus {
+  outline: 2px solid #d71928;
+  outline-offset: 2px;
+}
