@@ -73,11 +73,11 @@ begin
       select jsonb_agg(jsonb_build_object('day', d.day::date, 'searches', coalesce(a.n, 0)) order by d.day)
       from generate_series(date_trunc('day', now()) - make_interval(days => v_days - 1), date_trunc('day', now()), interval '1 day') d(day)
       left join (
-        select date_trunc('day', searched_at) day, count(*) n
+        select date_trunc('day', searched_at) as day_bucket, count(*) n
         from public.parrothit_search_analytics
         where searched_at >= date_trunc('day', now()) - make_interval(days => v_days - 1)
         group by 1
-      ) a on a.day = d.day
+      ) a on a.day_bucket = d.day
     ), '[]'::jsonb),
     'top_terms', coalesce((
       select jsonb_agg(jsonb_build_object('term', term, 'searches', n) order by n desc)
