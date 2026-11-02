@@ -1,8 +1,7 @@
-/* PARROTHIT global Parrot Search. Searches live published posts, category names and static public page content. */
+/* Route PARROTHIT public search forms to the internal Parrot Search page. */
 (() => {
   'use strict';
-  const path = (location.pathname || '').toLowerCase();
-  if (/(^|\/)admin(\/|$)/.test(path)) return;
+  if (/(^|\/)admin(\/|$)/i.test(location.pathname || '')) return;
   document.addEventListener('submit', event => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement)) return;
@@ -10,7 +9,9 @@
     if (!input) return;
     const q = String(input.value || '').trim();
     if (!q) { event.preventDefault(); input.focus(); return; }
-    event.preventDefault(); event.stopPropagation();
-    location.href = new URL('search.html?q=' + encodeURIComponent(q), new URL('.', location.href)).href;
+    event.preventDefault(); event.stopImmediatePropagation();
+    const target = new URL('search.html', new URL('.', location.href));
+    target.searchParams.set('q', q);
+    location.assign(target.href);
   }, true);
 })();
