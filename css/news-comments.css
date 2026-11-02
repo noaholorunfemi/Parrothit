@@ -18,3 +18,25 @@
 .nc-post-btn,.nc-reply-send{background:#d71928;color:#fff}.nc-post-btn:hover,.nc-reply-send:hover{background:#f02b3a}
 .nc-sort{background:#151515;border:1px solid #555;color:#fff}.nc-list{border-color:#3a3a3a}.nc-comment{border-color:#383838}.nc-avatar{background:#242424;border:1px solid #d71928;color:#fff}.nc-avatar-img{width:100%;height:100%;display:block;object-fit:cover;border-radius:50%}.nc-avatar-fallback{display:grid;place-items:center;width:100%;height:100%;font-size:1.05rem;font-weight:900;color:#fff}.nc-reader{color:#fff}.nc-reader-badge{background:#5f0a12;color:#fff;border:1px solid #c91d2b}.nc-comment-text{color:#fff}.nc-action{color:#dedede}.nc-action:hover{background:#3a1014;color:#fff}.nc-action.nc-react{background:#171717;border:1px solid #494949;color:#fff}.nc-action.nc-react.is-active{background:#650d17;border-color:#f02b3a;color:#fff}.nc-replies{border-left-color:#b71927}.nc-empty,.nc-message{color:#eee}.nc-message[data-kind="error"]{color:#fff;background:#4c080e;border-color:#d71928}.nc-message[data-kind="success"]{color:#fff;background:#102b18;border:1px solid #267a43;border-radius:8px}.nc-google-connect{grid-column:1/-1;display:flex;align-items:center;gap:9px;flex-wrap:wrap}.nc-google-btn{border:1px solid #d71928;border-radius:8px;background:#1a1a1a;color:#fff;padding:8px 11px;font-weight:800;cursor:pointer}.nc-google-btn:hover{background:#4a0b11}.nc-google-connect [data-nc-google-status]{font-size:.76rem;color:#dedede}
 @media(max-width:650px){.news-comments{padding:11px 10px}.nc-google-connect{align-items:flex-start;flex-direction:column}}
+
+
+/* PARROTHIT contrast and comment composer readability refinement */
+.news-comments, .news-comments * { color: #fff; }
+.news-comments .nc-textarea,
+.news-comments .nc-reply-fields input[name="body"] {
+  background: #fff !important;
+  color: #000 !important;
+  border: 1px solid #d71928 !important;
+  caret-color: #000;
+}
+.news-comments .nc-textarea::placeholder,
+.news-comments .nc-reply-fields input[name="body"]::placeholder { color: #555 !important; opacity: 1; }
+.news-comments .nc-input,
+.news-comments .nc-reply-fields input[name="email"] {
+  background: #151515 !important;
+  color: #fff !important;
+}
+.news-comments .nc-input::placeholder,
+.news-comments .nc-reply-fields input[name="email"]::placeholder { color: #d0d0d0 !important; opacity: 1; }
+.news-comments .nc-message[data-kind="error"] { color: #fff !important; }
+.news-comments .nc-message[data-kind="success"] { color: #fff !important; }
