@@ -103,7 +103,7 @@ if(dateNode){dateNode.textContent=new Date().toLocaleDateString("en-NG",{weekday
 <script src="js/live-stream-slots.js?v=20261101-phase3"></script>
 <script src="js/media-store.js"></script>
 <script src="js/home-card-runtime.js"></script>
-<script src="js/parrothit-content.js"></script>
+<script src="js/parrothit-content.js?v=20261102-card-image-fix"></script>
 
 <script id="parrothitMovingTextRuntime">(()=>{'use strict';try{const cfg=JSON.parse(localStorage.getItem('parrothit_control_room_v2')||'{}');const mt=cfg.settings&&cfg.settings.movingText;const box=document.querySelector('.moving-news');if(!box||!mt)return;if(mt.enabled===false){box.hidden=true;return}box.hidden=false;const label=box.querySelector('strong');const text=box.querySelector('.ticker-text');if(label)label.textContent=String(mt.label||'PARROTHIT UPDATE');if(text&&typeof mt.text==='string')text.textContent=mt.text;}catch(e){console.warn('Moving text settings unavailable',e)}})();</script>
 
@@ -118,5 +118,5 @@ if(dateNode){dateNode.textContent=new Date().toLocaleDateString("en-NG",{weekday
 (()=>{document.querySelectorAll('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]').forEach(card=>{const getLink=()=>card.querySelector('a[href]');const link=getLink();if(link){card.style.cursor='pointer';card.setAttribute('role','link');card.addEventListener('click',e=>{if(e.defaultPrevented||e.target.closest('a,button,input,select,textarea,label,form'))return;const a=getLink();if(a&&a.href)window.location.href=a.href;});card.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===card){e.preventDefault();const a=getLink();if(a)window.location.href=a.href;}});if(!card.hasAttribute('tabindex'))card.tabIndex=0;}else if(card.matches('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]')){const destination='contact.html?subject=Advertising';card.style.cursor='pointer';card.setAttribute('role','link');card.tabIndex=0;const go=()=>window.location.href=destination;card.addEventListener('click',e=>{if(!e.target.closest('a,button,input,select,textarea,label,form'))go();});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});}});})();
 </script>
 <script src="js/category-navigation-fix.js" defer></script>
-<script src="js/public-card-headline-mode.js?v=20261101-headline-image-link"></script>
+<script src="js/public-card-headline-mode.js?v=20261102-image-headline-fix"></script>
 </body></html>
