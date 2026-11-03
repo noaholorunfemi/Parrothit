@@ -61,7 +61,9 @@
     const allowedFields = new Set(['slug', 'id']);
     if (!allowedFields.has(selector)) return null;
     const result = await client.from('posts')
-      .select('id,title,slug,summary,body,image_url,published_at,author_name,is_breaking,source_url,source_name,categories(name,slug)')
+      // Keep the public lookup independent of the optional categories relationship.
+      // A missing/renamed PostgREST relationship must not prevent the article body loading.
+      .select('id,title,slug,summary,body,image_url,published_at,author_name,is_breaking,source_url,source_name')
       .eq(selector, value)
       .eq('status', 'published')
       .maybeSingle();
@@ -97,8 +99,8 @@
 
   async function resolvePost(client, record) {
     if (!client || !record) return null;
-    const postId = String(record.postId || record.newsroomPostId || record.post_id || record.articleId || record.article_id || record.storyId || record.story_id || '').trim();
-    const slug = String(record.slug || record.postSlug || record.articleSlug || record.storySlug || '').trim();
+    const postId = String(record.postId || record.newsroomPostId || record.post_id || '').trim();
+    const slug = String(record.slug || '').trim();
     if (postId) {
       try {
         const post = await findPublishedPost(client, 'id', postId);
@@ -189,12 +191,12 @@
   }
 
   function renderLegacyCard(record, info) {
-    if (!record || !(record.title || record.headline || record.text || record.body || record.content || record.story || record.image || record.imageUrl || record.imageRef || record.image_url || record.imageData)) return false;
+    if (!record || !(record.title || record.text || record.image || record.imageUrl || record.imageRef)) return false;
     shell.replaceChildren();
     shell.appendChild(makeNode('span', 'category', record.category || record.categoryName || info.key.replace(/-/g, ' ').toUpperCase()));
-    shell.appendChild(makeNode('h1', '', record.title || record.headline || 'PARROTHIT News'));
+    shell.appendChild(makeNode('h1', '', record.title || 'PARROTHIT News'));
     shell.appendChild(makeNode('p', 'article-meta', 'PARROTHIT News Desk · NEWS THAT SPEAKS!'));
-    const imageRef = String(record.imageRef || record.image || record.imageUrl || record.image_url || record.imageData || '').trim();
+    const imageRef = String(record.imageRef || record.image || record.imageUrl || '').trim();
     if (imageRef) {
       const image = makeNode('img', 'article-main-image');
       image.alt = record.title || 'PARROTHIT news image';
@@ -204,7 +206,7 @@
       image.onerror = () => image.remove();
       shell.appendChild(image);
     }
-    const body = makeNode('div', 'article-body', record.body || record.text || record.content || record.story || record.description || '');
+    const body = makeNode('div', 'article-body', record.body || record.text || '');
     body.style.whiteSpace = 'pre-wrap';
     shell.appendChild(body);
     const back = makeNode('p', '');
@@ -214,7 +216,7 @@
     shell.appendChild(back);
     const interactions = document.querySelector('.visitor-interactions');
     if (interactions) interactions.hidden = false;
-    document.title = (record.title || record.headline || 'News story') + ' | PARROTHIT';
+    document.title = (record.title || 'News story') + ' | PARROTHIT';
     return true;
   }
 

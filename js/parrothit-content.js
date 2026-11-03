@@ -829,12 +829,9 @@
     await displayStories(localState, cloud);
     const localFeatureCards = {}; for(let i=1;i<=16;i++){try{const v=JSON.parse(localStorage.getItem('parrothit-news-card-'+String(i).padStart(2,'0'))||'null');if(v)localFeatureCards[String(i).padStart(2,'0')]=v;}catch(_){}}
     displayAdminNewsCards({...localFeatureCards,...(cloud.settings.news_cards || {})});
-    // article.html is rendered exclusively by js/public-article-loader.js.
-    // The older managed-article renderer replaced the whole <main> element,
-    // deleting #unpublishedArticle before/after the public loader ran. That
-    // race left category-card clicks showing a blank or stale article shell.
-    // Keep managed-article rendering off the public article route so the
-    // dedicated resolver can load the full published post or legacy card.
+    // The public article resolver is the only renderer allowed to own article.html.
+    // The legacy renderers below can replace <main> and erase #unpublishedArticle,
+    // racing the Supabase-backed public loader and leaving visitors with the shell.
     const isPublicArticlePage = /\/article\.html?$/i.test(location.pathname);
     if (!isPublicArticlePage) {
       const categoryCardHandled = await displayCategoryCardArticle(cloud.settings.category_cards || {});
