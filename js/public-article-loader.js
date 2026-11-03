@@ -97,8 +97,8 @@
 
   async function resolvePost(client, record) {
     if (!client || !record) return null;
-    const postId = String(record.postId || record.newsroomPostId || record.post_id || '').trim();
-    const slug = String(record.slug || '').trim();
+    const postId = String(record.postId || record.newsroomPostId || record.post_id || record.articleId || record.article_id || record.storyId || record.story_id || '').trim();
+    const slug = String(record.slug || record.postSlug || record.articleSlug || record.storySlug || '').trim();
     if (postId) {
       try {
         const post = await findPublishedPost(client, 'id', postId);
@@ -182,7 +182,6 @@
 
     const interactions = document.querySelector('.visitor-interactions');
     if (interactions) interactions.hidden = false;
-    if (window.PARROTHITNewsComments) window.PARROTHITNewsComments.init(post.id, post.title);
     document.title = (post.title || 'Article') + ' | PARROTHIT';
     const description = document.querySelector('meta[name="description"]');
     if (description) description.content = String(post.summary || post.title || 'PARROTHIT — News that speaks!').slice(0, 300);
@@ -190,12 +189,12 @@
   }
 
   function renderLegacyCard(record, info) {
-    if (!record || !(record.title || record.text || record.image || record.imageUrl || record.imageRef)) return false;
+    if (!record || !(record.title || record.headline || record.text || record.body || record.content || record.story || record.image || record.imageUrl || record.imageRef || record.image_url || record.imageData)) return false;
     shell.replaceChildren();
     shell.appendChild(makeNode('span', 'category', record.category || record.categoryName || info.key.replace(/-/g, ' ').toUpperCase()));
-    shell.appendChild(makeNode('h1', '', record.title || 'PARROTHIT News'));
+    shell.appendChild(makeNode('h1', '', record.title || record.headline || 'PARROTHIT News'));
     shell.appendChild(makeNode('p', 'article-meta', 'PARROTHIT News Desk · NEWS THAT SPEAKS!'));
-    const imageRef = String(record.imageRef || record.image || record.imageUrl || '').trim();
+    const imageRef = String(record.imageRef || record.image || record.imageUrl || record.image_url || record.imageData || '').trim();
     if (imageRef) {
       const image = makeNode('img', 'article-main-image');
       image.alt = record.title || 'PARROTHIT news image';
@@ -205,7 +204,7 @@
       image.onerror = () => image.remove();
       shell.appendChild(image);
     }
-    const body = makeNode('div', 'article-body', record.body || record.text || '');
+    const body = makeNode('div', 'article-body', record.body || record.text || record.content || record.story || record.description || '');
     body.style.whiteSpace = 'pre-wrap';
     shell.appendChild(body);
     const back = makeNode('p', '');
@@ -215,9 +214,7 @@
     shell.appendChild(back);
     const interactions = document.querySelector('.visitor-interactions');
     if (interactions) interactions.hidden = false;
-    const legacyPostId = record.postId || record.post_id || record.newsroomPostId || '';
-    if (window.PARROTHITNewsComments) window.PARROTHITNewsComments.init(legacyPostId, record.title || record.headline || 'News story');
-    document.title = (record.title || 'News story') + ' | PARROTHIT';
+    document.title = (record.title || record.headline || 'News story') + ' | PARROTHIT';
     return true;
   }
 
