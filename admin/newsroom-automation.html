@@ -85,6 +85,24 @@ img,video,iframe{max-width:100%}
 @media(max-width:360px){.daily-category-grid{grid-template-columns:minmax(0,1fr)}.wrap{padding:7px}.top,.panel{padding:10px}}
 </style>
 
+
+<style id="parrothit-newsroom-compact-dashboard">
+.newsroom-tabs{position:sticky;top:0;z-index:30;display:flex;gap:7px;flex-wrap:nowrap;overflow-x:auto;padding:9px;margin:0 0 12px;background:#071b13;border:1px solid #28553e;border-radius:12px;box-shadow:0 5px 18px #0005;-webkit-overflow-scrolling:touch}
+.newsroom-tabs button{flex:0 0 auto;background:#304a3b;color:#f4f7fb;border:1px solid #527260;padding:9px 13px;border-radius:999px}
+.newsroom-tabs button[aria-selected="true"]{background:#16834a;border-color:#5ac889;box-shadow:inset 0 0 0 1px #5ac889}
+.newsroom-overview{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#102b20;border:1px solid #28553e;border-radius:10px;padding:10px 13px;margin:0 0 12px;color:#b8cdbf;font-size:.88rem}
+.newsroom-overview strong{color:#fff}.newsroom-overview span{padding-left:9px;border-left:1px solid #527260}
+.newsroom-tab-panel[hidden]{display:none!important}
+/* Feed/candidate tables remain complete but scroll inside their own bounded viewport. */
+.newsroom-tab-panel[data-newsroom-panel="feeds"] .table-wrap,
+.newsroom-tab-panel[data-newsroom-panel="queue"] .table-wrap{max-height:min(62vh,560px);overflow:auto;overscroll-behavior:contain;border:1px solid #2b4a38;border-radius:9px}
+.newsroom-tab-panel[data-newsroom-panel="feeds"] table,
+.newsroom-tab-panel[data-newsroom-panel="queue"] table{min-width:720px}
+.newsroom-tab-panel[data-newsroom-panel="ai"] .ai-provider-grid{max-height:58vh;overflow:auto;overscroll-behavior:contain;padding:2px}
+.newsroom-tab-panel[data-newsroom-panel="schedule"] #dailyCategoryChecks{max-height:42vh;overflow:auto;overscroll-behavior:contain;padding:2px}
+@media(max-width:600px){.newsroom-tabs{top:0;padding:7px}.newsroom-tabs button{font-size:.84rem;padding:9px 11px}.newsroom-overview{font-size:.8rem}.newsroom-overview span{border-left:0;padding-left:0;width:100%}}
+</style>
+
 </head>
 <body>
 <main class="wrap">
@@ -94,12 +112,21 @@ img,video,iframe{max-width:100%}
 </header>
 <div class="warning"><strong>Human approval remains mandatory.</strong> Every newsroom draft stays unpublished until an administrator reviews it. Choose one of four human-review destinations: Article Editor, Category Cards 1–6, Homepage Cards 1–15, or Featured Story Cards 1–16. No AI action can publish an article or occupy a card.</div>
 <div id="message" class="msg"></div>
-<section class="panel" id="draftDestinationPanel">
+<nav class="newsroom-tabs" aria-label="Newsroom sections" role="tablist">
+  <button type="button" role="tab" aria-selected="true" data-newsroom-tab="destination">Overview</button>
+  <button type="button" role="tab" aria-selected="false" data-newsroom-tab="feeds">RSS Feeds</button>
+  <button type="button" role="tab" aria-selected="false" data-newsroom-tab="queue">Story Queue</button>
+  <button type="button" role="tab" aria-selected="false" data-newsroom-tab="workflow">Workflow</button>
+  <button type="button" role="tab" aria-selected="false" data-newsroom-tab="ai">AI Services</button>
+  <button type="button" role="tab" aria-selected="false" data-newsroom-tab="schedule">Schedule</button>
+</nav>
+<div class="newsroom-overview" id="newsroomOverview"><strong>Newsroom quick view</strong><span>40 RSS feeds and multiple AI profiles remain supported.</span><span>Use the tabs to open a section; complete records stay available inside scrollable lists.</span></div>
+<section class="panel newsroom-tab-panel" id="draftDestinationPanel" data-newsroom-panel="destination">
  <div class="section-head"><div><h2>📥 Draft destination</h2><p class="muted">Choose where newly generated individual and scheduled newsroom drafts should be sent. This setting applies to future drafts only; it does not move existing articles.</p></div><span class="pill" id="draftDestinationBadge">Loading…</span></div>
  <div class="row" style="align-items:end"><div class="field" style="flex:2;min-width:260px"><label for="draftDestination">Send new drafts to</label><select id="draftDestination"><option value="articles">/admin/articles.html — Existing Article Editor</option><option value="category_card_manager">/admin/category-card-assignment-manager.html — Category Card 1–6 Assignment Manager</option><option value="homepage_news_card_manager">/admin/homepage-news-card-assignment-manager.html — Homepage News Card 1–15 Assignment Manager</option><option value="featured_story_card_manager">/admin/featured-story-card-destination-manager.html — Featured Story Card 1–16 Destination Manager</option></select></div><button type="button" id="saveDraftDestination" class="green">Save draft destination</button></div>
  <p class="muted small" id="draftDestinationStatus" role="status" aria-live="polite">Loading the saved destination…</p>
 </section>
-<section class="panel">
+<section class="panel newsroom-tab-panel" data-newsroom-panel="feeds">
   <div class="section-head"><div><h2>1. Feed sources</h2><p class="muted">Add RSS or Atom feeds. Feed URLs are fetched by the secure Supabase Edge Function, not by your browser.</p></div><button id="discoverBtn" class="green">🔎 Discover new stories</button></div>
   <form id="sourceForm"><div class="row">
     <div class="field"><label for="sourceName">Source name</label><input id="sourceName" required maxlength="120" placeholder="Example: BBC News Africa"></div>
@@ -109,11 +136,11 @@ img,video,iframe{max-width:100%}
   </div></form>
   <div class="table-wrap"><table><thead><tr><th>Source</th><th>Feed URL</th><th>Default category</th><th>Enabled</th><th>Actions</th></tr></thead><tbody id="sourceRows"><tr><td colspan="5" class="empty">Loading sources…</td></tr></tbody></table></div>
 </section>
-<section class="panel">
+<section class="panel newsroom-tab-panel" data-newsroom-panel="queue">
   <div class="section-head"><div><h2>2. Discovered story queue</h2><p class="muted">Choose either to retrieve source-page text for editorial review (free, when accessible) or create an original detailed report with AI (uses configured AI credits). Both remain In Review.</p></div><button id="reloadCandidates" class="secondary">Reload queue</button></div>
   <div class="table-wrap"><table><thead><tr><th>Source headline</th><th>Source / date</th><th>Category</th><th>Status</th><th>Action</th></tr></thead><tbody id="candidateRows"><tr><td colspan="5" class="empty">Loading candidates…</td></tr></tbody></table></div>
 </section>
-<section class="panel">
+<section class="panel newsroom-tab-panel" data-newsroom-panel="workflow">
   <h2>3. Draft and publish workflow</h2>
   <ol class="muted">
     <li>Run discovery to collect recent links from enabled feeds.</li>
@@ -124,7 +151,7 @@ img,video,iframe{max-width:100%}
   </ol>
   <p class="muted small">If AI credits are exhausted, source-text retrieval remains available. Never place service-role or AI API keys in public files. This page does not configure scheduled publishing.</p>
 </section>
-<section class="panel" id="aiProviderPanel">
+<section class="panel newsroom-tab-panel" id="aiProviderPanel" data-newsroom-panel="ai">
   <div class="section-head"><div><h2>🤖 4. AI service selection — maximum 32 profiles</h2><p class="muted">Configure up to 32 AI profiles in total: your existing OpenAI and Groq plus 30 additional provider/model profiles. Then choose which configured profile to use. This selection applies to individual AI drafts and the morning category schedule.</p></div><span class="pill" id="aiProviderBadge">Loading providers…</span></div>
   <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Security:</strong> API keys are not stored in this page or the public website. Add them as Supabase Edge Function secrets using the naming guide below. Add a new unique provider ID for every service; API keys are never sent to this page. The page receives only provider name, model, endpoint and configuration status.</div>
   <div class="row"><div class="field" style="flex:2;min-width:260px"><label for="activeAIProvider">Use this AI service for drafting</label><select id="activeAIProvider"><option value="">Checking configured providers…</option></select></div><button type="button" id="saveAIProvider" class="green">Save selected AI service</button><button type="button" id="refreshAIProviders" class="secondary">Refresh provider status</button></div>
@@ -151,7 +178,7 @@ img,video,iframe{max-width:100%}
   </details>
   <p id="aiProviderStatus" class="muted small" role="status" aria-live="polite">Configure at least one service before creating AI drafts. Free source-text retrieval does not require an API.</p>
 </section>
-<section class="panel" id="dailySchedulePanel">
+<section class="panel newsroom-tab-panel" id="dailySchedulePanel" data-newsroom-panel="schedule">
   <div class="section-head"><div><h2>🌅 5. Daily scheduled drafting — all categories</h2><p class="muted">Automatically prepare up to one AI-assisted article draft per selected category each morning. Drafts stay <strong>In Review</strong>; this scheduler never publishes them.</p></div><span class="pill" id="dailyScheduleBadge">Not configured</span></div>
   <div class="notice" style="background:#173525;border:1px solid #2a6d47;color:#d9ffe5;padding:12px;border-radius:9px;margin:12px 0"><strong>Schedule:</strong> every day at <strong>7:30 AM Nigeria time (West Africa Time)</strong>, after the existing 7:00 AM feed-discovery job. Categories with no available source candidate are reported as skipped rather than fabricated.</div>
   <div class="row" style="align-items:center;margin:12px 0"><label style="display:flex;align-items:center;gap:10px;font-weight:800"><input type="checkbox" id="dailyScheduleEnabled" style="width:20px;height:20px"> Enable daily scheduled drafting</label><span class="muted small" id="dailyScheduleCount">Loading categories…</span></div>
@@ -167,6 +194,14 @@ img,video,iframe{max-width:100%}
 </style>
 
 </main>
+<script id="parrothit-newsroom-tabs">
+(function(){
+ const panels=[...document.querySelectorAll('[data-newsroom-panel]')], tabs=[...document.querySelectorAll('[data-newsroom-tab]')], overview=document.getElementById('newsroomOverview');
+ function activate(name){tabs.forEach(t=>{const active=t.dataset.newsroomTab===name;t.setAttribute('aria-selected',active?'true':'false');t.tabIndex=active?0:-1});panels.forEach(p=>{p.hidden=p.dataset.newsroomPanel!==name});if(overview)overview.hidden=name!=='destination';try{sessionStorage.setItem('parrothit-newsroom-active-tab',name)}catch(e){} }
+ tabs.forEach((t,i)=>{t.addEventListener('click',()=>activate(t.dataset.newsroomTab));t.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();const n=(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length;tabs[n].focus();activate(tabs[n].dataset.newsroomTab)}})});
+ activate('destination');
+})();
+</script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
