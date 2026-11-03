@@ -188,9 +188,19 @@
 
     const published = post.published_at ? new Date(post.published_at) : null;
     const dateText = published && Number.isFinite(published.getTime())
-      ? published.toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })
+      ? published.toLocaleString('en-NG', {
+          day: 'numeric', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+          timeZone: 'Africa/Lagos'
+        })
       : '';
-    shell.appendChild(makeNode('p', 'article-meta', [post.author_name || 'PARROTHIT News Desk', dateText].filter(Boolean).join(' · ')));
+    // Existing AI-generated posts may still carry the old internal author label.
+    // Present them with the newsroom's public editorial byline instead.
+    const storedAuthor = String(post.author_name || '').trim();
+    const authorName = /\bAI-assisted draft\b/i.test(storedAuthor)
+      ? 'PARROTHIT News Desk (Parrothit Editorial Edition)'
+      : (storedAuthor || 'PARROTHIT News Desk');
+    shell.appendChild(makeNode('p', 'article-meta', [authorName, dateText].filter(Boolean).join(' · ')));
 
     const imageUrl = String(post.image_url || '').trim();
     if (imageUrl) {
