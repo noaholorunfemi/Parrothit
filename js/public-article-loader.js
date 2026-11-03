@@ -40,15 +40,28 @@
   }
 
   function showUnavailable(message) {
-    const info = categoryInfo();
     shell.replaceChildren();
-    if (info) {
-      shell.appendChild(makeNode('h1', '', 'Content loading'));
-      document.title = 'Content loading | PARROTHIT';
-      return;
+    shell.appendChild(makeNode('h1', '', 'Unable to load this article'));
+    shell.appendChild(makeNode('p', 'article-load-error', message || 'Please check your connection and try again.'));
+    const retry = makeNode('button', 'button', 'Try again');
+    retry.type = 'button';
+    retry.addEventListener('click', () => {
+      retry.disabled = true;
+      retry.textContent = 'Trying again…';
+      load().catch(error => {
+        console.error('PARROTHIT article retry failed:', error);
+        showUnavailable('The article could not be retrieved. Please try again shortly.');
+      });
+    });
+    shell.appendChild(retry);
+    const interactions = document.querySelector('.visitor-interactions');
+    if (interactions) interactions.hidden = false;
+    const fallbackId = requestedId || '';
+    if (fallbackId && window.PARROTHITNewsComments) {
+      try { window.PARROTHITNewsComments.init(fallbackId, 'PARROTHIT News'); }
+      catch (error) { console.warn('PARROTHIT comments could not initialize after article lookup failure:', error); }
     }
-    shell.appendChild(makeNode('h1', '', 'Content loading'));
-    document.title = 'Content loading | PARROTHIT';
+    document.title = 'Article unavailable | PARROTHIT';
   }
 
   async function getClient() {
@@ -57,18 +70,54 @@
   }
 
   async function findPublishedPost(client, selector, value) {
-    if (!client || !value) return null;
+    if (!value) return null;
     const allowedFields = new Set(['slug', 'id']);
     if (!allowedFields.has(selector)) return null;
-    const result = await client.from('posts')
-      // Keep the public lookup independent of the optional categories relationship.
-      // A missing/renamed PostgREST relationship must not prevent the article body loading.
-      .select('id,title,slug,summary,body,image_url,published_at,author_name,is_breaking,source_url,source_name')
-      .eq(selector, value)
-      .eq('status', 'published')
-      .maybeSingle();
-    if (result.error) throw result.error;
-    return result.data || null;
+    const columns = 'id,title,slug,summary,body,image_url,published_at,author_name,is_breaking,source_url,source_name';
+
+    // Primary path: use the shared Supabase client when it is available.
+    if (client) {
+      try {
+        const result = await client.from('posts')
+          .select(columns)
+          .eq(selector, value)
+          .eq('status', 'published')
+          .limit(1)
+          .maybeSingle();
+        if (result.error) throw result.error;
+        if (result.data) return result.data;
+      } catch (error) {
+        console.warn('PARROTHIT Supabase client article lookup failed; trying REST fallback:', error);
+      }
+    }
+
+    // Fallback path: query the public PostgREST endpoint directly. This also
+    // works if the Supabase JS CDN/client failed to initialize in the browser.
+    const base = String(window.PARROTHIT_SUPABASE_URL || '').replace(/\/$/, '');
+    const key = String(window.PARROTHIT_SUPABASE_ANON_KEY || '');
+    if (!base || !key || !/^https:\/\//i.test(base)) return null;
+    const query = new URLSearchParams({
+      select: columns,
+      [selector]: 'eq.' + String(value),
+      status: 'eq.published',
+      limit: '1'
+    });
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 15000) : null;
+    try {
+      const response = await fetch(base + '/rest/v1/posts?' + query.toString(), {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-store',
+        headers: { apikey: key, Authorization: 'Bearer ' + key, Accept: 'application/json' },
+        signal: controller ? controller.signal : undefined
+      });
+      if (!response.ok) throw new Error('Article request returned HTTP ' + response.status);
+      const rows = await response.json();
+      return Array.isArray(rows) && rows.length ? rows[0] : null;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   async function loadCategoryRecord(client, info) {
