@@ -419,18 +419,120 @@
     const oldExtra = main.querySelector('.parrothit-additional-category-cards-section');
     if (oldExtra) oldExtra.remove();
     if (extraPositions.length) {
-      const extraSection = document.createElement('section'); extraSection.className = 'parrothit-additional-category-cards-section';
+      const extraSection = document.createElement('section');
+      extraSection.className = 'parrothit-additional-category-cards-section';
+      extraSection.dataset.category = categoryKey;
+      // Keep the category column and sidebar together in their original grid.
+      // The overflow cards belong below that complete layout, not in its sidebar
+      // column where a nested three-column grid would become too narrow.
       const extraHeading = document.createElement('h2'); extraHeading.textContent = 'More ' + categoryKey.replace(/-/g, ' ') + ' stories';
       const extraGrid = document.createElement('div'); extraGrid.className = 'parrothit-additional-category-cards-grid';
       extraSection.append(extraHeading, extraGrid);
       extraPositions.forEach(position => { const card = document.createElement('article'); card.className = 'news-card parrothit-additional-category-card'; buildCard(records[String(position)] || records[position], position, card); extraGrid.appendChild(card); });
+      const contentLayout = categoryGrid && categoryGrid.closest('.content-layout');
       const originalSection = categoryGrid && categoryGrid.closest('section');
-      if (originalSection && originalSection.parentNode) originalSection.insertAdjacentElement('afterend', extraSection);
-      else if (categoryGrid && categoryGrid.parentNode) categoryGrid.insertAdjacentElement('afterend', extraSection);
-      else main.appendChild(extraSection);
+      if (contentLayout && contentLayout.parentNode) {
+        // Place after the main-column + sidebar grid so the extra-card section
+        // receives the full content width and never displaces the sidebar.
+        contentLayout.insertAdjacentElement('afterend', extraSection);
+      } else if (originalSection && originalSection.parentNode) {
+        originalSection.insertAdjacentElement('afterend', extraSection);
+      } else if (categoryGrid && categoryGrid.parentNode) {
+        categoryGrid.insertAdjacentElement('afterend', extraSection);
+      } else {
+        main.appendChild(extraSection);
+      }
       if (!document.getElementById('parrothit-additional-category-cards-style')) {
         const style = document.createElement('style'); style.id = 'parrothit-additional-category-cards-style';
-        style.textContent = `.parrothit-additional-category-cards-section{display:block!important;width:100%;max-width:1200px;margin:28px auto;padding:0 16px;box-sizing:border-box}.parrothit-additional-category-cards-section>h2{margin:0 0 16px}.parrothit-additional-category-cards-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;width:100%}.parrothit-additional-category-card{display:flex!important;flex-direction:column;min-width:0;width:100%;max-width:none;visibility:visible!important;opacity:1!important}.parrothit-additional-category-card img{display:block;width:100%;height:auto;max-height:240px;object-fit:cover}@media(max-width:900px){.parrothit-additional-category-cards-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}@media(max-width:600px){.parrothit-additional-category-cards-section{padding:0 12px;margin:20px auto}.parrothit-additional-category-cards-grid{grid-template-columns:minmax(0,1fr);gap:12px}.parrothit-additional-category-card{display:flex!important}}`;
+        style.textContent = `
+          .parrothit-additional-category-cards-section{
+            display:block!important;grid-column:1 / -1!important;
+            width:100%!important;max-width:1200px;min-width:0;
+            margin:28px auto;padding:0 16px;box-sizing:border-box;
+          }
+          .parrothit-additional-category-cards-section>h2{
+            max-width:100%;margin:0 0 16px;overflow-wrap:anywhere;
+          }
+          .parrothit-additional-category-cards-grid{
+            display:grid!important;
+            grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));
+            align-items:stretch;gap:18px;width:100%;max-width:100%;min-width:0;
+            box-sizing:border-box;
+          }
+          .parrothit-additional-category-card{
+            display:flex!important;flex-direction:column;align-items:stretch;
+            min-width:0!important;width:100%!important;max-width:100%!important;
+            box-sizing:border-box!important;overflow-wrap:anywhere;
+            visibility:visible!important;opacity:1!important;
+          }
+          .parrothit-additional-category-card>*{
+            min-width:0!important;max-width:100%;box-sizing:border-box;
+          }
+          .parrothit-additional-category-card .managed-story-image{
+            display:block;width:100%;max-width:100%;min-width:0;height:160px;
+            max-height:240px;overflow:hidden;box-sizing:border-box;
+          }
+          .parrothit-additional-category-card .managed-story-image img,
+          .parrothit-additional-category-card>img{
+            display:block;width:100%!important;height:100%;max-width:100%!important;
+            object-fit:cover;box-sizing:border-box;
+          }
+          .parrothit-additional-category-card .news-body,
+          .parrothit-additional-category-card .news-card-content{
+            display:block;width:100%!important;max-width:100%!important;min-width:0!important;
+            flex:1 1 auto;box-sizing:border-box;overflow-wrap:anywhere;
+          }
+          .parrothit-additional-category-card .category{
+            display:inline-block;max-width:100%;white-space:normal;overflow-wrap:anywhere;
+          }
+          .parrothit-additional-category-card h3{
+            display:block;width:100%;max-width:100%;min-width:0;margin:.45rem 0;
+            font-size:clamp(1rem,1.35vw,1.15rem);line-height:1.35;
+            white-space:normal!important;overflow-wrap:anywhere;word-break:normal;
+          }
+          .parrothit-additional-category-card h3 a{
+            display:block;width:100%;max-width:100%;min-width:0;
+            white-space:normal!important;overflow-wrap:anywhere;word-break:normal;
+            hyphens:auto;text-decoration:none;
+          }
+          .parrothit-additional-category-card .news-card-updated{
+            display:block;max-width:100%;min-width:0;white-space:normal;
+            overflow-wrap:anywhere;line-height:1.4;
+          }
+          .parrothit-additional-category-card .parrothit-card-engagement{
+            display:flex!important;flex-wrap:wrap!important;align-items:center;
+            gap:7px;width:100%!important;max-width:100%!important;min-width:0!important;
+            box-sizing:border-box;overflow:visible!important;
+          }
+          .parrothit-additional-category-card .parrothit-card-engagement .parrothit-reaction-toggle,
+          .parrothit-additional-category-card .parrothit-card-engagement .parrothit-share-button{
+            flex:0 1 auto;max-width:100%;min-width:0;white-space:normal!important;
+            overflow-wrap:anywhere;box-sizing:border-box;
+          }
+          .parrothit-additional-category-card .parrothit-reaction-bucket{
+            display:flex;flex:1 1 100%!important;flex-wrap:wrap!important;gap:7px;
+            width:100%!important;max-width:100%!important;min-width:0!important;
+            box-sizing:border-box;overflow:visible!important;
+          }
+          .parrothit-additional-category-card .parrothit-reaction{
+            flex:0 1 auto;min-width:0;max-width:100%;white-space:normal;
+            overflow-wrap:anywhere;box-sizing:border-box;
+          }
+          .parrothit-additional-category-card .parrothit-share-row{
+            display:flex;flex:0 1 auto;min-width:0;max-width:100%;margin-left:auto;
+          }
+          .parrothit-additional-category-card .parrothit-share-menu{
+            max-width:min(260px,calc(100vw - 32px));box-sizing:border-box;
+          }
+          .parrothit-additional-category-cards-section .parrothit-load-more-stories{
+            display:block;max-width:100%;margin:18px auto 0;
+          }
+          @media(max-width:600px){
+            .parrothit-additional-category-cards-section{padding:0 12px;margin:20px auto}
+            .parrothit-additional-category-cards-grid{grid-template-columns:minmax(0,1fr);gap:12px}
+            .parrothit-additional-category-card{display:flex!important}
+          }
+        `;
         document.head.appendChild(style);
       }
     }
