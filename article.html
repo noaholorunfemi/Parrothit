@@ -64,12 +64,11 @@ const likeBtn=document.getElementById('likePost');if(likeBtn)likeBtn.addEventLis
 <style>.article-main-image{display:block;width:100%;max-height:560px;object-fit:cover;border-radius:12px;margin:18px 0}.article-meta,.article-source{color:#64748b;font-size:.92rem}.article-summary{font-size:1.12rem;font-weight:600}.article-body{line-height:1.8;overflow-wrap:anywhere}.breaking-label{display:inline-block;background:#d71920;color:#fff;padding:5px 9px;border-radius:5px;margin:8px 0}</style>
 
 <script src="js/news-comments.js?v=20261103-comments-refresh"></script>
-<script src="js/public-article-loader.js?v=20261103-chrome-repair"></script>
+<script src="js/public-article-loader.js?v=20261103-editorial-byline"></script>
 
 <script src="js/parrothit-card-watermark.js" defer></script>
 <script id="parrothit-clickable-ad-cards">
 (()=>{document.querySelectorAll('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]').forEach(card=>{const getLink=()=>card.querySelector('a[href]');const link=getLink();if(link){card.style.cursor='pointer';card.setAttribute('role','link');card.addEventListener('click',e=>{if(e.defaultPrevented||e.target.closest('a,button,input,select,textarea,label,form'))return;const a=getLink();if(a&&a.href)window.location.href=a.href;});card.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===card){e.preventDefault();const a=getLink();if(a)window.location.href=a.href;}});if(!card.hasAttribute('tabindex'))card.tabIndex=0;}else if(card.matches('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]')){const destination='contact.html?subject=Advertising';card.style.cursor='pointer';card.setAttribute('role','link');card.tabIndex=0;const go=()=>window.location.href=destination;card.addEventListener('click',e=>{if(!e.target.closest('a,button,input,select,textarea,label,form'))go();});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});}});})();
 </script>
 <script src="js/category-navigation-fix.js" defer></script>
-<script src="js/parrothit-advertise-banner.js" defer></script>
 </body></html>
