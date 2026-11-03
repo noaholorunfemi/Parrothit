@@ -37,4 +37,5 @@ async function act(id,fn){const b=$(id);b.disabled=true;try{await fn()}catch(e){
 $('saveEditsBtn').onclick=()=>act('saveEditsBtn',saveEdits);$('approveBtn').onclick=()=>act('approveBtn',approve);$('requestChangesBtn').onclick=()=>act('requestChangesBtn',requestChanges);$('rejectBtn').onclick=()=>act('rejectBtn',reject);$('publishCardBtn').onclick=()=>act('publishCardBtn',publish);$('assignPosition').onchange=()=>previewSlot();$('queueFilter').onchange=render;$('reloadQueue').onclick=()=>act('reloadQueue',async()=>{await loadSettings();await loadQueue();msg('Review queue refreshed.')});$('refreshBtn').onclick=()=>act('refreshBtn',async()=>{await loadSettings();await loadQueue();msg('Manager refreshed.')});
 (async()=>{try{if(await initAuth()){await loadSettings();await loadQueue();const post=new URLSearchParams(location.search).get('post');if(post){const q=queue.find(x=>x.post_id===post);if(q)await openItem(q.id)}}}catch(e){reveal();msg(e.message||String(e),true)}})();
 })();
-</script></body></html>
+</script><script src="../js/parrothit-advertise-banner.js" defer></script>
+</body></html>

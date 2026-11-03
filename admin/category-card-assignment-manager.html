@@ -280,5 +280,6 @@ $('saveEditsBtn').addEventListener('click',()=>withButton('saveEditsBtn',saveEdi
 (async()=>{try{const ready=await initializeAdminSession();if(!ready)return;await loadCategories();await loadCardSettings();await loadQueue();}catch(e){revealPage();const raw=e?.message||String(e);const friendly=/signal timed out|timed out|timeout|abort/i.test(raw)?'Supabase took too long to load the review queue. Tap Refresh to retry.':raw;message(friendly,'error');$('queueRows').innerHTML=`<tr><td colspan="5" class="empty">${esc(friendly)}</td></tr>`;$('categoryRouteRows').innerHTML=`<tr><td colspan="8" class="empty">${esc(e.message||String(e))}</td></tr>`;}})();
 })();
 </script>
+<script src="../js/parrothit-advertise-banner.js" defer></script>
 </body>
 </html>
