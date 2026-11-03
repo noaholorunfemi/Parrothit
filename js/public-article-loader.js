@@ -184,6 +184,7 @@
 
     const interactions = document.querySelector('.visitor-interactions');
     if (interactions) interactions.hidden = false;
+    if (window.PARROTHITNewsComments) window.PARROTHITNewsComments.init(post.id, post.title);
     document.title = (post.title || 'Article') + ' | PARROTHIT';
     const description = document.querySelector('meta[name="description"]');
     if (description) description.content = String(post.summary || post.title || 'PARROTHIT — News that speaks!').slice(0, 300);
@@ -216,6 +217,8 @@
     shell.appendChild(back);
     const interactions = document.querySelector('.visitor-interactions');
     if (interactions) interactions.hidden = false;
+    const legacyPostId = record.postId || record.post_id || record.newsroomPostId || '';
+    if (window.PARROTHITNewsComments) window.PARROTHITNewsComments.init(legacyPostId, record.title || record.headline || 'News story');
     document.title = (record.title || 'News story') + ' | PARROTHIT';
     return true;
   }
