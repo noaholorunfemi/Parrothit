@@ -36,4 +36,5 @@ const val=id=>document.getElementById(id).value;const payload={business_name:val
 const {error}=await client.from('advertiser_inquiries').insert(payload);if(error)throw error;form.reset();show('Inquiry sent successfully. PARROTHIT will contact you after reviewing it.',true);
 }catch(err){show(err.message||'Could not send inquiry. Please try again later.',false)}finally{btn.disabled=false}});
 })();
-</script></body></html>
+</script><script src="js/parrothit-advertise-banner.js" defer></script>
+</body></html>
