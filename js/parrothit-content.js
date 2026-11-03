@@ -829,8 +829,17 @@
     await displayStories(localState, cloud);
     const localFeatureCards = {}; for(let i=1;i<=16;i++){try{const v=JSON.parse(localStorage.getItem('parrothit-news-card-'+String(i).padStart(2,'0'))||'null');if(v)localFeatureCards[String(i).padStart(2,'0')]=v;}catch(_){}}
     displayAdminNewsCards({...localFeatureCards,...(cloud.settings.news_cards || {})});
-    const categoryCardHandled = await displayCategoryCardArticle(cloud.settings.category_cards || {});
-    if (!categoryCardHandled) await displayManagedArticle(localState, cloud);
+    // article.html is rendered exclusively by js/public-article-loader.js.
+    // The older managed-article renderer replaced the whole <main> element,
+    // deleting #unpublishedArticle before/after the public loader ran. That
+    // race left category-card clicks showing a blank or stale article shell.
+    // Keep managed-article rendering off the public article route so the
+    // dedicated resolver can load the full published post or legacy card.
+    const isPublicArticlePage = /\/article\.html?$/i.test(location.pathname);
+    if (!isPublicArticlePage) {
+      const categoryCardHandled = await displayCategoryCardArticle(cloud.settings.category_cards || {});
+      if (!categoryCardHandled) await displayManagedArticle(localState, cloud);
+    }
     applyExistingImageRefs();
     // Resolve references in advertisements rendered by the older ad runtime.
     document.querySelectorAll('img[src^="idb:"]').forEach(img => { const ref=img.getAttribute('src'); img.setAttribute('data-media-src',ref); img.removeAttribute('src'); });
