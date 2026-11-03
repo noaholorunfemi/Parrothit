@@ -632,7 +632,7 @@ Deno.serve(async (req) => {
       if (!title || articleBody.length < 80) throw new Error("AI draft was incomplete; no article was saved.");
       let slug = slugify(title), suffix = 2;
       while (true) { const { data: match } = await db.from("posts").select("id").eq("slug", slug).maybeSingle(); if (!match) break; slug = `${slugify(title)}-${suffix++}`; }
-      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (AI-assisted draft)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, image_url: sourcePage.imageUrl || null, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
+      const { data: post, error: postError } = await db.from("posts").insert({ title, slug, summary, body: articleBody, category_id: candidate.category_id, author_name: "PARROTHIT News Desk (Parrothit Editorial Edition)", status: "in_review", published_at: null, source_url: candidate.source_url, source_name: candidate.source_name, image_url: sourcePage.imageUrl || null, seo_title: String(draft.seo_title || title).slice(0, 70), seo_description: String(draft.seo_description || summary).slice(0, 160), reviewed_at: null, reviewed_by: null }).select("id,title,status").single();
       if (postError) throw new Error(`Could not save article draft: ${postError.message}`);
       destination = await linkCandidateToPost(candidateId, post.id, destination);
       return json({
