@@ -1,0 +1,70 @@
+PARROTHIT MONETIZATION PHASE 2 — INSTALLATION & TESTING
+======================================================
+
+What Phase 2 adds
+-----------------
+1. Paystack hosted checkout (NGN).
+2. Flutterwave Standard hosted checkout (NGN).
+3. Server-side transaction verification.
+4. Signature-checked webhooks for both providers.
+5. Automatic payment record and revenue ledger entry after verification.
+6. Campaign payment_status changes to paid and campaign status changes to active only after the provider confirms the exact reference, amount and NGN currency.
+7. A payment-return page that displays the verification result.
+8. A site-wide sticky “Advertise with us” banner on every HTML page, linking to /advertise.html.
+
+Files in this patch
+-------------------
+- js/parrothit-advertise-banner.js
+- every project HTML page: adds a reference to that shared script
+- admin/monetization.html: adds billing email, Paystack/Flutterwave selection, checkout controls and payment history
+- advertise-payment-return.html
+- supabase/monetization-phase2.sql
+- supabase/functions/parrothit-monetization-payment/index.ts
+
+Installation order
+------------------
+A. Deploy the patch files to the existing PARROTHIT static-site root. Preserve the folder structure. Replace only the files included in this ZIP.
+B. In Supabase SQL Editor, confirm Phase 1 migration has already run. Then run:
+   supabase/monetization-phase2.sql
+C. Deploy the Edge Function from the project root:
+   supabase functions deploy parrothit-monetization-payment --no-verify-jwt
+   The function intentionally has JWT verification disabled at the gateway because verified public callbacks and signed provider webhooks must reach it. The function itself requires a valid active admin JWT for the initialize action, verifies gateway signatures for webhooks, and independently verifies payment references against provider APIs.
+D. Configure Supabase Function secrets. Start with TEST keys only:
+   supabase secrets set PAYSTACK_SECRET_KEY=sk_test_REPLACE_ME FLW_SECRET_KEY=FLWSECK_TEST-REPLACE_ME FLW_WEBHOOK_SECRET_HASH=REPLACE_WITH_RANDOM_WEBHOOK_SECRET PUBLIC_SITE_URL=https://parrothit.noaholorunfemi98.workers.dev
+   Replace each example value with the actual value from the provider dashboards. Do not paste real secrets into HTML, JavaScript, GitHub, or chat.
+   If you enable only Paystack, PAYSTACK_SECRET_KEY is required. If you enable only Flutterwave, FLW_SECRET_KEY and FLW_WEBHOOK_SECRET_HASH are required.
+E. Configure provider webhooks:
+   Paystack webhook URL:
+   https://pjrrxroprskhuikjtmwr.supabase.co/functions/v1/parrothit-monetization-payment
+   Flutterwave webhook URL: the same URL. Set the Flutterwave webhook secret hash to the exact value saved as FLW_WEBHOOK_SECRET_HASH.
+   Paystack sends x-paystack-signature (HMAC SHA-512). Flutterwave sends verif-hash. The Edge Function validates those headers and calls the provider verification API before marking a campaign paid.
+F. Redeploy the website static files. Open any page and confirm the green “Advertise with us” banner appears near the top. Its button opens /advertise.html.
+
+How to test
+-----------
+1. Use Paystack TEST keys and/or Flutterwave TEST keys first. Do not start with live keys.
+2. Open /admin/monetization.html while signed in as an active PARROTHIT admin.
+3. Create a test campaign with an advertiser name, a valid billing email and a test amount. Save it.
+4. In the Campaigns & secure payment checkout panel choose Paystack or Flutterwave and press Collect payment.
+5. Complete the provider's test checkout. The browser returns to /advertise-payment-return.html.
+6. Confirm the return page says payment verified, the campaign changes to active/paid and the gateway payment appears in the dashboard and revenue ledger.
+7. Confirm a cancelled/failed test payment does not activate the campaign.
+8. Confirm the provider webhook is configured and delivered successfully in the provider dashboard.
+
+Important security and scope notes
+---------------------------------
+- NEVER put Paystack secret keys, Flutterwave secret keys, service-role keys or webhook secret hashes in frontend files.
+- The payment Edge Function uses SUPABASE_SERVICE_ROLE_KEY only server-side. Its initialize action checks the caller's active admin profile. The public verify action cannot mark a payment paid merely because a visitor says it is paid; it re-queries the provider API and checks reference, exact amount and currency.
+- Webhooks are checked using Paystack's HMAC SHA-512 header or Flutterwave's verif-hash, then re-verified against the provider API.
+- The payment migration revokes direct browser insert/update access to monetization_payments. Payment writes happen through the trusted Edge Function.
+- Campaign status “active” means payment verified and campaign approved for placement. The existing Advertising Manager still controls actual ad creative/placement; this patch does not automatically inject paid creatives into ad slots, create impressions or track clicks.
+- The code currently uses the provided live Workers site as the default public callback. Set PUBLIC_SITE_URL to the correct canonical domain when the domain changes.
+- Flutterwave exact amount is required for automatic activation; overpayments/mismatches are left unactivated for manual review rather than silently granting campaign value.
+
+Troubleshooting
+---------------
+- “PAYSTACK_SECRET_KEY has not been configured”: set the Supabase secret, then redeploy the function.
+- “FLW_SECRET_KEY has not been configured”: set the secret and redeploy the function.
+- “Add a valid billing email”: edit the campaign form and save a valid advertiser email before checkout.
+- “Payment reference was not found”: ensure the Phase 2 SQL migration ran on the same Supabase project and that the checkout was started from this dashboard.
+- If the callback page reports a pending payment, wait briefly and refresh/check again; do not pay again until you confirm provider status.

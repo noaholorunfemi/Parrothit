@@ -19,4 +19,5 @@ async function boot(){if(window.PARROTHIT_LOCAL_PREVIEW){isLocal=true;applyInput
 document.getElementById('save').addEventListener('click',async()=>{const v=value();try{localStorage.setItem('parrothit-scroll-effects',JSON.stringify(v));if(isLocal){msg('Saved to this browser only. Sign in to Supabase admin to publish globally.');return}if(!client||!profile){msg('Not signed in. Please sign in again.','bad');return}msg('Saving scrolling design…');const {error}=await client.from('site_settings').upsert({key:KEY,value:v,updated_at:new Date().toISOString()},{onConflict:'key'});if(error)throw error;msg('Success! The scrolling design is published. Public pages will apply it after refresh.','good')}catch(e){msg('Could not save: '+(e.message||'Unknown error')+'. Check Supabase site_settings permissions.','bad')}});boot().catch(e=>{console.error(e);msg('Could not verify administrator access. Sign in again.','bad');location.replace('login.html?next=scrolling-effects.html')});})();
 </script>
 <script src="js/parrothit-card-watermark.js" defer></script>
+<script src="js/parrothit-advertise-banner.js" defer></script>
 </body></html>
