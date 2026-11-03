@@ -4,7 +4,7 @@
   if (window.__PARROTHIT_REACTIONS_SHARE__) return;
   window.__PARROTHIT_REACTIONS_SHARE__ = true;
   const KEY = 'parrothit-news-reactions-v1';
-  const EMOJIS = [ ['👍','Like'], ['❤️','Love'], ['😂','Funny'], ['😮','Surprised'], ['😢','Sad'], ['😡','Angry'], ['👏','Clap'] ];
+  const EMOJIS = [ ['👍','Like'], ['❤️','Love'], ['😂','Funny'], ['😮','Wow'], ['😢','Sad'], ['😡','Angry'] ];
   const css = document.createElement('style');
   css.textContent = `
     .parrothit-card-engagement{clear:both;margin:12px 0 0;padding-top:10px;border-top:1px solid #e2e8e4;color:#24352a;font:14px/1.4 system-ui,sans-serif;display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:auto;width:100%;min-width:0;overflow:visible;box-sizing:border-box}
@@ -39,6 +39,21 @@
     .parrothit-card-engagement button:focus-visible{outline:3px solid #f59e0b;outline-offset:2px}
   `;
   css.textContent += `\n.parrothit-card-engagement{flex-wrap:wrap!important;overflow:visible!important;position:relative;z-index:3}.parrothit-reaction-bucket{flex-basis:100%!important;width:100%!important;overflow:visible!important}.news-card,.hero-card,.category-card,.side-item{overflow:visible}.parrothit-reaction{max-width:100%;white-space:normal}`;
+
+  css.textContent += `
+    /* PARROTHIT Option 1: Classic White / red / black */
+    .parrothit-card-engagement{background:#fff;color:#111;border-top:1px solid #e5e5e5;padding:10px 0 0;gap:7px}
+    .parrothit-card-engagement .parrothit-reaction-toggle{background:#d71920!important;color:#fff!important;border:1px solid #b3131b!important;border-radius:999px!important}
+    .parrothit-reaction{background:#fff!important;color:#111!important;border:1.5px solid #d71920!important;border-radius:999px!important;box-shadow:none!important}
+    .parrothit-reaction:hover{box-shadow:0 3px 9px #d7192020!important;transform:translateY(-1px)}
+    .parrothit-reaction[aria-pressed=true]{background:#fff0f0!important;border-color:#d71920!important;box-shadow:0 0 0 1px #d71920 inset!important}
+    .parrothit-reaction-count{color:#111!important}
+    .parrothit-reaction-label{color:#111!important}
+    .parrothit-share-button{background:#d71920!important;color:#fff!important;border:1px solid #b3131b!important;border-radius:999px!important}
+    .parrothit-share-row{margin-left:auto}
+    .parrothit-share-menu a{background:#d71920!important}
+    @media(max-width:480px){.parrothit-reaction{min-width:0!important;flex:1 1 27%!important;padding:6px 4px!important}.parrothit-reaction-label{font-size:10px!important}.parrothit-reaction span:first-child{font-size:21px!important}}
+  `;
   document.head.appendChild(css);
   const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { return {}; } };
   const write = data => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (_) {} };
