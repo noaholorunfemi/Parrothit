@@ -73,3 +73,29 @@
 @media(max-width:650px){
  .news-comments textarea.nc-textarea,.news-comments textarea.nc-reply-input{min-height:104px;height:104px;padding:12px 13px;border-radius:9px;font-size:16px}
 }
+
+
+/* Desktop width correction: allow the comments module to use the full article content width,
+   even when it is placed inside a grid/flex article wrapper. Mobile rules remain intact. */
+.news-comments {
+  display:block;
+  width:100%;
+  max-width:none;
+  min-width:0;
+  box-sizing:border-box;
+  margin-left:0;
+  margin-right:0;
+  grid-column:1 / -1;
+  justify-self:stretch;
+  flex:1 1 100%;
+}
+.news-comments .nc-compose,
+.news-comments .nc-toolbar,
+.news-comments .nc-list {
+  width:100%;
+  min-width:0;
+}
+@media (min-width:651px) {
+  .news-comments { padding-left:16px; padding-right:16px; }
+  .news-comments .nc-compose-fields { grid-template-columns:minmax(180px,.8fr) minmax(0,2fr); }
+}
