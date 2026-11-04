@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure admin sign-in | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><style id="parrot-warning-styles">
+<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure admin sign-in | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><script src="../js/admin-session-client.js"></script><style id="parrot-warning-styles">
 #parrot-warning-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,10,20,.68);backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);opacity:0;visibility:hidden;transition:opacity .34s ease,visibility .34s ease,backdrop-filter .34s ease}
 #parrot-warning-overlay.pw-open{opacity:1;visibility:visible;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #parrot-warning-dialog{width:min(100%,430px);position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.78);border-radius:24px;background:linear-gradient(145deg,#fff 0%,#fff8f2 54%,#fff 100%);box-shadow:0 28px 90px rgba(0,0,0,.34);transform:translateY(30px) scale(.88) rotateX(7deg);opacity:0;transition:transform .48s cubic-bezier(.16,1,.3,1),opacity .3s ease;font-family:inherit;color:#171923;will-change:transform,opacity}
@@ -208,13 +208,29 @@ form.addEventListener('submit',async e=>{
     let email=loginName;
     if(!loginName.includes('@')){const {data,error}=await appealClient.rpc('resolve_admin_email',{p_username:loginName});if(error||!data){showAuthAlert('unauthorized','This username is not registered as a PARROTHIT administrator. Check the spelling or contact Admin 1 (Owner).');if(btn)btn.disabled=false;return;}email=data;}
     const {error:authError}=await appealClient.auth.signInWithPassword({email,password});
-    if(authError){showAuthAlert('unauthorized');return;}
+    if(authError){try{if(window.PARROTHITAdminSession)await window.PARROTHITAdminSession.recordFailedLogin(appealClient,loginName);}catch(logError){console.warn('Could not record failed admin login attempt:',logError);}showAuthAlert('unauthorized');return;}
     const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
     if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
+    // Claim the server-enforced single active device BEFORE reading RLS-protected admin data.
+    try {
+      if (!window.PARROTHITAdminSession) throw new Error('The PARROTHIT admin session helper did not load.');
+      await window.PARROTHITAdminSession.claim(appealClient, sessionData.session.user.id);
+    } catch (sessionClaimError) {
+      console.warn('Single-device admin session claim rejected:', sessionClaimError);
+      try { await appealClient.auth.signOut({ scope: 'local' }); } catch (_) {}
+      if (sessionClaimError.code === 'ADMIN_SUSPENDED') {
+        document.getElementById('appealEmail').value = (sessionClaimError.profile && sessionClaimError.profile.email) || sessionData.session.user.email || email;
+        document.getElementById('appealUsername').value = (sessionClaimError.profile && sessionClaimError.profile.username) || loginName;
+        showAuthAlert('suspended');
+      } else {
+        showAuthAlert('unauthorized', sessionClaimError.message || 'This admin account is already active on another device.');
+      }
+      return;
+    }
     const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name,is_suspended,email').eq('user_id',sessionData.session.user.id).maybeSingle();
-    if(profileError){console.error('Could not read admin profile:',profileError);await appealClient.auth.signOut();showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
+    if(profileError){console.error('Could not read admin profile:',profileError);try{await window.PARROTHITAdminSession.release(appealClient,sessionData.session.user.id);}catch(_){}await appealClient.auth.signOut({ scope: 'local' });showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
     if(!profile||!['owner','admin'].includes(String(profile.role||'').toLowerCase())){
-      await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
+      try{await window.PARROTHITAdminSession.release(appealClient,sessionData.session.user.id);}catch(_){}await appealClient.auth.signOut({ scope: 'local' });showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
     }
     // This project may have an older admin_profiles schema without email/is_suspended columns.
     // Do not request missing columns during sign-in; the core owner check uses user_id + role.
@@ -223,7 +239,7 @@ form.addEventListener('submit',async e=>{
       const userName=profile.username||loginName;
       document.getElementById('appealEmail').value=userEmail;
       document.getElementById('appealUsername').value=userName;
-      showAuthAlert('suspended');return;
+      try{await window.PARROTHITAdminSession.release(appealClient,sessionData.session.user.id);}catch(_){}await appealClient.auth.signOut({ scope: 'local' });showAuthAlert('suspended');return;
     }
     // Atomically consume the reactivation notice once, after a successful sign-in.
     try{const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");}catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr)}
