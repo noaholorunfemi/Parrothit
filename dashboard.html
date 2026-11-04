@@ -37,62 +37,48 @@ button.commit-change:hover{background:#166534!important}
 @keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
 </style>
-<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"><style>
-/* PARROTHIT Control Room desktop width + ordered admin shortcuts patch */
-@media (min-width: 901px) {
-  body.control-body { width:100%; }
-  body.control-body .control-shell {
-    width:100%; max-width:1680px; margin-inline:auto;
-    padding:clamp(14px,2vw,30px);
-  }
-  body.control-body .workspace {
-    display:grid; width:100%;
-    grid-template-columns:minmax(220px,270px) minmax(0,1fr) !important;
-    align-items:start; gap:clamp(14px,1.8vw,28px);
-  }
-  body.control-body .workspace > .side-nav {
-    width:100%; min-width:0; position:sticky; top:12px;
-    max-height:calc(100vh - 24px); overflow:auto;
-  }
-  body.control-body .workspace > main,
-  body.control-body .workspace > section,
-  body.control-body .workspace .tab-panel {
-    width:100%; min-width:0; max-width:100%;
-  }
-  body.control-body .workspace .tab-panel { overflow-wrap:anywhere; }
-  body.control-body .quick-grid {
-    display:grid !important;
-    grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));
-    gap:12px; width:100%; min-width:0;
-  }
-}
-body.control-body .parrothit-admin-shortcuts,
-body.control-body nav[style*="display:flex"] {
-  display:flex !important; flex-wrap:wrap !important; align-items:stretch;
-  gap:8px !important; max-width:100%;
-}
-body.control-body .parrothit-admin-shortcuts a,
-body.control-body nav[style*="display:flex"] a {
-  flex:0 1 auto; min-width:0; max-width:100%;
-  overflow-wrap:anywhere; line-height:1.35;
-}
-body.control-body .control-shell *,
-body.control-body .workspace *,
-body.control-body .quick-grid > * { box-sizing:border-box; min-width:0; }
-body.control-body .stat-grid,
-body.control-body .stats-grid {
-  display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr));
-  gap:12px; width:100%;
-}
-@media (max-width:900px) {
-  body.control-body .workspace { grid-template-columns:minmax(0,1fr) !important; }
-  body.control-body .workspace > .side-nav { position:static; max-height:none; }
-}
-</style></head>
+<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head>
 <body class="control-body admin-auth-pending">
-<nav style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0"><a class="admin-responsive-shortcut" href="news-ads-appearance.html">🎨 Change News &amp; Ads Card Colors</a><a class="admin-responsive-shortcut" href="watermark-controls.html">🦜 Change News Watermark</a></nav>
-<nav class="category-slider-shortcut" aria-label="Category image ads controls"><a href="category-ad-slider.html">🖼️ Category Image Ad Sliders (10 images per category)</a></nav>
-<nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav><div style="max-width:1100px;margin:16px auto;padding:0 16px"><a href="home-news-cards.html" style="display:inline-block;margin-right:8px;background:#d71920;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">🏠 Manage 15 Homepage News Cards</a><a href="news-card-controls.html" style="display:inline-block;background:#15803d;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">📰 Open 16 Individual News Card Controls</a><a href="card-appearance.html" style="display:inline-block;margin:8px 0 0 8px;background:#d71920;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">🎨 Manage News & Ad Card Colors</a><a href="ads-controls.html" style="display:inline-block;margin-left:8px;background:#15803d;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">▣ Individual Page Ad Controls</a><a href="control-directory.html" style="display:inline-block;margin:8px 0 0 8px;background:#111827;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">☷ ALL ADMIN CONTROLS — OPEN DIRECTORY</a><a href="parrot-rooms-chat.html" style="display:inline-block;margin:8px 0 0 8px;background:#1769df;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">💬 PARROT ROOMS CHAT — ADMIN 1</a><a href="moving-text-control.html" style="display:inline-block;margin:8px 0 0 8px;background:#15803d;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">〰 Edit Moving Text / Ticker</a><a href="home-tickler-control.html" style="display:inline-block;margin:8px 0 0 8px;background:#15803d;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">🌈 Homepage Color-Changing Tickler</a><a href="home-hero-card.html" style="display:inline-block;margin:8px 0 0 8px;background:#d71920;color:white;font-weight:800;padding:12px 16px;border-radius:9px;text-decoration:none">🟥 Edit Red Lead Card</a></div>
+<section class="parrothit-dashboard-toolbar" aria-label="PARROTHIT administrator shortcuts">
+  <nav class="ph-toolbar-nav" aria-label="Main navigation">
+    <a class="ph-toolbar-btn ph-btn-red" href="../index.html">← Back to Home</a>
+    <a class="ph-toolbar-btn ph-btn-green" href="dashboard.html">🏠 Control Room</a>
+  </nav>
+  <div class="ph-toolbar-groups">
+    <section class="ph-toolbar-group" aria-label="Homepage and news cards">
+      <h2>Homepage &amp; News Cards</h2>
+      <div class="ph-toolbar-links">
+        <a class="ph-toolbar-btn ph-btn-red" href="home-news-cards.html">🏠 Manage 15 Homepage News Cards</a>
+        <a class="ph-toolbar-btn ph-btn-green" href="news-card-controls.html">📰 Open 16 Individual News Card Controls</a>
+        <a class="ph-toolbar-btn ph-btn-red" href="home-hero-card.html">🟥 Edit Red Lead Card</a>
+        <a class="ph-toolbar-btn ph-btn-green" href="category-ad-slider.html">🖼️ Category Image Ad Sliders (10 images per category)</a>
+      </div>
+    </section>
+    <section class="ph-toolbar-group" aria-label="Appearance and advertising">
+      <h2>Appearance &amp; Advertising</h2>
+      <div class="ph-toolbar-links">
+        <a class="ph-toolbar-btn ph-btn-green" href="card-appearance.html">🎨 Change News &amp; Ads Card Colors</a>
+        <a class="ph-toolbar-btn ph-btn-red" href="news-ads-appearance.html">🎨 Manage News &amp; Ad Card Colors</a>
+        <a class="ph-toolbar-btn ph-btn-green" href="watermark-controls.html">🦜 Change News Watermark</a>
+        <a class="ph-toolbar-btn ph-btn-green" href="ads-controls.html">▣ Individual Page Ad Controls</a>
+      </div>
+    </section>
+    <section class="ph-toolbar-group" aria-label="Newsroom and community">
+      <h2>Newsroom &amp; Community</h2>
+      <div class="ph-toolbar-links">
+        <a class="ph-toolbar-btn ph-btn-blue" href="parrot-rooms-chat.html">💬 PARROT ROOMS CHAT — ADMIN 1</a>
+        <a class="ph-toolbar-btn ph-btn-green" href="moving-text-control.html">〰 Edit Moving Text / Ticker</a>
+        <a class="ph-toolbar-btn ph-btn-green" href="home-tickler-control.html">🌈 Homepage Color-Changing Tickler</a>
+      </div>
+    </section>
+    <section class="ph-toolbar-group" aria-label="All admin controls">
+      <h2>Other Administration</h2>
+      <div class="ph-toolbar-links">
+        <a class="ph-toolbar-btn ph-btn-dark" href="control-directory.html">☷ ALL ADMIN CONTROLS — OPEN DIRECTORY</a>
+      </div>
+    </section>
+  </div>
+</section>
 <script>
 (async function enforceAdminLogin(){if(window.PARROTHIT_LOCAL_PREVIEW){document.documentElement.classList.remove('admin-auth-pending');if(document.body)document.body.classList.remove('admin-auth-pending');return;}
  const goLogin=()=>{location.replace('login.html?next=dashboard.html')};
@@ -293,7 +279,7 @@ document.addEventListener('submit',async e=>{
  window.alert=window.PARROTHITAdminNotice;
  const path=location.pathname.toLowerCase();if(/\/(login|signup|forgot-password|reset-password)\.html$/.test(path))return;
  const bar=document.createElement('div');bar.id='parrothit-admin-commit-bar';bar.innerHTML='<strong>Admin actions</strong><span id="parrothit-admin-commit-status">Edit a section, then commit its changes here.</span><button type="button" id="parrothit-admin-commit-button">Commit Changes</button>';
- const firstMain=document.querySelector('main');if(firstMain)firstMain.parentNode.insertBefore(bar,firstMain);else document.body.insertBefore(bar,document.body.firstChild);
+ const firstMain=document.querySelector('main');const adminWorkspace=firstMain&&firstMain.closest('.workspace');if(adminWorkspace&&adminWorkspace.parentNode){adminWorkspace.parentNode.insertBefore(bar,adminWorkspace);}else if(firstMain){firstMain.parentNode.insertBefore(bar,firstMain);}else{document.body.insertBefore(bar,document.body.firstChild);}
  let activeForm=null,activeSaveButton=null;
  const isSaveButton=(el)=>el&&el.matches&&el.matches('button,input[type="submit"]')&&/save|publish|update|commit|apply|upload|add|create|restore|import|delete|remove|reset|clear|enable|disable|feature|approve|suspend/i.test((el.innerText||el.value||el.getAttribute('aria-label')||''));
  document.addEventListener('focusin',e=>{const f=e.target&&e.target.closest&&e.target.closest('form');if(f)activeForm=f;});

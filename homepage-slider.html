@@ -263,7 +263,7 @@ document.addEventListener('submit',async e=>{
  window.alert=window.PARROTHITAdminNotice;
  const path=location.pathname.toLowerCase();if(/\/(login|signup|forgot-password|reset-password)\.html$/.test(path))return;
  const bar=document.createElement('div');bar.id='parrothit-admin-commit-bar';bar.innerHTML='<strong>Admin actions</strong><span id="parrothit-admin-commit-status">Edit a section, then commit its changes here.</span><button type="button" id="parrothit-admin-commit-button">Commit Changes</button>';
- const firstMain=document.querySelector('main');if(firstMain)firstMain.parentNode.insertBefore(bar,firstMain);else document.body.insertBefore(bar,document.body.firstChild);
+ const firstMain=document.querySelector('main');const adminWorkspace=firstMain&&firstMain.closest('.workspace');if(adminWorkspace&&adminWorkspace.parentNode){adminWorkspace.parentNode.insertBefore(bar,adminWorkspace);}else if(firstMain){firstMain.parentNode.insertBefore(bar,firstMain);}else{document.body.insertBefore(bar,document.body.firstChild);}
  let activeForm=null,activeSaveButton=null;
  const isSaveButton=(el)=>el&&el.matches&&el.matches('button,input[type="submit"]')&&/save|publish|update|commit|apply|upload|add|create|restore|import|delete|remove|reset|clear|enable|disable|feature|approve|suspend/i.test((el.innerText||el.value||el.getAttribute('aria-label')||''));
  document.addEventListener('focusin',e=>{const f=e.target&&e.target.closest&&e.target.closest('form');if(f)activeForm=f;});
@@ -284,5 +284,4 @@ document.addEventListener('submit',async e=>{
 </script>
 
 <script src="js/parrothit-card-watermark.js" defer></script>
-<script src="js/parrothit-advertise-banner.js" defer></script>
 </body></html>
