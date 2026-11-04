@@ -269,22 +269,24 @@ form.addEventListener('submit',async e=>{
     if(authError){showAuthAlert('unauthorized');return;}
     const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
     if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
-    // Register the authenticated admin's single-device session before continuing.
-    // The helper calls the parrothit-admin-session Edge Function, which uses service_role
-    // to claim the database session; do not call the SQL RPC from the browser.
-    if(!window.PARROTHITAdminSession || typeof window.PARROTHITAdminSession.claim!=='function'){
-      console.error('PARROTHIT admin session helper is unavailable.');
-      await appealClient.auth.signOut();
-      showAuthAlert('unauthorized','Your password was accepted, but the secure admin session helper is missing. Please deploy the current PARROTHIT login patch and try again.');
-      return;
-    }
-    try{
-      await window.PARROTHITAdminSession.claim(appealClient,sessionData.session.user.id);
-    }catch(sessionClaimError){
-      console.error('Admin device session claim failed:',sessionClaimError);
-      const detail=sessionClaimError && sessionClaimError.message ? sessionClaimError.message : 'The secure admin device session could not be registered.';
-      await appealClient.auth.signOut();
-      showAuthAlert('unauthorized','Your password was accepted, but PARROTHIT could not register this device session. '+detail);
+    // Register one active device session for THIS administrator before the
+    // restrictive admin-profile RLS check. Different admin user_ids remain independent.
+    try {
+      if(!window.PARROTHITAdminSession) throw new Error('The admin session helper did not load. Refresh this page.');
+      await window.PARROTHITAdminSession.claim(appealClient, sessionData.session.user.id);
+    } catch(sessionClaimError) {
+      console.error('PARROTHIT device session claim failed:', sessionClaimError);
+      if(sessionClaimError && sessionClaimError.code==='ADMIN_SUSPENDED') {
+        const suspendedProfile=sessionClaimError.profile||{};
+        document.getElementById('appealEmail').value=sessionData.session.user.email||email;
+        document.getElementById('appealUsername').value=suspendedProfile.username||loginName;
+        showAuthAlert('suspended');
+      } else {
+        await appealClient.auth.signOut({scope:'local'});
+        showAuthAlert('unauthorized', sessionClaimError && sessionClaimError.message
+          ? sessionClaimError.message
+          : 'Could not register this administrator device session. Please try again.');
+      }
       return;
     }
     const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name,is_suspended,email').eq('user_id',sessionData.session.user.id).maybeSingle();
@@ -304,8 +306,12 @@ form.addEventListener('submit',async e=>{
     // Atomically consume the reactivation notice once, after a successful sign-in.
     try{const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");}catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr)}
     if(window.PARROTHIT_ADMIN_PASSKEY && await window.PARROTHIT_ADMIN_PASSKEY.offerSetupAfterPasswordLogin(appealClient)) return;
+    if(window.PARROTHIT_ADMIN_PASSKEY && await window.PARROTHIT_ADMIN_PASSKEY.offerSetupAfterPasswordLogin(appealClient)) return;
     location.href=getAdminPostLoginDestination();
-  }catch(err){console.error('Admin login failed:',err);showAuthAlert('unauthorized');}
+  }catch(err){
+    console.error('Admin login failed:',err);
+    showAuthAlert('unauthorized', err && err.message ? err.message : 'Administrator sign-in failed. Please try again.');
+  }
   finally{if(btn)btn.disabled=false;}
 });
 </script><script>
@@ -352,5 +358,5 @@ document.addEventListener('submit',async e=>{
  try{if(form.requestSubmit)form.requestSubmit(submitter||undefined);else HTMLFormElement.prototype.submit.call(form)}catch(err){console.error('PARROTHIT form action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassSubmit===form)bypassSubmit=null},0)}
 },true);
 })();
-</script><script src="../js/admin-session-client.js" defer></script><script src="../js/admin-passkey-login.js" defer></script><script src="../js/parrothit-advertise-banner.js" defer></script>
+</script><script src="../js/admin-session-client.js?v=20261104-per-admin-session-v2"></script><script src="../js/admin-passkey-login.js" defer></script><script src="../js/admin-passkey-login.js" defer></script><script src="../js/parrothit-advertise-banner.js" defer></script>
 </body></html>
