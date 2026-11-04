@@ -1,0 +1,36 @@
+PARROTHIT LOGIN SESSION PATCH — RLS ORDER FIX
+
+Files included:
+- login.html
+- admin/login.html
+- js/admin-session-client.js (existing helper, included for completeness)
+
+Root cause addressed:
+The admin_profiles SELECT was occurring before the active admin session was claimed.
+Your restrictive RLS policy calls parrothit_is_active_admin_session(), which denies
+profile visibility when the user has an admin profile but has not yet registered
+an active session. This caused the login page to receive no profile row and show
+"role is not owner or admin" even when the stored role was correct.
+
+Changes:
+1. Both login pages now call PARROTHITAdminSession.claim() immediately after
+   Supabase authentication/session retrieval, before querying admin_profiles.
+2. The Edge Function verifies the authenticated user and admin profile using its
+   service-role client, then claims the active session.
+3. After the claim succeeds, the login page queries admin_profiles; the active
+   session now satisfies the restrictive RLS policy.
+4. Session claim failures are displayed as session errors and do not continue.
+5. Removed duplicate passkey setup call in admin/login.html.
+
+Install:
+- Copy login.html to project root.
+- Copy admin/login.html to admin/login.html.
+- Keep js/admin-session-client.js at that path (included unchanged).
+- Deploy the website.
+
+Prerequisites:
+- Existing parrothit-admin-session Edge Function deployed.
+- Single-device session database migration installed.
+- Function secrets configured.
+
+No SQL, RLS policy, role, or Edge Function was changed in this patch.
