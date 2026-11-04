@@ -57,3 +57,54 @@
     grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));
   }
 }
+
+/* PARROTHIT Control Room desktop width + ordered admin shortcuts patch */
+@media (min-width: 901px) {
+  body.control-body { width:100%; }
+  body.control-body .control-shell {
+    width:100%; max-width:1680px; margin-inline:auto;
+    padding:clamp(14px,2vw,30px);
+  }
+  body.control-body .workspace {
+    display:grid; width:100%;
+    grid-template-columns:minmax(220px,270px) minmax(0,1fr) !important;
+    align-items:start; gap:clamp(14px,1.8vw,28px);
+  }
+  body.control-body .workspace > .side-nav {
+    width:100%; min-width:0; position:sticky; top:12px;
+    max-height:calc(100vh - 24px); overflow:auto;
+  }
+  body.control-body .workspace > main,
+  body.control-body .workspace > section,
+  body.control-body .workspace .tab-panel {
+    width:100%; min-width:0; max-width:100%;
+  }
+  body.control-body .workspace .tab-panel { overflow-wrap:anywhere; }
+  body.control-body .quick-grid {
+    display:grid !important;
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));
+    gap:12px; width:100%; min-width:0;
+  }
+}
+body.control-body .parrothit-admin-shortcuts,
+body.control-body nav[style*="display:flex"] {
+  display:flex !important; flex-wrap:wrap !important; align-items:stretch;
+  gap:8px !important; max-width:100%;
+}
+body.control-body .parrothit-admin-shortcuts a,
+body.control-body nav[style*="display:flex"] a {
+  flex:0 1 auto; min-width:0; max-width:100%;
+  overflow-wrap:anywhere; line-height:1.35;
+}
+body.control-body .control-shell *,
+body.control-body .workspace *,
+body.control-body .quick-grid > * { box-sizing:border-box; min-width:0; }
+body.control-body .stat-grid,
+body.control-body .stats-grid {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr));
+  gap:12px; width:100%;
+}
+@media (max-width:900px) {
+  body.control-body .workspace { grid-template-columns:minmax(0,1fr) !important; }
+  body.control-body .workspace > .side-nav { position:static; max-height:none; }
+}
