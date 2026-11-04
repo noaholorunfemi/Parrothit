@@ -65,8 +65,8 @@
   }
 
   async function getClient() {
-    if (typeof window.getParrothitSupabaseClient !== 'function') return null;
-    try { return window.getParrothitSupabaseClient(); } catch (_) { return null; }
+    if (typeof window.getParrothitPublicSupabaseClient !== 'function') return null;
+    try { return window.getParrothitPublicSupabaseClient(); } catch (_) { return null; }
   }
 
   async function findPublishedPost(client, selector, value) {

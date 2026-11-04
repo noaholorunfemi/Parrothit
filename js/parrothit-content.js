@@ -49,7 +49,7 @@
     const url = window.PARROTHIT_SUPABASE_URL, key = window.PARROTHIT_SUPABASE_ANON_KEY;
     if (!window.supabase || !url || !key || String(url).includes('YOUR-PROJECT') || String(key).includes('YOUR_PUBLIC')) return result;
     try {
-      const client = window.getParrothitSupabaseClient ? window.getParrothitSupabaseClient() : null;
+      const client = window.getParrothitPublicSupabaseClient ? window.getParrothitPublicSupabaseClient() : null;
       if (!client) return result;
       // Fetch independent cloud resources concurrently so news/ad cards are not delayed by serial round trips.
       const publicationCutoff = new Date().toISOString();
@@ -176,7 +176,7 @@
     };
   }
   async function fetchPublishedCategoryPosts(categoryKey, offset, pageSize) {
-    const client = window.getParrothitSupabaseClient ? window.getParrothitSupabaseClient() : null;
+    const client = window.getParrothitPublicSupabaseClient ? window.getParrothitPublicSupabaseClient() : null;
     const slugs = categoryDatabaseSlugs(categoryKey);
     if (!client || !slugs.length) return { posts: [], error: null, available: false };
     const cutoff = new Date().toISOString();
@@ -666,9 +666,9 @@
     if (!post && localId) post = cloud.posts.find(p => String(p.id) === localId || String(p.supabaseId) === localId) || null;
     // A category archive can contain far more stories than the homepage's recent-post
     // window. Fetch a requested published article directly so older overflow cards work too.
-    if (!post && (slug || localId) && window.getParrothitSupabaseClient) {
+    if (!post && (slug || localId) && window.getParrothitPublicSupabaseClient) {
       try {
-        const client = window.getParrothitSupabaseClient();
+        const client = window.getParrothitPublicSupabaseClient();
         if (client) {
           let query = client.from('posts')
             .select('id,title,slug,summary,body,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories(name,slug)')

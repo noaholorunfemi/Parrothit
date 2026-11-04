@@ -1,5 +1,5 @@
 (() => {'use strict';
-const $=id=>document.getElementById(id), client=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();
+const $=id=>document.getElementById(id), client=window.getParrothitPublicSupabaseClient&&window.getParrothitPublicSupabaseClient();
 const form=$('psForm'),input=$('psQuery'),suggest=$('psSuggestions'),results=$('psResults'),category=$('psCategory'),date=$('psDate'),sort=$('psSort');let timer=null,lastQuery='';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const slug=s=>String(s||'').trim(); const historyKey='parrothit_search_history_v1';

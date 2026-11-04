@@ -1,7 +1,7 @@
 /* PARROTHIT homepage news-card display and article navigation. */
 (async()=>{'use strict';let shared={};
 const localGet=i=>{try{return JSON.parse(localStorage.getItem('parrothit-home-card-'+String(i).padStart(2,'0'))||'null')}catch(_){return null}};
-const loadShared=async()=>{try{if(window.PARROTHITHomepageCards)return await window.PARROTHITHomepageCards.loadAll();const client=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();if(!client)return {};const {data,error}=await client.from('site_settings').select('value').eq('key','homepage_cards').maybeSingle();if(error)throw error;return data&&data.value&&typeof data.value==='object'?data.value:{}}catch(e){console.warn('Shared homepage card settings unavailable; using local defaults.',e.message||e);return {}}};
+const loadShared=async()=>{try{if(window.PARROTHITHomepageCards)return await window.PARROTHITHomepageCards.loadAll();const client=window.getParrothitPublicSupabaseClient&&window.getParrothitPublicSupabaseClient();if(!client)return {};const {data,error}=await client.from('site_settings').select('value').eq('key','homepage_cards').maybeSingle();if(error)throw error;return data&&data.value&&typeof data.value==='object'?data.value:{}}catch(e){console.warn('Shared homepage card settings unavailable; using local defaults.',e.message||e);return {}}};
 const get=i=>shared[String(i).padStart(2,'0')]||localGet(i);
 const resolve=async ref=>{if(!ref)return '';if(String(ref).startsWith('idb:')&&window.PARROTHITMediaStore)return await window.PARROTHITMediaStore.resolve(ref);return String(ref)};
 const formatDate=value=>{const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleString('en-NG',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):''};

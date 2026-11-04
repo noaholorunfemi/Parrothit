@@ -18,7 +18,7 @@
   let cfg={};
   try{cfg=normalize(JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(_){cfg=normalize({})}
   try{
-    const client=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();
+    const client=window.getParrothitPublicSupabaseClient&&window.getParrothitPublicSupabaseClient();
     if(client){const r=await client.from('site_settings').select('value').eq('key','news_ads_appearance').maybeSingle();if(!r.error&&r.data&&r.data.value)cfg=normalize(r.data.value)}
   }catch(e){console.warn('Shared card appearance settings are unavailable.',e)}
   function applyOne(selector,part,type){

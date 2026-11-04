@@ -38,7 +38,7 @@
   function loadLocal(){try{return normalize(JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}'))}catch(_){return {...DEFAULTS}}}
   async function loadShared(){
     try{
-      const make=window.getParrothitSupabaseClient;
+      const make=window.getParrothitPublicSupabaseClient;
       if(typeof make!=='function') return;
       const client=make(); if(!client) return;
       const result=await client.from('site_settings').select('value').eq('key','parrothit_watermark_settings').maybeSingle();
@@ -87,7 +87,7 @@
     const file=(location.pathname.split('/').pop()||'index.html').replace(/\.html?$/i,'');
     const supported=new Set(['business','celebrity-news','culture','education','entertainment','football','health','nigeria','nigerian-celebrity','nollywood','politics','religion','sports-athletics','sports-basketball','sports-football','sports-table-tennis','sports-tennis','sports','technology','wildlife','world']);
     if(!supported.has(file)) return;
-    const make=window.getParrothitSupabaseClient;
+    const make=window.getParrothitPublicSupabaseClient;
     const client=typeof make==='function'?make():null;
     if(!client) return;
     try{
