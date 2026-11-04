@@ -56,3 +56,20 @@
   box-shadow: 0 0 0 1000px #151515 inset !important;
   caret-color: #fff !important;
 }
+
+/* Option 2 — PARROTHIT editorial composer: responsive, retaining the existing black/red/white palette. */
+.news-comments textarea.nc-textarea,
+.news-comments textarea.nc-reply-input {
+ display:block;width:100%;min-width:0;min-height:112px;height:112px;resize:vertical;
+ padding:14px 16px;border:1px solid #d71928;border-left:4px solid #d71928;
+ border-radius:10px;background:#fff;color:#111;font:inherit;line-height:1.6;
+ box-shadow:inset 0 1px 2px #0000000d;transition:border-color .18s ease,box-shadow .18s ease;
+}
+.news-comments textarea.nc-textarea::placeholder,
+.news-comments textarea.nc-reply-input::placeholder {color:#555;opacity:1}
+.news-comments textarea.nc-textarea:focus,
+.news-comments textarea.nc-reply-input:focus {outline:none;border-color:#f02b3a;border-left-color:#f02b3a;box-shadow:0 0 0 3px #d7192833}
+@media(min-width:900px){.news-comments textarea.nc-textarea{min-height:126px;height:126px}}
+@media(max-width:650px){
+ .news-comments textarea.nc-textarea,.news-comments textarea.nc-reply-input{min-height:104px;height:104px;padding:12px 13px;border-radius:9px;font-size:16px}
+}
