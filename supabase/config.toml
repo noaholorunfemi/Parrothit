@@ -1,0 +1,13 @@
+project_id = "pjrrxroprskhuikjtmwr"
+
+# These two functions intentionally accept requests without a Supabase user JWT.
+# The advertiser portal validates Customer ID + PIN and rate-limits failed attempts.
+# Admin actions inside it verify the bearer token and active owner/admin profile.
+# The payment function verifies hosted-provider callbacks and checks Admin sessions
+# for legacy Admin-initiated checkouts; customer campaign initialization validates
+# Customer ID + PIN and is restricted to campaign ownership.
+[functions.parrothit-advertiser-portal]
+verify_jwt = false
+
+[functions.parrothit-monetization-payment]
+verify_jwt = false
