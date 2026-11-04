@@ -6,6 +6,7 @@
 <title>PARROTHIT Newsroom Automation</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../supabase-config.js"></script>
+<script src="../js/admin-auth-guard.js"></script>
 <style>
 :root{font-family:Arial,sans-serif;color:#f4f7fb;background:#071b13}
 *{box-sizing:border-box}
@@ -341,6 +342,8 @@ img,video,iframe{max-width:100%}
 
 
   async function init() {
+    if (window.PARROTHIT_ADMIN_READY_PROMISE) await window.PARROTHIT_ADMIN_READY_PROMISE;
+    if (!window.PARROTHIT_ADMIN_SESSION_TOKEN) { location.replace('login.html?next=newsroom-automation.html'); return; }
     if (!window.getParrothitSupabaseClient || !window.PARROTHIT_SUPABASE_URL || !window.PARROTHIT_SUPABASE_ANON_KEY) {
       document.body.innerHTML = `<main class="wrap"><section class="panel"><h1>Supabase is not configured</h1><p>Set the project URL and public anon/publishable key in supabase-config.js first.</p><a class="btn" href="articles.html">Back to Article Editor</a></section></main>`;
       return;
