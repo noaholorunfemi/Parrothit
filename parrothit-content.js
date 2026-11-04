@@ -566,7 +566,7 @@
       .managed-story-image{display:block;height:160px;overflow:hidden;background:#eee}.managed-story-image img{width:100%;height:100%;object-fit:cover;display:block}.news-card-content{padding:13px}.news-card-content h3{margin:.45rem 0;font-size:1.08rem}.news-card-content h3 a{color:inherit;text-decoration:none}.news-card-content p{color:var(--muted,#555);line-height:1.5}.read-more{font-weight:800;color:#c5161d}
       .parrothit-home-video-frame{display:block;width:min(100%,480px);aspect-ratio:16/9;border:0;border-radius:12px;background:#000}
       .parrothit-managed-article{max-width:900px;margin:20px auto;padding:clamp(16px,3vw,32px);background:var(--card,#fff);border-radius:14px;color:var(--text,#151515)}.parrothit-managed-article h1{font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.15}.managed-article-image{width:100%;max-height:520px;object-fit:cover;border-radius:12px;margin:12px 0 20px}.managed-article-body{font-size:1.08rem;line-height:1.8}.article-summary{font-size:1.1rem;font-weight:700}
-      .parrothit-ads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;width:min(1240px,96%);margin:22px auto;padding:0;align-items:stretch}
+      .parrothit-ads{display:grid;grid-template-columns:minmax(0,1fr);grid-column:1 / -1;gap:14px;width:min(1240px,96%);margin:22px auto;padding:0;align-items:stretch}
       .parrothit-ad-card{display:flex;min-width:0;min-height:var(--parrothit-ad-card-height,310px);height:100%;overflow:hidden;flex-direction:column;align-items:stretch;gap:0;border:1px solid #d8e2da;border-radius:12px;background:#fff;color:#18231c;box-shadow:0 3px 14px #00000012;box-sizing:border-box}
       .parrothit-ad-card .ad-image-link{display:block;position:relative;flex:0 0 var(--parrothit-ad-image-height,180px);width:100%;height:var(--parrothit-ad-image-height,180px);min-height:90px;overflow:hidden;background:#e5e7eb;line-height:0;text-decoration:none;cursor:pointer}
       .parrothit-ad-card .ad-image-link img{display:block;width:100%;height:100%;max-width:100%;object-fit:var(--parrothit-ad-image-fit,cover);border-radius:0;transition:transform .35s ease}
@@ -579,7 +579,7 @@
       .parrothit-ad-card .ad-image-link:focus-visible,.parrothit-ad-card .ad-action-button:focus-visible{outline:3px solid #d71920;outline-offset:2px}
       .parrothit-ad-card.is-placeholder{border-style:dashed;background:linear-gradient(110deg,#fff 0%,#f5faf6 100%)}
       .parrothit-ad-card.is-placeholder .ad-card-content{min-height:220px;justify-content:center}
-      @media(min-width:761px) and (max-width:980px){.parrothit-ads{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      @media(min-width:761px) and (max-width:980px){.parrothit-ads{grid-template-columns:minmax(0,1fr)}}
       @media(max-width:760px){.parrothit-ads{grid-template-columns:minmax(0,1fr);gap:12px;width:calc(100% - 24px);margin:16px auto}.parrothit-ad-card{min-height:260px;height:auto}.parrothit-ad-card .ad-image-link{height:var(--parrothit-ad-image-height,170px);flex-basis:var(--parrothit-ad-image-height,170px)}.parrothit-ad-card .ad-card-content{padding:13px 14px;gap:7px}.parrothit-ad-card .ad-card-content strong{font-size:var(--parrothit-ad-title-size,20px)}.parrothit-ad-card .ad-card-content p{font-size:var(--parrothit-ad-desc-size,16px)}.parrothit-ad-card .ad-action-button{font-size:.86rem;padding:8px 11px}}
       @media(max-width:360px){.parrothit-ad-card .ad-image-link{height:min(var(--parrothit-ad-image-height,160px),160px);flex-basis:min(var(--parrothit-ad-image-height,160px),160px)}.parrothit-ad-card .ad-card-content{padding:12px}.parrothit-ad-card .ad-card-content strong{font-size:var(--parrothit-ad-title-size,20px)}}
       @media(prefers-reduced-motion:reduce){.parrothit-ad-card .ad-image-link img{transition:none}}
@@ -622,31 +622,39 @@
       }
     } catch (_) {}
     const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const matchesPage = a => !a.page || ['all','all-pages','everywhere','global'].includes(norm(a.page)) || pageNames.includes(norm(a.page));
-    const matching = allAds.filter(a => allowed(a) && matchesPage(a));
+    const categoryPageNames = ['world','nigeria','politics','business','technology','sports','entertainment','celebrity-news','nollywood','nigerian-celebrity','education','health','religion','culture','wildlife','sports-football','sports-table-tennis','sports-basketball','sports-tennis','sports-athletics'];
+    const matchesPage = a => !a.page || ['all','all-pages','everywhere','global'].includes(norm(a.page)) || pageNames.includes(norm(a.page)) || (norm(a.page)==='category' && pageNames.some(name => categoryPageNames.includes(name))) || (norm(a.page)==='article' && page==='article');
+    const excludedPage = page === 'about' || page === 'about-us' || page.startsWith('admin');
+    const matching = excludedPage ? [] : allAds.filter(a => allowed(a) && matchesPage(a));
     // Each page has three explicit ad positions. If old records share a position,
     // keep the newest record for that position so two cards cannot compete for it.
     const byPosition = new Map();
     matching.forEach((ad, idx) => {
       const n = Number(ad.position);
       const position = Number.isInteger(n) && n >= 1 && n <= 3 ? n : (idx + 1);
-      const old = byPosition.get(position);
-      const newer = !old || String(ad.updatedAt || '') >= String(old.updatedAt || '');
-      if (newer) byPosition.set(position, { ...ad, position });
+      if (!byPosition.has(position)) byPosition.set(position, []);
+      byPosition.get(position).push({ ...ad, position });
     });
-    const selected = [...byPosition.values()].sort((a,b) => a.position - b.position).slice(0,3);
-    let wrap = $('.parrothit-ads');
-    if (!wrap) {
-      wrap = document.createElement('section'); wrap.className = 'parrothit-ads';
-      wrap.setAttribute('aria-label', 'Advertisements');
-      const main = $('main,.social-wrap,.social-main');
-      if (main && main.parentNode) main.parentNode.insertBefore(wrap, main.nextSibling);
-      else document.body.append(wrap);
-    }
-    wrap.replaceChildren();
+    // Multiple paid advertiser campaigns can share a slot. Rotate among running campaigns
+    // instead of allowing the newest approval to permanently hide every earlier campaign.
+    const selected = [...byPosition.entries()].map(([position, ads]) => {
+      const paidCampaignAds = ads.filter(ad => ad.campaignId || ad.campaign_id);
+      if (paidCampaignAds.length > 1) {
+        const seed = Math.floor(Date.now() / 300000) + (position * 17);
+        return paidCampaignAds[seed % paidCampaignAds.length];
+      }
+      const pool = paidCampaignAds.length ? paidCampaignAds : ads;
+      return pool.sort((a,b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0];
+    }).filter(Boolean).sort((a,b) => a.position - b.position).slice(0,3);
+    // Rebuild each ad placement independently so the three wide ads are separated
+    // by news content: after story 6, story 12 and story 18.
+    document.querySelectorAll('.parrothit-ads').forEach(node => node.remove());
     const adByPosition = new Map(selected.map(ad => [Number(ad.position), ad]));
-    for (let position = 1; position <= 3; position++) {
-      const ad = adByPosition.get(position);
+    const storyCards = [...new Set(Array.from(document.querySelectorAll(
+      'main .news-card, main .parrothit-managed-card, .social-wrap .news-card, .social-main .news-card'
+    )).filter(card => !card.closest('.parrothit-ads')))];
+    const main = $('main,.social-wrap,.social-main');
+    function makeAdCard(ad, position) {
       const hasConfiguredContent = ad && (ad.title || ad.description || ad.desc || ad.image || ad.imageData || ad.imageUrl || ad.url || ad.link || ad.href || ad.destination || ad.clickUrl);
       const card = document.createElement('article'); card.className = 'parrothit-ad-card' + (hasConfiguredContent ? '' : ' is-placeholder');
       card.dataset.adPosition = String(position);
@@ -676,19 +684,55 @@
       } else {
         const title = document.createElement('strong'); title.textContent = 'Advertise with PARROTHIT';
         const desc = document.createElement('p'); desc.textContent = 'Promote your brand, product or service to PARROTHIT readers.';
-        const link = document.createElement('a'); link.className = 'ad-action-button'; link.href = 'contact.html?subject=Advertising'; link.textContent = 'Enquire about advertising';
+        const link = document.createElement('a'); link.className = 'ad-action-button'; link.href = 'advertisement-application.html'; link.textContent = 'View advertising plans';
         content.append(title, desc, link); card.append(content);
       }
-      wrap.append(card);
+      // Report actual browser displays and clicks for campaign-backed advertisements.
+      const campaignId = ad && (ad.campaignId || ad.campaign_id);
+      if (hasConfiguredContent && campaignId && window.PARROTHIT_SUPABASE_URL && window.PARROTHIT_SUPABASE_ANON_KEY) {
+        const report = kind => {
+          try {
+            fetch(String(window.PARROTHIT_SUPABASE_URL).replace(/\/$/, '') + '/functions/v1/parrothit-advertiser-portal', {
+              method: 'POST', keepalive: true,
+              headers: { 'Content-Type': 'application/json', 'apikey': window.PARROTHIT_SUPABASE_ANON_KEY },
+              body: JSON.stringify({ action: 'track_event', campaign_id: campaignId, event: kind })
+            }).catch(() => {});
+          } catch (_) {}
+        };
+        if ('IntersectionObserver' in window) {
+          const observer = new IntersectionObserver(entries => {
+            if (entries.some(entry => entry.isIntersecting)) { report('impression'); observer.disconnect(); }
+          }, { threshold: 0.25 });
+          observer.observe(card);
+        } else report('impression');
+        card.querySelectorAll('a').forEach(link => link.addEventListener('click', () => report('click')));
+      }
+      return card;
     }
-    wrap.hidden = wrap.children.length === 0;
+    let insertedAds = 0;
+    for (let position = 1; position <= 3; position++) {
+      const ad = adByPosition.get(position);
+      if (!ad) continue;
+      const targetStory = storyCards[(position * 6) - 1];
+      // Article pages have no six-card feed, so their first placement follows the article.
+      if (!targetStory && !(position === 1 && page === 'article' && main)) continue;
+      const section = document.createElement('section');
+      section.className = 'parrothit-ads';
+      section.dataset.managedCampaignSlot = String(position);
+      section.setAttribute('aria-label', `Advertisement placement ${position}`);
+      section.append(makeAdCard(ad, position));
+      if (targetStory && targetStory.parentNode) targetStory.parentNode.insertBefore(section, targetStory.nextSibling);
+      else if (main && main.parentNode) main.parentNode.insertBefore(section, main.nextSibling);
+      else document.body.append(section);
+      insertedAds++;
+    }
     // Avoid showing generic placeholder ads alongside configured ad cards.
     document.querySelectorAll('.ad-slot[data-ad-slot]').forEach(slot => {
-      const managedAdsVisible = wrap.children.length > 0; slot.hidden = managedAdsVisible;
+      const managedAdsVisible = insertedAds > 0 || excludedPage; slot.hidden = managedAdsVisible;
       if (managedAdsVisible) slot.style.setProperty('display', 'none', 'important');
       else slot.style.removeProperty('display');
     });
-    if (window.PARROTHITMediaStore) window.PARROTHITMediaStore.bindImages(wrap);
+    if (window.PARROTHITMediaStore) document.querySelectorAll('.parrothit-ads').forEach(wrap => window.PARROTHITMediaStore.bindImages(wrap));
   }
 
   function applyNewsAdsAppearance(settings) {
