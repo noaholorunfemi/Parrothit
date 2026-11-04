@@ -4,7 +4,7 @@
   const KEY='parrothit-news-ads-appearance';
   const defaults={
     news:{background:'#ffffff',text:'#172033',border:'#e5e7eb',animation:'none',speed:2},
-    ads:{background:'#fff7ed',text:'#7c2d12',border:'#fed7aa',animation:'none',speed:2,cardHeight:310,imageHeight:180,titleSize:20,descSize:16,imageFit:'cover'}
+    ads:{background:'#fff7ed',text:'#7c2d12',border:'#fed7aa',animation:'none',speed:2,cardHeight:168,imageHeight:168,titleSize:24,descSize:15,imageFit:'contain'}
   };
   const valid=v=>/^#[0-9a-f]{6}$/i.test(v||'');
   function normalize(input){
@@ -27,21 +27,30 @@
     const animation=['none','bounce','shake'].includes(c.animation)?c.animation:'none';
     const speed=Math.max(1,Math.min(6,Number(c.speed)||2));
     document.querySelectorAll(selector).forEach(el=>{
+      const fixedAdTemplateRoot=part==='ads' && el.matches('.parrothit-ad-card[data-ad-template]');
+      const insideFixedAdTemplate=part==='ads' && !!el.closest('.parrothit-ad-card[data-ad-template]');
+      if(insideFixedAdTemplate&&!fixedAdTemplateRoot)return;
       if(part==='ads' && el.matches('.parrothit-ad-card')){
-        el.style.setProperty('--parrothit-ad-card-height',Math.max(220,Math.min(600,Number(c.cardHeight)||310))+'px');
-        el.style.setProperty('--parrothit-ad-image-height',Math.max(90,Math.min(360,Number(c.imageHeight)||180))+'px');
-        el.style.setProperty('--parrothit-ad-title-size',Math.max(14,Math.min(30,Number(c.titleSize)||20))+'px');
-        el.style.setProperty('--parrothit-ad-desc-size',Math.max(12,Math.min(24,Number(c.descSize)||16))+'px');
-        el.style.setProperty('--parrothit-ad-image-fit',c.imageFit==='contain'?'contain':'cover');
-        el.style.minHeight=Math.max(220,Math.min(600,Number(c.cardHeight)||310))+'px';
+        const bannerHeight=Math.max(118,Math.min(230,Number(c.cardHeight)||168));
+        const brandImageHeight=Math.max(90,Math.min(220,Number(c.imageHeight)||168));
+        el.style.setProperty('--parrothit-ad-card-height',bannerHeight+'px');
+        el.style.setProperty('--parrothit-ad-image-height',brandImageHeight+'px');
+        el.style.setProperty('--parrothit-ad-title-size',Math.max(14,Math.min(30,Number(c.titleSize)||24))+'px');
+        el.style.setProperty('--parrothit-ad-desc-size',Math.max(11,Math.min(22,Number(c.descSize)||15))+'px');
+        el.style.setProperty('--parrothit-ad-image-fit',c.imageFit==='cover'?'cover':'contain');
+        el.style.minHeight=bannerHeight+'px';
+        el.style.maxHeight='230px';
+        const image=el.querySelector('.ad-image-link,.ad-brand-placeholder');
+        if(image) image.style.minHeight=brandImageHeight+'px';
       }
-      if(bg)el.style.setProperty('background-color',bg,'important');
-      if(fg)el.style.setProperty('color',fg,'important');
-      if(bd)el.style.setProperty('border-color',bd,'important');
+      const fixedAdTemplate=fixedAdTemplateRoot;
+      if(bg&&!fixedAdTemplate)el.style.setProperty('background-color',bg,'important');
+      if(fg&&!fixedAdTemplate)el.style.setProperty('color',fg,'important');
+      if(bd&&!fixedAdTemplate)el.style.setProperty('border-color',bd,'important');
       el.classList.remove('parrothit-card-bounce','parrothit-card-shake');
       if(animation!=='none')el.classList.add(animation==='bounce'?'parrothit-card-bounce':'parrothit-card-shake');
       el.style.setProperty('--parrothit-card-animation-duration',speed+'s');
-      if(fg)el.querySelectorAll('h1,h2,h3,h4,p,span,strong,a,small,.meta,.category').forEach(x=>{if(!x.closest('.ad-action-button'))x.style.setProperty('color',fg,'important')});
+      if(fg&&!fixedAdTemplate)el.querySelectorAll('h1,h2,h3,h4,p,span,strong,a,small,.meta,.category').forEach(x=>{if(!x.closest('.ad-action-button'))x.style.setProperty('color',fg,'important')});
       el.dataset.parrothitAppearanceType=type;
     });
   }

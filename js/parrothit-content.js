@@ -709,22 +709,34 @@
       .managed-story-image{display:block;height:160px;overflow:hidden;background:#eee}.managed-story-image img{width:100%;height:100%;object-fit:cover;display:block}.news-card-content{padding:13px}.news-card-content h3{margin:.45rem 0;font-size:1.08rem}.news-card-content h3 a{color:inherit;text-decoration:none}.news-card-content p,.news-card-content .read-more,.news-card-content .news-card-source{display:none!important}.news-card-content .news-card-updated{display:block!important;color:var(--muted,#555)}.read-more{font-weight:800;color:#c5161d}
       .parrothit-home-video-frame{display:block;width:min(100%,480px);aspect-ratio:16/9;border:0;border-radius:12px;background:#000}
       .parrothit-managed-article{max-width:900px;margin:20px auto;padding:clamp(16px,3vw,32px);background:var(--card,#fff);border-radius:14px;color:var(--text,#151515)}.parrothit-managed-article h1{font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.15}.managed-article-image{width:100%;max-height:520px;object-fit:cover;border-radius:12px;margin:12px 0 20px}.managed-article-body{font-size:1.08rem;line-height:1.8}.article-summary{font-size:1.1rem;font-weight:700}
-      .parrothit-ads{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;width:min(1240px,96%);margin:22px auto;padding:0;align-items:stretch}
-      .parrothit-ad-card{display:flex;min-width:0;min-height:var(--parrothit-ad-card-height,310px);height:100%;overflow:hidden;flex-direction:column;align-items:stretch;gap:0;border:1px solid #d8e2da;border-radius:12px;background:#fff;color:#18231c;box-shadow:0 3px 14px #00000012;box-sizing:border-box}
-      .parrothit-ad-card .ad-image-link{display:block;position:relative;flex:0 0 var(--parrothit-ad-image-height,180px);width:100%;height:var(--parrothit-ad-image-height,180px);min-height:90px;overflow:hidden;background:#e5e7eb;line-height:0;text-decoration:none;cursor:pointer}
-      .parrothit-ad-card .ad-image-link img{display:block;width:100%;height:100%;max-width:100%;object-fit:var(--parrothit-ad-image-fit,cover);border-radius:0;transition:transform .35s ease}
+      .parrothit-ad-placement{display:block;clear:both;width:min(1240px,calc(100% - 32px));max-width:1240px;margin:20px auto;padding:0;box-sizing:border-box;grid-column:1/-1;}
+      .parrothit-ad-card{--parrothit-ad-title-size:clamp(18px,2vw,27px);--parrothit-ad-desc-size:clamp(12px,1.15vw,16px);position:relative;display:grid;grid-template-columns:minmax(150px,23%) minmax(0,1fr);align-items:stretch;min-width:0;min-height:148px;max-height:230px;overflow:hidden;border:2px solid #0b6534;border-radius:12px;background:#fff;color:#15231b;box-shadow:0 4px 16px #00000014;box-sizing:border-box;isolation:isolate;}
+      .parrothit-ad-card .ad-image-link{display:block;grid-column:1;grid-row:1;width:100%;height:100%;min-height:144px;overflow:hidden;background:#e5eee8;line-height:0;text-decoration:none;cursor:pointer;}
+      .parrothit-ad-card .ad-image-link img{display:block;width:100%;height:100%;max-width:100%;object-fit:var(--parrothit-ad-image-fit,contain);background:#fff;transition:transform .3s ease;}
       .parrothit-ad-card .ad-image-link:hover img,.parrothit-ad-card .ad-image-link:focus-visible img{transform:scale(1.035)}
-      .parrothit-ad-card .ad-card-content{display:flex;flex:1;min-width:0;width:100%;box-sizing:border-box;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:8px;padding:15px 16px}
-      .parrothit-ad-card .ad-card-content small{font-size:.7rem;letter-spacing:.08em;font-weight:900;color:#647067}
-      .parrothit-ad-card .ad-card-content strong{display:block;font-size:var(--parrothit-ad-title-size,20px);line-height:1.22;overflow-wrap:anywhere;color:#126b3a}
-      .parrothit-ad-card .ad-card-content p{margin:0;font-size:var(--parrothit-ad-desc-size,16px);line-height:1.48;overflow-wrap:anywhere;color:#26332a}
-      .parrothit-ad-card .ad-action-button{display:inline-flex;align-items:center;justify-content:center;max-width:100%;margin-top:auto;padding:9px 12px;border-radius:7px;background:#126b3a;color:#fff;text-decoration:none;font-weight:850;font-size:.88rem;overflow-wrap:anywhere}
+      .parrothit-ad-card .ad-brand-placeholder{grid-column:1;grid-row:1;min-height:144px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:linear-gradient(145deg,#f7fff9,#d9f3e3);color:#07552c;text-align:center;}
+      .parrothit-ad-card .ad-brand-mark{font-size:38px;line-height:1.1}.parrothit-ad-card .ad-brand-placeholder strong{font-size:clamp(14px,1.5vw,21px);font-weight:950;letter-spacing:.03em;color:#07552c}.parrothit-ad-card .ad-brand-placeholder small{font-size:9px;font-weight:900;letter-spacing:.06em;color:#26352b}
+      .parrothit-ad-card .ad-card-content{grid-column:2;grid-row:1;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto 1fr;grid-template-areas:"label action" "title action" "desc action";align-items:center;align-content:center;gap:5px 18px;min-width:0;width:100%;box-sizing:border-box;padding:14px 22px;}
+      .parrothit-ad-card .ad-disclosure-label{grid-area:label;display:block;font-size:.67rem;letter-spacing:.1em;font-weight:950;color:#647067}
+      .parrothit-ad-card .ad-banner-title{grid-area:title;display:block;margin:0;font-size:var(--parrothit-ad-title-size,24px);line-height:1.14;overflow-wrap:anywhere;color:#07552c;font-weight:950}
+      .parrothit-ad-card .ad-banner-description{grid-area:desc;margin:0;font-size:var(--parrothit-ad-desc-size,15px);line-height:1.35;overflow-wrap:anywhere;color:#26332a}
+      .parrothit-ad-card .ad-action-button{grid-area:action;display:inline-flex;align-items:center;justify-content:center;max-width:220px;min-width:118px;padding:11px 16px;border-radius:999px;background:#08733a;color:#fff;text-align:center;text-decoration:none;font-weight:900;font-size:clamp(12px,1vw,15px);line-height:1.15;overflow-wrap:anywhere;box-shadow:0 2px 5px #0002}
       .parrothit-ad-card .ad-image-link:focus-visible,.parrothit-ad-card .ad-action-button:focus-visible{outline:3px solid #d71920;outline-offset:2px}
-      .parrothit-ad-card.is-placeholder{border-style:dashed;background:linear-gradient(110deg,#fff 0%,#f5faf6 100%)}
-      .parrothit-ad-card.is-placeholder .ad-card-content{min-height:220px;justify-content:center}
-      @media(min-width:761px) and (max-width:980px){.parrothit-ads{grid-template-columns:repeat(2,minmax(0,1fr))}}
-      @media(max-width:760px){.parrothit-ads{grid-template-columns:minmax(0,1fr);gap:12px;width:calc(100% - 24px);margin:16px auto}.parrothit-ad-card{min-height:260px;height:auto}.parrothit-ad-card .ad-image-link{height:var(--parrothit-ad-image-height,170px);flex-basis:var(--parrothit-ad-image-height,170px)}.parrothit-ad-card .ad-card-content{padding:13px 14px;gap:7px}.parrothit-ad-card .ad-card-content strong{font-size:var(--parrothit-ad-title-size,20px)}.parrothit-ad-card .ad-card-content p{font-size:var(--parrothit-ad-desc-size,16px)}.parrothit-ad-card .ad-action-button{font-size:.86rem;padding:8px 11px}}
-      @media(max-width:360px){.parrothit-ad-card .ad-image-link{height:min(var(--parrothit-ad-image-height,160px),160px);flex-basis:min(var(--parrothit-ad-image-height,160px),160px)}.parrothit-ad-card .ad-card-content{padding:12px}.parrothit-ad-card .ad-card-content strong{font-size:var(--parrothit-ad-title-size,20px)}}
+      .parrothit-ad-template-news-style{border-color:#075b31;background:linear-gradient(105deg,#fff 0%,#f2fbf5 70%,#e7f6ec 100%)}
+      .parrothit-ad-template-news-style:after{content:"";position:absolute;z-index:-1;right:0;top:0;width:12px;height:100%;background:linear-gradient(180deg,#168b45 0 55%,#d71920 55% 100%)}
+      .parrothit-ad-template-news-style .ad-action-button{background:#086b34}
+      .parrothit-ad-template-business-style{border-color:#17643a;background:linear-gradient(100deg,#edf4f7 0%,#fff 54%,#f1f6f3 100%)}
+      .parrothit-ad-template-business-style .ad-brand-placeholder{background:linear-gradient(145deg,#dce8ed,#f5f8fa);color:#153c2a}
+      .parrothit-ad-template-business-style .ad-action-button{background:#0c5e37;border-radius:8px}
+      .parrothit-ad-template-colour-promo{border-color:#d92b20;background:linear-gradient(100deg,#fff0a0 0%,#ffdc35 48%,#ffb900 100%)}
+      .parrothit-ad-template-colour-promo .ad-card-content{background:linear-gradient(105deg,#ffe65e,#ffc126)}
+      .parrothit-ad-template-colour-promo .ad-banner-title{color:#a71917;text-shadow:0 1px #fff7;font-style:italic}
+      .parrothit-ad-template-colour-promo .ad-action-button{background:#c91f1f;border-radius:999px}
+      .parrothit-ad-template-colour-promo .ad-brand-placeholder{background:linear-gradient(145deg,#d71920,#ffb800);color:#fff}
+      .parrothit-ad-template-colour-promo .ad-brand-placeholder strong,.parrothit-ad-template-colour-promo .ad-brand-placeholder small{color:#fff}
+      .parrothit-ad-card.is-placeholder .ad-banner-title{letter-spacing:-.02em}
+      @media(max-width:760px){.parrothit-ad-placement{width:calc(100% - 20px);margin:14px auto}.parrothit-ad-card{grid-template-columns:clamp(88px,25vw,132px) minmax(0,1fr);min-height:118px;max-height:none}.parrothit-ad-card .ad-image-link,.parrothit-ad-card .ad-brand-placeholder{min-height:118px}.parrothit-ad-card .ad-card-content{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto auto auto;grid-template-areas:"label" "title" "desc" "action";gap:4px;padding:9px 11px}.parrothit-ad-card .ad-banner-title{font-size:clamp(14px,3.9vw,19px)}.parrothit-ad-card .ad-banner-description{font-size:clamp(11px,3vw,13px);line-height:1.25}.parrothit-ad-card .ad-action-button{justify-self:start;min-width:0;max-width:100%;margin-top:3px;padding:7px 11px;font-size:11px}.parrothit-ad-card .ad-brand-mark{font-size:28px}.parrothit-ad-card .ad-brand-placeholder strong{font-size:12px}.parrothit-ad-card .ad-brand-placeholder small{font-size:7px}}
+      @media(max-width:380px){.parrothit-ad-placement{width:calc(100% - 14px)}.parrothit-ad-card{grid-template-columns:76px minmax(0,1fr);min-height:112px}.parrothit-ad-card .ad-image-link,.parrothit-ad-card .ad-brand-placeholder{min-height:112px}.parrothit-ad-card .ad-card-content{padding:7px 8px}.parrothit-ad-card .ad-banner-title{font-size:14px}.parrothit-ad-card .ad-banner-description{font-size:10px}.parrothit-ad-card .ad-action-button{font-size:10px;padding:6px 8px}}
       @media(prefers-reduced-motion:reduce){.parrothit-ad-card .ad-image-link img{transition:none}}
       .parrothit-home-tickler{margin:12px auto 16px;width:min(1100px,calc(100% - 24px));padding:10px 14px;border-radius:10px;background:#f4fff7;border:1px solid #c8e8d2;color:#126b3a;font-weight:800;line-height:1.5;overflow:hidden;animation:parrothitTickerColors 7s linear infinite}
       .parrothit-home-tickler span{display:block;overflow-wrap:anywhere}
@@ -734,7 +746,9 @@
     `; document.head.appendChild(style);
   }
   function applyManagedAds(cloudAds) {
-    // One renderer owns managed ads. Do not let generic ads leak onto unrelated pages.
+    // Managed advertising is rendered as three separate wide banners in the page flow.
+    // Existing advertisement records and the admin position assignments remain unchanged.
+    if (/\/admin\//i.test(location.pathname)) return;
     const page = (location.pathname.split('/').pop() || 'index.html').replace(/\.html?$/i, '').toLowerCase() || 'index';
     const isInteraction = page === 'interaction' || page === 'parrots-interaction';
     const aliases = {
@@ -749,12 +763,12 @@
     };
     const queryCategory = page === 'category' ? String(new URLSearchParams(location.search).get('category') || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') : '';
     const pageNames = queryCategory ? ['category', queryCategory] : (aliases[page] || [page]);
-    const allowed = a => a && a.enabled !== false &&
-      (['both','all','all-pages','everyone'].includes(normAudience(a.audience)) || (isInteraction ? normAudience(a.audience) === 'interaction' : normAudience(a.audience) === 'news') || !a.audience);
-    function normAudience(value) { return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+    const normAudience = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+    const allowed = ad => ad && ad.enabled !== false &&
+      (['both','all','all-pages','everyone'].includes(normAudience(ad.audience)) ||
+       (isInteraction ? normAudience(ad.audience) === 'interaction' : normAudience(ad.audience) === 'news') || !ad.audience);
     let allAds = Array.isArray(cloudAds) ? cloudAds.slice() : [];
-    // Merge browser-preview and shared ads by ID; shared records take precedence.
-    // This prevents one published ad from suppressing other locally configured slots.
+    // Merge same-device preview records with cloud records; cloud records win by ID.
     try {
       const local = JSON.parse(localStorage.getItem('parrothit-ads-v1') || '[]');
       if (Array.isArray(local)) {
@@ -764,74 +778,176 @@
         allAds = [...merged.values()];
       }
     } catch (_) {}
-    const norm = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const matchesPage = a => !a.page || ['all','all-pages','everywhere','global'].includes(norm(a.page)) || pageNames.includes(norm(a.page));
-    const matching = allAds.filter(a => allowed(a) && matchesPage(a));
-    // Each page has three explicit ad positions. If old records share a position,
-    // keep the newest record for that position so two cards cannot compete for it.
+    const norm = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const matchesPage = ad => !ad.page || ['all','all-pages','everywhere','global'].includes(norm(ad.page)) || pageNames.includes(norm(ad.page));
+    const matching = allAds.filter(ad => allowed(ad) && matchesPage(ad));
+    // There is exactly one active advertisement per position on each page.
     const byPosition = new Map();
     matching.forEach((ad, idx) => {
       const n = Number(ad.position);
       const position = Number.isInteger(n) && n >= 1 && n <= 3 ? n : (idx + 1);
-      const old = byPosition.get(position);
-      const newer = !old || String(ad.updatedAt || '') >= String(old.updatedAt || '');
-      if (newer) byPosition.set(position, { ...ad, position });
+      const previous = byPosition.get(position);
+      if (!previous || String(ad.updatedAt || '') >= String(previous.updatedAt || '')) byPosition.set(position, { ...ad, position });
     });
     const selected = [...byPosition.values()].sort((a,b) => a.position - b.position).slice(0,3);
-    let wrap = $('.parrothit-ads');
-    if (!wrap) {
-      wrap = document.createElement('section'); wrap.className = 'parrothit-ads';
-      wrap.setAttribute('aria-label', 'Advertisements');
-      const main = $('main,.social-wrap,.social-main');
-      if (main && main.parentNode) main.parentNode.insertBefore(wrap, main.nextSibling);
-      else document.body.append(wrap);
-    }
-    wrap.replaceChildren();
     const adByPosition = new Map(selected.map(ad => [Number(ad.position), ad]));
+    const defaults = {
+      1:{title:'Your Business Here',description:'Advertise with PARROTHIT and reach readers across our news categories.',buttonText:'Get noticed today'},
+      2:{title:'Grow Your Business with PARROTHIT',description:'Promote your products and services to our readers.',buttonText:'Advertise now'},
+      3:{title:'Advertise on PARROTHIT',description:'Be seen. Be heard. Grow your business.',buttonText:'Start advertising today'}
+    };
+    const cleanDestination = value => cleanHref(value) || 'advertise.html';
+    const bannerNodes = [];
     for (let position = 1; position <= 3; position++) {
-      const ad = adByPosition.get(position);
-      const hasConfiguredContent = ad && (ad.title || ad.description || ad.desc || ad.image || ad.imageData || ad.imageUrl || ad.url || ad.link || ad.href || ad.destination || ad.clickUrl);
-      const card = document.createElement('article'); card.className = 'parrothit-ad-card' + (hasConfiguredContent ? '' : ' is-placeholder');
+      const ad = adByPosition.get(position) || {};
+      const hasConfiguredContent = !!(ad.title || ad.description || ad.desc || ad.image || ad.imageData || ad.imageUrl || ad.url || ad.link || ad.href || ad.destination || ad.clickUrl);
+      const template = position === 1 ? 'news-style' : position === 2 ? 'business-style' : 'colour-promo';
+      const placement = document.createElement('section');
+      placement.className = 'parrothit-ad-placement parrothit-ad-placement-' + position;
+      placement.dataset.adPosition = String(position);
+      placement.setAttribute('aria-label', 'Advertisement position ' + position);
+      const card = document.createElement('article');
+      card.className = 'parrothit-ad-card parrothit-ad-template-' + template + (hasConfiguredContent ? '' : ' is-placeholder');
       card.dataset.adPosition = String(position);
+      card.dataset.adTemplate = template;
       const content = document.createElement('div'); content.className = 'ad-card-content';
-      const label = document.createElement('small'); label.className = 'ad-disclosure-label'; const disclosure = String((ad && (ad.label || ad.disclosure || ad.adType)) || 'ADVERTISEMENT').trim().toUpperCase(); label.textContent = (disclosure === 'SPONSORED' || disclosure === 'SPONSORED CONTENT') ? 'SPONSORED' : 'ADVERTISEMENT'; content.append(label);
-      const rawHref = ad && (ad.link || ad.href || ad.clickUrl || ad.destination || ad.targetUrl || ad.url) || '';
-      const href = cleanHref(rawHref) || 'contact.html?subject=Advertising';
-      const configureAnchor = (link, actionLabel) => { link.href = href; link.target = new URL(href, location.href).origin !== location.origin ? '_blank' : '_self'; link.rel = link.target === '_blank' ? 'sponsored noopener noreferrer' : 'sponsored'; if(actionLabel)link.setAttribute('aria-label',actionLabel); };
-      if (hasConfiguredContent) {
-        const imageRef = ad.image || ad.imageData || ad.imageUrl || '';
-        if (imageRef) {
-          const imageLink = document.createElement('a'); imageLink.className = 'ad-image-link'; configureAnchor(imageLink, 'Visit advertiser: ' + (ad.title || 'PARROTHIT advertisement'));
-          const img = document.createElement('img'); img.alt = ad.title || 'Advertisement'; img.loading = 'lazy'; img.decoding = 'async';
-          if (String(imageRef).startsWith('idb:')) img.setAttribute('data-media-src', imageRef);
-          else if (/^(https?:|data:image\/)/i.test(String(imageRef))) img.src = imageRef;
-          imageLink.append(img); card.append(imageLink);
-        }
-        const title = document.createElement('strong'); title.textContent = ad.title || 'Advertisement';
-        const desc = document.createElement('p'); desc.textContent = ad.description || ad.desc || '';
-        content.append(title); if (desc.textContent) content.append(desc);
-        card.append(content);
-        if (rawHref && cleanHref(rawHref)) {
-          const link = document.createElement('a'); link.className = 'ad-action-button'; configureAnchor(link, 'Open offer: ' + (ad.title || 'advertisement'));
-          link.textContent = ad.buttonText || ad.cta || 'View offer';
-          content.appendChild(link);
-        }
+      const disclosure = String((ad.label || ad.disclosure || ad.adType) || 'ADVERTISEMENT').trim().toUpperCase();
+      const label = document.createElement('small'); label.className = 'ad-disclosure-label';
+      label.textContent = (disclosure === 'SPONSORED' || disclosure === 'SPONSORED CONTENT') ? 'SPONSORED' : 'ADVERTISEMENT';
+      content.append(label);
+      const imageRef = ad.image || ad.imageData || ad.imageUrl || '';
+      if (imageRef) {
+        const imageLink = document.createElement('a'); imageLink.className = 'ad-image-link';
+        const img = document.createElement('img'); img.alt = ad.title || 'Advertiser branding'; img.loading = 'lazy'; img.decoding = 'async';
+        if (String(imageRef).startsWith('idb:')) img.setAttribute('data-media-src', imageRef);
+        else if (/^(https?:|data:image\/)/i.test(String(imageRef))) img.src = imageRef;
+        imageLink.append(img);
+        const rawImageHref = ad.link || ad.href || ad.clickUrl || ad.destination || ad.targetUrl || ad.url || 'advertise.html';
+        imageLink.href = cleanDestination(rawImageHref);
+        imageLink.target = new URL(imageLink.href, location.href).origin !== location.origin ? '_blank' : '_self';
+        imageLink.rel = imageLink.target === '_blank' ? 'sponsored noopener noreferrer' : 'sponsored';
+        imageLink.setAttribute('aria-label', 'Visit advertiser: ' + (ad.title || 'PARROTHIT advertisement'));
+        card.append(imageLink);
       } else {
-        const title = document.createElement('strong'); title.textContent = 'Advertise with PARROTHIT';
-        const desc = document.createElement('p'); desc.textContent = 'Promote your brand, product or service to PARROTHIT readers.';
-        const link = document.createElement('a'); link.className = 'ad-action-button'; link.href = 'contact.html?subject=Advertising'; link.textContent = 'Enquire about advertising';
-        content.append(title, desc, link); card.append(content);
+        const brand = document.createElement('div'); brand.className = 'ad-brand-placeholder';
+        brand.innerHTML = '<span class="ad-brand-mark">🦜</span><strong>PARROTHIT</strong><small>NEWS THAT SPEAKS!</small>';
+        card.append(brand);
       }
-      wrap.append(card);
+      const title = document.createElement('strong'); title.className = 'ad-banner-title';
+      title.textContent = ad.title || defaults[position].title;
+      const desc = document.createElement('p'); desc.className = 'ad-banner-description';
+      desc.textContent = ad.description || ad.desc || defaults[position].description;
+      content.append(title, desc);
+      const rawHref = ad.link || ad.href || ad.clickUrl || ad.destination || ad.targetUrl || ad.url || 'advertise.html';
+      const bannerHref = cleanDestination(rawHref);
+      card.setAttribute('role', 'link'); card.tabIndex = 0;
+      card.setAttribute('aria-label', 'Advertisement: ' + (ad.title || defaults[position].title));
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', event => {
+        if (event.defaultPrevented || event.target.closest('a,button,input,select,textarea,label')) return;
+        window.location.href = bannerHref;
+      });
+      card.addEventListener('keydown', event => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target === card) {
+          event.preventDefault(); window.location.href = bannerHref;
+        }
+      });
+      const action = document.createElement('a'); action.className = 'ad-action-button';
+      action.href = bannerHref;
+      action.target = new URL(action.href, location.href).origin !== location.origin ? '_blank' : '_self';
+      action.rel = action.target === '_blank' ? 'sponsored noopener noreferrer' : 'sponsored';
+      action.textContent = ad.buttonText || ad.cta || defaults[position].buttonText;
+      content.append(action);
+      card.append(content); placement.append(card);
+      bannerNodes.push({ position, placement, card });
     }
-    wrap.hidden = wrap.children.length === 0;
-    // Avoid showing generic placeholder ads alongside configured ad cards.
+    window.__PARROTHIT_MANAGED_AD_BANNERS__ = bannerNodes;
+    // Retire old bottom-of-page ad wrapper only. Do not delete or rewrite any ad records.
+    document.querySelectorAll('.parrothit-ads').forEach(node => node.remove());
+    // Legacy generic ad slots are replaced by the three managed placements.
     document.querySelectorAll('.ad-slot[data-ad-slot]').forEach(slot => {
-      const managedAdsVisible = wrap.children.length > 0; slot.hidden = managedAdsVisible;
-      if (managedAdsVisible) slot.style.setProperty('display', 'none', 'important');
-      else slot.style.removeProperty('display');
+      slot.hidden = true; slot.style.setProperty('display', 'none', 'important');
     });
-    if (window.PARROTHITMediaStore) window.PARROTHITMediaStore.bindImages(wrap);
+  }
+
+  function positionManagedAdBanners() {
+    const banners = window.__PARROTHIT_MANAGED_AD_BANNERS__;
+    if (!Array.isArray(banners) || !banners.length) return;
+    const main = document.querySelector('main') || document.body;
+    const byPos = new Map(banners.map(item => [item.position, item.placement]));
+    const placeAfter = (anchor, node) => {
+      if (anchor && anchor.parentNode) { anchor.insertAdjacentElement('afterend', node); return true; }
+      return false;
+    };
+    const placeAtEnd = node => {
+      const footer = document.querySelector('footer,.site-footer,.footer');
+      if (footer && footer.parentNode) footer.parentNode.insertBefore(node, footer);
+      else main.appendChild(node);
+    };
+    const storyCards = grid => grid ? Array.from(grid.children).filter(el => el.matches('article.news-card,article.parrothit-managed-card,.news-card')) : [];
+    const insertAfterCard = (grid, index, node) => {
+      const cards = storyCards(grid);
+      if (!cards.length) return false;
+      return placeAfter(cards[Math.max(0, Math.min(cards.length - 1, index))], node);
+    };
+    const page = (location.pathname.split('/').pop() || 'index.html').replace(/\.html?$/i, '').toLowerCase() || 'index';
+    const isHome = page === 'index' || page === '';
+    const isArticle = page === 'article';
+    const staticGrid = main.querySelector('.news-grid:not(.parrothit-managed-grid)');
+    const managedSection = main.querySelector('.parrothit-managed-stories:not(.parrothit-admin-feature-cards)');
+    const managedGrid = managedSection && managedSection.querySelector('.parrothit-managed-grid');
+    const contentLayout = main.querySelector('.content-layout,.content-grid');
+
+    // Clear prior placements in case a page renderer caused a second positioning pass.
+    banners.forEach(item => item.placement.remove());
+
+    if (isHome) {
+      const firstAnchor = main.querySelector('.hero-grid') || main.querySelector('.home-slider') || contentLayout;
+      if (!placeAfter(firstAnchor, byPos.get(1))) placeAtEnd(byPos.get(1));
+      if (!insertAfterCard(staticGrid, Math.max(0, Math.floor(storyCards(staticGrid).length / 2) - 1), byPos.get(2))) {
+        if (!placeAfter(contentLayout, byPos.get(2))) placeAtEnd(byPos.get(2));
+      }
+      if (!placeAfter(managedSection || byPos.get(2) || contentLayout || firstAnchor, byPos.get(3))) placeAtEnd(byPos.get(3));
+      return;
+    }
+
+    if (isArticle) {
+      const articleBody = main.querySelector('.article-layout,#unpublishedArticle') || main;
+      if (!placeAfter(articleBody, byPos.get(1))) placeAtEnd(byPos.get(1));
+      const interactions = document.querySelector('.news-comments,.visitor-interactions,.comments-section');
+      if (!placeAfter(interactions || articleBody, byPos.get(2))) placeAtEnd(byPos.get(2));
+      placeAtEnd(byPos.get(3));
+      return;
+    }
+
+    const isCategoryPage = !!(staticGrid || managedSection || page === 'category');
+    if (isCategoryPage) {
+      if (!insertAfterCard(staticGrid, Math.min(2, Math.max(0, storyCards(staticGrid).length - 1)), byPos.get(1))) {
+        if (!placeAfter(main.querySelector('.page-heading') || contentLayout, byPos.get(1))) placeAtEnd(byPos.get(1));
+      }
+      const managedCards = storyCards(managedGrid);
+      if (managedCards.length > 3) {
+        insertAfterCard(managedGrid, Math.max(1, Math.floor(managedCards.length * 0.55) - 1), byPos.get(2));
+      } else if (!placeAfter(managedSection || contentLayout || byPos.get(1), byPos.get(2))) {
+        placeAtEnd(byPos.get(2));
+      }
+      if (!placeAfter(managedSection || byPos.get(2) || contentLayout, byPos.get(3))) placeAtEnd(byPos.get(3));
+      return;
+    }
+
+    // Informational/community pages: distribute banners between the page's main content blocks.
+    const blocks = Array.from(main.querySelectorAll(':scope > section,:scope > .wrap > section,:scope > .wrap > .article-layout,:scope > .wrap > .content-layout'))
+      .filter(el => !el.classList.contains('parrothit-ad-placement') && !el.hidden);
+    if (blocks.length) {
+      placeAfter(blocks[0], byPos.get(1));
+      const middleBlock = blocks.length > 2 ? blocks[Math.floor(blocks.length / 2)] : blocks[blocks.length - 1];
+      placeAfter(middleBlock === blocks[0] ? byPos.get(1) : middleBlock, byPos.get(2));
+    } else {
+      const first = main.querySelector('section,article,.content-layout,.article-layout');
+      if (!placeAfter(first, byPos.get(1))) placeAtEnd(byPos.get(1));
+      if (!placeAfter(main.querySelector('.content-layout,.article-layout') || first || byPos.get(1), byPos.get(2))) placeAtEnd(byPos.get(2));
+    }
+    placeAtEnd(byPos.get(3));
   }
 
   function applyNewsAdsAppearance(settings) {
@@ -853,21 +969,30 @@
       const animation = ['none','bounce','shake'].includes(cfg.animation) ? cfg.animation : 'none';
       const speed = Math.max(1, Math.min(6, Number(cfg.speed) || 2));
       document.querySelectorAll(selector).forEach(card => {
+        const fixedAdTemplateRoot = key === 'ads' && card.matches('.parrothit-ad-card[data-ad-template]');
+        const insideFixedAdTemplate = key === 'ads' && !!card.closest('.parrothit-ad-card[data-ad-template]');
+        if (insideFixedAdTemplate && !fixedAdTemplateRoot) return;
         if(key==='ads' && card.matches('.parrothit-ad-card')){
-          card.style.setProperty('--parrothit-ad-card-height',Math.max(220,Math.min(600,Number(cfg.cardHeight)||310))+'px');
-          card.style.setProperty('--parrothit-ad-image-height',Math.max(90,Math.min(360,Number(cfg.imageHeight)||180))+'px');
-          card.style.setProperty('--parrothit-ad-title-size',Math.max(14,Math.min(30,Number(cfg.titleSize)||20))+'px');
-          card.style.setProperty('--parrothit-ad-desc-size',Math.max(12,Math.min(24,Number(cfg.descSize)||16))+'px');
-          card.style.setProperty('--parrothit-ad-image-fit',cfg.imageFit==='contain'?'contain':'cover');
-          card.style.minHeight=Math.max(220,Math.min(600,Number(cfg.cardHeight)||310))+'px';
+          const bannerHeight=Math.max(118,Math.min(230,Number(cfg.cardHeight)||168));
+          const brandImageHeight=Math.max(90,Math.min(220,Number(cfg.imageHeight)||168));
+          card.style.setProperty('--parrothit-ad-card-height',bannerHeight+'px');
+          card.style.setProperty('--parrothit-ad-image-height',brandImageHeight+'px');
+          card.style.setProperty('--parrothit-ad-title-size',Math.max(14,Math.min(30,Number(cfg.titleSize)||24))+'px');
+          card.style.setProperty('--parrothit-ad-desc-size',Math.max(11,Math.min(22,Number(cfg.descSize)||15))+'px');
+          card.style.setProperty('--parrothit-ad-image-fit',cfg.imageFit==='cover'?'cover':'contain');
+          card.style.minHeight=bannerHeight+'px';
+          card.style.maxHeight='230px';
+          const image=card.querySelector('.ad-image-link,.ad-brand-placeholder');
+          if(image) image.style.minHeight=brandImageHeight+'px';
         }
-        if (bg) card.style.setProperty('background-color', bg, 'important');
-        if (fg) card.style.setProperty('color', fg, 'important');
-        if (border) card.style.setProperty('border-color', border, 'important');
+        const fixedAdTemplate = fixedAdTemplateRoot;
+        if (bg && !fixedAdTemplate) card.style.setProperty('background-color', bg, 'important');
+        if (fg && !fixedAdTemplate) card.style.setProperty('color', fg, 'important');
+        if (border && !fixedAdTemplate) card.style.setProperty('border-color', border, 'important');
         card.classList.remove('parrothit-card-bounce','parrothit-card-shake');
         if (animation !== 'none') card.classList.add(animation === 'bounce' ? 'parrothit-card-bounce' : 'parrothit-card-shake');
         card.style.setProperty('--parrothit-card-animation-duration', speed + 's');
-        if (fg) card.querySelectorAll('h1,h2,h3,h4,p,span,strong,a,small,.meta,.category').forEach(el => {
+        if (fg && !fixedAdTemplate) card.querySelectorAll('h1,h2,h3,h4,p,span,strong,a,small,.meta,.category').forEach(el => {
           if (!el.closest('.ad-action-button')) el.style.setProperty('color', fg, 'important');
         });
         card.dataset.parrothitAppearanceType = key;
@@ -939,6 +1064,8 @@
       const categoryCardHandled = await displayCategoryCardArticle(cloud.settings.category_cards || {});
       if (!categoryCardHandled) await displayManagedArticle(localState, cloud);
     }
+    // Position the three managed banners after dynamic newsroom/category renderers finish.
+    positionManagedAdBanners();
     applyExistingImageRefs();
     // Resolve references in advertisements rendered by the older ad runtime.
     document.querySelectorAll('img[src^="idb:"]').forEach(img => { const ref=img.getAttribute('src'); img.setAttribute('data-media-src',ref); img.removeAttribute('src'); });
