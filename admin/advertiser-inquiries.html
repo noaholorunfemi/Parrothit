@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PARROTHIT Advertiser Inquiries</title>
+<link rel="stylesheet" href="../css/style.css">
+<script>document.documentElement.classList.add('admin-auth-pending');</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase-config.js"></script>
+<script src="../js/admin-auth-guard.js"></script>
+<style>
+:root{--deep:#10251a;--green:#14532d;--red:#d71920;--line:#dbe3dc;--muted:#64748b}
+*{box-sizing:border-box}body{margin:0;background:#f2f6f3;color:#14231a;font:15px/1.5 Arial,sans-serif}.wrap{max-width:1240px;margin:auto;padding:18px}
+.head{background:var(--deep);color:#fff;border-radius:15px;padding:22px;border-bottom:5px solid var(--red);display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.head h1{margin:0;font-size:clamp(1.4rem,3vw,2rem)}.head p{color:#d8e6dc;margin:6px 0 0}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:8px;padding:10px 13px;background:var(--green);color:#fff;text-decoration:none;font-weight:700;cursor:pointer}.btn.alt{background:#334155}.btn.red{background:#b91c1c}.btn:disabled{opacity:.55;cursor:not-allowed}
+.notice{margin:14px 0;padding:12px 14px;border-radius:9px;background:#eaf3ed;border:1px solid #c9dfcf;color:#174b2a}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.stat,.toolbar,.inquiry{background:#fff;border:1px solid var(--line);border-radius:12px;padding:15px}.stat span{display:block;color:var(--muted);font-size:.9rem}.stat b{display:block;font-size:1.6rem;color:var(--green);margin-top:5px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.toolbar input,.toolbar select,.status-select{padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:white}.toolbar input{flex:1;min-width:190px}.list{display:grid;gap:12px}.inquiry-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.business{font-size:1.1rem;font-weight:800;color:#123b24}.meta{color:var(--muted);font-size:.9rem}.pill{display:inline-block;background:#e8f2eb;color:#14532d;border-radius:30px;padding:4px 9px;font-size:.78rem;font-weight:800;text-transform:capitalize}.pill.rejected{background:#fee2e2;color:#991b1b}.pill.converted{background:#dbeafe;color:#1e40af}.inquiry-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.detail{background:#f8faf9;padding:10px;border-radius:8px;overflow-wrap:anywhere}.detail b{display:block;color:#52645a;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}.details-text{white-space:pre-wrap;overflow-wrap:anywhere}.brand-image{display:block;max-width:min(100%,280px);max-height:190px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px;margin-top:8px}.row-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.row-actions label{font-weight:700}.empty,.loading{background:#fff;border:1px dashed #cbd5e1;border-radius:12px;padding:24px;text-align:center;color:var(--muted)}.error{color:#991b1b}.ok{color:#166534}#status{white-space:pre-wrap;padding:8px 2px}
+@media(max-width:700px){.wrap{padding:10px}.head{padding:16px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.inquiry-grid{grid-template-columns:1fr}.toolbar>*{width:100%}.row-actions .status-select{flex:1}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="head"><div><h1>📢 Advertiser Inquiries</h1><p>Review incoming business advertising requests and branding images.</p></div><div class="actions"><a class="btn alt" href="control-directory.html">Control Room</a><a class="btn alt" href="monetization.html">Monetization</a><button class="btn" id="refresh" type="button">Refresh inquiries</button></div></header>
+<div class="notice">This page receives requests submitted through the public <b>Advertise with PARROTHIT</b> form. Review the advertiser's details and branding image, update the inquiry status, then open campaign setup when the request is ready to proceed.</div>
+<section class="stats"><div class="stat"><span>All inquiries</span><b id="totalCount">—</b></div><div class="stat"><span>New</span><b id="newCount">—</b></div><div class="stat"><span>Under review</span><b id="reviewCount">—</b></div><div class="stat"><span>Converted</span><b id="convertedCount">—</b></div></section>
+<section class="toolbar"><input id="search" type="search" placeholder="Search business, contact, email or campaign…" aria-label="Search inquiries"><select id="filterStatus" aria-label="Filter by status"><option value="all">All statuses</option><option value="new">New</option><option value="reviewing">Reviewing</option><option value="contacted">Contacted</option><option value="converted">Converted</option><option value="rejected">Rejected</option></select><span id="resultCount" class="meta"></span></section>
+<section id="inquiryList" class="list"><div class="loading">Loading advertiser inquiries…</div></section>
+<p id="status" role="status" aria-live="polite"></p>
+</main>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);let sb=null,rows=[];
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const date=v=>{try{return new Date(v).toLocaleString()}catch(_){return String(v||'')}};
+function say(message,bad=false){$('status').textContent=message;$('status').className=bad?'error':'ok';}
+function filtered(){const q=$('search').value.trim().toLowerCase(),st=$('filterStatus').value;return rows.filter(r=>(st==='all'||r.status===st)&&(!q||[r.business_name,r.contact_name,r.email,r.phone,r.campaign_type,r.details].some(v=>String(v||'').toLowerCase().includes(q))));}
+function render(){
+$('totalCount').textContent=rows.length;$('newCount').textContent=rows.filter(r=>r.status==='new').length;$('reviewCount').textContent=rows.filter(r=>r.status==='reviewing').length;$('convertedCount').textContent=rows.filter(r=>r.status==='converted').length;
+const visible=filtered();$('resultCount').textContent=visible.length+' shown';
+$('inquiryList').innerHTML=visible.length?visible.map(r=>{
+const image=r.branding_image_url&&/^https:\/\//i.test(r.branding_image_url)?`<a href="${esc(r.branding_image_url)}" target="_blank" rel="noopener"><img class="brand-image" src="${esc(r.branding_image_url)}" alt="${esc(r.business_name)} branding image"></a>`:'<span class="meta">No branding image supplied.</span>';
+const badge=r.status==='rejected'?'rejected':r.status==='converted'?'converted':'';
+const campaignMap={'Homepage banner':'Homepage banner','In-feed advertisement':'In-feed','Category / article placement':'Category','Sponsored article':'Sponsored article','Affiliate campaign':'Affiliate','Custom package':'Custom'};
+const params=new URLSearchParams({inquiry:r.id,advertiser:r.business_name||'',billing_email:r.email||'',campaign_type:r.campaign_type||'',contact_name:r.contact_name||'',phone:r.phone||'',duration:r.duration||'',details:r.details||'',branding_image_url:r.branding_image_url||''});
+return `<article class="inquiry" data-id="${esc(r.id)}"><div class="inquiry-top"><div><div class="business">${esc(r.business_name||'Unnamed business')}</div><div class="meta">Received ${esc(date(r.created_at))} · ${esc(r.campaign_type||'Campaign type not specified')} · ${esc(r.duration||'Duration not specified')}</div></div><span class="pill ${badge}">${esc(r.status||'new')}</span></div>
+<div class="inquiry-grid"><div class="detail"><b>Contact person</b>${esc(r.contact_name||'—')}</div><div class="detail"><b>Email / phone</b>${esc(r.email||'—')}<br>${esc(r.phone||'Not supplied')}</div></div>
+<details style="margin-top:12px"><summary style="cursor:pointer;font-weight:800;color:#14532d">Review full inquiry and branding</summary><div class="inquiry-grid"><div class="detail"><b>Campaign details</b><div class="details-text">${esc(r.details||'No additional details supplied.')}</div></div><div class="detail"><b>Business branding image</b>${image}</div></div></details>
+<div class="row-actions"><label for="status-${esc(r.id)}">Update status</label><select class="status-select" id="status-${esc(r.id)}" data-status-select="${esc(r.id)}"><option value="new" ${r.status==='new'?'selected':''}>New</option><option value="reviewing" ${r.status==='reviewing'?'selected':''}>Reviewing</option><option value="contacted" ${r.status==='contacted'?'selected':''}>Contacted</option><option value="converted" ${r.status==='converted'?'selected':''}>Converted</option><option value="rejected" ${r.status==='rejected'?'selected':''}>Rejected</option></select><button class="btn" type="button" data-save="${esc(r.id)}">Save status</button><a class="btn alt" href="monetization.html?${params.toString()}#campaignForm">Create campaign</a></div></article>`;
+}).join(''):'<div class="empty">No advertiser inquiries match this filter.</div>';
+$('inquiryList').querySelectorAll('[data-save]').forEach(b=>b.addEventListener('click',()=>updateStatus(b.dataset.save)));
+}
+async function load(){const b=$('refresh');b.disabled=true;try{const {data,error}=await sb.from('advertiser_inquiries').select('*').order('created_at',{ascending:false}).limit(300);if(error)throw error;rows=data||[];render();say(rows.length?'Loaded '+rows.length+' advertiser inquiry/inquiries.':'No inquiries have been submitted yet.');}catch(e){$('inquiryList').innerHTML='<div class="empty error">Could not load advertiser inquiries. '+esc(e.message||'Check the advertiser inquiry migration and admin permissions.')+'</div>';say(e.message||'Could not load inquiries.',true);}finally{b.disabled=false;}}
+async function updateStatus(id){const select=document.querySelector(`[data-status-select="${CSS.escape(id)}"]`);if(!select)return;const next=select.value;const b=document.querySelector(`[data-save="${CSS.escape(id)}"]`);if(b)b.disabled=true;try{const {error}=await sb.from('advertiser_inquiries').update({status:next}).eq('id',id);if(error)throw error;const row=rows.find(x=>x.id===id);if(row)row.status=next;render();say('Inquiry status updated to '+next+'.');}catch(e){say(e.message||'Could not update inquiry status.',true);if(b)b.disabled=false;}}
+function boot(){sb=window.PARROTHIT_ADMIN_CLIENT||window.getParrothitSupabaseClient?.();if(!sb){say('Supabase client is unavailable. Sign in again.',true);return;}load();}
+$('refresh').addEventListener('click',load);$('search').addEventListener('input',render);$('filterStatus').addEventListener('change',render);
+if(window.PARROTHIT_ADMIN_CLIENT)boot();else window.addEventListener('parrothit-admin-ready',boot,{once:true});
+})();
+</script>
+</body></html>
