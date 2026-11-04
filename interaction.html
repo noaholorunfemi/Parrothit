@@ -384,7 +384,7 @@ feed.addEventListener('click',async e=>{const del=e.target.closest('[data-delete
 document.querySelectorAll('.password-toggle').forEach(btn=>btn.addEventListener('click',()=>{const input=btn.parentElement.querySelector('input[type="password"],input[type="text"]');if(!input)return;const show=input.type==='password';input.type=show?'text':'password';btn.textContent=show?'🙈':'👁';btn.setAttribute('aria-label',show?'Hide password':'Show password');}));
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js?v=20261104-public-anon-read"></script>
+<script src="supabase-config.js?v=20261104-per-admin-session-public-v2"></script>
 <script src="js/media-store.js"></script>
 <script src="js/parrothit-content.js?v=20261104-public-anon-read"></script>
 

@@ -19,3 +19,22 @@ window.PARROTHIT_SUPABASE_ANON_KEY = "sb_publishable_EII5mePkyqaP-ZRn3fgd-Q_CU97
     return window.PARROTHIT_SUPABASE_CLIENT;
   };
 })();
+
+
+/* Public read-only client: never inherits or persists an administrator Auth session.
+   Public pages use this client so article/card reads are independent of admin sessions. */
+(function(){
+  if (typeof window === 'undefined' || window.getParrothitPublicSupabaseClient) return;
+  window.getParrothitPublicSupabaseClient = function(){
+    if (window.PARROTHIT_PUBLIC_SUPABASE_CLIENT) return window.PARROTHIT_PUBLIC_SUPABASE_CLIENT;
+    if (!window.supabase || typeof window.supabase.createClient !== 'function' ||
+        !window.PARROTHIT_SUPABASE_URL || !window.PARROTHIT_SUPABASE_ANON_KEY) return null;
+    if (/YOUR-PROJECT|YOUR_PUBLIC/i.test(String(window.PARROTHIT_SUPABASE_URL) + String(window.PARROTHIT_SUPABASE_ANON_KEY))) return null;
+    window.PARROTHIT_PUBLIC_SUPABASE_CLIENT = window.supabase.createClient(
+      window.PARROTHIT_SUPABASE_URL,
+      window.PARROTHIT_SUPABASE_ANON_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }
+    );
+    return window.PARROTHIT_PUBLIC_SUPABASE_CLIENT;
+  };
+})();
