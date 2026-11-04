@@ -58,6 +58,24 @@
       return false;
     }
 
+    // Passkey sign-in must obey the same one-session-per-admin-account rule.
+    try {
+      if (!window.PARROTHITAdminSession) throw new Error('The secure admin session helper did not load.');
+      await window.PARROTHITAdminSession.claim(client, session.user.id);
+    } catch (claimError) {
+      console.error('PARROTHIT passkey session claim failed:', claimError);
+      if (claimError && claimError.code === 'ADMIN_SUSPENDED') {
+        setAppealDetails(session.user, claimError.profile || {});
+        await client.auth.signOut({ scope: 'local' });
+        if (typeof window.showAuthAlert === 'function') window.showAuthAlert('suspended');
+        else showLoginMessage('This administrator account is suspended. Please contact Admin 1 (Owner).');
+      } else {
+        await client.auth.signOut({ scope: 'local' });
+        showAuthFailure(claimError && claimError.message ? claimError.message : 'This administrator account is already active on another device, or its device session could not be registered.');
+      }
+      return false;
+    }
+
     // Keep the admin authorization check independent of the passkey ceremony.
     const { data: profile, error: profileError } = await client
       .from('admin_profiles')
