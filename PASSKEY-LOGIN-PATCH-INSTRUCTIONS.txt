@@ -1,0 +1,79 @@
+PARROTHIT OPTIONAL ADMIN FINGERPRINT / PASSKEY LOGIN PATCH
+===========================================================
+
+WHAT THIS PATCH CHANGES
+-----------------------
+- Keeps the current username/email + password login working.
+- Adds a separate "Use fingerprint / passkey" button to both admin login pages.
+- After an administrator signs in with their password, offers an optional button
+  to register a passkey on that device. Every admin enrols their own account.
+- Verifies passkeys through Supabase Auth and then performs the existing
+  admin_profiles role/suspension check before opening the Control Room.
+- Does not store fingerprints, face scans, device PINs, or private passkey keys
+  in PARROTHIT. The device/browser authenticator handles biometric verification.
+
+FILES IN THIS PATCH
+-------------------
+login.html
+admin/login.html
+supabase-config.js
+js/admin-passkey-login.js
+PASSKEY-LOGIN-PATCH-INSTRUCTIONS.txt
+
+INSTALL PATCH FILES
+-------------------
+1. Extract this ZIP.
+2. Copy/merge the files into the matching paths in the PARROTHIT project.
+   Do not delete or replace any other project files.
+3. Upload/commit the changes to the same repository used for the live site and
+   let the normal Cloudflare deployment complete.
+
+REQUIRED SUPABASE DASHBOARD SETUP (ONE TIME)
+--------------------------------------------
+Supabase must enable passkey authentication for the project before the new
+button can work. This cannot be enabled by a website ZIP alone.
+
+1. Open the PARROTHIT project in Supabase Dashboard.
+2. Go to Authentication -> Passkeys.
+3. Turn ON "Enable Passkey authentication".
+4. Set these WebAuthn relying-party values for the current live PARROTHIT host:
+
+   Relying Party Display Name: PARROTHIT
+   Relying Party ID: parrothit.noaholorunfemi98.workers.dev
+   Relying Party Origins: https://parrothit.noaholorunfemi98.workers.dev
+
+5. Save the settings. Keep the Relying Party ID stable after admins begin
+   enrolling passkeys. Changing it later makes existing passkeys unusable.
+
+If PARROTHIT is later moved to a different custom domain, add that domain as
+an allowed origin and follow Supabase's instructions before changing the RP ID.
+Do not use the old Netlify address unless it is still an active production login
+host and has been configured as a valid relying-party origin.
+
+HOW EACH ADMIN ENABLES FINGERPRINT LOGIN
+----------------------------------------
+1. Open PARROTHIT's admin login page on the phone/computer they want to use.
+2. Sign in once using their existing administrator username/email and password.
+3. On the optional "Enable fingerprint login" panel, choose
+   "Enable fingerprint / passkey".
+4. Follow the device prompt. Android may use fingerprint, face unlock, screen
+   lock PIN, or a synced passkey provider depending on device/browser settings.
+5. After successful registration, choose "Continue to Control Room".
+6. Repeat on another device if that device should also have its own passkey.
+
+FUTURE SIGN-INS
+---------------
+- Use "Use fingerprint / passkey" for passwordless sign-in on an enrolled device.
+- Or keep using the normal username/email and password form at any time.
+- A successful passkey sign-in is still checked against admin_profiles. A normal
+  community account, deleted admin, or suspended admin cannot enter the Control Room.
+
+IMPORTANT
+---------
+- Use the HTTPS live website; browser passkeys require a secure context.
+- Each admin must enrol their own account after a password login. Passkeys are
+  not automatically added to every administrator account.
+- Supabase's passkey feature is currently experimental and its API may change.
+  This patch uses the documented Supabase JS passkey API, requiring v2.105.0+.
+- If the Supabase dashboard passkey toggle is still off, password login remains
+  available and unchanged; the passkey button displays a setup message.
