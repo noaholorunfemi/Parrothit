@@ -1,0 +1,34 @@
+PARROTHIT — PUBLIC NEWS READ REPAIR (NOVEMBER 4, 2026)
+
+Purpose
+Public visitors must be able to read published posts and category-card assignments even
+when an administrator's login/session has expired. This patch separates anonymous public
+reads from the authenticated admin client. It does not remove the single-admin-session
+protection or change admin write permissions.
+
+Files
+- supabase-config.js: adds a separate non-persisting anonymous Supabase client.
+- js/parrothit-content.js and js/public-article-loader.js: use that client for public
+  published-post, category-card, and article reads.
+- js/home-card-runtime.js, js/public-notifications.js, js/parrot-search.js, and public
+  card/appearance/ad/stream renderers: use the anonymous client for public settings.
+- Selected public HTML pages: cache-bust the updated config/scripts so browsers fetch them.
+- supabase/public-anonymous-read-repair.sql: explicit anon SELECT grants and RLS policies.
+
+Deployment
+1. Upload/merge the files in this ZIP into the existing Parrothit-main project. Do not
+   replace the whole project with this patch ZIP; it contains only changed/new files.
+2. In Supabase SQL Editor, run:
+   supabase/public-anonymous-read-repair.sql
+3. Deploy the website as usual and refresh a public category page.
+4. Test the same category page while signed out of the admin account and after the admin
+   session has timed out. Published posts and public category cards should remain visible.
+
+Security notes
+- The public client uses only the browser publishable/anon key and sets persistSession,
+  autoRefreshToken, and detectSessionInUrl to false. It does not read an administrator's
+  stored Auth session.
+- The SQL grants anon SELECT only. Published posts are filtered by status and publication
+  time; site_settings is restricted to the public display-key allowlist.
+- Admin CRUD still uses the original authenticated client and existing active-session
+  validation. Never place a Supabase service-role/secret key in the frontend.

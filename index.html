@@ -65,20 +65,9 @@ if(dateNode){dateNode.textContent=new Date().toLocaleDateString("en-NG",{weekday
 // Unpublished sample-link popups removed; story destinations are handled by the site links.
 // Search forms use Google Search; native GET submission safely encodes the query.
 
-// Slider is controlled by js/parrothit-content.js?v=20261102-headline-datetime-loading to prevent competing timers.
-</script>
-<script>
-// PARROTHIT front-end helpers. Live database features activate after Supabase setup.
-(function(){
- // Homepage search submits the visitor's query to Google in a new tab.
+// Slider is controlled by js/parrothit-content.js?v=20261104-public-anon-read's query to Google in a new tab.
  document.querySelectorAll('[data-share]').forEach(btn=>btn.addEventListener('click',async()=>{const url=location.href;try{if(navigator.share)await navigator.share({title:document.title,url});else{await navigator.clipboard.writeText(url);alert('Link copied');}}catch(e){}}));
- // Slider timer is owned by js/parrothit-content.js?v=20261102-headline-datetime-loading.
-})();
-</script>
-
-<style>.search-hint{font-size:.85rem;color:var(--muted,#666);margin:.45rem 0 0}.search-form button{white-space:nowrap}.search-form input{min-width:0}</style>
-<!-- PARROTHIT shared enhancements -->
-<img class="mascot-float" src="assets/images/parrothit-mascot.jpg" alt="PARROTHIT mascot reading a newspaper" title="PARROTHIT — News that speaks!" loading="lazy" onerror="this.style.display='none'">
+ // Slider timer is owned by js/parrothit-content.js?v=20261104-public-anon-read"mascot-float" src="assets/images/parrothit-mascot.jpg" alt="PARROTHIT mascot reading a newspaper" title="PARROTHIT — News that speaks!" loading="lazy" onerror="this.style.display='none'">
 <div class="welcome-backdrop" id="welcomeBackdrop" hidden><section class="welcome-dialog" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle"><img src="assets/images/parrothit-mascot.jpg" alt="PARROTHIT mascot"><h2 id="welcomeTitle">Welcome to PARROTHIT!</h2><p>NEWS THAT SPEAKS! Stay informed with the latest headlines from Nigeria and around the world.</p><button type="button" id="welcomeClose">Start reading</button></section></div>
 <script id="parrothit-common-enhancements">
 (()=>{const body=document.body,sel=document.getElementById('themeSelect');function applyTheme(v){let mode=v||localStorage.getItem('parrothit-theme')||'system';if(mode==='system'){body.dataset.theme=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}else body.dataset.theme=mode;if(sel)sel.value=mode;localStorage.setItem('parrothit-theme',mode)}applyTheme();if(sel)sel.addEventListener('change',()=>applyTheme(sel.value));try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((localStorage.getItem('parrothit-theme')||'system')==='system')applyTheme('system')})}catch(e){}const back=document.getElementById('welcomeBackdrop'),close=document.getElementById('welcomeClose');let welcomed=false;try{welcomed=sessionStorage.getItem('parrothit-welcomed')==='1'}catch(e){}if(back){if(welcomed){back.hidden=true}else{back.hidden=false;try{sessionStorage.setItem('parrothit-welcomed','1')}catch(e){}}}const dismissWelcome=()=>{if(back)back.hidden=true;try{sessionStorage.setItem('parrothit-welcomed','1')}catch(e){}};if(close)close.addEventListener('click',dismissWelcome);if(back)back.addEventListener('click',e=>{if(e.target===back)dismissWelcome()})})();
@@ -99,21 +88,21 @@ if(dateNode){dateNode.textContent=new Date().toLocaleDateString("en-NG",{weekday
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js"></script>
-<script src="js/live-stream-slots.js?v=20261101-phase3"></script>
+<script src="supabase-config.js?v=20261104-public-anon-read"></script>
+<script src="js/live-stream-slots.js?v=20261104-public-anon-read"></script>
 <script src="js/media-store.js"></script>
-<script src="js/home-card-runtime.js?v=20261102-headline-datetime-loading"></script>
-<script src="js/parrothit-content.js?v=20261102-headline-datetime-loading"></script>
+<script src="js/home-card-runtime.js?v=20261104-public-anon-read"></script>
+<script src="js/parrothit-content.js?v=20261104-public-anon-read"></script>
 
 <script id="parrothitMovingTextRuntime">(()=>{'use strict';try{const cfg=JSON.parse(localStorage.getItem('parrothit_control_room_v2')||'{}');const mt=cfg.settings&&cfg.settings.movingText;const box=document.querySelector('.moving-news');if(!box||!mt)return;if(mt.enabled===false){box.hidden=true;return}box.hidden=false;const label=box.querySelector('strong');const text=box.querySelector('.ticker-text');if(label)label.textContent=String(mt.label||'PARROTHIT UPDATE');if(text&&typeof mt.text==='string')text.textContent=mt.text;}catch(e){console.warn('Moving text settings unavailable',e)}})();</script>
 
 <script id="parrothit-home-hero-card-runtime">(()=>{'use strict';const KEY='parrothit-home-hero-card-v1';try{const cfg=JSON.parse(localStorage.getItem(KEY)||'null');if(!cfg)return;const card=document.querySelector('.hero-card');if(!card)return;if(cfg.enabled===false){card.hidden=true;return}card.hidden=false;const visual=card.querySelector('.hero-visual');const label=card.querySelector('.category');const headline=card.querySelector('h2');const summary=card.querySelector('p');const byline=card.querySelector('.meta');const link=card.querySelector('.read-more');if(visual&&typeof cfg.visualText==='string')visual.textContent=cfg.visualText;if(label&&cfg.eyebrow)label.textContent=cfg.eyebrow;if(headline&&cfg.headline)headline.textContent=cfg.headline;if(summary&&typeof cfg.summary==='string')summary.textContent=cfg.summary;if(byline&&typeof cfg.byline==='string')byline.textContent=cfg.byline;if(link&&cfg.destination){try{const u=new URL(cfg.destination,location.href);if(['http:','https:'].includes(u.protocol))link.href=u.href}catch(e){}}}catch(e){console.warn('Homepage lead card settings could not be applied.',e)}})();</script>
 <script src="js/news-card-timestamps.js?v=20261102-headline-datetime-loading"></script>
-<script src="js/news-card-reactions-share.js" defer></script><script src="js/public-notifications.js"></script><script src="js/public-scroll-effects.js" defer></script>
-<script src="js/news-ads-appearance.js"></script>
-<script src="js/category-ad-slider.js" defer></script>
+<script src="js/news-card-reactions-share.js" defer></script><script src="js/public-notifications.js?v=20261104-public-anon-read"></script><script src="js/public-scroll-effects.js" defer></script>
+<script src="js/news-ads-appearance.js?v=20261104-public-anon-read"></script>
+<script src="js/category-ad-slider.js?v=20261104-public-anon-read" defer></script>
 <script src="js/hide-unpublished-placeholders.js" defer></script>
-<script src="js/parrothit-card-watermark.js" defer></script>
+<script src="js/parrothit-card-watermark.js?v=20261104-public-anon-read" defer></script>
 <script id="parrothit-clickable-ad-cards">
 (()=>{document.querySelectorAll('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]').forEach(card=>{const getLink=()=>card.querySelector('a[href]');const link=getLink();if(link){card.style.cursor='pointer';card.setAttribute('role','link');card.addEventListener('click',e=>{if(e.defaultPrevented||e.target.closest('a,button,input,select,textarea,label,form'))return;const a=getLink();if(a&&a.href)window.location.href=a.href;});card.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target===card){e.preventDefault();const a=getLink();if(a)window.location.href=a.href;}});if(!card.hasAttribute('tabindex'))card.tabIndex=0;}else if(card.matches('.ad-slot,.ad-card,.advert-card,.sponsored-card,[data-ad-card]')){const destination='contact.html?subject=Advertising';card.style.cursor='pointer';card.setAttribute('role','link');card.tabIndex=0;const go=()=>window.location.href=destination;card.addEventListener('click',e=>{if(!e.target.closest('a,button,input,select,textarea,label,form'))go();});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});}});})();
 </script>
