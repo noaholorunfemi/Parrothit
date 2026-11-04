@@ -39,3 +39,142 @@ body.control-body .control-top,body.control-body .panel-head,body.control-body .
 body.control-body .table-wrap{width:100%;max-width:100%;overflow-x:auto;}
 @media(min-width:1400px){body.control-body .workspace{grid-template-columns:minmax(235px,280px) minmax(0,1fr);gap:clamp(16px,1.5vw,28px);}body.control-body .tab-panel{padding:clamp(20px,1.6vw,30px);}}
 @media(max-width:900px){body.control-body .workspace{grid-template-columns:minmax(0,1fr);}body.control-body .control-shell{padding:10px;}body.control-body .workspace>main{overflow:visible;}body.control-body #articleBody{min-height:380px;}}
+
+
+/* PARROTHIT dashboard structural fix:
+   The commit bar is placed before .workspace, leaving exactly two grid children. */
+body.control-body .workspace {
+  display: grid !important;
+  width: 100% !important;
+  grid-template-columns: minmax(225px, 270px) minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: clamp(14px, 1.8vw, 28px) !important;
+}
+body.control-body .workspace > .side-nav {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 100%;
+  min-width: 0;
+}
+body.control-body .workspace > main {
+  grid-column: 2 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  justify-self: stretch !important;
+  box-sizing: border-box;
+}
+body.control-body #parrothit-admin-commit-bar {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 12px 0 14px;
+}
+
+/* Grouped dashboard shortcut toolbar. */
+body.control-body .parrothit-dashboard-toolbar {
+  display: grid;
+  width: 100%;
+  max-width: 1680px;
+  box-sizing: border-box;
+  gap: 12px;
+  margin: 12px auto 16px;
+  padding: 0 clamp(10px, 1.4vw, 24px);
+}
+body.control-body .ph-toolbar-nav,
+body.control-body .ph-toolbar-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+body.control-body .ph-toolbar-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+body.control-body .ph-toolbar-group {
+  min-width: 0;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid var(--adm-line, #e5e7eb);
+  border-radius: 12px;
+  background: var(--adm-panel, #fff);
+  box-sizing: border-box;
+}
+body.control-body .ph-toolbar-group h2 {
+  margin: 0 0 9px;
+  color: var(--adm-text, #172033);
+  font-size: .82rem;
+  font-weight: 850;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+body.control-body .ph-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 9px;
+  color: #fff !important;
+  text-decoration: none !important;
+  font-size: .85rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+body.control-body .ph-toolbar-btn:hover { filter: brightness(.94); }
+body.control-body .ph-toolbar-btn:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 2px;
+}
+body.control-body .ph-btn-red { background: #d71920; }
+body.control-body .ph-btn-green { background: #15803d; }
+body.control-body .ph-btn-blue { background: #1769df; }
+body.control-body .ph-btn-dark { background: #111827; }
+
+body.control-body #tab-overview .quick-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));
+}
+body.control-body #tab-overview .quick-card {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  body.control-body .workspace {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  body.control-body .workspace > .side-nav,
+  body.control-body .workspace > main {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+  }
+}
+@media (max-width: 700px) {
+  body.control-body .ph-toolbar-groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  body.control-body .ph-toolbar-links > .ph-toolbar-btn {
+    flex: 1 1 100%;
+  }
+}
+@media (max-width: 480px) {
+  body.control-body .ph-toolbar-nav > .ph-toolbar-btn {
+    flex: 1 1 100%;
+  }
+}
