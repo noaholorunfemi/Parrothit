@@ -6,7 +6,7 @@
 :root{--green:#14532d;--red:#d71920}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7f5;color:#172033}
 .wrap{max-width:960px;margin:auto;padding:22px}.hero{background:#10251a;color:white;padding:clamp(24px,5vw,48px);border-radius:18px;border-bottom:6px solid var(--red)}
 .hero h1{font-size:clamp(1.8rem,5vw,3rem);margin:0 0 12px}.hero p{line-height:1.6;max-width:700px}.badge{display:inline-block;background:#d71920;color:#fff;border-radius:30px;padding:7px 12px;font-weight:bold;font-size:.8rem}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}.card{background:#fff;border:1px solid #dbe3dc;border-radius:13px;padding:20px}.card h2{margin-top:0;color:#14532d}.form{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{display:grid;gap:6px;font-weight:700}.field input,.field select,.field textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;font-weight:400}.field.full{grid-column:1/-1}.btn{border:0;background:#14532d;color:#fff;border-radius:8px;padding:13px 18px;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.55}.notice{padding:12px;border-radius:8px;background:#eaf3ed;color:#14532d;margin:12px 0}.status{display:none;padding:12px;border-radius:8px;margin-top:12px}.status.show{display:block}.status.error{background:#fee2e2;color:#991b1b}.status.ok{background:#dcfce7;color:#166534}small{color:#64748b;line-height:1.5}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0}.card{background:#fff;border:1px solid #dbe3dc;border-radius:13px;padding:20px}.card h2{margin-top:0;color:#14532d}.form{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{display:grid;gap:6px;font-weight:700}.field input,.field select,.field textarea{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;font-weight:400}.field.full{grid-column:1/-1}.btn{border:0;background:#14532d;color:#fff;border-radius:8px;padding:13px 18px;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.55}.notice{padding:12px;border-radius:8px;background:#eaf3ed;color:#14532d;margin:12px 0}.status{display:none;padding:12px;border-radius:8px;margin-top:12px}.status.show{display:block}.status.error{background:#fee2e2;color:#991b1b}.status.ok{background:#dcfce7;color:#166534}.upload-box{border:1px dashed #94a3b8;border-radius:10px;padding:13px;background:#f8fafc}.upload-box input{background:#fff}.branding-preview{display:block;max-width:220px;max-height:160px;object-fit:contain;margin-top:10px;border:1px solid #dbe3dc;border-radius:8px;background:#fff;padding:5px}.branding-preview[hidden]{display:none}small{color:#64748b;line-height:1.5}
 @media(max-width:650px){.grid,.form{grid-template-columns:1fr}.wrap{padding:12px}.field.full{grid-column:auto}}
 </style></head><body><main class="wrap">
 <section class="hero"><span class="badge">ADVERTISE WITH PARROTHIT</span><h1>Reach readers with<br>PARROTHIT News</h1>
@@ -22,19 +22,31 @@
 <label class="field">Phone / WhatsApp<input id="phone" maxlength="50"></label>
 <label class="field">Campaign type<select id="campaign" required><option value="">Choose</option><option>Homepage banner</option><option>In-feed advertisement</option><option>Category / article placement</option><option>Sponsored article</option><option>Affiliate campaign</option><option>Custom package</option></select></label>
 <label class="field">Preferred duration<select id="duration"><option>To be discussed</option><option>1 week</option><option>2 weeks</option><option>1 month</option><option>3 months</option></select></label>
+<label class="field full">Business branding image (optional)<div class="upload-box"><input id="brandingImage" type="file" accept="image/jpeg,image/png,image/webp"><small>Upload your business logo or brand image (JPG, PNG or WebP; maximum 5 MB). You can preview it before submitting.</small><img id="brandingPreview" class="branding-preview" alt="Branding image preview" hidden></div></label>
 <label class="field full">Campaign details<textarea id="details" rows="5" maxlength="2500" placeholder="Tell us about your product, audience, preferred dates and destination URL."></textarea></label>
 <label class="field full"><span><input id="consent" type="checkbox" required> I agree that PARROTHIT may contact me about this advertising inquiry.</span></label>
 <div class="field full"><button class="btn" id="submitBtn" type="submit">Send advertising inquiry</button><small>We will respond using the contact details provided. No payment is collected here.</small></div></form><div id="status" class="status" role="status"></div></section>
 <footer style="padding:20px 0"><a href="index.html">← Back to PARROTHIT</a></footer></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-config.js"></script>
 <script>
-(function(){const form=document.getElementById('advertiserForm'),status=document.getElementById('status'),btn=document.getElementById('submitBtn');
+(function(){
+const form=document.getElementById('advertiserForm'),status=document.getElementById('status'),btn=document.getElementById('submitBtn');
+const imageInput=document.getElementById('brandingImage'),preview=document.getElementById('brandingPreview');
+const BRAND_BUCKET='advertiser-branding',MAX_IMAGE_BYTES=5*1024*1024;
+let previewUrl='';
 function show(msg,ok){status.textContent=msg;status.className='status show '+(ok?'ok':'error')}
-form.addEventListener('submit',async e=>{e.preventDefault();btn.disabled=true;status.className='status';try{
+function selectedImage(){return imageInput.files&&imageInput.files[0]||null}
+function validateImage(file){if(!file)return;if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Please upload a JPG, PNG or WebP branding image.');if(file.size>MAX_IMAGE_BYTES)throw new Error('The branding image must be 5 MB or smaller.');}
+function clearPreview(){if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl='';preview.removeAttribute('src');preview.hidden=true;}
+imageInput.addEventListener('change',()=>{clearPreview();try{const file=selectedImage();validateImage(file);if(file){previewUrl=URL.createObjectURL(file);preview.src=previewUrl;preview.hidden=false;}}catch(err){imageInput.value='';show(err.message,false);}});
+async function uploadBranding(client,file){if(!file)return {url:null,path:null};validateImage(file);const extension=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';const id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);const path='advertiser-inquiries/'+id+'.'+extension;const {data,error}=await client.storage.from(BRAND_BUCKET).upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});if(error)throw error;const url=client.storage.from(BRAND_BUCKET).getPublicUrl(data.path).data.publicUrl;return {url,path:data.path};}
+form.addEventListener('submit',async e=>{e.preventDefault();btn.disabled=true;status.className='status';let uploaded=null;try{
 const client=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();if(!client)throw new Error('Advertising inquiry service is not configured yet. Please contact PARROTHIT directly.');
-const val=id=>document.getElementById(id).value;const payload={business_name:val('business').trim(),contact_name:val('contact').trim(),email:val('email').trim(),phone:val('phone').trim()||null,campaign_type:val('campaign'),duration:val('duration'),details:val('details').trim()||null,consent:true};
-const {error}=await client.from('advertiser_inquiries').insert(payload);if(error)throw error;form.reset();show('Inquiry sent successfully. PARROTHIT will contact you after reviewing it.',true);
-}catch(err){show(err.message||'Could not send inquiry. Please try again later.',false)}finally{btn.disabled=false}});
+const val=id=>document.getElementById(id).value;const file=selectedImage();validateImage(file);
+if(file){show('Uploading your branding image and submitting inquiry…',true);uploaded=await uploadBranding(client,file);}
+const payload={business_name:val('business').trim(),contact_name:val('contact').trim(),email:val('email').trim(),phone:val('phone').trim()||null,campaign_type:val('campaign'),duration:val('duration'),details:val('details').trim()||null,consent:true,branding_image_url:uploaded?.url||null,branding_image_path:uploaded?.path||null};
+const {error}=await client.from('advertiser_inquiries').insert(payload);if(error)throw error;form.reset();clearPreview();show('Inquiry sent successfully. PARROTHIT will contact you after reviewing it.',true);
+}catch(err){if(uploaded?.path){try{const client=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();await client?.storage.from(BRAND_BUCKET).remove([uploaded.path]);}catch(cleanupError){console.warn('Branding image cleanup failed:',cleanupError);}}show(err.message||'Could not send inquiry. Please try again later.',false)}finally{btn.disabled=false}});
 })();
 </script><script src="js/parrothit-advertise-banner.js" defer></script>
 </body></html>
