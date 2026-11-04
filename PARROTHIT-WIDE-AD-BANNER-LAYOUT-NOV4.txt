@@ -1,0 +1,38 @@
+PARROTHIT — WIDE AD BANNER LAYOUT UPDATE
+Date: 4 November 2026
+
+WHAT CHANGED
+- Replaced the old three-card bottom-of-page ad wrapper in the public rendering layer with three separate wide horizontal banner placements.
+- Fixed visual templates by slot:
+  Ad Card 1 (position 1): News Style (green/white newsroom treatment).
+  Ad Card 2 (position 2): Business Professional (clean professional treatment).
+  Ad Card 3 (position 3): Colourful Promotion (yellow/red promotional treatment).
+- Distributed the three banners through the page content: homepage, category/news pages, article pages, and other public pages handled by the PARROTHIT content runtime.
+- Added responsive banner dimensions and a compact mobile layout.
+- Updated admin per-page advertising manager headings so administrators can identify each slot's template.
+- Updated public script cache versions so deployed browsers request the new rendering scripts.
+
+DATA AND ADMINISTRATOR CONTROLS
+- Existing advertisement records and assigned position/page values are preserved.
+- Existing advertiser inquiries, campaign records, branding uploads, payments, and storage assets are not deleted or migrated by this display-only update.
+- Existing per-page advertisement manager controls remain in place.
+- The old bottom display wrapper is removed from rendering; no database records are deleted.
+- No SQL migration is required for this layout-only update.
+
+DEPLOYMENT
+Option 1: Deploy the full project ZIP, replacing the site's project files with this version.
+Option 2: Extract the patch ZIP into the repository/project root, preserving its folder paths, overwrite the included files, then deploy.
+
+AFTER DEPLOYMENT, TEST
+1. Homepage on desktop and mobile.
+2. At least one category page on desktop and mobile.
+3. An article page on desktop and mobile.
+4. Check that the three banners appear in distributed positions and do not remain duplicated at the bottom.
+5. Open the corresponding admin page (for example /admin/ads-index.html or /admin/ads-nigeria.html) and confirm that each slot can still be saved/updated.
+6. Confirm existing ad images, click-through links, and assigned page/position data still appear.
+
+VALIDATION
+- Node.js syntax checks passed for the changed public ad renderer and appearance helper.
+- Inline JavaScript in admin/news-ads-appearance.html passed a Node.js syntax check.
+- HTML parsing and archive integrity checks were run before delivery.
+- A live visual/browser test against the deployed PARROTHIT site and live Supabase data has not been performed as part of this package. Please complete the deployment tests above.
