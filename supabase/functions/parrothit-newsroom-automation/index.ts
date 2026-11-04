@@ -1,5 +1,29 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+
+const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function authSessionIdFromHeader(authHeader: string): string | null {
+  try {
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const payload = jwt.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
+    const claims = JSON.parse(decoded);
+    const value = typeof claims.session_id === "string" ? claims.session_id : "";
+    return SESSION_UUID_RE.test(value) ? value : null;
+  } catch { return null; }
+}
+async function hasActiveAdminSession(db: any, userId: string, authHeader: string): Promise<boolean> {
+  const authSessionId = authSessionIdFromHeader(authHeader);
+  if (!authSessionId) return false;
+  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+  const { data, error } = await db.from("admin_active_sessions")
+    .select("user_id").eq("user_id", userId).eq("auth_session_id", authSessionId)
+    .gt("expires_at", now).gt("last_activity_at", cutoff).maybeSingle();
+  return !error && !!data;
+}
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -87,6 +111,7 @@ Deno.serve(async (req) => {
   const { data: userData, error: userError } = await userClient.auth.getUser(token);
   if (userError || !userData.user) return json({ error: "Your session is invalid or expired. Sign in again." }, 401);
   const db = createClient(url, serviceKey, { auth: { persistSession: false } });
+  if (!(await hasActiveAdminSession(db, userData.user.id, authHeader))) return json({ error: "This device does not hold the active PARROTHIT admin session. Sign in again." }, 401);
   const { data: profile, error: profileError } = await db.from("admin_profiles").select("role,is_suspended").eq("user_id", userData.user.id).maybeSingle();
   if (profileError || !profile || profile.is_suspended || !["owner", "admin"].includes(profile.role)) return json({ error: "Administrator permission required." }, 403);
   let body: any;
