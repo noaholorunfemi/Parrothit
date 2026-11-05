@@ -1,0 +1,552 @@
+{
+  "version": 1,
+  "note": "Campaign allocation destination registry. Slot IDs are stable; ensure corresponding page elements are deployed.",
+  "destinations": [
+    {
+      "id": "index.html#ads-card-1",
+      "page": "index.html",
+      "slot": 1,
+      "label": "index.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/index.html#ads-card-1"
+    },
+    {
+      "id": "index.html#ads-card-2",
+      "page": "index.html",
+      "slot": 2,
+      "label": "index.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/index.html#ads-card-2"
+    },
+    {
+      "id": "index.html#ads-card-3",
+      "page": "index.html",
+      "slot": 3,
+      "label": "index.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/index.html#ads-card-3"
+    },
+    {
+      "id": "article.html#ads-card-1",
+      "page": "article.html",
+      "slot": 1,
+      "label": "article.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/article.html#ads-card-1"
+    },
+    {
+      "id": "article.html#ads-card-2",
+      "page": "article.html",
+      "slot": 2,
+      "label": "article.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/article.html#ads-card-2"
+    },
+    {
+      "id": "article.html#ads-card-3",
+      "page": "article.html",
+      "slot": 3,
+      "label": "article.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/article.html#ads-card-3"
+    },
+    {
+      "id": "category.html#ads-card-1",
+      "page": "category.html",
+      "slot": 1,
+      "label": "category.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/category.html#ads-card-1"
+    },
+    {
+      "id": "category.html#ads-card-2",
+      "page": "category.html",
+      "slot": 2,
+      "label": "category.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/category.html#ads-card-2"
+    },
+    {
+      "id": "category.html#ads-card-3",
+      "page": "category.html",
+      "slot": 3,
+      "label": "category.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/category.html#ads-card-3"
+    },
+    {
+      "id": "about.html#ads-card-1",
+      "page": "about.html",
+      "slot": 1,
+      "label": "about.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/about.html#ads-card-1"
+    },
+    {
+      "id": "about.html#ads-card-2",
+      "page": "about.html",
+      "slot": 2,
+      "label": "about.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/about.html#ads-card-2"
+    },
+    {
+      "id": "about.html#ads-card-3",
+      "page": "about.html",
+      "slot": 3,
+      "label": "about.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/about.html#ads-card-3"
+    },
+    {
+      "id": "contact.html#ads-card-1",
+      "page": "contact.html",
+      "slot": 1,
+      "label": "contact.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/contact.html#ads-card-1"
+    },
+    {
+      "id": "contact.html#ads-card-2",
+      "page": "contact.html",
+      "slot": 2,
+      "label": "contact.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/contact.html#ads-card-2"
+    },
+    {
+      "id": "contact.html#ads-card-3",
+      "page": "contact.html",
+      "slot": 3,
+      "label": "contact.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/contact.html#ads-card-3"
+    },
+    {
+      "id": "editorial-guidelines.html#ads-card-1",
+      "page": "editorial-guidelines.html",
+      "slot": 1,
+      "label": "editorial-guidelines.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/editorial-guidelines.html#ads-card-1"
+    },
+    {
+      "id": "editorial-guidelines.html#ads-card-2",
+      "page": "editorial-guidelines.html",
+      "slot": 2,
+      "label": "editorial-guidelines.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/editorial-guidelines.html#ads-card-2"
+    },
+    {
+      "id": "editorial-guidelines.html#ads-card-3",
+      "page": "editorial-guidelines.html",
+      "slot": 3,
+      "label": "editorial-guidelines.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/editorial-guidelines.html#ads-card-3"
+    },
+    {
+      "id": "business.html#ads-card-1",
+      "page": "business.html",
+      "slot": 1,
+      "label": "business.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/business.html#ads-card-1"
+    },
+    {
+      "id": "business.html#ads-card-2",
+      "page": "business.html",
+      "slot": 2,
+      "label": "business.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/business.html#ads-card-2"
+    },
+    {
+      "id": "business.html#ads-card-3",
+      "page": "business.html",
+      "slot": 3,
+      "label": "business.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/business.html#ads-card-3"
+    },
+    {
+      "id": "nigeria.html#ads-card-1",
+      "page": "nigeria.html",
+      "slot": 1,
+      "label": "nigeria.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nigeria.html#ads-card-1"
+    },
+    {
+      "id": "nigeria.html#ads-card-2",
+      "page": "nigeria.html",
+      "slot": 2,
+      "label": "nigeria.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nigeria.html#ads-card-2"
+    },
+    {
+      "id": "nigeria.html#ads-card-3",
+      "page": "nigeria.html",
+      "slot": 3,
+      "label": "nigeria.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nigeria.html#ads-card-3"
+    },
+    {
+      "id": "world.html#ads-card-1",
+      "page": "world.html",
+      "slot": 1,
+      "label": "world.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/world.html#ads-card-1"
+    },
+    {
+      "id": "world.html#ads-card-2",
+      "page": "world.html",
+      "slot": 2,
+      "label": "world.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/world.html#ads-card-2"
+    },
+    {
+      "id": "world.html#ads-card-3",
+      "page": "world.html",
+      "slot": 3,
+      "label": "world.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/world.html#ads-card-3"
+    },
+    {
+      "id": "politics.html#ads-card-1",
+      "page": "politics.html",
+      "slot": 1,
+      "label": "politics.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/politics.html#ads-card-1"
+    },
+    {
+      "id": "politics.html#ads-card-2",
+      "page": "politics.html",
+      "slot": 2,
+      "label": "politics.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/politics.html#ads-card-2"
+    },
+    {
+      "id": "politics.html#ads-card-3",
+      "page": "politics.html",
+      "slot": 3,
+      "label": "politics.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/politics.html#ads-card-3"
+    },
+    {
+      "id": "entertainment.html#ads-card-1",
+      "page": "entertainment.html",
+      "slot": 1,
+      "label": "entertainment.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/entertainment.html#ads-card-1"
+    },
+    {
+      "id": "entertainment.html#ads-card-2",
+      "page": "entertainment.html",
+      "slot": 2,
+      "label": "entertainment.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/entertainment.html#ads-card-2"
+    },
+    {
+      "id": "entertainment.html#ads-card-3",
+      "page": "entertainment.html",
+      "slot": 3,
+      "label": "entertainment.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/entertainment.html#ads-card-3"
+    },
+    {
+      "id": "sports.html#ads-card-1",
+      "page": "sports.html",
+      "slot": 1,
+      "label": "sports.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports.html#ads-card-1"
+    },
+    {
+      "id": "sports.html#ads-card-2",
+      "page": "sports.html",
+      "slot": 2,
+      "label": "sports.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports.html#ads-card-2"
+    },
+    {
+      "id": "sports.html#ads-card-3",
+      "page": "sports.html",
+      "slot": 3,
+      "label": "sports.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports.html#ads-card-3"
+    },
+    {
+      "id": "technology.html#ads-card-1",
+      "page": "technology.html",
+      "slot": 1,
+      "label": "technology.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/technology.html#ads-card-1"
+    },
+    {
+      "id": "technology.html#ads-card-2",
+      "page": "technology.html",
+      "slot": 2,
+      "label": "technology.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/technology.html#ads-card-2"
+    },
+    {
+      "id": "technology.html#ads-card-3",
+      "page": "technology.html",
+      "slot": 3,
+      "label": "technology.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/technology.html#ads-card-3"
+    },
+    {
+      "id": "education.html#ads-card-1",
+      "page": "education.html",
+      "slot": 1,
+      "label": "education.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/education.html#ads-card-1"
+    },
+    {
+      "id": "education.html#ads-card-2",
+      "page": "education.html",
+      "slot": 2,
+      "label": "education.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/education.html#ads-card-2"
+    },
+    {
+      "id": "education.html#ads-card-3",
+      "page": "education.html",
+      "slot": 3,
+      "label": "education.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/education.html#ads-card-3"
+    },
+    {
+      "id": "health.html#ads-card-1",
+      "page": "health.html",
+      "slot": 1,
+      "label": "health.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/health.html#ads-card-1"
+    },
+    {
+      "id": "health.html#ads-card-2",
+      "page": "health.html",
+      "slot": 2,
+      "label": "health.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/health.html#ads-card-2"
+    },
+    {
+      "id": "health.html#ads-card-3",
+      "page": "health.html",
+      "slot": 3,
+      "label": "health.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/health.html#ads-card-3"
+    },
+    {
+      "id": "religion.html#ads-card-1",
+      "page": "religion.html",
+      "slot": 1,
+      "label": "religion.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/religion.html#ads-card-1"
+    },
+    {
+      "id": "religion.html#ads-card-2",
+      "page": "religion.html",
+      "slot": 2,
+      "label": "religion.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/religion.html#ads-card-2"
+    },
+    {
+      "id": "religion.html#ads-card-3",
+      "page": "religion.html",
+      "slot": 3,
+      "label": "religion.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/religion.html#ads-card-3"
+    },
+    {
+      "id": "culture.html#ads-card-1",
+      "page": "culture.html",
+      "slot": 1,
+      "label": "culture.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/culture.html#ads-card-1"
+    },
+    {
+      "id": "culture.html#ads-card-2",
+      "page": "culture.html",
+      "slot": 2,
+      "label": "culture.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/culture.html#ads-card-2"
+    },
+    {
+      "id": "culture.html#ads-card-3",
+      "page": "culture.html",
+      "slot": 3,
+      "label": "culture.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/culture.html#ads-card-3"
+    },
+    {
+      "id": "wildlife.html#ads-card-1",
+      "page": "wildlife.html",
+      "slot": 1,
+      "label": "wildlife.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/wildlife.html#ads-card-1"
+    },
+    {
+      "id": "wildlife.html#ads-card-2",
+      "page": "wildlife.html",
+      "slot": 2,
+      "label": "wildlife.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/wildlife.html#ads-card-2"
+    },
+    {
+      "id": "wildlife.html#ads-card-3",
+      "page": "wildlife.html",
+      "slot": 3,
+      "label": "wildlife.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/wildlife.html#ads-card-3"
+    },
+    {
+      "id": "football.html#ads-card-1",
+      "page": "football.html",
+      "slot": 1,
+      "label": "football.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/football.html#ads-card-1"
+    },
+    {
+      "id": "football.html#ads-card-2",
+      "page": "football.html",
+      "slot": 2,
+      "label": "football.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/football.html#ads-card-2"
+    },
+    {
+      "id": "football.html#ads-card-3",
+      "page": "football.html",
+      "slot": 3,
+      "label": "football.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/football.html#ads-card-3"
+    },
+    {
+      "id": "sports-table-tennis.html#ads-card-1",
+      "page": "sports-table-tennis.html",
+      "slot": 1,
+      "label": "sports-table-tennis.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-table-tennis.html#ads-card-1"
+    },
+    {
+      "id": "sports-table-tennis.html#ads-card-2",
+      "page": "sports-table-tennis.html",
+      "slot": 2,
+      "label": "sports-table-tennis.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-table-tennis.html#ads-card-2"
+    },
+    {
+      "id": "sports-table-tennis.html#ads-card-3",
+      "page": "sports-table-tennis.html",
+      "slot": 3,
+      "label": "sports-table-tennis.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-table-tennis.html#ads-card-3"
+    },
+    {
+      "id": "sports-basketball.html#ads-card-1",
+      "page": "sports-basketball.html",
+      "slot": 1,
+      "label": "sports-basketball.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-basketball.html#ads-card-1"
+    },
+    {
+      "id": "sports-basketball.html#ads-card-2",
+      "page": "sports-basketball.html",
+      "slot": 2,
+      "label": "sports-basketball.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-basketball.html#ads-card-2"
+    },
+    {
+      "id": "sports-basketball.html#ads-card-3",
+      "page": "sports-basketball.html",
+      "slot": 3,
+      "label": "sports-basketball.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-basketball.html#ads-card-3"
+    },
+    {
+      "id": "sports-tennis.html#ads-card-1",
+      "page": "sports-tennis.html",
+      "slot": 1,
+      "label": "sports-tennis.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-tennis.html#ads-card-1"
+    },
+    {
+      "id": "sports-tennis.html#ads-card-2",
+      "page": "sports-tennis.html",
+      "slot": 2,
+      "label": "sports-tennis.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-tennis.html#ads-card-2"
+    },
+    {
+      "id": "sports-tennis.html#ads-card-3",
+      "page": "sports-tennis.html",
+      "slot": 3,
+      "label": "sports-tennis.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-tennis.html#ads-card-3"
+    },
+    {
+      "id": "sports-athletics.html#ads-card-1",
+      "page": "sports-athletics.html",
+      "slot": 1,
+      "label": "sports-athletics.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-athletics.html#ads-card-1"
+    },
+    {
+      "id": "sports-athletics.html#ads-card-2",
+      "page": "sports-athletics.html",
+      "slot": 2,
+      "label": "sports-athletics.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-athletics.html#ads-card-2"
+    },
+    {
+      "id": "sports-athletics.html#ads-card-3",
+      "page": "sports-athletics.html",
+      "slot": 3,
+      "label": "sports-athletics.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/sports-athletics.html#ads-card-3"
+    },
+    {
+      "id": "celebrity-news.html#ads-card-1",
+      "page": "celebrity-news.html",
+      "slot": 1,
+      "label": "celebrity-news.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/celebrity-news.html#ads-card-1"
+    },
+    {
+      "id": "celebrity-news.html#ads-card-2",
+      "page": "celebrity-news.html",
+      "slot": 2,
+      "label": "celebrity-news.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/celebrity-news.html#ads-card-2"
+    },
+    {
+      "id": "celebrity-news.html#ads-card-3",
+      "page": "celebrity-news.html",
+      "slot": 3,
+      "label": "celebrity-news.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/celebrity-news.html#ads-card-3"
+    },
+    {
+      "id": "nollywood.html#ads-card-1",
+      "page": "nollywood.html",
+      "slot": 1,
+      "label": "nollywood.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nollywood.html#ads-card-1"
+    },
+    {
+      "id": "nollywood.html#ads-card-2",
+      "page": "nollywood.html",
+      "slot": 2,
+      "label": "nollywood.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nollywood.html#ads-card-2"
+    },
+    {
+      "id": "nollywood.html#ads-card-3",
+      "page": "nollywood.html",
+      "slot": 3,
+      "label": "nollywood.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nollywood.html#ads-card-3"
+    },
+    {
+      "id": "nigerian-celebrity.html#ads-card-1",
+      "page": "nigerian-celebrity.html",
+      "slot": 1,
+      "label": "nigerian-celebrity.html \u2014 Ads Card 1",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nigerian-celebrity.html#ads-card-1"
+    },
+    {
+      "id": "nigerian-celebrity.html#ads-card-2",
+      "page": "nigerian-celebrity.html",
+      "slot": 2,
+      "label": "nigerian-celebrity.html \u2014 Ads Card 2",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nigerian-celebrity.html#ads-card-2"
+    },
+    {
+      "id": "nigerian-celebrity.html#ads-card-3",
+      "page": "nigerian-celebrity.html",
+      "slot": 3,
+      "label": "nigerian-celebrity.html \u2014 Ads Card 3",
+      "url": "https://parrothit.noaholorunfemi98.workers.dev/nigerian-celebrity.html#ads-card-3"
+    }
+  ]
+}
