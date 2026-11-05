@@ -6,7 +6,7 @@
   function say(message, good = false) { const el = $('pageStatus'); el.textContent = message; el.className = 'status ' + (good ? 'ok' : 'bad'); }
   function campaignStatus(c) {
     if (c.is_paused) return ['Paused', 'paused'];
-    if (c.status === 'cancelled') return ['Stopped', 'stopped'];
+    if (c.status === 'cancelled') return ['Cancelled', 'stopped'];
     if (c.status === 'completed') return ['Expired', 'expired'];
     if (c.review_status === 'rejected') return ['Changes required', 'rejected'];
     if (c.payment_status !== 'paid') return [c.payment_status === 'pending' ? 'Payment under review' : 'Awaiting payment', 'pending'];
@@ -54,18 +54,21 @@
         paymentHtml = `<div class="paybox"><b>Payment status:</b> ${esc(c.payment_status)}. ${reviewMessage}</div>`;
       }
       const rejection = c.rejection_reason ? `<span class="hint">Admin review note: ${esc(c.rejection_reason)}</span>` : '';
+      const canDelete = c.payment_status !== 'paid' && !['active', 'completed', 'cancelled'].includes(c.status);
+      const deleteButton = canDelete ? `<button class="btn red" type="button" data-delete-campaign="${esc(c.campaign_code)}">Cancel unpaid application</button>` : '';
       const correction = c.review_status === 'rejected' ? `<form class="correction" data-correction-form="${esc(c.id)}"><h4>Correct and resubmit your advertisement</h4><label class="field">Advertisement title<input name="campaign_name" maxlength="160" required value="${esc(c.campaign_name)}"></label><label class="field">Description<textarea name="ad_description" rows="2" maxlength="600">${esc(c.ad_description || '')}</textarea></label><div class="paygrid"><label class="field">Image URL<input name="ad_image_url" type="url" value="${esc(c.ad_image_url || '')}" placeholder="https://…"></label><label class="field">Destination URL<input name="destination_url" type="url" value="${esc(c.destination_url || '')}" placeholder="https://…"></label><label class="field">Button text<input name="cta_text" maxlength="40" value="${esc(c.cta_text || 'Learn more')}"></label></div><button class="btn red" type="submit">Resubmit corrected creative</button></form>` : '';
-      return `<article class="campaign" id="campaign-${esc(c.id)}">${facts(c)}<div class="campaign-actions"><label class="field">After this campaign ends<select data-preference="${esc(c.campaign_code)}"><option value="manual" ${pref==='manual'?'selected':''}>Remind me — I will decide manually</option><option value="renew" ${pref==='renew'?'selected':''}>I want to continue — send renewal reminders</option><option value="stop" ${pref==='stop'?'selected':''}>Stop after the expiration date</option></select></label><button class="btn" type="button" data-save-preference="${esc(c.campaign_code)}">Save renewal choice</button><button class="btn red" type="button" data-renew="${esc(c.campaign_code)}">Create renewal campaign</button>${rejection}</div>${correction}${paymentHtml}</article>`;
+      return `<article class="campaign" id="campaign-${esc(c.id)}">${facts(c)}<div class="campaign-actions"><label class="field">After this campaign ends<select data-preference="${esc(c.campaign_code)}"><option value="manual" ${pref==='manual'?'selected':''}>Remind me — I will decide manually</option><option value="renew" ${pref==='renew'?'selected':''}>I want to continue — send renewal reminders</option><option value="stop" ${pref==='stop'?'selected':''}>Stop after the expiration date</option></select></label><button class="btn" type="button" data-save-preference="${esc(c.campaign_code)}">Save renewal choice</button><button class="btn red" type="button" data-renew="${esc(c.campaign_code)}">Create renewal campaign</button>${deleteButton}${rejection}</div>${correction}${paymentHtml}</article>`;
     }).join('');
     list.querySelectorAll('[data-save-preference]').forEach(b => b.addEventListener('click', () => savePreference(b.dataset.savePreference, b)));
     list.querySelectorAll('[data-renew]').forEach(b => b.addEventListener('click', () => renew(b.dataset.renew, b)));
+    list.querySelectorAll('[data-delete-campaign]').forEach(b => b.addEventListener('click', () => deleteCampaign(b.dataset.deleteCampaign, b)));
     list.querySelectorAll('[data-gateway]').forEach(b => b.addEventListener('click', () => gatewayPayment(b.dataset.gateway, b)));
     list.querySelectorAll('[data-bank-form]').forEach(form => form.addEventListener('submit', e => submitBankTransfer(e, form.dataset.bankForm)));
     list.querySelectorAll('[data-correction-form]').forEach(form => form.addEventListener('submit', submitCorrection));
   }
   function renderInvoices() {
     const items = dashboardData.invoices || [];
-    $('invoiceList').innerHTML = items.length ? items.map(i => `<div class="row"><b>${esc(i.invoice_number)}</b> · ${money(i.amount)} · <span class="pill ${i.status==='paid'?'':'pending'}">${esc(i.status)}</span><br><small>${esc(i.description)} · Issued ${date(i.issued_at)}${i.paid_at ? ' · Paid '+date(i.paid_at) : ''}</small><br><button class="btn light" type="button" data-print-invoice="${esc(i.id)}">Print invoice</button></div>`).join('') : '<div class="empty">No invoices yet.</div>';
+    $('invoiceList').innerHTML = items.length ? items.map(i => `<div class="row"><b>${esc(i.invoice_number)}</b> · ${money(i.amount)} · <span class="pill ${i.status==='paid'?'':i.status==='cancelled'?'stopped':'pending'}">${esc(i.status)}</span><br><small>${esc(i.description)} · Issued ${date(i.issued_at)}${i.paid_at ? ' · Paid '+date(i.paid_at) : ''}</small><br><button class="btn light" type="button" data-print-invoice="${esc(i.id)}">Print invoice</button></div>`).join('') : '<div class="empty">No invoices yet.</div>';
     $('invoiceList').querySelectorAll('[data-print-invoice]').forEach(b => b.addEventListener('click', () => printInvoice(items.find(i => i.id === b.dataset.printInvoice))));
   }
   function printInvoice(i) {
@@ -102,6 +105,17 @@
     try { const result = await api.call('renew', { ...credentials, campaign_code: campaignCode }); say(`${result.message} New campaign: ${result.campaign.campaign_code}. Invoice: ${result.invoice.invoice_number}.`, true); await loadAccount(); }
     catch (e) { say(e.message); } finally { button.disabled = false; }
   }
+  async function deleteCampaign(campaignCode, button) {
+    const confirmed = confirm('Cancel this unpaid advertisement application? Its campaign will be marked cancelled and any unpaid invoice will also be cancelled. Campaign and billing history will be preserved. Paid, running and completed advertisements cannot be cancelled here.');
+    if (!confirmed) return;
+    button.disabled = true;
+    try {
+      const result = await api.call('delete_campaign', { ...credentials, campaign_code: campaignCode });
+      say(result.message, true);
+      await loadAccount();
+    } catch (e) { say(e.message || 'Could not cancel this advertisement.'); }
+    finally { button.disabled = false; }
+  }
   async function gatewayPayment(campaignId, button) {
     const provider = document.querySelector(`[data-provider="${CSS.escape(campaignId)}"]`)?.value;
     const channel = document.querySelector(`[data-channel="${CSS.escape(campaignId)}"]`)?.value || 'card';
@@ -133,6 +147,73 @@
     try { const result = await api.call('bank_transfer', { ...credentials, campaign_code: dashboardData.campaigns.find(c => c.id === campaignId)?.campaign_code, ...values }); say(result.message, true); await loadAccount(); }
     catch (e) { say(e.message); } finally { button.disabled = false; }
   }
+  const recoveryChallenges = { recoverId: '', resetPin: '' };
+  $('showRecoverId').addEventListener('click', () => {
+    $('recoverIdBox').classList.remove('hidden');
+    $('resetPinBox').classList.add('hidden');
+    $('recoveredIdResult').classList.add('hidden');
+  });
+  $('showResetPin').addEventListener('click', () => {
+    $('resetPinBox').classList.remove('hidden');
+    $('recoverIdBox').classList.add('hidden');
+  });
+  $('recoverIdStartForm').addEventListener('submit', async e => {
+    e.preventDefault(); const button = e.currentTarget.querySelector('button[type="submit"]'); button.disabled = true;
+    try {
+      const result = await api.call('recovery_start', { purpose: 'recover_id', channel: $('recoverIdChannel').value, contact: $('recoverIdContact').value.trim() });
+      recoveryChallenges.recoverId = result.challenge_id;
+      $('recoverIdVerifyForm').classList.remove('hidden'); $('recoveredIdResult').classList.add('hidden');
+      say(result.message, true);
+    } catch (error) { say(error.message || 'Could not start Customer ID recovery.'); }
+    finally { button.disabled = false; }
+  });
+  $('recoverIdVerifyForm').addEventListener('submit', async e => {
+    e.preventDefault(); const button = e.currentTarget.querySelector('button[type="submit"]'); button.disabled = true;
+    try {
+      if (!recoveryChallenges.recoverId) throw new Error('Start Customer ID recovery first.');
+      const result = await api.call('recovery_verify', { purpose: 'recover_id', challenge_id: recoveryChallenges.recoverId, code: $('recoverIdCode').value.trim() });
+      $('recoveredCustomerId').textContent = result.customer_code;
+      $('recoveredIdResult').classList.remove('hidden');
+      $('customerCode').value = result.customer_code;
+      recoveryChallenges.recoverId = '';
+      say(result.message, true);
+    } catch (error) { say(error.message || 'Could not verify the recovery code.'); }
+    finally { button.disabled = false; }
+  });
+  $('copyRecoveredId').addEventListener('click', async () => {
+    const value = $('recoveredCustomerId').textContent;
+    try { await navigator.clipboard.writeText(value); say('Customer ID copied. Keep it private.', true); }
+    catch (_) { say('Select and copy your Customer ID from the green recovery panel.', true); }
+  });
+  $('resetPinStartForm').addEventListener('submit', async e => {
+    e.preventDefault(); const button = e.currentTarget.querySelector('button[type="submit"]'); button.disabled = true;
+    try {
+      const result = await api.call('recovery_start', { purpose: 'reset_pin', customer_code: $('resetPinCustomerCode').value.trim(), channel: $('resetPinChannel').value, contact: $('resetPinContact').value.trim() });
+      recoveryChallenges.resetPin = result.challenge_id;
+      $('resetPinVerifyForm').classList.remove('hidden');
+      say(result.message, true);
+    } catch (error) { say(error.message || 'Could not start tracking PIN reset.'); }
+    finally { button.disabled = false; }
+  });
+  $('resetPinVerifyForm').addEventListener('submit', async e => {
+    e.preventDefault(); const button = e.currentTarget.querySelector('button[type="submit"]'); button.disabled = true;
+    try {
+      if (!recoveryChallenges.resetPin) throw new Error('Start tracking PIN reset first.');
+      const newPin = $('newTrackingPin').value, confirmPin = $('confirmTrackingPin').value;
+      if (!/^\d{8}$/.test(newPin)) throw new Error('Your new tracking PIN must contain exactly 8 digits.');
+      if (/^(\d)\1{7}$/.test(newPin) || ['01234567', '12345678', '23456789', '87654321', '98765432', '76543210'].includes(newPin)) throw new Error('Choose a less predictable 8-digit PIN. Avoid repeated digits or simple number sequences.');
+      if (newPin !== confirmPin) throw new Error('The new PIN entries do not match.');
+      const customerCode = $('resetPinCustomerCode').value.trim();
+      const result = await api.call('recovery_verify', { purpose: 'reset_pin', challenge_id: recoveryChallenges.resetPin, code: $('resetPinCode').value.trim(), new_pin: newPin });
+      recoveryChallenges.resetPin = '';
+      credentials = { customer_code: customerCode, tracking_pin: newPin };
+      $('customerCode').value = customerCode; $('trackingPin').value = newPin;
+      api.saveCredentials(customerCode, newPin);
+      say(result.message + ' Your dashboard will now sign in with the new PIN.', true);
+      await loadAccount();
+    } catch (error) { say(error.message || 'Could not reset your tracking PIN.'); }
+    finally { button.disabled = false; }
+  });
   $('lookupForm').addEventListener('submit', async e => { e.preventDefault(); credentials = { customer_code: $('customerCode').value.trim(), tracking_pin: $('trackingPin').value.trim() }; api.saveCredentials(credentials.customer_code, credentials.tracking_pin); await loadAccount(); });
   const saved = api.credentials(); if (saved.customer_code && saved.tracking_pin) { credentials = saved; $('customerCode').value = saved.customer_code; $('trackingPin').value = saved.tracking_pin; }
   api.call('public_config').then(c => { paymentConfig = c.payments || {}; }).catch(() => { paymentConfig = {}; }).finally(() => { if (credentials.customer_code && credentials.tracking_pin) loadAccount(); });
