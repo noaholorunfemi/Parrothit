@@ -368,13 +368,14 @@ async function apply(body: any, request: Request) {
 }
 async function lookup(body: any, request: Request) {
   const customer = await getCustomer(body.customer_code, body.tracking_pin, request);
-  const [{ data: campaigns, error: campaignError }, { data: invoices, error: invoiceError }, { data: notifications, error: notificationError }, { data: events, error: eventsError }] = await Promise.all([
+  const [{ data: campaigns, error: campaignError }, { data: invoices, error: invoiceError }, { data: notifications, error: notificationError }, { data: events, error: eventsError }, { data: receipts, error: receiptsError }] = await Promise.all([
     db().from("monetization_campaigns").select("id,campaign_code,campaign_name,placement,start_date,end_date,status,payment_status,agreed_amount,review_status,renewal_preference,ad_image_url,ad_description,cta_text,impressions,clicks,published_at,approved_at,is_paused,pause_reason,rejection_reason,duration_days_snapshot,created_at,renewal_of").eq("customer_id", customer.id).order("created_at", { ascending: false }).limit(100),
     db().from("advertisement_invoices").select("id,invoice_number,campaign_id,amount,currency,description,status,issued_at,due_at,paid_at").eq("customer_id", customer.id).order("issued_at", { ascending: false }).limit(100),
     db().from("advertisement_notifications").select("id,notification_type,subject,message,channel,status,created_at,read_at").eq("customer_id", customer.id).order("created_at", { ascending: false }).limit(30),
     db().from("advertisement_campaign_events").select("campaign_id,event_type,description,created_at").eq("customer_id", customer.id).order("created_at", { ascending: false }).limit(100),
+    db().from("advertisement_receipts").select("id,receipt_number,campaign_id,invoice_id,payment_reference,payment_method,amount,currency,paid_at,created_at").eq("customer_id", customer.id).order("paid_at", { ascending: false }).limit(100),
   ]);
-  if (campaignError || invoiceError || notificationError || eventsError) throw new Error(campaignError?.message || invoiceError?.message || notificationError?.message || eventsError?.message || "Could not load advertiser records.");
+  if (campaignError || invoiceError || notificationError || eventsError || receiptsError) throw new Error(campaignError?.message || invoiceError?.message || notificationError?.message || eventsError?.message || receiptsError?.message || "Could not load advertiser records.");
   const result = (campaigns || []).map((c: any) => {
     const total = Math.max(1, Number(c.duration_days_snapshot || 1));
     const today = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
@@ -388,7 +389,7 @@ async function lookup(body: any, request: Request) {
   });
   // Mark returned in-app messages as read. This operation is scoped to the verified customer.
   await db().from("advertisement_notifications").update({ status: "read", read_at: new Date().toISOString() }).eq("customer_id", customer.id).eq("channel", "in_app").eq("status", "sent");
-  return json({ ok: true, customer: { customer_code: customer.customer_code, business_name: customer.business_name, contact_name: customer.contact_name, email: customer.email }, campaigns: result, invoices: invoices || [], notifications: notifications || [], events: events || [] });
+  return json({ ok: true, customer: { customer_code: customer.customer_code, business_name: customer.business_name, contact_name: customer.contact_name, email: customer.email }, campaigns: result, invoices: invoices || [], notifications: notifications || [], events: events || [], receipts: receipts || [] });
 }
 async function setPreference(body: any, request: Request) {
   const customer = await getCustomer(body.customer_code, body.tracking_pin, request);
@@ -559,6 +560,25 @@ async function adminCampaignAction(req: Request, body: any) {
   }
   return json({ ok: true, message: `Campaign ${action} action completed.` });
 }
+
+async function createAdvertisementReceipt(campaign: any, customer: any, invoice: any, method: string, reference: string) {
+  const client = db();
+  const { data: existing, error: readError } = await client.from("advertisement_receipts").select("*").eq("campaign_id", campaign.id).maybeSingle();
+  if (readError) throw new Error("Receipt records are not installed. Run the advertisement receipt SQL migration.");
+  if (existing) return existing;
+  const receiptNumber = code("PH-RCP").replace("PH-RCP-", "PH-RCP-");
+  const { data, error } = await client.from("advertisement_receipts").insert({
+    receipt_number: receiptNumber, customer_id: customer.id, campaign_id: campaign.id,
+    invoice_id: invoice?.id || null, payment_reference: reference,
+    payment_method: method, amount: Number(campaign.agreed_amount), currency: "NGN", paid_at: new Date().toISOString()
+  }).select("*").single();
+  if (error || !data) throw new Error(error?.message || "Could not create the verified payment receipt.");
+  await event(campaign.id, customer.id, "receipt_generated", `Official payment receipt ${receiptNumber} generated.`, { receipt_number: receiptNumber, payment_reference: reference });
+  const message = `Hello ${customer.contact_name}, your PARROTHIT advertisement payment has been verified and your official receipt is ready.\nReceipt: ${receiptNumber}\nCampaign: ${campaign.campaign_code}\nAmount: NGN ${Number(campaign.agreed_amount).toLocaleString("en-NG")}\nPayment reference: ${reference}\nView/download it from your advertiser dashboard after signing in.\nPARROTHIT · 07059095206 · parrothit.com`;
+  await notifyCustomer(customer, campaign, `${campaign.id}:receipt:${reference}`, "receipt_generated", "Your PARROTHIT advertisement payment receipt", message);
+  return data;
+}
+
 async function verifyManualPayment(req: Request, body: any) {
   const admin = await requireAdmin(req);
   const paymentId = cleanText(body.payment_id, 80), next = cleanText(body.status, 20);
@@ -580,6 +600,10 @@ async function verifyManualPayment(req: Request, body: any) {
     await db().from("monetization_revenue").insert({ campaign_id: campaign.id, amount: payment.amount, transaction_reference: payment.reference, received_at: new Date().toISOString().slice(0, 10), payment_method: "Bank transfer", notes: "Admin-verified advertiser bank transfer.", recorded_by: admin.id });
     await event(campaign.id, payment.customer_id, "payment_verified", "Bank transfer verified. Advertisement is awaiting creative approval.", { reference: payment.reference, admin_id: admin.id });
     if (customer) await notifyCustomer(customer, campaign, `${campaign.id}:bank-paid:${payment.id}`, "payment_verified", "PARROTHIT has verified your advertisement payment", `Hello ${customer.contact_name}, your bank transfer for campaign ${campaign.campaign_code} has been verified. Your advertisement is now awaiting final creative approval. We will notify you when it goes live.`);
+    if (customer) {
+      const { data: invoice } = payment.invoice_id ? await db().from("advertisement_invoices").select("id,invoice_number").eq("id", payment.invoice_id).maybeSingle() : { data: null };
+      await createAdvertisementReceipt(campaign, customer, invoice, "Bank transfer", payment.reference);
+    }
   } else {
     await db().from("monetization_campaigns").update({ payment_status: "unpaid" }).eq("id", campaign.id);
     if (payment.invoice_id) await db().from("advertisement_invoices").update({ status: "unpaid" }).eq("id", payment.invoice_id);
