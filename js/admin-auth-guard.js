@@ -15,9 +15,30 @@
     var target = new URL('login.html' + (reason ? '?reason=' + encodeURIComponent(reason) : ''), location.href);
     location.replace(target.href);
   }
-  function showFailure(message) {
+  function revealAdminPage() {
+    // The guard executes in <head>; authentication can finish before <body> exists.
+    // Remove the pending class now and again at DOMContentLoaded if necessary.
     document.documentElement.style.visibility = '';
-    document.body.innerHTML = '<main style="max-width:620px;margin:8vh auto;padding:24px;background:#fff;color:#111827;border-radius:14px;font:16px/1.5 Arial,sans-serif"><h1 style="color:#b91c1c">PARROTHIT admin session ended</h1><p>' + String(message || 'This device is no longer the active admin device.').replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }) + '</p><p><a href="login.html">Return to admin sign in</a></p></main>';
+    document.documentElement.classList.remove('admin-auth-pending');
+    if (document.body) {
+      document.body.classList.remove('admin-auth-pending');
+    } else {
+      document.addEventListener('DOMContentLoaded', function () {
+        if (document.body) document.body.classList.remove('admin-auth-pending');
+      }, { once: true });
+    }
+  }
+  function showFailure(message) {
+    // The stylesheet hides body.admin-auth-pending. Clear that class before
+    // rendering the session error, otherwise the error screen is hidden too.
+    revealAdminPage();
+    var render = function () {
+      if (!document.body) return;
+      document.body.classList.remove('admin-auth-pending');
+      document.body.innerHTML = '<main style="max-width:620px;margin:8vh auto;padding:24px;background:#fff;color:#111827;border-radius:14px;font:16px/1.5 Arial,sans-serif"><h1 style="color:#b91c1c">PARROTHIT admin session ended</h1><p>' + String(message || 'This device is no longer the active admin device.').replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }) + '</p><p><a href="login.html">Return to admin sign in</a></p></main>';
+    };
+    if (document.body) render();
+    else document.addEventListener('DOMContentLoaded', render, { once: true });
   }
   if (!window.supabase || !url || !key) { deny('session-service-unavailable'); return; }
 
@@ -74,8 +95,7 @@
       window.PARROTHIT_ADMIN_SESSION_USER_ID = userId;
 
       startIdleTimeout(client, userId, deviceToken, deny, showFailure);
-      document.documentElement.style.visibility = '';
-      if (document.body) document.body.classList.remove('admin-auth-pending');
+      revealAdminPage();
       window.dispatchEvent(new Event('parrothit-admin-ready'));
     } catch (e) {
       console.error('PARROTHIT admin session verification failed:', e);
