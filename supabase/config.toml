@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.parrothit-monetization-payment]
 verify_jwt = false
+
+[functions.parrothit-video-gif-advertiser]
+verify_jwt = false
