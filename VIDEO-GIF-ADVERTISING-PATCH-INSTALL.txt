@@ -1,0 +1,51 @@
+PARROTHIT VIDEO & GIF ADVERTISING PATCH
+======================================
+
+WHAT THIS ADDS
+- Two independent video/GIF ad destinations on each of the 30 public content pages listed in the admin manager.
+- MP4 video support (maximum 50 MB) and animated GIF support (maximum 20 MB).
+- Muted autoplay for MP4, loop, native play/pause controls, a separate sound toggle, and a clickable advertiser CTA.
+- Responsive ad cards, lazy GIF loading, and empty slots hidden from visitors.
+- A new admin manager with campaign creation, creative approval/rejection, pause/resume, scheduling, card allocation, replace confirmation and unallocation.
+- Per-allocated-card controls to enable/disable the slot, switch autoplay on/off, and adjust the card width and media height.
+- A public advertiser submission form using the existing Customer ID + 8-digit tracking PIN security flow.
+- Advertiser dashboard status for video/GIF submissions and their allocated page/card.
+- A red Video & GIF Advertising shortcut on the existing Control Room dashboard.
+
+PAYMENT RULE
+Payment verification is NOT required for video/GIF campaign submission, Admin approval, activation or card allocation. The new video/GIF tables and Edge Function do not read or change the existing image-ad payment status. Admin creative approval is still required before a video/GIF advert can appear publicly.
+
+INSTALLATION
+1. In Supabase SQL Editor, run:
+   supabase/video-gif-advertising.sql
+   This creates the campaign/allocation tables, the public media bucket and its storage policies. It is additive and does not alter existing image-ad tables.
+
+2. Deploy the new Edge Function from the project root:
+   supabase functions deploy parrothit-video-gif-advertiser
+   The included supabase/config.toml sets verify_jwt=false for this endpoint because it validates the existing advertiser Customer ID + PIN itself and uses the existing server-side rate-limit RPCs. Keep SUPABASE_SERVICE_ROLE_KEY only in Supabase Edge Function secrets; never add it to browser code.
+
+3. Commit the files in this patch, preserving their folder paths. Do not replace the whole website. The public page HTML files contain only one added script reference each; their existing content and image ad markup are preserved.
+
+4. After deployment, open Admin Control Room > Video & GIF Advertising Manager.
+   - Create a campaign or wait for an advertiser submission.
+   - Approve the creative.
+   - Select the approved campaign, page and Video/GIF Ads Card 1 or 2.
+   - Confirm replacement if the destination is already occupied.
+   - From the allocation table, enable/disable each occupied card, switch autoplay on/off, adjust dimensions, or remove its allocation.
+
+ADVERTISER FLOW
+- Advertisers can create a free video/GIF-only advertiser account directly from video-gif-ads-apply.html, without buying an image-ad plan or paying an invoice. Existing advertisers can reuse their Customer ID and tracking PIN.
+- The advertiser opens video-gif-ads-apply.html and uploads MP4/GIF media.
+- The Edge Function validates Customer ID/PIN and creates a short-lived signed upload URL. The browser never receives the service-role key.
+- The submission appears in the Admin manager awaiting creative review. Payment is not requested or checked for this video/GIF flow.
+- Advertisers can view status and allocation from advertisement-status.html.
+
+DESTINATION URLS
+For every supported page the manager displays:
+  page.html#video-gif-ad-card-1
+  page.html#video-gif-ad-card-2
+
+IMPORTANT
+- Run the migration and deploy the Edge Function before testing uploads or allocations.
+- This patch targets the 30 public content pages registered in the manager (homepage, article/category pages, core category pages, and public content/static pages). Admin dashboards and private account/auth/payment forms are intentionally excluded.
+- Supabase policies require the existing public.is_parrothit_admin() helper and advertisement_customers / advertiser rate-limit tables/functions already installed by the existing PARROTHIT admin and advertisement migrations.
