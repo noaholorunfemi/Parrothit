@@ -1,21 +1,7 @@
 (function () {
   'use strict';
   const $ = id => document.getElementById(id), api = window.PHAdvertisement;
-  let credentials = { customer_code: '', tracking_pin: '' }, dashboardData = null, paymentConfig = {}, paymentConfigLoaded = false, paymentConfigError = '';
-  async function ensurePaymentConfig() {
-    if (paymentConfigLoaded) return paymentConfig;
-    try {
-      const config = await api.call('public_config');
-      paymentConfig = config.payments || {};
-      paymentConfigLoaded = true;
-      paymentConfigError = '';
-      return paymentConfig;
-    } catch (error) {
-      paymentConfig = {};
-      paymentConfigError = error.message || 'Could not load payment options.';
-      throw new Error('Payment options could not be loaded. Please refresh and try again. ' + paymentConfigError);
-    }
-  }
+  let credentials = { customer_code: '', tracking_pin: '' }, dashboardData = null, paymentConfig = {};
   const money = api.money, esc = api.escapeHtml, date = api.date;
   function say(message, good = false) { const el = $('pageStatus'); el.textContent = message; el.className = 'status ' + (good ? 'ok' : 'bad'); }
   function campaignStatus(c) {
@@ -82,12 +68,14 @@
   }
   function renderInvoices() {
     const items = dashboardData.invoices || [];
-    $('invoiceList').innerHTML = items.length ? items.map(i => `<div class="row"><b>${esc(i.invoice_number)}</b> · ${money(i.amount)} · <span class="pill ${i.status==='paid'?'':i.status==='cancelled'?'stopped':'pending'}">${esc(i.status)}</span><br><small>${esc(i.description)} · Issued ${date(i.issued_at)}${i.paid_at ? ' · Paid '+date(i.paid_at) : ''}</small><br><button class="btn light" type="button" data-print-invoice="${esc(i.id)}">Print invoice</button></div>`).join('') : '<div class="empty">No invoices yet.</div>';
+    $('invoiceList').innerHTML = items.length ? items.map(i => `<div class="row"><b>${esc(i.invoice_number)}</b> · ${money(i.amount)} · <span class="pill ${i.status==='paid'?'':i.status==='cancelled'?'stopped':'pending'}">${esc(i.status)}</span><br><small>${esc(i.description)} · Issued ${date(i.issued_at)}${i.paid_at ? ' · Paid '+date(i.paid_at) : ''}</small><br><button class="btn light" type="button" data-print-invoice="${esc(i.id)}">View / Print / Save PDF</button><button class="btn light" type="button" data-share-invoice="${esc(i.id)}">Share</button></div>`).join('') : '<div class="empty">No invoices yet.</div>';
     $('invoiceList').querySelectorAll('[data-print-invoice]').forEach(b => b.addEventListener('click', () => printInvoice(items.find(i => i.id === b.dataset.printInvoice))));
+    $('invoiceList').querySelectorAll('[data-share-invoice]').forEach(b => b.addEventListener('click', async b => { const i=items.find(x=>x.id===b.currentTarget.dataset.shareInvoice); if(!i)return; const payload={title:'PARROTHIT receipt '+i.invoice_number,text:`PARROTHIT NEWS payment receipt\nInvoice: ${i.invoice_number}\nAmount: ${money(i.amount)}\nStatus: ${i.status}\nPaid: ${date(i.paid_at||i.issued_at)}`}; try{if(navigator.share)await navigator.share(payload);else{await navigator.clipboard.writeText(payload.text);say('Receipt details copied. Share them with your customer.',true)}}catch(e){if(e.name!=='AbortError')say('Could not share receipt. Use View / Print / Save PDF.')}}));
   }
   function printInvoice(i) {
-    if (!i) return; const w = window.open('', '_blank', 'noopener'); if (!w) { say('Allow pop-ups to print your invoice.'); return; }
-    w.document.write(`<!doctype html><html><head><title>${esc(i.invoice_number)}</title><style>body{font:15px Arial;color:#17251b;max-width:760px;margin:40px auto;padding:20px}.head{background:#14532d;color:white;padding:20px;border-bottom:5px solid #d71920}h1{margin:0}table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:12px;border-bottom:1px solid #ddd}</style></head><body><div class="head"><h1>PARROTHIT NEWS</h1>NEWS THAT SPEAKS! · ADVERTISEMENT INVOICE</div><h2>${esc(i.invoice_number)}</h2><table><tr><td>Invoice description</td><td>${esc(i.description)}</td></tr><tr><td>Amount</td><td>${money(i.amount)}</td></tr><tr><td>Currency</td><td>${esc(i.currency)}</td></tr><tr><td>Status</td><td>${esc(i.status)}</td></tr><tr><td>Issued</td><td>${date(i.issued_at)}</td></tr><tr><td>Due</td><td>${date(i.due_at)}</td></tr></table><p>Thank you for advertising with PARROTHIT.</p><script>window.onload=()=>window.print()<\/script></body></html>`); w.document.close();
+    if (!i) return; const w = window.open('', '_blank'); if (!w) { say('Allow pop-ups to view or save your receipt.'); return; }
+    const paid = String(i.status||'').toLowerCase()==='paid';
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(i.invoice_number)} | PARROTHIT</title><style>body{font:15px Arial;color:#17251b;max-width:760px;margin:24px auto;padding:20px}.head{text-align:center;padding:18px;border-bottom:4px solid #d71920}.logo{width:min(220px,65%);height:auto;object-fit:contain}h1{margin:8px 0;color:#14532d}table{width:100%;border-collapse:collapse;margin-top:24px}td{padding:12px;border-bottom:1px solid #ddd}td:first-child{font-weight:bold;width:38%}.paid{display:inline-block;background:#dcfce7;color:#166534;padding:8px 14px;border-radius:20px;font-weight:bold;margin-top:14px}.tools{margin:20px 0;display:flex;gap:10px;flex-wrap:wrap}.tools button{padding:10px 15px;border:0;border-radius:7px;background:#14532d;color:white;font-weight:bold}@media print{.tools{display:none}body{margin:0;max-width:none}}</style></head><body><header class="head"><img class="logo" src="assets/images/parrothit-logo.png" alt="PARROTHIT logo"><h1>PARROTHIT NEWS</h1><b>NEWS THAT SPEAKS!</b><div>${paid?'<span class="paid">PAYMENT SUCCESSFUL — PAID</span>':'<span>ADVERTISEMENT INVOICE</span>'}</div></header><h2>${esc(i.invoice_number)}</h2><table><tr><td>Invoice / Receipt number</td><td>${esc(i.invoice_number)}</td></tr><tr><td>Description</td><td>${esc(i.description)}</td></tr><tr><td>Amount</td><td>${money(i.amount)}</td></tr><tr><td>Currency</td><td>${esc(i.currency)}</td></tr><tr><td>Payment status</td><td>${esc(i.status)}</td></tr><tr><td>Issued</td><td>${date(i.issued_at)}</td></tr><tr><td>Due</td><td>${date(i.due_at)}</td></tr>${i.paid_at?`<tr><td>Payment date</td><td>${date(i.paid_at)}</td></tr>`:''}</table><p>Thank you for advertising with PARROTHIT.</p><div class="tools"><button onclick="window.print()">Print / Save as PDF</button><button onclick="if(navigator.share)navigator.share({title:'PARROTHIT receipt',text:document.body.innerText});else alert('Use Print / Save as PDF to save or share your receipt.')">Share receipt</button></div><script>window.addEventListener('load',()=>{const im=document.querySelector('.logo');im.onerror=()=>{im.style.display='none'};});<\/script></body></html>`); w.document.close();
   }
   function renderMessages() {
     const items = dashboardData.notifications || [];
@@ -100,7 +88,6 @@
   async function loadAccount() {
     const b = $('loadAccount'); b.disabled = true;
     try {
-      await ensurePaymentConfig();
       const result = await api.call('lookup', credentials); dashboardData = result; $('dashboard').classList.remove('hidden');
       $('welcome').textContent = 'Welcome, ' + result.customer.contact_name;
       $('customerFacts').innerHTML = `<div class="fact"><b>Customer ID</b><span>${esc(result.customer.customer_code)}</span></div><div class="fact"><b>Business</b><span>${esc(result.customer.business_name)}</span></div><div class="fact"><b>Email on file</b><span>${esc(result.customer.email)}</span></div><div class="fact"><b>Campaign count</b><span>${(result.campaigns || []).length}</span></div>`;
@@ -231,5 +218,5 @@
   });
   $('lookupForm').addEventListener('submit', async e => { e.preventDefault(); credentials = { customer_code: $('customerCode').value.trim(), tracking_pin: $('trackingPin').value.trim() }; api.saveCredentials(credentials.customer_code, credentials.tracking_pin); await loadAccount(); });
   const saved = api.credentials(); if (saved.customer_code && saved.tracking_pin) { credentials = saved; $('customerCode').value = saved.customer_code; $('trackingPin').value = saved.tracking_pin; }
-  ensurePaymentConfig().then(() => { if (credentials.customer_code && credentials.tracking_pin) loadAccount(); }).catch(() => { if (credentials.customer_code && credentials.tracking_pin) say('Payment settings could not be loaded. Please sign in again after refreshing.'); });
+  api.call('public_config').then(c => { paymentConfig = c.payments || {}; }).catch(() => { paymentConfig = {}; }).finally(() => { if (credentials.customer_code && credentials.tracking_pin) loadAccount(); });
 })();
