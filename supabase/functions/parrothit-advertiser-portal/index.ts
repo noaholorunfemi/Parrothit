@@ -22,6 +22,18 @@ function db() {
 }
 function cleanText(value: unknown, max = 500) { return String(value ?? "").trim().slice(0, max); }
 function validEmail(value: string) { return /^\S+@\S+\.\S+$/.test(value) && value.length <= 180; }
+function normalizePhone(value: unknown) {
+  const digits = cleanText(value, 40).replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("0")) return "234" + digits.slice(1);
+  if (digits.length === 10) return "234" + digits;
+  return digits;
+}
+function constantTimeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
 function validUrl(value: string) {
   if (!value) return null;
   try { const u = new URL(value); return ["http:", "https:"].includes(u.protocol) ? u.toString() : null; }
@@ -207,6 +219,129 @@ async function publicConfig() {
   if (settingsError) throw settingsError;
   return json({ ok: true, plans: plans || [], payments: p || { bank_transfer_enabled: false, paystack_enabled: false, flutterwave_enabled: false } });
 }
+async function recoveryStart(body: any, request: Request) {
+  const purpose = cleanText(body.purpose, 20);
+  const channel = cleanText(body.channel, 10);
+  if (!["recover_id", "reset_pin"].includes(purpose)) throw new Error("Choose Customer ID recovery or tracking PIN reset.");
+  if (!["email", "sms"].includes(channel)) throw new Error("Choose email or phone verification.");
+
+  const rawContact = cleanText(body.contact, 180);
+  const contact = channel === "email" ? rawContact.toLowerCase() : normalizePhone(rawContact);
+  if (channel === "email" && !validEmail(contact)) throw new Error("Enter the email address registered on your advertiser account.");
+  if (channel === "sms" && (contact.length < 10 || contact.length > 15)) throw new Error("Enter the phone number registered on your advertiser account, including its country code if needed.");
+
+  const customerCode = cleanText(body.customer_code, 60).toUpperCase();
+  if (purpose === "reset_pin" && !customerCode) throw new Error("Enter your Customer ID to reset its tracking PIN.");
+
+  let customer: any = null;
+  if (purpose === "recover_id") {
+    const query = db().from("advertisement_customers").select("id,customer_code,contact_name,email,phone,phone_normalized,created_at");
+    const result = channel === "email"
+      ? await query.eq("email", contact).order("created_at", { ascending: false }).limit(1).maybeSingle()
+      : await query.eq("phone_normalized", contact).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (result.error) throw new Error("Account recovery is temporarily unavailable. Please try again later.");
+    customer = result.data;
+  } else {
+    const { data, error } = await db().from("advertisement_customers")
+      .select("id,customer_code,contact_name,email,phone,phone_normalized")
+      .eq("customer_code", customerCode).maybeSingle();
+    if (error) throw new Error("Account recovery is temporarily unavailable. Please try again later.");
+    if (data) {
+      const matches = channel === "email"
+        ? String(data.email || "").toLowerCase() === contact
+        : normalizePhone(data.phone_normalized || data.phone) === contact;
+      if (matches) customer = data;
+    }
+  }
+
+  // Store hashes only. A challenge is also recorded for non-matching details so the
+  // public response does not disclose whether a Customer ID, email or phone exists.
+  const forwarded = request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown-client";
+  const ipHash = await sha256(`parrothit-advertiser-recovery-ip:${forwarded}`);
+  const scopeHash = await sha256(`parrothit-advertiser-recovery:${ipHash}:${purpose}:${channel}:${contact}`);
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const [{ count: scopeCount, error: scopeError }, { count: ipCount, error: ipError }] = await Promise.all([
+    db().from("advertisement_recovery_challenges").select("id", { count: "exact", head: true }).eq("scope_hash", scopeHash).gte("created_at", since),
+    db().from("advertisement_recovery_challenges").select("id", { count: "exact", head: true }).eq("ip_hash", ipHash).gte("created_at", since),
+  ]);
+  if (scopeError || ipError) throw new Error("Account recovery is not installed yet. Please contact PARROTHIT support.");
+  if (Number(scopeCount || 0) >= 3 || Number(ipCount || 0) >= 12) {
+    return json({ ok: false, error: "Too many recovery requests. Please wait before trying again." }, 429);
+  }
+
+  const challengeId = crypto.randomUUID();
+  const random = new Uint32Array(1); crypto.getRandomValues(random);
+  const otp = String(random[0] % 1000000).padStart(6, "0");
+  const secret = env("ADVERTISER_RECOVERY_SECRET") || serviceKey;
+  const otpHash = await sha256(`${challengeId}:${otp}:${secret}`);
+  const { error: insertError } = await db().from("advertisement_recovery_challenges").insert({
+    id: challengeId, customer_id: customer?.id || null, purpose, channel, scope_hash: scopeHash,
+    ip_hash: ipHash, contact_hash: await sha256(contact), otp_hash: otpHash,
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), attempt_count: 0,
+  });
+  if (insertError) throw new Error("Could not start account recovery. Please try again.");
+
+  if (customer) {
+    const message = `Your PARROTHIT advertiser ${purpose === "recover_id" ? "Customer ID recovery" : "tracking PIN reset"} code is ${otp}. It expires in 10 minutes. Do not share this code with anyone. If you did not request this, ignore this message.`;
+    const delivery = channel === "email"
+      ? await sendEmail(customer.email, "PARROTHIT Advertiser Account Verification", message)
+      : await sendSms(normalizePhone(customer.phone_normalized || customer.phone), message);
+    if (!delivery.sent) {
+      await db().from("advertisement_recovery_challenges").update({ consumed_at: new Date().toISOString() }).eq("id", challengeId);
+      console.error("Advertiser recovery delivery failed:", delivery.reason || "provider error");
+    }
+  }
+
+  return json({
+    ok: true, challenge_id: challengeId, expires_in_seconds: 600,
+    message: `If the details match an advertiser account and ${channel === "email" ? "email" : "SMS"} delivery is configured, a 6-digit verification code has been sent. Check your ${channel === "email" ? "email inbox and spam folder" : "phone messages"}. The code expires in 10 minutes.`,
+  });
+}
+
+async function recoveryVerify(body: any) {
+  const challengeId = cleanText(body.challenge_id, 50);
+  const purpose = cleanText(body.purpose, 20);
+  const otp = cleanText(body.code, 10);
+  if (!/^[0-9a-f-]{36}$/i.test(challengeId) || !["recover_id", "reset_pin"].includes(purpose) || !/^\d{6}$/.test(otp)) {
+    throw new Error("Enter the 6-digit verification code sent to your registered contact.");
+  }
+  const newPinValue = purpose === "reset_pin" ? cleanText(body.new_pin, 12) : "";
+  if (purpose === "reset_pin") {
+    if (!/^\d{8}$/.test(newPinValue)) throw new Error("Your new tracking PIN must contain exactly 8 digits.");
+    if (/^(\d)\1{7}$/.test(newPinValue) || ["01234567", "12345678", "23456789", "87654321", "98765432", "76543210"].includes(newPinValue)) {
+      throw new Error("Choose a less predictable 8-digit PIN. Avoid repeated digits or simple number sequences.");
+    }
+  }
+  const { data, error } = await db().rpc("advertisement_recovery_attempt", { p_challenge_id: challengeId });
+  const challenge = Array.isArray(data) ? data[0] : data;
+  if (error || !challenge || challenge.purpose !== purpose || !challenge.customer_id) {
+    throw new Error("The verification code is invalid, expired, or has already been used. Start recovery again.");
+  }
+  const secret = env("ADVERTISER_RECOVERY_SECRET") || serviceKey;
+  const suppliedHash = await sha256(`${challengeId}:${otp}:${secret}`);
+  if (!constantTimeEqual(String(challenge.otp_hash || ""), suppliedHash)) {
+    throw new Error(Number(challenge.attempt_count) >= 5
+      ? "You have used all verification attempts. Start account recovery again."
+      : "The verification code is incorrect or expired. Check it and try again.");
+  }
+
+  if (purpose === "recover_id") {
+    const consumed = await db().rpc("advertisement_recovery_consume", { p_challenge_id: challengeId });
+    if (consumed.error || consumed.data !== true) throw new Error("This verification code has already been used or expired. Start again.");
+    const { data: customer, error: customerError } = await db().from("advertisement_customers")
+      .select("customer_code").eq("id", challenge.customer_id).maybeSingle();
+    if (customerError || !customer) throw new Error("The advertiser account could not be recovered. Please contact PARROTHIT support.");
+    return json({ ok: true, purpose, customer_code: customer.customer_code, message: "Your Customer ID has been recovered. Keep it private and use it with your tracking PIN to sign in." });
+  }
+
+  const consumed = await db().rpc("advertisement_recovery_consume", { p_challenge_id: challengeId });
+  if (consumed.error || consumed.data !== true) throw new Error("This verification code has already been used or expired. Start again.");
+  const { error: updateError } = await db().from("advertisement_customers")
+    .update({ tracking_pin_hash: await sha256(newPinValue) }).eq("id", challenge.customer_id);
+  if (updateError) throw new Error("Your tracking PIN could not be reset. Please start the reset process again.");
+  return json({ ok: true, purpose, message: "Your tracking PIN has been reset successfully. Sign in using your Customer ID and new 8-digit PIN." });
+}
+
 async function apply(body: any, request: Request) {
   if (body.consent !== true) throw new Error("Please confirm consent before submitting your advertisement application.");
   const business = cleanText(body.business_name, 120), contact = cleanText(body.contact_name, 100);
@@ -222,7 +357,7 @@ async function apply(body: any, request: Request) {
   } else {
     trackingPin = newPin();
     const customerCode = code("PH-ADV");
-    const { data, error } = await db().from("advertisement_customers").insert({ customer_code: customerCode, business_name: business, contact_name: contact, email, phone: phone || null, tracking_pin_hash: await sha256(trackingPin) }).select("id,customer_code,business_name,contact_name,email,phone").single();
+    const { data, error } = await db().from("advertisement_customers").insert({ customer_code: customerCode, business_name: business, contact_name: contact, email, phone: phone || null, phone_normalized: phone ? normalizePhone(phone) : null, tracking_pin_hash: await sha256(trackingPin) }).select("id,customer_code,business_name,contact_name,email,phone").single();
     if (error || !data) throw new Error(error?.message || "Could not create your advertiser profile. Please try again.");
     customer = data; isNewCustomer = true;
   }
@@ -279,6 +414,39 @@ async function renew(body: any, request: Request) {
   const created = await createCampaign(customer, plan, bodyForRenewal, original.id);
   return json({ ok: true, customer_code: customer.customer_code, campaign: created.campaign, invoice: created.invoice, plan: { name: plan.name, duration_days: plan.duration_days, price_ngn: plan.price_ngn }, message: "Renewal campaign created. Complete payment and Admin approval before the new campaign begins." });
 }
+async function deleteCampaign(body: any, request: Request) {
+  const customer = await getCustomer(body.customer_code, body.tracking_pin, request);
+  const campaignCode = cleanText(body.campaign_code, 80).toUpperCase();
+  if (!campaignCode) throw new Error("Enter a valid campaign reference.");
+  const { data: campaign, error } = await db().from("monetization_campaigns")
+    .select("id,customer_id,campaign_code,campaign_name,status,payment_status")
+    .eq("campaign_code", campaignCode).eq("customer_id", customer.id).maybeSingle();
+  if (error || !campaign) throw new Error("Advertisement not found under this Customer ID.");
+  if (campaign.payment_status === "paid" || ["active", "completed"].includes(String(campaign.status))) {
+    throw new Error("This advertisement has been paid for or has run. It cannot be deleted from the customer dashboard; contact PARROTHIT to request a stop or cancellation.");
+  }
+  if (campaign.status === "cancelled") throw new Error("This advertisement has already been cancelled.");
+
+  // Compare the values read above so a concurrent payment/activation cannot be cancelled.
+  const { data: updated, error: updateError } = await db().from("monetization_campaigns")
+    .update({ status: "cancelled", renewal_preference: "stop", is_paused: false, paused_at: null, pause_reason: null, stopped_at: new Date().toISOString() })
+    .eq("id", campaign.id).eq("customer_id", customer.id)
+    .eq("status", campaign.status).eq("payment_status", campaign.payment_status)
+    .select("id").maybeSingle();
+  if (updateError || !updated) throw new Error("This advertisement changed while you were deleting it. Refresh your dashboard and try again.");
+
+  // Close any unverified bank-transfer submission without deleting its audit record.
+  const { error: transferError } = await db().from("advertisement_manual_payments")
+    .update({ status: "rejected", admin_note: "Automatically closed because the advertiser cancelled the campaign before payment verification.", reviewed_at: new Date().toISOString() })
+    .eq("campaign_id", campaign.id).eq("customer_id", customer.id).eq("status", "pending");
+  if (transferError) throw new Error("The campaign was cancelled, but its pending transfer record could not be closed. Contact PARROTHIT support with campaign reference " + campaignCode + ".");
+  const { error: invoiceError } = await db().from("advertisement_invoices")
+    .update({ status: "cancelled" }).eq("campaign_id", campaign.id).eq("customer_id", customer.id).in("status", ["unpaid", "pending"]);
+  if (invoiceError) throw new Error("The campaign was cancelled, but its invoice status could not be updated. Please contact PARROTHIT support with campaign reference " + campaignCode + ".");
+  await event(campaign.id, customer.id, "customer_deleted_campaign", "Customer cancelled an unpaid advertisement application from the advertiser dashboard. Campaign and billing history were retained.", { campaign_code: campaign.campaign_code });
+  return json({ ok: true, message: "Your unpaid advertisement application has been cancelled. Related unpaid invoices have been cancelled, and the campaign history remains on record." });
+}
+
 async function resubmitCreative(body: any, request: Request) {
   const customer = await getCustomer(body.customer_code, body.tracking_pin, request);
   const campaignCode = cleanText(body.campaign_code, 80).toUpperCase();
@@ -400,6 +568,7 @@ async function verifyManualPayment(req: Request, body: any) {
   if (payment.status !== "pending") throw new Error("This bank transfer has already been reviewed.");
   const { data: campaign, error: campaignError } = await db().from("monetization_campaigns").select("*").eq("id", payment.campaign_id).maybeSingle();
   if (campaignError || !campaign) throw new Error("The linked campaign could not be loaded.");
+  if (campaign.status === "cancelled") throw new Error("This campaign was cancelled and its payment can no longer be verified. Review the transfer separately with PARROTHIT support if funds were received.");
   if (next === "verified" && Math.abs(Number(payment.amount) - Number(campaign.agreed_amount)) > 0.01) throw new Error("The submitted transfer does not match the full campaign amount; it has not been marked paid.");
   const now = new Date().toISOString();
   const { error: pError } = await db().from("advertisement_manual_payments").update({ status: next, admin_note: cleanText(body.admin_note, 1000) || null, reviewed_at: now, reviewed_by: admin.id }).eq("id", payment.id);
@@ -459,9 +628,12 @@ Deno.serve(async (req: Request) => {
     const action = cleanText(body.action, 40);
     if (action === "public_config") return await publicConfig();
     if (action === "apply") return await apply(body, req);
+    if (action === "recovery_start") return await recoveryStart(body, req);
+    if (action === "recovery_verify") return await recoveryVerify(body);
     if (action === "lookup") return await lookup(body, req);
     if (action === "set_preference") return await setPreference(body, req);
     if (action === "renew") return await renew(body, req);
+    if (action === "delete_campaign") return await deleteCampaign(body, req);
     if (action === "bank_transfer") return await bankTransfer(body, req);
     if (action === "resubmit_creative") return await resubmitCreative(body, req);
     if (action === "track_event") return await trackEvent(body);
