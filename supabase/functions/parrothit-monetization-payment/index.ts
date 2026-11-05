@@ -179,6 +179,58 @@ async function verifyProvider(payment: any, transactionId?: string) {
     && String(tx.currency).toUpperCase() === "NGN" && Number(tx.amount) === Number(payment.amount);
   return { valid, pending: !valid && ["pending", "processing"].includes(String(tx.status || "").toLowerCase()), tx, raw: body, transactionId: String(tx.id || transactionId) };
 }
+async function sendEmail(to: string, subject: string, body: string) {
+  const key = env("RESEND_API_KEY");
+  if (!key || !validEmail(to)) return { sent: false, reason: "Email provider is not configured." };
+  const from = env("RESEND_FROM_EMAIL") || "PARROTHIT Advertisements <onboarding@resend.dev>";
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#183323"><div style="background:#14532d;color:#fff;border-bottom:5px solid #d71920;padding:18px"><b>PARROTHIT NEWS</b> · NEWS THAT SPEAKS!</div><div style="padding:18px;white-space:pre-wrap">${body.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c] || c))}</div></div>`;
+  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [to], subject, html }) });
+  const data = await response.json().catch(() => ({}));
+  return response.ok ? { sent: true } : { sent: false, reason: data?.message || `Email provider HTTP ${response.status}` };
+}
+async function sendSms(to: string, message: string) {
+  const key = env("TERMII_API_KEY");
+  if (!key || !to) return { sent: false, reason: "Termii SMS is not configured." };
+  const response = await fetch("https://api.ng.termii.com/api/sms/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to, from: env("TERMII_SENDER_ID") || "PARROTHIT", sms: message, type: "plain", channel: "generic", api_key: key }) });
+  const data = await response.json().catch(() => ({}));
+  return response.ok ? { sent: true } : { sent: false, reason: data?.message || `Termii HTTP ${response.status}` };
+}
+async function sendWhatsApp(to: string, message: string) {
+  const token = env("WHATSAPP_ACCESS_TOKEN"), endpoint = env("WHATSAPP_MESSAGES_ENDPOINT");
+  if (!token || !endpoint || !to) return { sent: false, reason: "WhatsApp Cloud API is not configured." };
+  const response = await fetch(endpoint, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", to: to.replace(/\D/g, ""), type: "text", text: { body: message } }) });
+  const data = await response.json().catch(() => ({}));
+  return response.ok ? { sent: true } : { sent: false, reason: data?.error?.message || `WhatsApp API HTTP ${response.status}` };
+}
+async function notifyCustomer(customer: any, campaign: any, notificationKey: string, type: string, subject: string, message: string) {
+  const { data: settings } = await requiredService().from("advertisement_payment_settings").select("email_notifications_enabled,sms_notifications_enabled,whatsapp_notifications_enabled").eq("id", true).maybeSingle();
+  const sends: Array<{ channel: string; to: string; result: any }> = [];
+  const channels = [{ channel: "in_app", enabled: true, to: customer.customer_code },
+    { channel: "email", enabled: settings?.email_notifications_enabled === true && !!env("RESEND_API_KEY"), to: customer.email },
+    { channel: "sms", enabled: settings?.sms_notifications_enabled === true && !!env("TERMII_API_KEY"), to: customer.phone || "" },
+    { channel: "whatsapp", enabled: settings?.whatsapp_notifications_enabled === true && !!env("WHATSAPP_ACCESS_TOKEN") && !!env("WHATSAPP_MESSAGES_ENDPOINT"), to: customer.phone || "" }];
+  for (const item of channels) {
+    if (!item.enabled) continue;
+    const key = `${notificationKey}:${item.channel}`;
+    const { data: inserted, error } = await requiredService().from("advertisement_notifications").insert({
+      customer_id: customer.id, campaign_id: campaign?.id || null, notification_key: key,
+      notification_type: type, subject, message, channel: item.channel,
+      status: item.channel === "in_app" ? "sent" : "queued", recipient: item.to,
+      sent_at: item.channel === "in_app" ? new Date().toISOString() : null,
+    }).select("id").maybeSingle();
+    if (error || !inserted) continue; // Unique key ensures cron retries do not duplicate messages.
+    let result: any = { sent: true };
+    if (item.channel === "email") result = await sendEmail(item.to, subject, message);
+    else if (item.channel === "sms") result = await sendSms(item.to, message);
+    else if (item.channel === "whatsapp") result = await sendWhatsApp(item.to, message);
+    if (item.channel !== "in_app") {
+      await requiredService().from("advertisement_notifications").update({ status: result.sent ? "sent" : "failed", error_message: result.sent ? null : result.reason || "Delivery failed.", sent_at: result.sent ? new Date().toISOString() : null }).eq("id", inserted.id);
+    }
+    sends.push({ channel: item.channel, to: item.to, result });
+  }
+  return sends;
+}
+
 async function recordVerifiedPayment(payment: any) {
   const client = requiredService();
   const { data: campaign, error: campaignReadError } = await client.from("monetization_campaigns")
@@ -198,8 +250,39 @@ async function recordVerifiedPayment(payment: any) {
   if (campaign.customer_id) {
     await client.from("advertisement_invoices").update({ status: "paid", paid_at: new Date().toISOString() }).eq("campaign_id", campaign.id);
     await client.from("advertisement_campaign_events").insert({ campaign_id: campaign.id, customer_id: campaign.customer_id, event_type: "payment_verified", description: "Online payment verified. Advertisement is awaiting creative approval.", metadata: { provider: payment.provider, reference: payment.reference } });
-    const { data: customer } = await client.from("advertisement_customers").select("id,customer_code,contact_name,email").eq("id", campaign.customer_id).maybeSingle();
-    if (customer) await client.from("advertisement_notifications").insert({ customer_id: customer.id, campaign_id: campaign.id, notification_key: `${campaign.id}:online-paid:${payment.reference}:in_app`, notification_type: "payment_verified", subject: "PARROTHIT has verified your advertisement payment", message: `Hello ${customer.contact_name}, your online payment for campaign ${campaign.campaign_code || campaign.id} has been verified. Your advertisement is now awaiting final creative approval. We will notify you when it goes live.`, channel: "in_app", status: "sent", recipient: customer.customer_code, sent_at: new Date().toISOString() });
+    const { data: customer } = await client.from("advertisement_customers").select("id,customer_code,contact_name,email,phone,business_name").eq("id", campaign.customer_id).maybeSingle();
+    const { data: invoice } = await client.from("advertisement_invoices").select("id,invoice_number").eq("campaign_id", campaign.id).maybeSingle();
+    if (customer) {
+      const receiptNumber = `PH-RCP-${new Date().getUTCFullYear()}-${crypto.randomUUID().replace(/-/g,"").slice(0,10).toUpperCase()}`;
+      const { data: existingReceipt } = await client.from("advertisement_receipts").select("receipt_number").eq("campaign_id", campaign.id).maybeSingle();
+      const receipt = existingReceipt || (await client.from("advertisement_receipts").insert({
+        receipt_number: receiptNumber, customer_id: customer.id, campaign_id: campaign.id,
+        invoice_id: invoice?.id || null, payment_reference: payment.reference,
+        payment_method: payment.provider === "paystack" ? "Paystack" : "Flutterwave",
+        amount: Number(payment.amount), currency: "NGN", paid_at: new Date().toISOString()
+      }).select("receipt_number").maybeSingle()).data;
+      if (receipt?.receipt_number) {
+        const receiptMessage = `Hello ${customer.contact_name}, your PARROTHIT payment is verified and your official receipt is ready. Receipt: ${receipt.receipt_number}. Campaign: ${campaign.campaign_code || campaign.id}. Amount: NGN ${Number(payment.amount).toLocaleString("en-NG")}. Reference: ${payment.reference}. Sign in to your advertiser dashboard to download/print it. PARROTHIT · 07059095206 · parrothit.com`;
+        await client.from("advertisement_notifications").insert({ customer_id: customer.id, campaign_id: campaign.id, notification_key: `${campaign.id}:receipt:${payment.reference}:in_app`, notification_type: "receipt_generated", subject: "Your PARROTHIT advertisement payment receipt", message: receiptMessage, channel: "in_app", status: "sent", recipient: customer.customer_code, sent_at: new Date().toISOString() });
+        const { data: notificationSettings } = await client.from("advertisement_payment_settings").select("email_notifications_enabled,sms_notifications_enabled,whatsapp_notifications_enabled").eq("id", true).maybeSingle();
+        const channels = [
+          { channel: "email", enabled: notificationSettings?.email_notifications_enabled === true && !!env("RESEND_API_KEY"), to: customer.email },
+          { channel: "sms", enabled: notificationSettings?.sms_notifications_enabled === true && !!env("TERMII_API_KEY"), to: customer.phone || "" },
+          { channel: "whatsapp", enabled: notificationSettings?.whatsapp_notifications_enabled === true && !!env("WHATSAPP_ACCESS_TOKEN") && !!env("WHATSAPP_MESSAGES_ENDPOINT"), to: customer.phone || "" },
+        ];
+        for (const item of channels) {
+          if (!item.enabled || !item.to) continue;
+          const { data: n } = await client.from("advertisement_notifications").insert({ customer_id: customer.id, campaign_id: campaign.id, notification_key: `${campaign.id}:receipt:${payment.reference}:${item.channel}`, notification_type: "receipt_generated", subject: "Your PARROTHIT advertisement payment receipt", message: receiptMessage, channel: item.channel, status: "queued", recipient: item.to }).select("id").maybeSingle();
+          if (!n) continue;
+          let delivery: any;
+          if (item.channel === "email") delivery = await sendEmail(item.to, "Your PARROTHIT advertisement payment receipt", receiptMessage);
+          else if (item.channel === "sms") delivery = await sendSms(item.to, receiptMessage);
+          else delivery = await sendWhatsApp(item.to, receiptMessage);
+          await client.from("advertisement_notifications").update({ status: delivery.sent ? "sent" : "failed", error_message: delivery.sent ? null : delivery.reason || "Delivery failed.", sent_at: delivery.sent ? new Date().toISOString() : null }).eq("id", n.id);
+        }
+        await client.from("advertisement_campaign_events").insert({ campaign_id: campaign.id, customer_id: customer.id, event_type: "receipt_generated", description: `Official payment receipt ${receipt.receipt_number} generated.`, metadata: { receipt_number: receipt.receipt_number, payment_reference: payment.reference } });
+      }
+    }
   }
   const { error: revenueError } = await client.from("monetization_revenue").upsert({
     campaign_id: payment.campaign_id, payment_id: payment.id, amount: payment.amount,
