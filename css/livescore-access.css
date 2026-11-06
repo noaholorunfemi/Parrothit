@@ -1,0 +1,64 @@
+/* PARROTHIT LiveScore access button */
+.parrothit-livescore-access {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px clamp(12px, 2vw, 24px);
+  background: #eef5f0;
+  border-bottom: 1px solid #d4e3d9;
+}
+.parrothit-livescore-access__link {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  width: 100%;
+  max-width: 1380px;
+  min-height: 54px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  border: 2px solid #075b36;
+  border-radius: 11px;
+  background: #087a43;
+  color: #fff;
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+  box-shadow: 0 3px 9px rgba(0,0,0,.16);
+  transition: background-color .15s ease, transform .15s ease;
+}
+.parrothit-livescore-access__link:hover,
+.parrothit-livescore-access__link:focus-visible {
+  background: #075b36;
+  color: #fff;
+  outline: 3px solid #f3c969;
+  outline-offset: 2px;
+}
+.parrothit-livescore-access__link:active { transform: translateY(1px); }
+.parrothit-livescore-access__brand,
+.parrothit-livescore-access__details {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+}
+.parrothit-livescore-access__ball { font-size: 23px; line-height: 1; }
+.parrothit-livescore-access__details { flex-wrap: wrap; font-size: 13px; font-weight: 800; }
+.parrothit-livescore-access__open {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: #fff;
+  color: #075b36;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .3px;
+}
+@media (max-width: 520px) {
+  .parrothit-livescore-access__link { justify-content: center; text-align: center; }
+  .parrothit-livescore-access__brand,
+  .parrothit-livescore-access__details { justify-content: center; }
+}
