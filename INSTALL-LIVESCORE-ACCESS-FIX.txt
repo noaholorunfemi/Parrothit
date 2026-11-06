@@ -1,0 +1,27 @@
+PARROTHIT LiveScore Access Button Fix
+====================================
+
+Purpose:
+Adds a clearly visible Football LiveScore access button immediately below the
+main navigation on root-level public HTML pages. This complements the existing
+navigation link, which can be hidden in the horizontally scrollable mobile menu.
+
+Installation:
+1. Back up the current website.
+2. Extract this ZIP into the PARROTHIT repository root (the folder containing
+   index.html). The included HTML files are in the root.
+3. Copy css_livescore_access_patch.css into css/livescore-access-patch.css.
+4. Add this stylesheet link in the <head> of each patched HTML page:
+   <link rel="stylesheet" href="css/livescore-access-patch.css">
+   (The HTML patch files already include the CTA markup; CSS is supplied separately.)
+5. Commit and deploy through your usual Cloudflare workflow.
+
+Patch scope:
+- 95 root-level public HTML pages receive the CTA markup.
+- Existing pages that already link to livescore.html are not duplicated.
+- Admin pages and nested admin HTML pages are not included.
+- No JavaScript, Supabase, API keys, or database migration required.
+
+Validation:
+- CTA href points to livescore.html.
+- Check homepage and mobile view after deployment.

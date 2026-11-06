@@ -31,8 +31,11 @@
 @keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
 </style>
-<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head>
+<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"><link rel="stylesheet" href="css/livescore-access-patch.css">
+</head>
 <body class="admin-auth-pending"><nav style="display:flex;gap:10px;flex-wrap:wrap;padding:12px"><a class="btn" href="../index.html">← Home</a><a class="btn green" href="dashboard.html">Control Room</a><a class="btn green" href="control-directory.html">All Controls</a></nav>
+<div class="livescore-access wrap"><a class="livescore-access-button" href="livescore.html"><span aria-hidden="true">⚽</span> Football LiveScore <span class="livescore-access-sub">Live matches · Fixtures · Results</span></a></div>
+
 <main><div class="top"><div><h1>Homepage Red Lead Card Control</h1><p class="muted">Independently edit the red “PARROTHIT · NEWS THAT SPEAKS” card on the homepage.</p></div></div>
 <div class="panel"><form id="heroForm">
 <label class="check"><input id="heroEnabled" type="checkbox" checked> Show the red lead card</label>

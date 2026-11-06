@@ -37,13 +37,16 @@ button.commit-change:hover{background:#166534!important}
 @keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
 </style>
-<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head>
+<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"><link rel="stylesheet" href="css/livescore-access-patch.css">
+</head>
 <body class="control-body admin-auth-pending">
 <section class="parrothit-dashboard-toolbar" aria-label="PARROTHIT administrator shortcuts">
   <nav class="ph-toolbar-nav" aria-label="Main navigation">
     <a class="ph-toolbar-btn ph-btn-red" href="../index.html">← Back to Home</a>
     <a class="ph-toolbar-btn ph-btn-green" href="dashboard.html">🏠 Control Room</a>
   </nav>
+<div class="livescore-access wrap"><a class="livescore-access-button" href="livescore.html"><span aria-hidden="true">⚽</span> Football LiveScore <span class="livescore-access-sub">Live matches · Fixtures · Results</span></a></div>
+
   <div class="ph-toolbar-groups">
     <section class="ph-toolbar-group" aria-label="Homepage and news cards">
       <h2>Homepage &amp; News Cards</h2>

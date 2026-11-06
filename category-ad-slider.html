@@ -17,9 +17,12 @@
 @media(max-width:760px){.ads-shell{padding:0 10px 22px}.ads-slots,.ads-form-grid{grid-template-columns:minmax(0,1fr)}.ads-panel{padding:13px}.ads-top{padding:14px}.ads-actions .ads-btn{flex:1 1 140px}}
 </style>
 <link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6">
+<link rel="stylesheet" href="css/livescore-access-patch.css">
 </head>
 <body class="admin-auth-pending">
 <nav style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px"><a class="ads-btn light" href="dashboard.html">← Control Room</a><a class="ads-btn light" href="../index.html" target="_blank" rel="noopener">View website ↗</a></nav>
+<div class="livescore-access wrap"><a class="livescore-access-button" href="livescore.html"><span aria-hidden="true">⚽</span> Football LiveScore <span class="livescore-access-sub">Live matches · Fixtures · Results</span></a></div>
+
 <main class="ads-shell">
 <header class="ads-top"><div><h1>🖼️ Category Image Ad Sliders</h1><p>10 image slots for every category · 6 transition styles · individual destinations</p></div><div class="ads-actions"><button type="button" id="saveAllTop" class="ads-btn green commit-change" data-commit-change>Commit changes</button></div></header>
 <div class="ads-note"><b>Important:</b> each category has its own slider settings. The controls save in this browser preview and attempt to publish through the authenticated admin session when existing Supabase permissions allow it. No authentication, administrator-role, or database security rules are changed by this page.</div>
