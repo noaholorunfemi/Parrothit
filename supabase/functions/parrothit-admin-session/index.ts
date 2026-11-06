@@ -87,6 +87,13 @@ Deno.serve(async (req: Request) => {
     return reply(200, { success: false, code: "ADMIN_SUSPENDED", error: "This administrator account is suspended.", profile: { username: profile.username || "", email: profile.email || userData.user.email || "" } });
   }
 
+  const { data: timeoutSettings, error: timeoutSettingsError } = await admin.from("admin_security_settings")
+    .select("session_timeout_minutes").eq("setting_key", "global").maybeSingle();
+  if (timeoutSettingsError) return reply(500, { success: false, error: "Admin session settings are unavailable. Apply supabase/admin-session-timeout-settings.sql and redeploy this function." });
+  const allowedTimeouts = [5, 10, 15, 30, 60];
+  const timeoutMinutes = allowedTimeouts.includes(Number(timeoutSettings?.session_timeout_minutes))
+    ? Number(timeoutSettings.session_timeout_minutes) : 30;
+
   const sessionToken = clean(body.session_token, 300);
   if (action === "claim") {
     if (sessionToken.length < 40) return reply(400, { success: false, error: "A valid device session token is required." });
@@ -134,7 +141,7 @@ Deno.serve(async (req: Request) => {
     .select("user_id,session_token_hash,device_name,created_at,last_activity_at,expires_at")
     .eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash).maybeSingle();
   if (activeError) return reply(500, { success: false, error: "Could not verify your active admin device session." });
-  if (!active || new Date(active.expires_at).getTime() <= Date.now() || new Date(active.last_activity_at).getTime() <= Date.now() - 5 * 60 * 1000) {
+  if (!active || new Date(active.expires_at).getTime() <= Date.now() || new Date(active.last_activity_at).getTime() <= Date.now() - timeoutMinutes * 60 * 1000) {
     if (active) {
       await admin.from("admin_active_sessions").delete().eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash);
       await admin.from("admin_session_audit").insert({ actor_user_id: userId, target_user_id: userId, action: "admin_session_expired", device_name: active.device_name, details: { reason: "inactive_or_expired" } });
@@ -142,7 +149,7 @@ Deno.serve(async (req: Request) => {
     return reply(200, { success: false, code: "SESSION_INVALID", message: "This admin device session has expired or was revoked. Sign in again." });
   }
 
-  if (action === "validate") return reply(200, { success: true, device_name: active.device_name, last_activity_at: active.last_activity_at });
+  if (action === "validate") return reply(200, { success: true, device_name: active.device_name, last_activity_at: active.last_activity_at, session_timeout_minutes: timeoutMinutes });
 
   if (action === "heartbeat") {
     const now = new Date().toISOString();
@@ -150,16 +157,31 @@ Deno.serve(async (req: Request) => {
       .update({ last_activity_at: now, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() })
       .eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash).select("user_id").maybeSingle();
     if (updateError || !updated) return reply(200, { success: false, code: "SESSION_INVALID", message: "Your admin device session is no longer active." });
-    return reply(200, { success: true, last_activity_at: now });
+    return reply(200, { success: true, last_activity_at: now, session_timeout_minutes: timeoutMinutes });
   }
 
-  if (["list", "revoke", "revoke_all"].includes(action)) {
-    if (String(profile.role).toLowerCase() !== "owner") return reply(403, { success: false, error: "Only Admin 1 (Owner) can manage active administrator sessions." });
+  if (["list", "revoke", "revoke_all", "get_timeout_settings", "set_timeout_settings"].includes(action)) {
+    if (String(profile.role).toLowerCase() !== "owner") return reply(403, { success: false, error: "Only Admin 1 (Owner) can manage administrator session security settings." });
+
+    if (action === "get_timeout_settings") {
+      return reply(200, { success: true, session_timeout_minutes: timeoutMinutes, allowed_timeout_minutes: allowedTimeouts, recommendation_minutes: 30 });
+    }
+
+    if (action === "set_timeout_settings") {
+      const requested = Number(body.session_timeout_minutes);
+      if (!allowedTimeouts.includes(requested)) return reply(400, { success: false, error: "Choose 5, 10, 15, 30 or 60 minutes." });
+      const { data: saved, error: saveError } = await admin.from("admin_security_settings")
+        .update({ session_timeout_minutes: requested, updated_by: userId, updated_at: new Date().toISOString() })
+        .eq("setting_key", "global").select("session_timeout_minutes,updated_at").maybeSingle();
+      if (saveError || !saved) return reply(500, { success: false, error: "Could not save the administrator session timeout setting." });
+      await admin.from("admin_session_audit").insert({ actor_user_id: userId, target_user_id: userId, action: "admin_session_timeout_changed", details: { session_timeout_minutes: requested } });
+      return reply(200, { success: true, session_timeout_minutes: requested, updated_at: saved.updated_at, message: "Admin inactivity timeout updated for all administrator accounts." });
+    }
 
     if (action === "list") {
       const { data: sessions, error: sessionsError } = await admin.from("admin_active_sessions")
         .select("user_id,device_name,device_fingerprint,user_agent,created_at,last_activity_at,expires_at")
-        .gt("expires_at", new Date().toISOString()).gt("last_activity_at", new Date(Date.now() - 5 * 60 * 1000).toISOString())
+        .gt("expires_at", new Date().toISOString()).gt("last_activity_at", new Date(Date.now() - timeoutMinutes * 60 * 1000).toISOString())
         .order("last_activity_at", { ascending: false });
       if (sessionsError) return reply(500, { success: false, error: "Could not load active admin sessions." });
       const userIds = [...new Set((sessions || []).map((s) => s.user_id))];
