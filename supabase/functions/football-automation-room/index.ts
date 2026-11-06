@@ -65,6 +65,7 @@ function validateHttpsUrl(value: string): URL {
   const url = new URL(value);
   if (url.protocol !== "https:") throw new Error("API base URL must use HTTPS.");
   if (url.username || url.password) throw new Error("Do not put a username or password inside the API URL.");
+  if (url.search || url.hash) throw new Error("Keep query parameters and fragments out of the API base URL; configure them in the query settings or endpoint path.");
   const host = url.hostname.toLowerCase();
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) {
     throw new Error("Local or internal API hosts are not allowed.");
@@ -81,6 +82,64 @@ function cleanTestPath(value: unknown): string {
     throw new Error("Connection test path must be a relative path beginning with one slash.");
   }
   return path;
+}
+
+function cleanJsonObject(value: unknown, label: string, maxKeys = 40): Record<string, unknown> {
+  if (value == null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be a JSON object.`);
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > maxKeys) throw new Error(`${label} cannot contain more than ${maxKeys} entries.`);
+  const output: Record<string, unknown> = {};
+  for (const [rawKey, rawValue] of entries) {
+    const key = cleanText(rawKey, 100);
+    if (!key || /[\r\n\u0000]/.test(key)) throw new Error(`${label} contains an invalid key.`);
+    if (typeof rawValue === "string") {
+      if (rawValue.length > 1000 || /[\r\n\u0000]/.test(rawValue)) throw new Error(`${label} contains an invalid or overly long value.`);
+      output[key] = rawValue;
+    } else if (typeof rawValue === "number" || typeof rawValue === "boolean") output[key] = rawValue;
+    else throw new Error(`${label} values must be strings, numbers or booleans.`);
+  }
+  return output;
+}
+
+function cleanEndpoints(value: unknown): Record<string, string> {
+  if (value == null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error("Match endpoints must be a JSON object.");
+  const output: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!["live", "today", "upcoming", "results"].includes(key)) throw new Error("Endpoint keys must be live, today, upcoming or results.");
+    const route = cleanText(raw, 700);
+    if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
+      throw new Error(`The ${key} endpoint must be a relative path beginning with one slash.`);
+    }
+    output[key] = route;
+  }
+  return output;
+}
+
+
+function plainObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function cleanResponseMapping(value: unknown): Record<string, unknown> {
+  if (value == null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error("Response mapping must be a JSON object.");
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length > 30) throw new Error("Response mapping cannot contain more than 30 entries.");
+  const output: Record<string, unknown> = {};
+  for (const [key, raw] of entries) {
+    if (["live_status_values", "finished_status_values", "upcoming_status_values"].includes(key)) {
+      if (!Array.isArray(raw) || raw.length > 40 || raw.some((item) => typeof item !== "string" || item.length > 40)) throw new Error(`Response mapping ${key} must be an array of short status strings.`);
+      output[key] = raw;
+    } else if (typeof raw === "string" && raw.length <= 200 && !/[\r\n\u0000]/.test(raw)) output[key] = raw;
+    else throw new Error(`Response mapping field ${key} must be a string path or a status array.`);
+  }
+  return output;
+}
+
+function expandTemplate(value: string, date: string, view: string): string {
+  return value.replaceAll("{date}", date).replaceAll("{view}", view).replaceAll("{competition}", "all");
 }
 
 async function requireAdmin(request: Request, admin: ReturnType<typeof createClient>) {
@@ -113,7 +172,7 @@ async function getConfig(admin: ReturnType<typeof createClient>, id: string) {
 async function getSettings(admin: ReturnType<typeof createClient>) {
   const { data, error } = await admin
     .from("football_automation_settings")
-    .select("id, selected_api_config_id, fallback_enabled, cache_seconds, public_refresh_seconds, updated_at")
+    .select("id, selected_api_config_id, active_api_config_id, public_livescore_enabled, fallback_enabled, cache_seconds, public_refresh_seconds, updated_at")
     .eq("id", true)
     .maybeSingle();
   if (error) throw error;
@@ -121,7 +180,7 @@ async function getSettings(admin: ReturnType<typeof createClient>) {
   const { data: inserted, error: insertError } = await admin
     .from("football_automation_settings")
     .insert({ id: true })
-    .select("id, selected_api_config_id, fallback_enabled, cache_seconds, public_refresh_seconds, updated_at")
+    .select("id, selected_api_config_id, active_api_config_id, public_livescore_enabled, fallback_enabled, cache_seconds, public_refresh_seconds, updated_at")
     .single();
   if (insertError) throw insertError;
   return inserted;
@@ -138,7 +197,10 @@ async function writeLog(admin: ReturnType<typeof createClient>, row: Record<stri
 function buildTestUrl(config: Record<string, any>): URL {
   const base = validateHttpsUrl(String(config.api_base_url || ""));
   const path = cleanTestPath(config.test_path);
-  return new URL(path, base.origin + base.pathname.replace(/\/$/, "") + "/");
+  const target = new URL(path.replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
+  const params = cleanJsonObject(config.default_query_params, "Default query parameters");
+  for (const [key, value] of Object.entries(params)) target.searchParams.set(key, String(value));
+  return target;
 }
 
 function asFiniteInt(value: unknown): number | null {
@@ -250,7 +312,7 @@ Deno.serve(async (request: Request) => {
       for (let offset = 0; ; offset += pageSize) {
         const { data: page, error } = await admin
           .from("football_api_configs")
-          .select("id, provider_code, provider_name, sport, plan_type, api_base_url, test_path, auth_header_name, auth_prefix, has_api_key, priority, is_enabled, last_tested_at, last_test_ok, last_test_http_status, last_test_message, last_quota_used, last_quota_limit, last_quota_remaining, last_quota_period, last_quota_checked_at, created_at, updated_at")
+          .select("id, provider_code, provider_name, sport, plan_type, api_base_url, test_path, auth_type, auth_header_name, auth_prefix, auth_query_param, custom_headers, default_query_params, endpoints, response_mapping, has_api_key, priority, is_enabled, last_tested_at, last_test_ok, last_test_http_status, last_test_message, last_quota_used, last_quota_limit, last_quota_remaining, last_quota_period, last_quota_checked_at, created_at, updated_at")
           .order("priority", { ascending: true })
           .order("created_at", { ascending: true })
           .range(offset, offset + pageSize - 1);
@@ -270,8 +332,14 @@ Deno.serve(async (request: Request) => {
       const planType = cleanText(body.plan_type, 20, "free").toLowerCase();
       const apiBaseUrl = cleanText(body.api_base_url, 500);
       const testPath = cleanTestPath(body.test_path);
+      const authType = cleanText(body.auth_type, 20, "none").toLowerCase();
       const authHeaderName = cleanText(body.auth_header_name, 80);
       const authPrefix = cleanText(body.auth_prefix, 40);
+      const authQueryParam = cleanText(body.auth_query_param, 80);
+      const customHeaders = cleanJsonObject(body.custom_headers, "Custom request headers");
+      const defaultQueryParams = cleanJsonObject(body.default_query_params, "Default query parameters");
+      const endpoints = cleanEndpoints(body.endpoints);
+      const responseMapping = cleanResponseMapping(body.response_mapping);
       const priority = clampInt(body.priority, 1, 999999, 100);
       const isEnabled = body.is_enabled === true;
       const apiKey = String(body.api_key ?? "").trim();
@@ -279,6 +347,9 @@ Deno.serve(async (request: Request) => {
       if (apiKey.length > 4096) throw new Error("API key must be 4096 characters or fewer.");
       if (/[\r\n\u0000]/.test(authPrefix)) throw new Error("Authentication prefix contains invalid characters.");
       if (!providerName) throw new Error("Provider display name is required.");
+      if (!["none", "header", "query"].includes(authType)) throw new Error("Authentication method must be none, header or query.");
+      if (authType === "header" && !authHeaderName) throw new Error("Authentication header name is required for header authentication.");
+      if (authType === "query" && !authQueryParam) throw new Error("Authentication query parameter name is required for query authentication.");
       if (!/^[a-z0-9_-]{1,60}$/.test(providerCode)) throw new Error("Provider code may contain lowercase letters, numbers, underscores and hyphens.");
       if (!/^[a-z0-9-]{1,40}$/.test(sport)) throw new Error("Sport value is invalid.");
       if (!["free", "paid", "custom"].includes(planType)) throw new Error("API plan must be Free, Paid or Custom.");
@@ -308,8 +379,18 @@ Deno.serve(async (request: Request) => {
         plan_type: planType,
         api_base_url: apiBaseUrl,
         test_path: testPath,
+        auth_type: authType,
         auth_header_name: authHeaderName || null,
         auth_prefix: authPrefix || null,
+        auth_query_param: authQueryParam || null,
+        custom_headers: customHeaders,
+        default_query_params: defaultQueryParams,
+        endpoints: endpoints,
+        response_mapping: responseMapping,
+        last_tested_at: null,
+        last_test_ok: null,
+        last_test_http_status: null,
+        last_test_message: "Configuration changed. Run a new connection test before activation.",
         priority,
         is_enabled: isEnabled,
         ...keyFields,
@@ -318,9 +399,19 @@ Deno.serve(async (request: Request) => {
       };
 
       if (existing) {
+        const currentSettings = await getSettings(admin);
+        if (currentSettings.selected_api_config_id === id || currentSettings.active_api_config_id === id) {
+          const { error: settingsError } = await admin.from("football_automation_settings").update({
+            selected_api_config_id: currentSettings.selected_api_config_id === id ? null : currentSettings.selected_api_config_id,
+            active_api_config_id: currentSettings.active_api_config_id === id ? null : currentSettings.active_api_config_id,
+            public_livescore_enabled: currentSettings.active_api_config_id === id ? false : currentSettings.public_livescore_enabled,
+            updated_by: actor.id, updated_at: new Date().toISOString(),
+          }).eq("id", true);
+          if (settingsError) throw settingsError;
+        }
         const { error } = await admin.from("football_api_configs").update(values).eq("id", id);
         if (error) throw error;
-        return json(200, { ok: true, message: "Sports API configuration updated." });
+        return json(200, { ok: true, message: "Sports API configuration updated. Run a new test before selecting and activating it." });
       }
       const { error } = await admin.from("football_api_configs").insert({ ...values, created_by: actor.id });
       if (error) throw error;
@@ -341,6 +432,52 @@ Deno.serve(async (request: Request) => {
       return json(200, { ok: true, message: "Primary football API provider selected." });
     }
 
+
+    if (action === "activate") {
+      const settings = await getSettings(admin);
+      const id = cleanText(body.id || settings.selected_api_config_id, 80);
+      if (!id) throw new Error("Select a primary football API in Automation Settings before activation.");
+      if (settings.selected_api_config_id !== id) throw new Error("The API you are activating is not the currently selected provider. Select it as primary first.");
+      const config = await getConfig(admin, id);
+      if (!config.is_enabled) throw new Error("Enable this provider before activation.");
+      if (config.last_test_ok !== true) throw new Error("Run a successful connection test immediately before activating this provider.");
+      const builtInAdapters = ["openligadb", "api-football", "football-data-org"];
+      if (!builtInAdapters.includes(String(config.provider_code || ""))) {
+        const endpoints = plainObject(config.endpoints);
+        const mapping = plainObject(config.response_mapping);
+        const requiredEndpoints = ["live", "today", "upcoming", "results"];
+        const missingEndpoints = requiredEndpoints.filter((key) => typeof endpoints[key] !== "string" || !String(endpoints[key]).startsWith("/"));
+        const requiredMappings = ["matches_path", "id", "competition", "home_team", "away_team", "status", "kickoff"];
+        const missingMappings = requiredMappings.filter((key) => typeof mapping[key] !== "string" || !String(mapping[key]).trim());
+        if (missingEndpoints.length || missingMappings.length) {
+          throw new Error("This custom API needs all four match endpoints (live, today, upcoming, results) and response mappings for matches_path, id, competition, home_team, away_team, status and kickoff before activation.");
+        }
+      }
+      const { error } = await admin.from("football_automation_settings").update({
+        active_api_config_id: id,
+        public_livescore_enabled: true,
+        updated_by: actor.id,
+        updated_at: new Date().toISOString(),
+      }).eq("id", true);
+      if (error) throw error;
+      await admin.from("football_public_cache").delete().neq("cache_key", "");
+      await writeLog(admin, { event_type: "public_provider_activated", config_id: id, success: true, message: `${config.provider_name} activated for public LiveScore.`, actor_user_id: actor.id });
+      return json(200, { ok: true, message: `${config.provider_name} is now active for public PARROTHIT LiveScore.` });
+    }
+
+    if (action === "deactivate") {
+      const settings = await getSettings(admin);
+      const { error } = await admin.from("football_automation_settings").update({
+        public_livescore_enabled: false,
+        updated_by: actor.id,
+        updated_at: new Date().toISOString(),
+      }).eq("id", true);
+      if (error) throw error;
+      await admin.from("football_public_cache").delete().neq("cache_key", "");
+      await writeLog(admin, { event_type: "public_livescore_paused", config_id: settings.active_api_config_id || null, success: true, message: "Public LiveScore paused by administrator.", actor_user_id: actor.id });
+      return json(200, { ok: true, message: "Public PARROTHIT LiveScore has been paused. Provider configurations were kept." });
+    }
+
     if (action === "set_enabled") {
       const id = cleanText(body.id, 80);
       const enabled = body.enabled === true;
@@ -352,8 +489,13 @@ Deno.serve(async (request: Request) => {
       if (error) throw error;
       if (!enabled) {
         const settings = await getSettings(admin);
-        if (settings.selected_api_config_id === id) {
-          const { error: settingsError } = await admin.from("football_automation_settings").update({ selected_api_config_id: null, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("id", true);
+        if (settings.selected_api_config_id === id || settings.active_api_config_id === id) {
+          const { error: settingsError } = await admin.from("football_automation_settings").update({
+            selected_api_config_id: settings.selected_api_config_id === id ? null : settings.selected_api_config_id,
+            active_api_config_id: settings.active_api_config_id === id ? null : settings.active_api_config_id,
+            public_livescore_enabled: settings.active_api_config_id === id ? false : settings.public_livescore_enabled,
+            updated_by: actor.id, updated_at: new Date().toISOString(),
+          }).eq("id", true);
           if (settingsError) throw settingsError;
         }
       }
@@ -362,6 +504,16 @@ Deno.serve(async (request: Request) => {
 
     if (action === "delete") {
       const id = cleanText(body.id, 80);
+      const settings = await getSettings(admin);
+      if (settings.selected_api_config_id === id || settings.active_api_config_id === id) {
+        const { error: settingsError } = await admin.from("football_automation_settings").update({
+          selected_api_config_id: settings.selected_api_config_id === id ? null : settings.selected_api_config_id,
+          active_api_config_id: settings.active_api_config_id === id ? null : settings.active_api_config_id,
+          public_livescore_enabled: settings.active_api_config_id === id ? false : settings.public_livescore_enabled,
+          updated_by: actor.id, updated_at: new Date().toISOString(),
+        }).eq("id", true);
+        if (settingsError) throw settingsError;
+      }
       const { error } = await admin.from("football_api_configs").delete().eq("id", id);
       if (error) throw error;
       return json(200, { ok: true, message: "Sports API configuration deleted." });
@@ -393,8 +545,9 @@ Deno.serve(async (request: Request) => {
       const id = cleanText(body.id, 80);
       const config = await getConfig(admin, id);
       if (!config.is_enabled) throw new Error("Enable this provider before testing its connection.");
-      if (config.auth_header_name && !config.has_api_key) {
-        const message = "API key required for the configured authentication header.";
+      const authType = config.auth_type || (config.auth_header_name ? "header" : "none");
+      if (authType !== "none" && !config.has_api_key) {
+        const message = "API key required for the configured authentication method.";
         const testedAt = new Date().toISOString();
         await admin.from("football_api_configs").update({ last_tested_at: testedAt, last_test_ok: false, last_test_http_status: null, last_test_message: message, last_quota_used: null, last_quota_limit: null, last_quota_remaining: null, last_quota_period: null, last_quota_checked_at: null, updated_at: testedAt }).eq("id", id);
         await writeLog(admin, { event_type: "api_connection_test", config_id: id, success: false, message, actor_user_id: actor.id });
@@ -404,10 +557,16 @@ Deno.serve(async (request: Request) => {
       const target = buildTestUrl(config);
       // API-Football accepts only its documented API key header; do not add an Accept header.
       const headers = new Headers();
-      if (config.auth_header_name && config.api_key_ciphertext && config.api_key_iv) {
+      const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
+      for (const [headerName, headerValue] of Object.entries(customHeaders)) {
+        if (["host", "content-length", "authorization", "apikey"].includes(headerName.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${headerName}.`);
+        headers.set(headerName, String(headerValue));
+      }
+      if (authType !== "none" && config.api_key_ciphertext && config.api_key_iv) {
         const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
         const value = config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey;
-        headers.set(config.auth_header_name, value);
+        if (authType === "header") headers.set(String(config.auth_header_name), value);
+        else target.searchParams.set(String(config.auth_query_param), clearKey);
       }
 
       const controller = new AbortController();
@@ -450,8 +609,13 @@ Deno.serve(async (request: Request) => {
       if (updateError) throw updateError;
       if (!testOk) {
         const settings = await getSettings(admin);
-        if (settings.selected_api_config_id === id) {
-          const { error: clearPrimaryError } = await admin.from("football_automation_settings").update({ selected_api_config_id: null, updated_by: actor.id, updated_at: testedAt }).eq("id", true);
+        if (settings.selected_api_config_id === id || settings.active_api_config_id === id) {
+          const { error: clearPrimaryError } = await admin.from("football_automation_settings").update({
+            selected_api_config_id: settings.selected_api_config_id === id ? null : settings.selected_api_config_id,
+            active_api_config_id: settings.active_api_config_id === id ? null : settings.active_api_config_id,
+            public_livescore_enabled: settings.active_api_config_id === id ? false : settings.public_livescore_enabled,
+            updated_by: actor.id, updated_at: testedAt,
+          }).eq("id", true);
           if (clearPrimaryError) throw clearPrimaryError;
         }
       }
