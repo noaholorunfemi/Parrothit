@@ -63,6 +63,37 @@
     if (!rows || !rows.length) { target.innerHTML = '<tr><td colspan="4" class="empty-cell">No security events have been recorded yet.</td></tr>'; return; }
     target.innerHTML = rows.map((r) => '<tr><td>' + escapeHtml(fmt(r.created_at)) + '</td><td><strong>' + escapeHtml(String(r.action || '').replace(/_/g, ' ')) + '</strong></td><td>' + escapeHtml(r.target_user_id || '—') + '</td><td>' + escapeHtml(r.device_name || (r.details && (r.details.active_device_name || r.details.target_username)) || '—') + '</td></tr>').join('');
   }
+  async function loadTimeoutSettings() {
+    const select = $('sessionTimeoutSelect');
+    const save = $('saveSessionTimeout');
+    if (save) save.disabled = true;
+    try {
+      const settings = await invoke('get_timeout_settings');
+      const minutes = Number(settings.session_timeout_minutes) || 30;
+      if (select) select.value = String(minutes);
+      const stat = $('currentTimeoutStat');
+      if (stat) stat.textContent = minutes === 60 ? '1 hour' : minutes + ' min';
+    } catch (error) {
+      status(error.message || 'Could not load session timeout settings. Apply the SQL migration and deploy the Edge Function.', true);
+    } finally { if (save) save.disabled = false; }
+  }
+  async function saveTimeoutSettings() {
+    const select = $('sessionTimeoutSelect');
+    const save = $('saveSessionTimeout');
+    if (!select || !save) return;
+    const minutes = Number(select.value);
+    if (![5, 10, 15, 30, 60].includes(minutes)) return status('Choose 5, 10, 15, 30 or 60 minutes.', true);
+    if (!window.confirm('Set the inactivity timeout to ' + (minutes === 60 ? '1 hour' : minutes + ' minutes') + ' for EVERY administrator account?')) return;
+    save.disabled = true;
+    try {
+      const result = await invoke('set_timeout_settings', { session_timeout_minutes: minutes });
+      const stat = $('currentTimeoutStat');
+      if (stat) stat.textContent = minutes === 60 ? '1 hour' : minutes + ' min';
+      status(result.message || 'Admin session timeout saved for every administrator.');
+    } catch (error) {
+      status(error.message || 'Could not save the session timeout.', true);
+    } finally { save.disabled = false; }
+  }
   async function load() {
     const refresh = $('refreshSessions');
     if (refresh) refresh.disabled = true;
@@ -80,14 +111,19 @@
       status(error.message || 'Could not load active sessions. Confirm that the migration and Edge Function are deployed.', true);
     } finally { if (refresh) refresh.disabled = false; }
   }
+  let booted = false;
   function boot() {
+    if (booted) return;
     const profile = window.PARROTHIT_ADMIN_PROFILE;
     if (!profile) return;
+    booted = true;
     if (String(profile.role || '').toLowerCase() !== 'owner') {
       $('sessionManagerRoot').innerHTML = '<section class="session-card"><h1>Owner access required</h1><p>Only Admin 1 (Owner) can view or revoke administrator sessions.</p><a class="session-btn" href="dashboard.html">Return to Control Room</a></section>';
       return;
     }
     $('refreshSessions').addEventListener('click', load);
+    $('saveSessionTimeout').addEventListener('click', saveTimeoutSettings);
+    loadTimeoutSettings();
     $('revokeAllSessions').addEventListener('click', async () => {
       if (!window.confirm('Revoke EVERY active administrator session, including your current owner session? All admins will need to sign in again.')) return;
       const button = $('revokeAllSessions'); button.disabled = true;
