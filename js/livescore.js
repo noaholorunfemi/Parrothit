@@ -1,1 +1,99 @@
-(()=>{'use strict';const status=document.getElementById('status'),list=document.getElementById('matches');let view='live',timer=null;const url=window.PARROTHIT_SUPABASE_URL||'',key=window.PARROTHIT_SUPABASE_ANON_KEY||'';const endpoint=url?url.replace(/\/$/,'')+'/functions/v1/parrothit-football-public':'';function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}function normalize(data){if(Array.isArray(data))return data;return data.matches||data.fixtures||data.data||[]}function groupName(m){return m.league||m.competition||m.league_name||'Football'}function team(m,side){const x=m[side]||m[side+'_team']||{};return typeof x==='string'?x:(x.name||x.team_name||'TBD')}function render(matches){list.innerHTML='';if(!matches.length){list.innerHTML='<div class="empty">'+(view==='live'?'No live matches are available right now. Check Today for upcoming fixtures.':'No matches available for this view.')+'</div>';return}const groups={};matches.forEach(m=>{const g=groupName(m);(groups[g]||(groups[g]=[])).push(m)});Object.entries(groups).forEach(([g,items])=>{const box=document.createElement('section');box.className='league';box.innerHTML='<div class="league-title">'+esc(g)+'</div>'+items.map(m=>{const home=team(m,'home'),away=team(m,'away'),hs=m.home_score??m.goals_home??m.score?.home,as=m.away_score??m.goals_away??m.score?.away,live=String(m.status||m.state||'').toLowerCase().includes('live')||String(m.status||'').toLowerCase()==='inplay',time=m.minute?m.minute+"'":(m.kickoff||m.date||m.match_time||'');return '<div class="match"><div class="team">'+esc(home)+'</div><div class="score">'+(hs==null&&as==null?'—':esc(hs)+' : '+esc(as))+'<small class="'+(live?'live':'')+'">'+esc(live?'LIVE':time||m.status||'Scheduled')+'</small></div><div class="team">'+esc(away)+'</div></div>'}).join('');list.appendChild(box)})}async function load(){if(!endpoint||!key){status.textContent='LiveScore is not connected. Configure Supabase in supabase-config.js and deploy the public football Edge Function.';render([]);return}status.textContent='Refreshing scores…';try{const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+key},body:JSON.stringify({view}),cache:'no-store'});const j=await r.json();if(!r.ok||j.ok===false)throw Error(j.error||'Football data unavailable');render(normalize(j));status.textContent='Updated '+new Date().toLocaleTimeString()+' · '+(j.provider||'Configured provider')}catch(e){status.textContent='Unable to load scores: '+e.message;render([])}}document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));load()}));load();timer=setInterval(load,60000);window.addEventListener('beforeunload',()=>clearInterval(timer));})();
+/* PARROTHIT public football LiveScore. Provider credentials never enter this file. */
+(() => {
+  'use strict';
+  const updated = document.getElementById('lsUpdated');
+  const dateInput = document.getElementById('lsDate');
+  const leagueSelect = document.getElementById('lsLeague');
+  const panels = [...document.querySelectorAll('.ls-panel')];
+  const tabs = [...document.querySelectorAll('.ls-tab')];
+  const config = window.PARROTHIT_LIVESCORE || {};
+  const supabaseUrl = String(window.PARROTHIT_SUPABASE_URL || config.supabaseUrl || '').replace(/\/$/, '');
+  const anonKey = window.PARROTHIT_SUPABASE_ANON_KEY || config.anonKey || '';
+  const endpoint = supabaseUrl ? `${supabaseUrl}/functions/v1/parrothit-football-public` : '';
+  let view = 'live', busy = false, timer;
+  const today = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  dateInput.value = dateInput.value || today();
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const asDate = value => { const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? d : null; };
+  const getTeam = (m, side) => {
+    const raw = m[side] ?? m[`${side}_team`] ?? m[side === 'home' ? 'Team1' : 'Team2'] ?? {};
+    return typeof raw === 'string' ? raw : raw.name || raw.TeamName || raw.team_name || (side === 'home' ? 'Home team' : 'Away team');
+  };
+  const getScore = (m, side) => m[`${side}_score`] ?? m[side === 'home' ? 'goals_home' : 'goals_away'] ?? m.score?.[side] ?? null;
+  const leagueName = m => String(m.league || m.competition || m.league_name || m.LeagueName || 'Football');
+  const isFinished = m => /^(ft|finished|full.?time|ended|complete)/i.test(String(m.status || m.state || '')) || m.MatchIsFinished === true || String(m.MatchIsFinished).toLowerCase() === 'true';
+  const isLive = m => /live|in.?play|half.?time|1st|2nd/i.test(String(m.status || m.state || '')) && !isFinished(m);
+  const kickoff = m => asDate(m.kickoff || m.date || m.match_time || m.MatchDate || m.start_time);
+  function leagueMatches(m) {
+    const wanted = String(leagueSelect.value || 'all').toLowerCase();
+    if (wanted === 'all') return true;
+    const text = `${m.league || ''} ${m.competition || ''} ${m.league_name || ''} ${m.LeagueName || ''} ${m.league_code || ''}`.toLowerCase();
+    const map = {premier:['premier','england'],laliga:['la liga','laliga','spain'],seriea:['serie a','italy'],bundesliga:['bundesliga','germany'],ligue1:['ligue 1','france'],nigeria:['nigeria','npfl'],champions:['champions league','uefa champions']};
+    return (map[wanted] || [wanted]).some(s => text.includes(s));
+  }
+  function statusLabel(m) {
+    if (isLive(m)) return m.minute ? `${m.minute}' · LIVE` : 'LIVE';
+    if (isFinished(m)) return 'FT';
+    const d = kickoff(m); return d ? d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : String(m.status || 'Scheduled');
+  }
+  function matchCard(m) {
+    const home = getTeam(m,'home'), away = getTeam(m,'away'), hs = getScore(m,'home'), as = getScore(m,'away');
+    const score = hs == null && as == null ? '—' : `${esc(hs ?? '—')} : ${esc(as ?? '—')}`;
+    const stamp = m.minute ? `${m.minute}'` : statusLabel(m);
+    return `<article class="ls-match"><div class="ls-team">${esc(home)}</div><div class="ls-score">${score}<small class="${isLive(m)?'ls-live':''}">${esc(stamp)}</small></div><div class="ls-team ls-away">${esc(away)}</div></article>`;
+  }
+  function emptyMessage() {
+    return view === 'live' ? 'No live matches are available right now.' : view === 'today' ? 'No fixtures found for this date.' : view === 'upcoming' ? 'No upcoming fixtures found.' : 'No completed results found for this date.';
+  }
+  function render(matches, provider) {
+    const filtered = matches.filter(leagueMatches);
+    panels.forEach(panel => {
+      const list = panel.querySelector('.ls-empty, .ls-match-list');
+      if (!list) return;
+      const subset = filtered.filter(m => {
+        if (view === 'live') return isLive(m);
+        if (view === 'results') return isFinished(m);
+        if (view === 'upcoming') return !isLive(m) && !isFinished(m) && (!kickoff(m) || kickoff(m) > new Date());
+        return true;
+      });
+      if (panel.dataset.status !== view) return;
+      const groups = new Map();
+      subset.forEach(m => { const name = leagueName(m); if (!groups.has(name)) groups.set(name, []); groups.get(name).push(m); });
+      panel.innerHTML = `<h2 class="section-title">${esc(({live:'Live now',today:"Today's matches",upcoming:'Upcoming fixtures',results:'Recent results'})[view])}<small>${subset.length} match${subset.length===1?'':'es'}</small></h2>` +
+        (groups.size ? [...groups].map(([name,items]) => `<section class="ls-league"><h3>${esc(name)}</h3><div class="ls-match-list">${items.map(matchCard).join('')}</div></section>`).join('') : `<div class="ls-empty"><strong>${esc(emptyMessage())}</strong><p>Try another date or competition.</p></div>`);
+    });
+    if (updated) updated.textContent = `Updated ${new Date().toLocaleTimeString()}${provider ? ` · ${provider}` : ''}`;
+  }
+  async function load() {
+    if (busy) return; busy = true;
+    if (!endpoint || !anonKey || /YOUR_PROJECT|YOUR_SUPABASE/i.test(`${supabaseUrl} ${anonKey}`)) {
+      if (updated) updated.textContent = 'LiveScore is not connected. Check the public Supabase configuration.';
+      panels.forEach(p => { if (p.dataset.status === view) p.innerHTML = `<h2 class="section-title">${esc(p.querySelector('h2')?.textContent || 'Football')}</h2><div class="ls-empty"><strong>Football data unavailable</strong><p>Public Supabase configuration is missing.</p></div>`; }); busy=false; return;
+    }
+    if (updated) updated.textContent = 'Loading football data…';
+    try {
+      const response = await fetch(endpoint, {method:'POST',headers:{'Content-Type':'application/json','apikey':anonKey,'Authorization':`Bearer ${anonKey}`},body:JSON.stringify({view,date:dateInput.value || today(),competition:leagueSelect.value || 'all'}),cache:'no-store'});
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `Provider request failed (${response.status})`);
+      const matches = Array.isArray(payload.matches) ? payload.matches : Array.isArray(payload.data) ? payload.data : [];
+      render(matches, payload.provider || 'Configured provider');
+      if (payload.message && updated) updated.textContent = `${payload.message}${payload.provider ? ` · ${payload.provider}` : ''}`;
+    } catch (error) {
+      if (updated) updated.textContent = `Unable to load football data: ${error.message}`;
+      const panel = panels.find(p=>p.dataset.status===view);
+      if(panel) panel.innerHTML=`<h2 class="section-title">Football data</h2><div class="ls-empty"><strong>Football data unavailable</strong><p>${esc(error.message)}. Please try again shortly.</p></div>`;
+    } finally { busy=false; }
+  }
+  function activate(next) {
+    view = next;
+    tabs.forEach(tab=>{const active=tab.dataset.panel===view;tab.classList.toggle('active',active);tab.setAttribute('aria-selected',String(active));});
+    panels.forEach(panel=>{const active=panel.dataset.status===view;panel.classList.toggle('active',active);panel.hidden=!active;});
+    load();
+  }
+  tabs.forEach(tab=>tab.addEventListener('click',()=>activate(tab.dataset.panel)));
+  dateInput.addEventListener('change',load); leagueSelect.addEventListener('change',load);
+  load(); timer=setInterval(load,60000); window.addEventListener('pagehide',()=>clearInterval(timer));
+})();
