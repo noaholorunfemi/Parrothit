@@ -3,43 +3,43 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#101010">
+  <meta name="theme-color" content="#050505">
   <meta name="description" content="Live football scores, fixtures and results from PARROTHIT LiveScore.">
   <title>PARROTHIT LiveScore — Football Scores</title>
-  <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/livescore.css">
 </head>
 <body class="pl-body">
   <div class="pl-app">
-    <div class="pl-topline"><span>PARROTHIT</span><span>NEWS THAT SPEAKS!</span><a href="index.html">Back to News</a></div>
+    <div class="pl-topline"><span>FOOTBALL SCORES</span><a href="index.html">Back to PARROTHIT News</a></div>
+
     <header class="pl-header">
       <div class="pl-header-inner">
-        <button class="pl-icon-btn" id="plMenuBtn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
         <a class="pl-brand" href="livescore.html" aria-label="PARROTHIT LiveScore home">
-          <img src="assets/images/parrothit-logo.png" alt="" onerror="this.style.display='none'">
+          <img src="assets/images/parrothit-logo.png" alt="PARROTHIT" width="36" height="36">
           <span><b>PARROTHIT</b><small>LIVE<strong>SCORE</strong></small></span>
         </a>
+        <button class="pl-icon-btn" id="plMenuBtn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
         <div class="pl-header-actions">
-          <button class="pl-pill pl-bet-label" type="button" disabled aria-label="PARROTHIT sports scores">SCORES</button>
+          <span class="pl-header-label">FOOTBALL</span>
           <button class="pl-icon-btn" id="plSearchBtn" type="button" aria-label="Search teams and competitions">⌕</button>
         </div>
       </div>
-      <div class="pl-menu" id="plMenu" hidden>
+      <nav class="pl-menu" id="plMenu" aria-label="LiveScore menu" hidden>
         <a href="livescore.html" aria-current="page">Scores</a>
-        <a href="sports.html">Sports News</a>
+        <a href="sports.html">News</a>
         <button type="button" id="plMenuFavourites">Favourites</button>
         <a href="football.html">Football</a>
         <a href="index.html">PARROTHIT Home</a>
         <button type="button" id="plSettingsBtn">Settings</button>
-      </div>
+      </nav>
     </header>
 
     <main class="pl-main">
       <nav class="pl-sports" aria-label="Sports">
-        <button class="pl-sport active" type="button" aria-current="true"><span>⚽</span> Football</button>
-        <button class="pl-sport" type="button" disabled title="Hockey will be added in a future phase"><span>◉</span> Hockey</button>
-        <button class="pl-sport" type="button" disabled title="Basketball will be added in a future phase"><span>🏀</span> Basketball</button>
-        <button class="pl-sport" type="button" disabled title="Tennis will be added in a future phase"><span>🎾</span> Tennis</button>
+        <button class="pl-sport active" type="button" aria-current="true"><span aria-hidden="true">⚽</span> Football</button>
+        <button class="pl-sport" type="button" disabled title="Hockey will be added in a future phase"><span aria-hidden="true">◉</span> Hockey</button>
+        <button class="pl-sport" type="button" disabled title="Basketball will be added in a future phase"><span aria-hidden="true">🏀</span> Basketball</button>
+        <button class="pl-sport" type="button" disabled title="Tennis will be added in a future phase"><span aria-hidden="true">🎾</span> Tennis</button>
       </nav>
 
       <section class="pl-datebar" aria-label="Match date">
@@ -62,7 +62,7 @@
           <select id="plCompetition">
             <option value="all">All competitions</option>
             <option value="premier">Premier League</option>
-            <option value="laliga">La Liga</option>
+            <option value="laliga">LaLiga</option>
             <option value="seriea">Serie A</option>
             <option value="bundesliga">Bundesliga</option>
             <option value="ligue1">Ligue 1</option>
@@ -82,8 +82,9 @@
       <section id="plMatches" class="pl-matches" aria-live="polite">
         <div class="pl-state-card"><span class="pl-spinner"></span><strong>Loading football matches…</strong><p>Connecting to PARROTHIT's active football data provider.</p></div>
       </section>
-      <div class="pl-footer-note">Scores and fixtures are supplied by the active provider configured in the Football Automation Room. Availability and match coverage depend on that provider.</div>
+      <div class="pl-footer-note">Scores and fixtures are supplied by the active provider configured in the Football Automation Room. An empty schedule means the provider returned no matches for this selection; a connection failure is shown separately.</div>
     </main>
+
     <footer class="pl-footer"><a href="index.html">PARROTHIT</a><span>•</span><span>NEWS THAT SPEAKS!</span><a href="sports.html">Sports</a></footer>
   </div>
 
@@ -92,7 +93,7 @@
       <div class="pl-dialog-heading"><h2>LiveScore settings</h2><button class="pl-icon-btn" value="cancel" aria-label="Close settings">×</button></div>
       <label class="pl-setting-line"><span>Auto-refresh live scores</span><input type="checkbox" id="plAutoRefresh" checked></label>
       <label class="pl-setting-line"><span>Refresh interval</span><select id="plRefreshInterval"><option value="30">30 seconds</option><option value="60" selected>1 minute</option><option value="120">2 minutes</option></select></label>
-      <p>Automatic refresh applies while the Live tab is selected. Your choices are saved on this device.</p>
+      <p>Automatic refresh runs while the Live tab is selected. Your choices are saved on this device.</p>
       <button class="pl-primary-btn" value="save" id="plSaveSettings">Save settings</button>
     </form>
   </dialog>

@@ -1,19 +1,34 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#101010"><meta name="description" content="PARROTHIT football match centre.">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#050505">
+  <meta name="description" content="PARROTHIT football match centre: match information, standings and head-to-head availability.">
   <title>Match Centre | PARROTHIT LiveScore</title>
-  <link rel="stylesheet" href="css/style.css"><link rel="stylesheet" href="css/livescore.css">
+  <link rel="stylesheet" href="css/livescore.css">
 </head>
 <body class="pl-body">
   <div class="pl-app">
-    <div class="pl-topline"><span>PARROTHIT</span><span>NEWS THAT SPEAKS!</span><a href="index.html">Back to News</a></div>
-    <header class="pl-header"><div class="pl-header-inner">
-      <a class="pl-icon-btn pl-back-btn" href="livescore.html" aria-label="Back to scores">‹</a>
-      <a class="pl-brand" href="livescore.html"><img src="assets/images/parrothit-logo.png" alt=""><span><b>PARROTHIT</b><small>LIVE<strong>SCORE</strong></small></span></a>
-      <a class="pl-pill" href="livescore.html">ALL SCORES</a>
-    </div></header>
+    <div class="pl-topline"><span>FOOTBALL MATCH CENTRE</span><a href="index.html">Back to PARROTHIT News</a></div>
+    <header class="pl-header">
+      <div class="pl-header-inner">
+        <a class="pl-brand" href="livescore.html" aria-label="PARROTHIT LiveScore home">
+          <img src="assets/images/parrothit-logo.png" alt="PARROTHIT" width="36" height="36">
+          <span><b>PARROTHIT</b><small>LIVE<strong>SCORE</strong></small></span>
+        </a>
+        <button class="pl-icon-btn" id="plMenuBtn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
+        <div class="pl-header-actions"><a class="pl-pill" href="livescore.html">ALL SCORES</a></div>
+      </div>
+      <nav class="pl-menu" id="plMenu" aria-label="LiveScore menu" hidden>
+        <a href="livescore.html">Scores</a>
+        <a href="sports.html">News</a>
+        <a href="livescore.html?view=favourites">Favourites</a>
+        <a href="football.html">Football</a>
+        <a href="index.html">PARROTHIT Home</a>
+      </nav>
+    </header>
+
     <main class="pl-main pl-match-centre">
       <a class="pl-back-link" href="livescore.html">‹ Back to all scores</a>
       <div id="plMatchLoading" class="pl-state-card"><span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Retrieving the match from the active football provider.</p></div>
@@ -24,18 +39,31 @@
           <div class="pl-detail-score"><strong id="plDetailScore">– : –</strong><span id="plDetailStatus">Scheduled</span><small id="plDetailDate"></small></div>
           <div class="pl-detail-team" id="plAwayTeam"></div>
         </div>
-        <div class="pl-match-meta"><span id="plProviderName">Provider data</span><button id="plDetailFavourite" class="pl-star" type="button" aria-pressed="false">☆</button></div>
-        <nav class="pl-detail-tabs" aria-label="Match details"><button class="active" data-detail-tab="info" type="button">Info</button><button data-detail-tab="table" type="button">Table</button><button data-detail-tab="h2h" type="button">H2H</button></nav>
+        <div class="pl-match-meta"><span id="plProviderName">Provider data</span><button id="plDetailFavourite" class="pl-star" type="button" aria-label="Add match to favourites" aria-pressed="false">☆</button></div>
+        <nav class="pl-detail-tabs" aria-label="Match details">
+          <button class="active" data-detail-tab="info" type="button">Info</button>
+          <button data-detail-tab="table" type="button">Table</button>
+          <button data-detail-tab="h2h" type="button">H2H</button>
+        </nav>
         <section class="pl-detail-panel active" data-detail-panel="info">
           <h2>Match information</h2><div class="pl-info-grid" id="plInfoGrid"></div>
-          <div class="pl-provider-limits" id="plEventsNote">Match events, lineups and statistics will appear here when the active provider supplies those fields.</div>
+          <div class="pl-provider-limits" id="plEventsNote">Events, lineups and statistics appear only when the active provider supplies those fields.</div>
         </section>
-        <section class="pl-detail-panel" data-detail-panel="table" hidden><h2>Competition table</h2><div class="pl-state-card"><strong>Standings are not included in this match feed.</strong><p>Configure a standings endpoint and response mapping in Football Automation Room before this section can show verified table data.</p></div></section>
-        <section class="pl-detail-panel" data-detail-panel="h2h" hidden><h2>Head-to-head</h2><div class="pl-state-card"><strong>Head-to-head data is not available from the active match feed.</strong><p>This section will display previous meetings when the selected provider exposes an H2H endpoint and the integration is enabled.</p></div></section>
+        <section class="pl-detail-panel" data-detail-panel="table" hidden>
+          <h2>Competition table</h2>
+          <div class="pl-state-card"><strong>Standings are not included in this match feed.</strong><p>Connect a provider standings endpoint and mapping in Football Automation Room to display verified table data here.</p></div>
+        </section>
+        <section class="pl-detail-panel" data-detail-panel="h2h" hidden>
+          <h2>Head-to-head</h2>
+          <div class="pl-state-card"><strong>Head-to-head data is not available from the active match feed.</strong><p>This section will show previous meetings when the selected provider exposes an H2H endpoint and the integration is enabled.</p></div>
+        </section>
       </section>
-      <div class="pl-footer-note">Match details are limited to the information returned by the configured football provider. PARROTHIT does not invent missing scores, events or statistics.</div>
+      <div class="pl-footer-note">PARROTHIT displays only verified information returned by the selected football provider. Missing scores, events, standings and statistics are never fabricated.</div>
     </main>
     <footer class="pl-footer"><a href="index.html">PARROTHIT</a><span>•</span><span>NEWS THAT SPEAKS!</span><a href="livescore.html">LiveScore</a></footer>
   </div>
-  <script src="supabase-config.js"></script><script src="js/livescore-config.js"></script><script src="js/livescore-match.js" defer></script>
-</body></html>
+  <script src="supabase-config.js"></script>
+  <script src="js/livescore-config.js"></script>
+  <script src="js/livescore-match.js" defer></script>
+</body>
+</html>
