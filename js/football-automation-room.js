@@ -7,19 +7,27 @@
   const state = { client: null, configs: [], settings: null, toastTimer: null };
   const presets = {
     openligadb: {
-      provider_code: 'openligadb', provider_name: 'OpenLigaDB', sport: 'football', plan_type: 'free',
+      provider_code: 'openligadb', provider_name: 'OpenLigaDB (Free)', sport: 'football', plan_type: 'free',
       api_base_url: 'https://api.openligadb.de', test_path: '/getavailableleagues',
-      auth_header_name: '', auth_prefix: '', needs_key: false
+      auth_type: 'none', auth_header_name: '', auth_prefix: '', auth_query_param: '', needs_key: false,
+      endpoints: { live: '/getmatchdata?matchDate={date}', today: '/getmatchdata?matchDate={date}', upcoming: '/getmatchdata?matchDate={date}', results: '/getmatchdata?matchDate={date}' },
+      default_query_params: {}, custom_headers: {}, response_mapping: {}
     },
     'api-football': {
       provider_code: 'api-football', provider_name: 'API-Football / API-Sports', sport: 'football', plan_type: 'free',
       api_base_url: 'https://v3.football.api-sports.io', test_path: '/status',
-      auth_header_name: 'x-apisports-key', auth_prefix: '', needs_key: true
+      auth_type: 'header', auth_header_name: 'x-apisports-key', auth_prefix: '', auth_query_param: '', needs_key: true,
+      endpoints: { live: '/fixtures?live=all', today: '/fixtures?date={date}', upcoming: '/fixtures?date={date}', results: '/fixtures?date={date}' },
+      default_query_params: {}, custom_headers: {},
+      response_mapping: { matches_path: 'response', id: 'fixture.id', competition: 'league.name', home_team: 'teams.home.name', away_team: 'teams.away.name', home_score: 'goals.home', away_score: 'goals.away', status: 'fixture.status.short', kickoff: 'fixture.date', minute: 'fixture.status.elapsed', live_status_values: ['1H','2H','HT','ET','BT','P','LIVE','IN_PLAY'], finished_status_values: ['FT','AET','PEN'], upcoming_status_values: ['NS','TBD'] }
     },
     'football-data-org': {
       provider_code: 'football-data-org', provider_name: 'football-data.org', sport: 'football', plan_type: 'free',
       api_base_url: 'https://api.football-data.org', test_path: '/v4/competitions/PL',
-      auth_header_name: 'X-Auth-Token', auth_prefix: '', needs_key: true
+      auth_type: 'header', auth_header_name: 'X-Auth-Token', auth_prefix: '', auth_query_param: '', needs_key: true,
+      endpoints: { live: '/v4/matches?status=IN_PLAY,PAUSED', today: '/v4/matches?dateFrom={date}&dateTo={date}', upcoming: '/v4/matches?dateFrom={date}&dateTo={date}', results: '/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED' },
+      default_query_params: {}, custom_headers: {},
+      response_mapping: { matches_path: 'matches', id: 'id', competition: 'competition.name', home_team: 'homeTeam.name', away_team: 'awayTeam.name', home_score: 'score.fullTime.home', away_score: 'score.fullTime.away', status: 'status', kickoff: 'utcDate', live_status_values: ['IN_PLAY','PAUSED'], finished_status_values: ['FINISHED'], upcoming_status_values: ['SCHEDULED','TIMED','POSTPONED'] }
     }
   };
 
@@ -149,6 +157,7 @@
     }
 
     const primaryId = state.settings && state.settings.selected_api_config_id;
+    const activeId = state.settings && state.settings.active_api_config_id;
     const sorted = state.configs.slice().sort((a, b) => (Number(a.priority) - Number(b.priority)) || String(a.provider_name).localeCompare(String(b.provider_name)));
     sorted.forEach((config) => {
       const tr = document.createElement('tr');
@@ -171,7 +180,8 @@
       quota.className = 'fr-quota-value';
       quota.textContent = quotaText(config);
       appendCell(tr, quota);
-      appendCell(tr, config.id === primaryId ? 'PRIMARY' : '—', config.id === primaryId ? 'fr-primary-cell' : '');
+      const marker = config.id === activeId && state.settings.public_livescore_enabled === true ? 'ACTIVE' : config.id === primaryId ? 'SELECTED' : '—';
+      appendCell(tr, marker, marker !== '—' ? 'fr-primary-cell' : '');
       const actions = document.createElement('div');
       actions.className = 'fr-row-actions';
       actions.appendChild(makeAction('Test', 'test', config.id, '', !config.is_enabled));
@@ -207,15 +217,31 @@
   }
 
   function renderPrimary() {
-    const primaryId = state.settings && state.settings.selected_api_config_id;
+    const settings = state.settings || {};
+    const primaryId = settings.selected_api_config_id;
+    const activeId = settings.active_api_config_id;
     const primary = state.configs.find((x) => x.id === primaryId && x.is_enabled);
+    const active = state.configs.find((x) => x.id === activeId && x.is_enabled);
+    const isActive = settings.public_livescore_enabled === true && !!active;
     $('fr-primary-details').replaceChildren();
     const strong = document.createElement('strong'); strong.textContent = primary ? primary.provider_name : 'Not selected';
     const span = document.createElement('span');
-    span.textContent = primary ? (primary.last_test_ok === true ? 'Latest connection test passed.' : 'Provider selected. Run a connection test before relying on it.') : 'Add and test an enabled sports API, then select it as primary.';
-    $('fr-primary-details').append(strong, span);
+    span.textContent = primary
+      ? (primary.last_test_ok === true ? 'Selected provider passed its latest connection test.' : 'Provider is selected, but must pass a connection test before activation.')
+      : 'Add and test an enabled sports API, then select it as primary in Automation Settings.';
+    const activeLine = document.createElement('span');
+    activeLine.textContent = isActive ? 'Currently serving public LiveScore: ' + active.provider_name : (settings.public_livescore_enabled === false || !active ? 'Public LiveScore is paused or no provider has been activated.' : 'Public LiveScore is not active.');
+    $('fr-primary-details').append(strong, span, activeLine);
     $('fr-stat-primary').textContent = primary ? primary.provider_name : 'Not selected';
-    $('fr-stat-primary-note').textContent = primary ? 'Selected football data provider' : 'Choose an enabled provider';
+    $('fr-stat-primary-note').textContent = isActive ? 'Public LiveScore is active' : 'Selected provider is not yet active';
+    const badge = $('fr-public-state');
+    if (badge) { badge.textContent = isActive ? 'ACTIVE' : 'NOT ACTIVE'; badge.className = 'fr-pill ' + (isActive ? 'fr-pill-free' : 'fr-pill-stage'); }
+    const status = $('fr-public-status');
+    if (status) status.textContent = isActive ? 'Public LiveScore is using ' + active.provider_name + '.' : 'Public LiveScore is not currently using a provider.';
+    const activate = $('fr-activate-selected');
+    if (activate) { activate.disabled = !primary || primary.last_test_ok !== true; activate.textContent = isActive && active.id === (primary && primary.id) ? '✓ Selected API Is Active' : '⚡ Activate Selected Football API'; }
+    const pause = $('fr-pause-public');
+    if (pause) pause.disabled = !isActive;
   }
 
   function renderSettings() {
@@ -258,8 +284,14 @@
     $('fr-plan').value = 'free';
     $('fr-api-base').value = '';
     $('fr-test-path').value = '';
+    $('fr-auth-type').value = 'none';
     $('fr-auth-header').value = '';
     $('fr-auth-prefix').value = '';
+    $('fr-auth-query-param').value = '';
+    $('fr-custom-headers').value = '{}';
+    $('fr-default-params').value = '{}';
+    $('fr-endpoints').value = '{}';
+    $('fr-response-mapping').value = '{}';
     $('fr-api-key').value = '';
     $('fr-priority').value = '100';
     $('fr-enabled').checked = true;
@@ -285,8 +317,14 @@
     $('fr-plan').value = preset.plan_type;
     $('fr-api-base').value = preset.api_base_url;
     $('fr-test-path').value = preset.test_path;
+    $('fr-auth-type').value = preset.auth_type || (preset.auth_header_name ? 'header' : 'none');
     $('fr-auth-header').value = preset.auth_header_name;
     $('fr-auth-prefix').value = preset.auth_prefix;
+    $('fr-auth-query-param').value = preset.auth_query_param || '';
+    $('fr-custom-headers').value = JSON.stringify(preset.custom_headers || {}, null, 2);
+    $('fr-default-params').value = JSON.stringify(preset.default_query_params || {}, null, 2);
+    $('fr-endpoints').value = JSON.stringify(preset.endpoints || {}, null, 2);
+    $('fr-response-mapping').value = JSON.stringify(preset.response_mapping || {}, null, 2);
     $('fr-priority').value = code === 'openligadb' ? '10' : '100';
     $('fr-key-help').textContent = preset.needs_key ? 'Enter the API key/token from this provider account. It will be encrypted server-side.' : 'This OpenLigaDB preset does not require an API key.';
     view('apis');
@@ -305,8 +343,14 @@
     $('fr-plan').value = ['free', 'paid', 'custom'].includes(config.plan_type) ? config.plan_type : 'custom';
     $('fr-api-base').value = config.api_base_url || '';
     $('fr-test-path').value = config.test_path || '';
+    $('fr-auth-type').value = config.auth_type || (config.auth_header_name ? 'header' : 'none');
     $('fr-auth-header').value = config.auth_header_name || '';
     $('fr-auth-prefix').value = config.auth_prefix || '';
+    $('fr-auth-query-param').value = config.auth_query_param || '';
+    $('fr-custom-headers').value = JSON.stringify(config.custom_headers || {}, null, 2);
+    $('fr-default-params').value = JSON.stringify(config.default_query_params || {}, null, 2);
+    $('fr-endpoints').value = JSON.stringify(config.endpoints || {}, null, 2);
+    $('fr-response-mapping').value = JSON.stringify(config.response_mapping || {}, null, 2);
     $('fr-api-key').value = '';
     $('fr-priority').value = String(config.priority || 100);
     $('fr-enabled').checked = config.is_enabled === true;
@@ -335,7 +379,7 @@
         await loadAll(); toast(config.is_enabled ? 'Provider disabled.' : 'Provider enabled.');
       } else if (action === 'primary') {
         await callRoom('set_primary', { id: id });
-        await loadAll(); toast(config.provider_name + ' selected as primary provider.');
+        await loadAll(); toast(config.provider_name + ' selected. Use Activate Selected Football API in LiveScore Management to put it into action.');
       } else if (action === 'test') {
         setGlobalStatus('Testing ' + config.provider_name + ' connection…');
         const result = await callRoom('test', { id: id });
@@ -357,6 +401,11 @@
     saveButton.disabled = true;
     feedback('fr-api-feedback', 'Saving securely…');
     try {
+      const parseObject = (id, label) => { let value; try { value = JSON.parse($(id).value || '{}'); } catch (error) { throw new Error(label + ' must be valid JSON: ' + error.message); } if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(label + ' must be a JSON object.'); return value; };
+      const customHeaders = parseObject('fr-custom-headers', 'Custom request headers');
+      const defaultParams = parseObject('fr-default-params', 'Default query parameters');
+      const endpoints = parseObject('fr-endpoints', 'Match endpoints');
+      const responseMapping = parseObject('fr-response-mapping', 'Response mapping');
       const payload = {
         id: $('fr-config-id').value || null,
         provider_code: $('fr-provider-code').value,
@@ -365,13 +414,22 @@
         plan_type: $('fr-plan').value,
         api_base_url: $('fr-api-base').value.trim(),
         test_path: $('fr-test-path').value.trim(),
+        auth_type: $('fr-auth-type').value,
         auth_header_name: $('fr-auth-header').value.trim(),
         auth_prefix: $('fr-auth-prefix').value.trim(),
+        auth_query_param: $('fr-auth-query-param').value.trim(),
+        custom_headers: customHeaders,
+        default_query_params: defaultParams,
+        endpoints: endpoints,
+        response_mapping: responseMapping,
         api_key: $('fr-api-key').value,
         priority: Number($('fr-priority').value),
         is_enabled: $('fr-enabled').checked
       };
       if (!payload.provider_name || !payload.api_base_url) throw new Error('Enter the provider name and API base URL.');
+      if (!['none','header','query'].includes(payload.auth_type)) throw new Error('Choose a valid authentication method.');
+      if (payload.auth_type === 'header' && !payload.auth_header_name) throw new Error('Enter the authentication header name.');
+      if (payload.auth_type === 'query' && !payload.auth_query_param) throw new Error('Enter the authentication query parameter name.');
       const url = new URL(payload.api_base_url);
       if (url.protocol !== 'https:') throw new Error('The API base URL must use HTTPS.');
       if (!Number.isInteger(payload.priority) || payload.priority < 1 || payload.priority > 999999) throw new Error('Priority must be a whole number between 1 and 999999.');
@@ -412,6 +470,42 @@
     }
   }
 
+
+  async function activateSelectedProvider() {
+    const id = state.settings && state.settings.selected_api_config_id;
+    const config = state.configs.find((item) => item.id === id);
+    if (!config) { feedback('fr-activation-feedback', 'Select a primary API in Automation Settings first.', 'error'); view('settings'); return; }
+    if (!config.is_enabled || config.last_test_ok !== true) { feedback('fr-activation-feedback', 'The selected API must be enabled and pass its connection test before activation.', 'error'); return; }
+    if (!window.confirm('Put ' + config.provider_name + ' into action for the public PARROTHIT LiveScore? This will make it the active public football data provider.')) return;
+    const button = $('fr-activate-selected');
+    button.disabled = true;
+    feedback('fr-activation-feedback', 'Activating ' + config.provider_name + ' for public LiveScore…');
+    try {
+      const result = await callRoom('activate', { id: config.id });
+      await loadAll();
+      feedback('fr-activation-feedback', result.message || config.provider_name + ' is now active for public LiveScore.', 'ok');
+      toast(config.provider_name + ' activated for public LiveScore.');
+    } catch (error) {
+      feedback('fr-activation-feedback', error.message || 'Could not activate the selected API.', 'error');
+      setGlobalStatus(error.message || 'API activation failed.', 'error');
+    } finally { button.disabled = false; }
+  }
+
+  async function pausePublicLivescore() {
+    if (!window.confirm('Pause the public PARROTHIT LiveScore feed? Your provider configuration will be kept.')) return;
+    const button = $('fr-pause-public');
+    button.disabled = true;
+    feedback('fr-activation-feedback', 'Pausing public LiveScore…');
+    try {
+      const result = await callRoom('deactivate', {});
+      await loadAll();
+      feedback('fr-activation-feedback', result.message || 'Public LiveScore has been paused.', 'ok');
+      toast('Public LiveScore paused.');
+    } catch (error) {
+      feedback('fr-activation-feedback', error.message || 'Could not pause public LiveScore.', 'error');
+    } finally { button.disabled = false; }
+  }
+
   function bindEvents() {
     document.querySelectorAll('[data-fr-view]').forEach((button) => button.addEventListener('click', () => view(button.getAttribute('data-fr-view'))));
     document.querySelectorAll('[data-fr-go]').forEach((button) => button.addEventListener('click', () => view(button.getAttribute('data-fr-go'))));
@@ -421,6 +515,8 @@
     $('fr-api-reset').addEventListener('click', clearForm);
     $('fr-api-cancel').addEventListener('click', clearForm);
     $('fr-refresh-configs').addEventListener('click', () => loadAll().catch((error) => setGlobalStatus(error.message, 'error')));
+    $('fr-activate-selected').addEventListener('click', activateSelectedProvider);
+    $('fr-pause-public').addEventListener('click', pausePublicLivescore);
     $('fr-api-rows').addEventListener('click', (event) => {
       const button = event.target.closest('[data-fr-action]');
       if (button) handleAction(button);
