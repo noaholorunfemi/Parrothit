@@ -113,6 +113,8 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
       home_logo: "teams.home.logo", away_logo: "teams.away.logo", competition_logo: "league.logo", country: "league.country",
       home_score: "goals.home", away_score: "goals.away", status: "fixture.status.short",
       kickoff: "fixture.date", minute: "fixture.status.elapsed",
+      venue_id: "fixture.venue.id", venue_name: "fixture.venue.name", venue_city: "fixture.venue.city",
+      venue_image: "fixture.venue.image", referee: "fixture.referee",
       live_status_values: ["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "IN_PLAY"],
       finished_status_values: ["FT", "AET", "PEN"], upcoming_status_values: ["NS", "TBD"],
     };
@@ -158,7 +160,7 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
   return { matches, notice: "OpenLigaDB is a free community feed; live status is estimated from kickoff time and may not be real-time." };
 }
 
-function normalizeMapped(raw: unknown, mapping: Record<string, unknown>): Record<string, unknown>[] {
+function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, providerCode = ""): Record<string, unknown>[] {
   const matchesPath = typeof mapping.matches_path === "string" ? mapping.matches_path : "";
   let rows: unknown = matchesPath ? objectPath(raw, matchesPath) : undefined;
   if (!Array.isArray(rows)) {
@@ -208,6 +210,33 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>): Record
     ].filter(Boolean));
     const kickoff = objectPath(row, mapping.kickoff);
     const minute = objectPath(row, mapping.minute);
+    const venueId = firstPath(row, [
+      typeof mapping.venue_id === "string" ? mapping.venue_id : "",
+      "fixture.venue.id", "venue.id", "venue_id",
+    ].filter(Boolean));
+    const venueName = firstPath(row, [
+      typeof mapping.venue_name === "string" ? mapping.venue_name : "",
+      "fixture.venue.name", "venue.name", "venue_name",
+    ].filter(Boolean));
+    const venueCity = firstPath(row, [
+      typeof mapping.venue_city === "string" ? mapping.venue_city : "",
+      "fixture.venue.city", "venue.city", "venue_city",
+    ].filter(Boolean));
+    const venueImage = firstPath(row, [
+      typeof mapping.match_image === "string" ? mapping.match_image : "",
+      typeof mapping.venue_image === "string" ? mapping.venue_image : "",
+      "fixture.venue.image", "venue.image", "match_image", "venue_image", "image_url",
+    ].filter(Boolean));
+    const numericVenueId = venueId != null && /^\d+$/.test(String(venueId)) ? String(venueId) : "";
+    const explicitVenueImage = venueImage == null ? "" : safeString(venueImage).trim();
+    const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
+    const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football"
+      ? `https://media.api-sports.io/football/venues/${numericVenueId}.png`
+      : (explicitVenueImage || null);
+    const referee = firstPath(row, [
+      typeof mapping.referee === "string" ? mapping.referee : "",
+      "fixture.referee", "referee",
+    ].filter(Boolean));
     return {
       match_id: matchId == null ? null : String(matchId),
       league: competition,
@@ -221,6 +250,12 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>): Record
       status,
       kickoff: kickoff == null ? null : safeString(kickoff),
       minute: minute == null ? null : safeString(minute),
+      venue_id: venueId == null ? null : safeString(venueId),
+      venue: venueName == null ? "" : safeString(venueName),
+      venue_city: venueCity == null ? "" : safeString(venueCity),
+      venue_image: providerVenueImage == null ? null : safeString(providerVenueImage),
+      match_image: providerVenueImage == null ? null : safeString(providerVenueImage),
+      referee: referee == null ? "" : safeString(referee),
     };
   });
 }
@@ -347,7 +382,7 @@ Deno.serve(async (request: Request) => {
     } else {
       const mapping = Object.keys(plainObject(provider.response_mapping)).length ? plainObject(provider.response_mapping) : builtInMapping(String(provider.provider_code));
       if (!Object.keys(mapping).length) throw new Error("No response mapping is configured for this API. Add its JSON field paths in Football Automation Room.");
-      normalized = normalizeMapped(raw, mapping);
+      normalized = normalizeMapped(raw, mapping, String(provider.provider_code || ""));
     }
 
     const matches = classify(normalized, view, date);
