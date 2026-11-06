@@ -42,7 +42,7 @@
         <button class="pl-sport" type="button" disabled title="Tennis will be added in a future phase"><span aria-hidden="true">🎾</span> Tennis</button>
       </nav>
 
-      <section class="pl-datebar" aria-label="Match date">
+      <section class="pl-datebar" id="plDatebar" aria-label="Match date">
         <button class="pl-live-shortcut" id="plLiveShortcut" type="button"><i></i> LIVE</button>
         <button class="pl-round-btn" id="plPrevDate" type="button" aria-label="Previous day">‹</button>
         <div class="pl-current-date"><strong id="plDateLabel">Today</strong><small id="plSubDateLabel"></small></div>
@@ -82,10 +82,15 @@
       <section id="plMatches" class="pl-matches" aria-live="polite">
         <div class="pl-state-card"><span class="pl-spinner"></span><strong>Loading football matches…</strong><p>Connecting to PARROTHIT's active football data provider.</p></div>
       </section>
+      <nav id="plPagination" class="pl-pagination" aria-label="Match result pages" aria-live="polite"></nav>
       <div class="pl-footer-note">Scores and fixtures are supplied by the active provider configured in the Football Automation Room. An empty schedule means the provider returned no matches for this selection; a connection failure is shown separately.</div>
     </main>
 
-    <footer class="pl-footer"><a href="index.html">PARROTHIT</a><span>•</span><span>NEWS THAT SPEAKS!</span><a href="sports.html">Sports</a></footer>
+    <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
+      <div><h3>PARROTHIT</h3><p>News that speaks! A Nigeria-first news platform with a global outlook.</p></div>
+      <div><h3>Explore</h3><p><a href="editorial-guidelines.html">Editorial Guidelines</a></p><p><a href="about.html">About us</a></p><p><a href="contact.html">Contact</a></p><p><a href="article.html">Article page</a></p></div>
+      <div><h3>News categories</h3><p><a href="nigeria.html">Nigeria</a> · <a href="world.html">World</a></p><p><a href="politics.html">Politics</a> · <a href="business.html">Business</a></p><p><a href="entertainment.html">Entertainment</a> · <a href="sports.html">Sports</a></p></div>
+    </div><div class="footer-bottom">© <span id="year"></span> PARROTHIT. All rights reserved. <span class="pl-footer-tagline">NEWS THAT SPEAKS!</span></div></div></footer>
   </div>
 
   <dialog class="pl-dialog" id="plSettingsDialog">
@@ -100,6 +105,7 @@
 
   <script src="supabase-config.js"></script>
   <script src="js/livescore-config.js"></script>
+  <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
   <script src="js/livescore.js" defer></script>
 </body>
 </html>
