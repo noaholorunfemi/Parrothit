@@ -14,3 +14,8 @@ verify_jwt = false
 
 [functions.parrothit-video-gif-advertiser]
 verify_jwt = false
+
+# Public read-only LiveScore endpoint. It uses server-side service-role access
+# internally and exposes only match data, never provider credentials.
+[functions.parrothit-football-public]
+verify_jwt = false
