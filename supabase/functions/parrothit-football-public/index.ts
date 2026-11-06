@@ -247,7 +247,7 @@ function classify(matches: Record<string, any>[], view: string, date: string): R
     const live = match.status === "LIVE";
     if (view === "live") return live;
     if (view === "results") return finished && (!validDate || day === date);
-    if (view === "upcoming") return !finished && !live && validDate && timestamp > now;
+    if (view === "upcoming") return !finished && !live && validDate && day === date && timestamp > now;
     if (view === "today") return validDate && day === date;
     return false;
   });
