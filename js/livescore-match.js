@@ -42,6 +42,7 @@
     return typeof value === 'string' ? value : value.name || value.team_name || 'Team';
   };
   const teamLogo = (match, side) => safeUrl(typeof match?.[side] === 'object' ? match?.[side]?.logo : match?.[`${side}_logo`]);
+  const matchPicture = (match) => safeUrl(match?.match_image || match?.venue_image || match?.image_url || match?.image);
   const matchKey = (match) => String(match?.match_id ?? match?.id ?? `${match?.league}|${teamName(match, 'home')}|${teamName(match, 'away')}|${match?.kickoff || ''}`);
   function isFinished(match) { return /^(FT|AET|PEN|FINISHED|FULL.?TIME|ENDED|COMPLETE)/i.test(String(match?.status || '')); }
   function isLive(match) { return /LIVE|IN.?PLAY|HALF.?TIME|1ST|2ND|(^|\b)(1H|2H|HT|ET|BT|P)(\b|$)/i.test(String(match?.status || '')) && !isFinished(match); }
@@ -61,12 +62,52 @@
       ? `<img src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-detail-fallback" style="display:none">${esc(name.charAt(0).toUpperCase())}</span>`
       : `<span class="pl-detail-fallback">${esc(name.charAt(0).toUpperCase())}</span>`}<b>${esc(name)}</b>`;
   }
+  function renderPictureCard(match) {
+    const homeName = teamName(match, 'home');
+    const awayName = teamName(match, 'away');
+    const homeLogo = teamLogo(match, 'home');
+    const awayLogo = teamLogo(match, 'away');
+    const photo = matchPicture(match);
+    $('plPictureHomeName').textContent = homeName;
+    $('plPictureAwayName').textContent = awayName;
+    $('plPictureHomeInitial').textContent = homeName.charAt(0).toUpperCase() || 'H';
+    $('plPictureAwayInitial').textContent = awayName.charAt(0).toUpperCase() || 'A';
+    const homeNode = $('plPictureHomeLogo');
+    const awayNode = $('plPictureAwayLogo');
+    homeNode.hidden = !homeLogo;
+    awayNode.hidden = !awayLogo;
+    $('plPictureHomeInitial').hidden = Boolean(homeLogo);
+    $('plPictureAwayInitial').hidden = Boolean(awayLogo);
+    homeNode.onerror = () => { homeNode.hidden = true; $('plPictureHomeInitial').hidden = false; };
+    awayNode.onerror = () => { awayNode.hidden = true; $('plPictureAwayInitial').hidden = false; };
+    if (homeLogo) homeNode.src = homeLogo;
+    else homeNode.removeAttribute('src');
+    if (awayLogo) awayNode.src = awayLogo;
+    else awayNode.removeAttribute('src');
+    $('plPictureFallback').hidden = Boolean(photo);
+    $('plMatchPicture').hidden = !photo;
+    if (photo) {
+      $('plMatchPicture').src = photo;
+      $('plMatchPicture').onerror = () => {
+        $('plMatchPicture').hidden = true;
+        $('plPictureFallback').hidden = false;
+        $('plPictureFallbackNote').textContent = 'Stadium photo unavailable · showing official team badges';
+      };
+    } else {
+      $('plMatchPicture').removeAttribute('src');
+      $('plPictureFallbackNote').textContent = 'No provider venue photo supplied · showing official team badges';
+    }
+    $('plPictureBadge').textContent = isLive(match) ? 'LIVE MATCH' : (isFinished(match) ? 'FULL TIME' : 'UPCOMING MATCH');
+    $('plPictureCaption').textContent = match.venue || match.venue_name || `${homeName} vs ${awayName}`;
+  }
+
   function show(match, provider) {
     currentMatch = match;
     providerName = provider || providerName;
     $('plMatchLoading').hidden = true;
     $('plMatchContent').hidden = false;
     $('plMatchCompetition').textContent = [match.league || match.competition || 'Football', match.country || match.league_country || ''].filter(Boolean).join(' · ');
+    renderPictureCard(match);
     renderTeam('plHomeTeam', match, 'home');
     renderTeam('plAwayTeam', match, 'away');
     const homeScore = match.home_score ?? '–';
@@ -83,7 +124,9 @@
       ['Kick-off', formatDate(match.kickoff || match.date)],
       ['Match status', statusText(match)],
       ['Match ID', match.match_id || match.id || 'Not supplied'],
-      ['Venue', match.venue || match.venue_name || 'Not supplied']
+      ['Venue', match.venue || match.venue_name || 'Not supplied'],
+      ['City', match.venue_city || 'Not supplied'],
+      ['Referee', match.referee || 'Not supplied']
     ];
     $('plInfoGrid').innerHTML = fields.map(([label, value]) => `<div><small>${esc(label)}</small><b>${esc(value)}</b></div>`).join('');
 

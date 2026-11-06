@@ -28,6 +28,8 @@
   let selectedView = initialView;
   let currentMatches = [];
   let currentProvider = '';
+  let currentPage = 1;
+  const PAGE_SIZE = 50;
   let activeRequest = null;
   let requestSequence = 0;
   let refreshTimer = null;
@@ -100,6 +102,7 @@
   }
   function setDate(value) {
     dateInput.value = safeDate(value);
+    currentPage = 1;
     updateDateHeading();
     fetchMatches();
   }
@@ -187,11 +190,30 @@
       return !search || searchable.includes(search);
     });
   }
+  function renderPagination(total) {
+    const root = $('plPagination');
+    if (!root) return;
+    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (currentPage > pages) currentPage = pages;
+    const start = total ? ((currentPage - 1) * PAGE_SIZE) + 1 : 0;
+    const end = Math.min(total, currentPage * PAGE_SIZE);
+    root.innerHTML = `
+      <div class="pl-pagination-info">Showing <b>${start}–${end}</b> of <b>${total}</b> matches <span>· up to 50 per page</span></div>
+      <div class="pl-pagination-controls">
+        <button type="button" class="pl-page-btn" data-page-action="prev" ${currentPage <= 1 ? 'disabled' : ''}>Previous page</button>
+        <span class="pl-page-number">Page ${currentPage} of ${pages}</span>
+        <button type="button" class="pl-page-btn pl-page-next" data-page-action="next" ${currentPage >= pages ? 'disabled' : ''}>Next page</button>
+      </div>`;
+  }
+
   function renderMatches() {
     const filtered = filterMatches();
     const liveCount = currentMatches.filter(isLive).length;
     $('plLiveCount').textContent = String(liveCount);
     $('plLiveCount').classList.toggle('has-live', liveCount > 0);
+    const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (currentPage > pages) currentPage = pages;
+    renderPagination(filtered.length);
     if (!filtered.length) {
       let title = 'No matches found for this selection.';
       let message = 'Try another date, competition or status filter.';
@@ -204,8 +226,9 @@
       return;
     }
 
+    const pageMatches = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
     const groups = new Map();
-    filtered.forEach((match) => {
+    pageMatches.forEach((match) => {
       const name = leagueName(match);
       if (!groups.has(name)) groups.set(name, []);
       groups.get(name).push(match);
@@ -254,6 +277,7 @@
     if (!endpoint || !anonKey || /YOUR_PROJECT|YOUR_SUPABASE/i.test(`${supabaseUrl} ${anonKey}`)) {
       setProviderMessage('Public Supabase configuration is missing.', 'error');
       showState('Football data unavailable', 'PARROTHIT LiveScore cannot connect because the public Supabase configuration is missing.', 'error');
+      renderPagination(0);
       activeRequest = null;
       return;
     }
@@ -271,6 +295,7 @@
       if (!Array.isArray(payload.matches)) throw new Error('The public football service responded without a matches array.');
 
       currentMatches = payload.matches;
+      currentPage = 1;
       currentProvider = payload.provider || payload.provider_name || 'Active football provider';
       lastSuccessfulLoad = Date.now();
       competitionOptions(currentMatches);
@@ -283,12 +308,15 @@
       currentMatches = [];
       setProviderMessage('Football provider request failed.', 'error');
       showState('Football data unavailable', error?.message || 'The active provider could not return match data. Please try again.', 'error');
+      currentPage = 1;
+      renderPagination(0);
     } finally {
       if (sequence === requestSequence) activeRequest = null;
     }
   }
   function setView(view) {
     selectedView = view;
+    currentPage = 1;
     favouritesOnly = false;
     $('plFavourites').classList.remove('is-active');
     $('plFavourites').setAttribute('aria-pressed', 'false');
@@ -323,9 +351,10 @@
   $('plNextDate').addEventListener('click', () => setDate(shiftDate(dateInput.value, 1)));
   $('plLiveShortcut').addEventListener('click', () => setView('live'));
   dateInput.addEventListener('change', () => setDate(dateInput.value));
-  compSelect.addEventListener('change', renderMatches);
+  compSelect.addEventListener('change', () => { currentPage = 1; renderMatches(); });
   $('plRefresh').addEventListener('click', fetchMatches);
   $('plFavourites').addEventListener('click', () => {
+    currentPage = 1;
     favouritesOnly = !favouritesOnly;
     $('plFavourites').classList.toggle('is-active', favouritesOnly);
     $('plFavourites').setAttribute('aria-pressed', String(favouritesOnly));
@@ -334,14 +363,23 @@
   $('plSearchBtn').addEventListener('click', () => {
     $('plSearchBox').hidden = !$('plSearchBox').hidden;
     if (!$('plSearchBox').hidden) searchInput.focus();
-    else { searchInput.value = ''; renderMatches(); }
+    else { searchInput.value = ''; currentPage = 1; renderMatches(); }
   });
-  searchInput.addEventListener('input', renderMatches);
-  $('plClearSearch').addEventListener('click', () => { searchInput.value = ''; renderMatches(); searchInput.focus(); });
+  searchInput.addEventListener('input', () => { currentPage = 1; renderMatches(); });
+  $('plClearSearch').addEventListener('click', () => { searchInput.value = ''; currentPage = 1; renderMatches(); searchInput.focus(); });
+  $('plPagination').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-page-action]');
+    if (!button || button.disabled) return;
+    const action = button.dataset.pageAction;
+    currentPage = Math.max(1, currentPage + (action === 'next' ? 1 : -1));
+    renderMatches();
+    $('plDatebar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   $('plMenuBtn').addEventListener('click', () => setMenu(!menuOpen));
   document.addEventListener('click', (event) => { if (menuOpen && !event.target.closest('.pl-header')) setMenu(false); });
   $('plMenuFavourites').addEventListener('click', () => {
     setMenu(false);
+    currentPage = 1;
     favouritesOnly = true;
     $('plFavourites').classList.add('is-active');
     $('plFavourites').setAttribute('aria-pressed', 'true');
