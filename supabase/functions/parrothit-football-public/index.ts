@@ -110,6 +110,7 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
     return {
       matches_path: "response", id: "fixture.id", competition: "league.name",
       home_team: "teams.home.name", away_team: "teams.away.name",
+      home_logo: "teams.home.logo", away_logo: "teams.away.logo", competition_logo: "league.logo", country: "league.country",
       home_score: "goals.home", away_score: "goals.away", status: "fixture.status.short",
       kickoff: "fixture.date", minute: "fixture.status.elapsed",
       live_status_values: ["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "IN_PLAY"],
@@ -120,6 +121,7 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
     return {
       matches_path: "matches", id: "id", competition: "competition.name",
       home_team: "homeTeam.name", away_team: "awayTeam.name",
+      home_logo: "homeTeam.crest", away_logo: "awayTeam.crest", competition_logo: "competition.emblem", country: "area.name",
       home_score: "score.fullTime.home", away_score: "score.fullTime.away",
       status: "status", kickoff: "utcDate",
       live_status_values: ["IN_PLAY", "PAUSED"], finished_status_values: ["FINISHED"],
@@ -144,6 +146,7 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
       match_id: item?.MatchID ?? null,
       league: item?.LeagueName || item?.League?.LeagueName || "Football",
       league_code: item?.LeagueShortcut || item?.League?.LeagueShortcut || "",
+      country: item?.LeagueCountry || item?.League?.Country || "",
       home: { name: home?.TeamName || "Home team" },
       away: { name: away?.TeamName || "Away team" },
       home_score: lastResult?.PointsTeam1 ?? null,
@@ -187,14 +190,32 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>): Record
     if (homeScore == null && mapping.home_score === "score.fullTime.home") homeScore = firstPath(row, ["score.halfTime.home", "score.regularTime.home", "score.extraTime.home", "score.penalties.home"]);
     if (awayScore == null && mapping.away_score === "score.fullTime.away") awayScore = firstPath(row, ["score.halfTime.away", "score.regularTime.away", "score.extraTime.away", "score.penalties.away"]);
     const matchId = objectPath(row, mapping.id);
+    const homeLogo = firstPath(row, [
+      typeof mapping.home_logo === "string" ? mapping.home_logo : "",
+      "teams.home.logo", "homeTeam.crest", "home.logo", "homeTeam.logo",
+    ].filter(Boolean));
+    const awayLogo = firstPath(row, [
+      typeof mapping.away_logo === "string" ? mapping.away_logo : "",
+      "teams.away.logo", "awayTeam.crest", "away.logo", "awayTeam.logo",
+    ].filter(Boolean));
+    const competitionLogo = firstPath(row, [
+      typeof mapping.competition_logo === "string" ? mapping.competition_logo : "",
+      "league.logo", "competition.emblem", "competition.logo",
+    ].filter(Boolean));
+    const country = firstPath(row, [
+      typeof mapping.country === "string" ? mapping.country : "",
+      "league.country", "area.name", "country.name", "country",
+    ].filter(Boolean));
     const kickoff = objectPath(row, mapping.kickoff);
     const minute = objectPath(row, mapping.minute);
     return {
       match_id: matchId == null ? null : String(matchId),
       league: competition,
       league_code: safeString(objectPath(row, mapping.competition_code), ""),
-      home: { name: homeTeam },
-      away: { name: awayTeam },
+      home: { name: homeTeam, ...(homeLogo ? { logo: safeString(homeLogo) } : {}) },
+      away: { name: awayTeam, ...(awayLogo ? { logo: safeString(awayLogo) } : {}) },
+      competition_logo: competitionLogo ? safeString(competitionLogo) : null,
+      country: country ? safeString(country) : "",
       home_score: homeScore == null ? null : homeScore,
       away_score: awayScore == null ? null : awayScore,
       status,
@@ -204,12 +225,24 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>): Record
   });
 }
 
+function dateInLagos(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value || "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function todayInLagos(): string {
+  return dateInLagos(new Date().toISOString());
+}
+
 function classify(matches: Record<string, any>[], view: string, date: string): Record<string, any>[] {
   const now = Date.now();
   return matches.filter((match) => {
     const timestamp = match.kickoff ? Date.parse(String(match.kickoff)) : NaN;
     const validDate = Number.isFinite(timestamp);
-    const day = validDate ? new Date(timestamp).toISOString().slice(0, 10) : "";
+    const day = validDate ? dateInLagos(String(match.kickoff)) : "";
     const finished = match.status === "FT";
     const live = match.status === "LIVE";
     if (view === "live") return live;
@@ -280,7 +313,7 @@ Deno.serve(async (request: Request) => {
     const body = await request.json().catch(() => ({}));
     const view = ["live", "today", "upcoming", "results"].includes(body.view) ? String(body.view) : "live";
     const dateText = String(body.date || "");
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : new Date().toISOString().slice(0, 10);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : todayInLagos();
     const requestedCompetition = String(body.competition || "all").toLowerCase().slice(0, 40);
     const competition = /^[a-z0-9_-]+$/.test(requestedCompetition) ? requestedCompetition : "all";
     const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
