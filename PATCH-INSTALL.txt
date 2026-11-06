@@ -1,0 +1,42 @@
+PARROTHIT LiveScore Phase 1 patch
+
+Baseline: Parrothit-mainnov5vs2.zip
+
+INSTALL
+1. Back up your repository.
+2. Extract this ZIP into the website root (the folder containing index.html).
+3. Add livescore.html, css/livescore.css and js/livescore.js.
+4. Replace the listed public HTML pages with the patched versions. Each change adds LiveScore to the public navbar and mobile category dropdown only.
+5. Commit and deploy with your existing Cloudflare workflow.
+
+No Supabase migration or API key is required. This Phase 1 UI intentionally does not invent live scores. Phase 2 will connect a football data provider securely.
+
+Public pages updated:
+about.html
+article.html
+business.html
+category.html
+celebrity-news.html
+contact.html
+culture.html
+editorial-guidelines.html
+education.html
+entertainment.html
+football.html
+health.html
+index.html
+live-streams.html
+nigeria.html
+nigerian-celebrity.html
+nollywood.html
+politics.html
+religion.html
+sports-athletics.html
+sports-basketball.html
+sports-football.html
+sports-table-tennis.html
+sports-tennis.html
+sports.html
+technology.html
+wildlife.html
+world.html

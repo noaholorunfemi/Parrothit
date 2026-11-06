@@ -1,0 +1,39 @@
+PARROTHIT LIVESCORE — PHASE ROADMAP
+Baseline: Parrothit-mainnov5vs2.zip
+Scope: football first; other sports deferred.
+
+PHASE 1 — FOUNDATION (THIS PATCH)
+[implemented in patch]
+- Add livescore.html public football LiveScore page.
+- Add responsive livescore stylesheet and tab/date/competition interface script.
+- Add LiveScore link to public site navigation and mobile category selector where present.
+- Clearly label provider data as not connected; no fabricated live scores.
+- Add this roadmap/checklist.
+
+PHASE 2 — FOOTBALL DATA PROVIDER (not implemented)
+[ ] Choose provider and verify coverage, pricing, rate limits and allowed display.
+[ ] Add secure server-side/edge-function proxy; never expose provider secret in browser.
+[ ] Populate live, today, upcoming and results; add timestamps and stale/error states.
+[ ] Cache data and respect provider limits.
+
+PHASE 3 — HOMEPAGE WIDGET (not implemented)
+[ ] Add compact live/upcoming football widget to homepage.
+[ ] Link each match to LiveScore match centre.
+
+PHASE 4 — MATCH CENTRE (not implemented)
+[ ] Match details, events, lineups and stats where provider supports them.
+
+PHASE 5 — PERSONALIZATION (not implemented)
+[ ] Favourite teams/competitions, persisted locally or through user account.
+[ ] Notifications only after explicit user opt-in and reliable provider updates.
+
+PHASE 6 — MONETIZATION & EXPANSION (not implemented)
+[ ] LiveScore ad placements with existing PARROTHIT ad controls.
+[ ] Add other sports only after football is stable.
+
+TEST CHECKLIST
+[ ] Desktop/mobile layout
+[ ] Navigation from homepage and sports pages
+[ ] Tabs and date/competition controls
+[ ] No fake live scores shown
+[ ] Existing homepage, article, admin, ads and payment flows unchanged
