@@ -5,11 +5,20 @@
 <meta name="description" content="Latest Politics headlines from PARROTHIT.">
 <title>Politics | PARROTHIT</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/livescore-access.css">
 </head><body>
 <div class="back-home-wrap"><a class="back-home-link" href="index.html">← Back home</a></div>
 
 <div class="topline"><div class="wrap"><span id="todayDate">PARROTHIT • Your trusted news desk</span><span>Accurate • Timely • Independent</span></div></div>
 <header class="masthead"><div class="wrap brand-row"><a class="brand-image" href="index.html" aria-label="PARROTHIT homepage"><img src="assets/images/parrothit-logo.png" alt="PARROTHIT — News That Speaks!"></a><div class="breaking-badge">BREAKING NEWS</div></div></header>
+<!-- PARROTHIT LiveScore quick access: visible independently of the scrollable/mobile navigation -->
+<div class="parrothit-livescore-access" role="region" aria-label="PARROTHIT football LiveScore">
+  <a href="livescore.html" aria-label="Open PARROTHIT LiveScore: live football matches, fixtures and results" title="Open PARROTHIT LiveScore" class="parrothit-livescore-access__link">
+    <span class="parrothit-livescore-access__brand"><span class="parrothit-livescore-access__ball" aria-hidden="true">⚽</span><span>PARROTHIT LiveScore</span></span>
+    <span class="parrothit-livescore-access__details">Live matches · Fixtures · Results <span class="parrothit-livescore-access__open">OPEN&nbsp; →</span></span>
+  </a>
+</div>
+
 <nav class="navbar"><div class="wrap nav-inner"><a href="index.html">Home</a><a href="nigeria.html">Nigeria</a><a href="world.html">World</a><a href="politics.html" class="active" aria-current="page">Politics</a><a href="entertainment.html">Entertainment</a><a href="sports.html">Sports</a><a href="business.html">Business</a><a href="technology.html">Technology</a><a href="education.html">Education</a><a href="health.html">Health</a><a href="religion.html">Religion</a><a href="culture.html">Culture</a><a href="wildlife.html">Wildlife</a><a href="football.html">Football</a><a href="livescore.html">LiveScore</a><a href="sports-table-tennis.html">Table Tennis</a><a href="sports-basketball.html">Basketball</a><a href="sports-tennis.html">Tennis</a><a href="sports-athletics.html">Athletics</a><a href="celebrity-news.html">Celebrity News</a><a href="nollywood.html">Nollywood</a><a href="nigerian-celebrity.html">Nigerian Celebrity</a></div></nav>
 <div class="mobile-category-menu wrap"><label for="mobileCategorySelect">Browse news categories</label><select id="mobileCategorySelect" aria-label="Browse all news categories"><option value="">Choose a category…</option><option value="nigeria.html">Nigeria</option><option value="world.html">World</option><option value="politics.html">Politics</option><option value="entertainment.html">Entertainment</option><option value="sports.html">Sports</option><option value="business.html">Business</option><option value="technology.html">Technology</option><option value="education.html">Education</option><option value="health.html">Health</option><option value="religion.html">Religion</option><option value="culture.html">Culture</option><option value="wildlife.html">Wildlife</option><option value="football.html">Football</option><option value="livescore.html">LiveScore</option><option value="sports-football.html">Sports Football</option><option value="sports-table-tennis.html">Table Tennis</option><option value="sports-basketball.html">Basketball</option><option value="sports-tennis.html">Tennis</option><option value="sports-athletics.html">Athletics</option><option value="celebrity-news.html">Celebrity News</option><option value="nollywood.html">Nollywood</option><option value="nigerian-celebrity.html">Nigerian Celebrity</option></select></div><script>(function(){const menu=document.getElementById('mobileCategorySelect');if(menu&&!menu.dataset.parrothitReady){menu.dataset.parrothitReady='true';menu.addEventListener('change',function(){if(this.value)location.href=this.value;});}})();</script>
 <main>
@@ -103,4 +112,5 @@ cards.forEach((card,index)=>{
 <script src="js/category-navigation-fix.js" defer></script>
 <script src="js/public-card-headline-mode.js?v=20261102-image-headline-fix"></script>
 <script src="js/parrot-global-search.js"></script>
+<script src="js/livescore-access.js" defer></script>
 </body></html>

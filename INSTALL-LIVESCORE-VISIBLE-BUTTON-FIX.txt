@@ -1,0 +1,25 @@
+PARROTHIT LiveScore Visible Button Fix — v2
+==========================================
+
+WHAT THIS FIX DOES
+- Adds a prominent green "PARROTHIT LiveScore" button with a football icon.
+- Places it immediately below the site masthead/logo and ABOVE the category navigation.
+- This placement is intentional: the button remains visible on mobile even when the horizontal category navigation is hidden or scrollable.
+- Links directly to the existing root-level page: livescore.html.
+- Includes index.html (the public homepage), which was missing from the earlier access-button patch.
+- Uses inline styling, so no additional CSS file, stylesheet-link edit, JavaScript, Supabase migration, or API key is required.
+
+INSTALLATION
+1. Back up your current website/repository.
+2. Extract this ZIP into the website root — the same folder that contains index.html and livescore.html.
+3. Allow the included HTML files to replace the files with the same names.
+4. Commit and deploy using your existing Cloudflare Pages/Workers workflow.
+5. On your phone, open the homepage and refresh it. The green PARROTHIT LiveScore button should appear directly below the logo/header and above the category navigation.
+
+IMPORTANT
+- Do not extract the patch into a new subfolder inside the website. The HTML files must overwrite the matching root-level files.
+- This is an access-button correction only. It does not connect a football data provider or add real scores.
+- The patch intentionally excludes admin HTML pages and livescore.html itself.
+
+FILES INCLUDED
+- Only root-level public HTML pages that share the site's public navbar, including index.html.

@@ -1,0 +1,9 @@
+PARROTHIT LiveScore access button — corrected patch v3
+
+This ZIP includes the updated public HTML pages plus separate assets:
+- css/livescore-access.css (responsive button styling)
+- js/livescore-access.js (small accessible initialization enhancement)
+
+Upload/extract the ZIP into the same site root, preserving folders. It includes index.html and the other public pages. The button opens livescore.html.
+
+This is a source patch; deploy it to your hosting to make it live.
