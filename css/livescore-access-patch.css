@@ -1,0 +1,7 @@
+/* PARROTHIT LiveScore access CTA patch */
+.livescore-access{padding:10px 0 14px}
+.livescore-access-button{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#075b36;color:#fff!important;border:2px solid #0b7547;border-radius:12px;padding:12px 16px;text-decoration:none!important;font-weight:900;box-shadow:0 3px 9px #0002}
+.livescore-access-button:hover,.livescore-access-button:focus{background:#064629;outline:3px solid #f3c94b;outline-offset:2px}
+.livescore-access-button>span:first-child{font-size:1.35rem}
+.livescore-access-sub{margin-left:auto;font-size:.78rem;font-weight:600;opacity:.92}
+@media(max-width:560px){.livescore-access{padding:8px 12px 12px}.livescore-access-button{width:100%;box-sizing:border-box}.livescore-access-sub{width:100%;margin-left:0}}
