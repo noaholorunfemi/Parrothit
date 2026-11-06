@@ -66,11 +66,11 @@
         </article>
       </div>
       <article class="fr-panel fr-roadmap-panel">
-        <div class="fr-panel-heading"><div><h3>Football automation roadmap</h3><p>The room is being built in phases. Unavailable modules are identified rather than showing simulated data.</p></div><span class="fr-pill fr-pill-stage">PHASE 2A</span></div>
+        <div class="fr-panel-heading"><div><h3>Football automation roadmap</h3><p>The room is being built in phases. Unavailable modules are identified rather than showing simulated data.</p></div><span class="fr-pill fr-pill-stage">PHASE 2B</span></div>
         <div class="fr-roadmap">
-          <div class="fr-roadmap-item is-ready"><span>✓</span><div><strong>Phase 2A · API manager</strong><small>Provider records, encrypted API keys, free provider preset, connection test and primary selection.</small></div><em>Current</em></div>
-          <div class="fr-roadmap-item"><span>2B</span><div><strong>Phase 2B · Verified match data</strong><small>Live matches, fixtures and results, provider adapters, caching and public LiveScore updates.</small></div><em>Next</em></div>
-          <div class="fr-roadmap-item"><span>2C</span><div><strong>Phase 2C · Football automation</strong><small>Match schedules, football-specific news sources, previews, result drafts and football alerts.</small></div><em>Planned</em></div>
+          <div class="fr-roadmap-item is-ready"><span>✓</span><div><strong>Phase 2A · API manager</strong><small>Provider records, encrypted API keys, connection tests and primary selection.</small></div><em>Complete</em></div>
+          <div class="fr-roadmap-item is-ready"><span>✓</span><div><strong>Phase 2B · Universal provider adapters</strong><small>Built-in adapters and configurable endpoints, authentication, query parameters and response mapping.</small></div><em>Implemented · deploy required</em></div>
+          <div class="fr-roadmap-item"><span>2C</span><div><strong>Phase 2C · Provider fallback and football automation</strong><small>Competition-aware backup providers, schedules, football previews, result drafts and alerts.</small></div><em>Next</em></div>
         </div>
       </article>
     </section>
@@ -112,16 +112,40 @@
               <input id="fr-test-path" type="text" maxlength="300" placeholder="/status">
               <small>Examples: /getavailableleagues, /status, /v4/competitions/PL.</small>
             </label>
+            <label class="fr-field">Authentication method
+              <select id="fr-auth-type"><option value="none">No authentication</option><option value="header">API key / token in header</option><option value="query">API key / token in query parameter</option></select>
+              <small>Choose the method required by this provider.</small>
+            </label>
             <label class="fr-field">Authentication header name
               <input id="fr-auth-header" type="text" maxlength="80" placeholder="x-apisports-key">
-              <small>Leave blank for no-key APIs.</small>
+              <small>For header authentication only.</small>
             </label>
             <label class="fr-field">Authentication prefix
               <input id="fr-auth-prefix" type="text" maxlength="40" placeholder="Bearer (optional)">
             </label>
+            <label class="fr-field">Authentication query parameter
+              <input id="fr-auth-query-param" type="text" maxlength="80" placeholder="api_key">
+              <small>For query authentication only.</small>
+            </label>
             <label class="fr-field">API key / token
               <input id="fr-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter key only when adding or replacing">
               <small id="fr-key-help">Never place a service-role key here. This is the third-party sports API key.</small>
+            </label>
+            <label class="fr-field fr-field-wide">Custom request headers (JSON)
+              <textarea id="fr-custom-headers" rows="3" spellcheck="false">{}</textarea>
+              <small>Optional non-secret headers. Store credentials in the encrypted API key field, not here.</small>
+            </label>
+            <label class="fr-field fr-field-wide">Default query parameters (JSON)
+              <textarea id="fr-default-params" rows="3" spellcheck="false">{}</textarea>
+              <small>Example: {"timezone":"Africa/Lagos"}. Use endpoint templates for date/view values.</small>
+            </label>
+            <label class="fr-field fr-field-wide">Match endpoints (JSON)
+              <textarea id="fr-endpoints" rows="5" spellcheck="false">{}</textarea>
+              <small>Define routes per view: {"live":"/fixtures?live=all","today":"/fixtures?date={date}","upcoming":"/fixtures?date={date}","results":"/fixtures?date={date}"}. Placeholders: {date}, {view}, {competition}.</small>
+            </label>
+            <label class="fr-field fr-field-wide">Response mapping (JSON)
+              <textarea id="fr-response-mapping" rows="7" spellcheck="false">{}</textarea>
+              <small>Map provider JSON paths into PARROTHIT fields. Example: {"matches_path":"response","id":"fixture.id","competition":"league.name","home_team":"teams.home.name","away_team":"teams.away.name","home_score":"goals.home","away_score":"goals.away","status":"fixture.status.short","kickoff":"fixture.date","minute":"fixture.status.elapsed"}. Empty mapping uses a known built-in adapter where available.</small>
             </label>
             <label class="fr-field">Priority
               <input id="fr-priority" type="number" min="1" max="999999" step="1" value="100" required>
@@ -148,18 +172,23 @@
       </div>
       <article class="fr-panel fr-table-panel">
         <div class="fr-panel-heading"><div><h3>Configured SPORT APIs</h3><p id="fr-config-count">Loading saved provider configurations…</p></div><button type="button" class="fr-button fr-button-quiet fr-button-small" id="fr-refresh-configs">↻ Refresh list</button></div>
-        <div class="fr-table-scroll"><table class="fr-table"><thead><tr><th>Provider</th><th>Sport / Plan</th><th>Priority</th><th>Connection</th><th>Quota / usage</th><th>Primary</th><th>Actions</th></tr></thead><tbody id="fr-api-rows"><tr><td colspan="7" class="fr-empty">Waiting for the secure configuration service…</td></tr></tbody></table></div>
+        <div class="fr-table-scroll"><table class="fr-table"><thead><tr><th>Provider</th><th>Sport / Plan</th><th>Priority</th><th>Connection</th><th>Quota / usage</th><th>Selected / active</th><th>Actions</th></tr></thead><tbody id="fr-api-rows"><tr><td colspan="7" class="fr-empty">Waiting for the secure configuration service…</td></tr></tbody></table></div>
       </article>
     </section>
 
     <section class="fr-view" id="fr-view-livescore" aria-labelledby="fr-livescore-title">
       <div class="fr-section-heading"><div><p class="fr-kicker">PUBLIC SCORE DATA</p><h2 id="fr-livescore-title">LiveScore Management</h2><p>Control which configured provider is prepared to supply PARROTHIT LiveScore.</p></div><a class="fr-button fr-button-primary" href="../livescore.html" target="_blank" rel="noopener">View public LiveScore ↗</a></div>
-      <div class="fr-notice fr-notice-warning"><strong>Phase 2A status:</strong> This patch installs the secure API manager and connection tests. It does not yet publish or display live match data. Phase 2B will add the verified fixtures/results adapter and connect it to the public LiveScore page.</div>
+      <div class="fr-notice"><strong>Provider activation:</strong> Save and test a provider, select it as primary in Automation Settings, then press <strong>Activate Selected Football API</strong>. Activation enables the public LiveScore endpoint to use that provider. A successful connection test alone does not guarantee every competition or live-score feature is supported.</div>
       <div class="fr-grid-2">
-        <article class="fr-panel"><h3>Selected primary provider</h3><div id="fr-primary-details" class="fr-primary-details"><strong>Not selected</strong><span>Add and test an enabled sports API, then select it as primary.</span></div><button type="button" class="fr-button fr-button-quiet" data-fr-go="apis">Configure providers</button></article>
-        <article class="fr-panel"><h3>Data integrity</h3><ul class="fr-integrity-list"><li>Public scores must come from a successful provider response.</li><li>Unavailable or stale provider data must be labelled, not presented as current live scores.</li><li>Cached score data will show its update time in Phase 2B.</li><li>Provider fallback will only use another enabled and tested configuration when explicitly enabled.</li></ul></article>
+        <article class="fr-panel">
+          <div class="fr-panel-heading"><div><h3>Selected primary provider</h3><p id="fr-public-status" aria-live="polite">Public LiveScore is not active.</p></div><span id="fr-public-state" class="fr-pill fr-pill-stage">NOT ACTIVE</span></div>
+          <div id="fr-primary-details" class="fr-primary-details"><strong>Not selected</strong><span>Add and test an enabled sports API, then select it as primary.</span></div>
+          <div class="fr-form-actions"><button type="button" class="fr-button fr-button-primary" id="fr-activate-selected" disabled>⚡ Activate Selected Football API</button><button type="button" class="fr-button fr-button-quiet" id="fr-pause-public" disabled>Pause public LiveScore</button><button type="button" class="fr-button fr-button-quiet" data-fr-go="apis">Configure providers</button></div>
+          <p id="fr-activation-feedback" class="fr-form-feedback" role="status" aria-live="polite">Select and successfully test a provider, then activate it here.</p>
+        </article>
+        <article class="fr-panel"><h3>Data integrity</h3><ul class="fr-integrity-list"><li>Public scores must come from a successful provider response.</li><li>Unavailable or stale provider data must be labelled, not presented as current live scores.</li><li>Provider responses are cached server-side for the configured interval to reduce unnecessary API requests.</li><li>Automatic backup-provider selection is reserved for Phase 2C and is not active in this release.</li></ul></article>
       </div>
-      <article class="fr-panel"><div class="fr-panel-heading"><div><h3>LiveScore integration status</h3><p>Current implementation boundary.</p></div><span class="fr-pill fr-pill-stage">PHASE 2B NEXT</span></div><div class="fr-integration-line"><span class="fr-integration-dot"></span><div><strong>Public match feed adapter</strong><small>Not yet deployed in this Phase 2A patch. No simulated scores are shown.</small></div><em>Pending</em></div></article>
+      <article class="fr-panel"><div class="fr-panel-heading"><div><h3>LiveScore integration status</h3><p>Current implementation boundary.</p></div><span class="fr-pill fr-pill-stage">MULTI-PROVIDER</span></div><div class="fr-integration-line"><span class="fr-integration-dot"></span><div><strong>Provider-driven match feed</strong><small>Built-in adapters are available for OpenLigaDB, API-Football and football-data.org. Custom APIs can use endpoint and response mapping settings.</small></div><em id="fr-adapter-state">Ready to configure</em></div></article>
     </section>
 
     <section class="fr-view" id="fr-view-settings" aria-labelledby="fr-settings-title">
@@ -168,9 +197,9 @@
         <div class="fr-form-grid">
           <label class="fr-field fr-field-wide">Primary API provider
             <select id="fr-primary-select"><option value="">No primary provider selected</option></select>
-            <small>Only enabled providers with a successful connection test can be selected as the primary source.</small>
+            <small>Only enabled providers with a successful connection test can be selected as the primary source. Use the LiveScore Management tab to activate the selected provider publicly.</small>
           </label>
-          <label class="fr-check-field fr-field-wide"><input type="checkbox" id="fr-fallback-enabled"><span><strong>Allow automatic provider fallback (Phase 2B)</strong><small>When the primary source is unavailable, the later LiveScore data service may try another enabled provider by priority.</small></span></label>
+          <label class="fr-check-field fr-field-wide"><input type="checkbox" id="fr-fallback-enabled" disabled><span><strong>Automatic provider fallback (planned Phase 2C)</strong><small>Not active in this release. Competition-aware backup selection will be implemented in the next phase.</small></span></label>
           <label class="fr-field">Cache duration (seconds)
             <input type="number" id="fr-cache-seconds" min="15" max="3600" step="1" value="60">
             <small>Phase 2B cache setting. Allowed range: 15–3600 seconds.</small>
@@ -186,7 +215,7 @@
       <article class="fr-panel fr-isolation-note"><h3>System isolation</h3><p>Football API configurations, credentials, settings and test logs use dedicated <code>football_*</code> database objects and the <code>football-automation-room</code> Edge Function. This patch does not change Newsroom Automation pages, scripts, schedules, source records, AI settings or draft destinations.</p></article>
     </section>
 
-    <footer class="fr-footer"><span>PARROTHIT · NEWS THAT SPEAKS!</span><span>Football Automation Room · Phase 2A</span><a href="control-directory.html">Admin Control Directory</a></footer>
+    <footer class="fr-footer"><span>PARROTHIT · NEWS THAT SPEAKS!</span><span>Football Automation Room · Unlimited Provider Engine</span><a href="control-directory.html">Admin Control Directory</a></footer>
   </main>
   <div id="fr-toast" class="fr-toast" role="status" aria-live="polite"></div>
 </body>
