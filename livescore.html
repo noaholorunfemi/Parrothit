@@ -1,30 +1,104 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="PARROTHIT football LiveScore: live, today's, upcoming and recent football results.">
-<title>Football LiveScore | PARROTHIT</title>
-<link rel="stylesheet" href="css/style.css">
-<link rel="stylesheet" href="css/livescore.css">
-</head><body>
-<div class="back-home-wrap"><a class="back-home-link" href="index.html">← Back home</a></div>
-<div class="topline"><div class="wrap"><span>PARROTHIT • Football LiveScore</span><span>Football scores and fixtures</span></div></div>
-<header class="masthead"><div class="wrap brand-row"><a class="brand-image" href="index.html" aria-label="PARROTHIT homepage"><img src="assets/images/parrothit-logo.png" alt="PARROTHIT — News That Speaks!"></a><div class="breaking-badge">FOOTBALL LIVE</div></div></header>
-<nav class="navbar"><div class="wrap nav-inner"><a href="index.html">Home</a><a href="nigeria.html">Nigeria</a><a href="world.html">World</a><a href="politics.html">Politics</a><a href="entertainment.html">Entertainment</a><a href="sports.html" class="active" aria-current="page">Sports</a><a href="business.html">Business</a><a href="technology.html">Technology</a><a href="education.html">Education</a><a href="health.html">Health</a><a href="religion.html">Religion</a><a href="culture.html">Culture</a><a href="wildlife.html">Wildlife</a><a href="football.html">Football</a><a href="livescore.html">LiveScore</a><a href="sports-table-tennis.html">Table Tennis</a><a href="sports-basketball.html">Basketball</a><a href="sports-tennis.html">Tennis</a><a href="sports-athletics.html">Athletics</a><a href="celebrity-news.html">Celebrity News</a><a href="nollywood.html">Nollywood</a><a href="nigerian-celebrity.html">Nigerian Celebrity</a></div></nav>
-<div class="mobile-category-menu wrap"><label for="mobileCategorySelect">Browse news categories</label><select id="mobileCategorySelect" aria-label="Browse all news categories"><option value="">Choose a category…</option><option value="nigeria.html">Nigeria</option><option value="world.html">World</option><option value="politics.html">Politics</option><option value="entertainment.html">Entertainment</option><option value="sports.html">Sports</option><option value="business.html">Business</option><option value="technology.html">Technology</option><option value="education.html">Education</option><option value="health.html">Health</option><option value="religion.html">Religion</option><option value="culture.html">Culture</option><option value="wildlife.html">Wildlife</option><option value="football.html">Football</option><option value="livescore.html">LiveScore</option><option value="sports-football.html">Sports Football</option><option value="sports-table-tennis.html">Table Tennis</option><option value="sports-basketball.html">Basketball</option><option value="sports-tennis.html">Tennis</option><option value="sports-athletics.html">Athletics</option><option value="celebrity-news.html">Celebrity News</option><option value="nollywood.html">Nollywood</option><option value="nigerian-celebrity.html">Nigerian Celebrity</option></select></div><script>(function(){const menu=document.getElementById('mobileCategorySelect');if(menu&&!menu.dataset.parrothitReady){menu.dataset.parrothitReady='true';menu.addEventListener('change',function(){if(this.value)location.href=this.value;});}})();</script>
-<main class="livescore-main"><div class="wrap">
-<section class="page-heading"><h1>Football LiveScore</h1><p>Follow football fixtures, live scores and results on PARROTHIT.</p></section>
-<div class="livescore-notice" role="status"><strong>Live football data:</strong> Match information is loaded from the active provider configuration. If no provider is connected, this page will clearly report that live data is unavailable.</div>
-<div class="livescore-toolbar"><div class="livescore-tabs" role="tablist" aria-label="Football match status"><button class="ls-tab active" data-panel="live" role="tab" aria-selected="true">LIVE NOW <span class="ls-count">0</span></button><button class="ls-tab" data-panel="today" role="tab" aria-selected="false">TODAY</button><button class="ls-tab" data-panel="upcoming" role="tab" aria-selected="false">UPCOMING</button><button class="ls-tab" data-panel="results" role="tab" aria-selected="false">RESULTS</button></div><label class="ls-date-label">Date <input id="lsDate" type="date" aria-label="Choose match date"></label></div>
-<div class="ls-league-filter"><label for="lsLeague">Competition</label><select id="lsLeague"><option value="all">All competitions</option><option value="premier">Premier League</option><option value="laliga">La Liga</option><option value="seriea">Serie A</option><option value="bundesliga">Bundesliga</option><option value="ligue1">Ligue 1</option><option value="nigeria">Nigeria / NPFL</option><option value="champions">UEFA Champions League</option></select><span id="lsUpdated">Checking configured football provider…</span></div>
-<div id="lsPanels">
-<section class="ls-panel active" id="panel-live" data-status="live"><h2 class="section-title">Live now <small>Live feed pending provider integration</small></h2><div class="ls-empty"><strong>Loading live matches…</strong><p>Match data will appear here when a provider is configured.</p></div></section>
-<section class="ls-panel" id="panel-today" data-status="today" hidden><h2 class="section-title">Today's matches</h2><div class="ls-empty"><strong>Loading today's fixtures…</strong><p>Fixture data will appear here.</p></div></section>
-<section class="ls-panel" id="panel-upcoming" data-status="upcoming" hidden><h2 class="section-title">Upcoming fixtures</h2><div class="ls-empty"><strong>Loading upcoming fixtures…</strong><p>Fixture data will appear here.</p></div></section>
-<section class="ls-panel" id="panel-results" data-status="results" hidden><h2 class="section-title">Recent results</h2><div class="ls-empty"><strong>Loading recent results…</strong><p>Completed match data will appear here.</p></div></section>
-</div>
-<div class="ls-footer-note">PARROTHIT LiveScore is currently a football-only foundation. Live updates, match details, favourites and notifications are planned for later phases.</div>
-</div></main>
-<footer class="livescore-footer"><div class="wrap"><a href="index.html">PARROTHIT</a> • NEWS THAT SPEAKS! • <a href="sports.html">Sports</a></div></footer>
-<script src="supabase-config.js"></script><script src="js/livescore-config.js"></script><script src="js/livescore.js" defer></script>
-</body></html>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101010">
+  <meta name="description" content="Live football scores, fixtures and results from PARROTHIT LiveScore.">
+  <title>PARROTHIT LiveScore — Football Scores</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/livescore.css">
+</head>
+<body class="pl-body">
+  <div class="pl-app">
+    <div class="pl-topline"><span>PARROTHIT</span><span>NEWS THAT SPEAKS!</span><a href="index.html">Back to News</a></div>
+    <header class="pl-header">
+      <div class="pl-header-inner">
+        <button class="pl-icon-btn" id="plMenuBtn" type="button" aria-label="Open menu" aria-expanded="false">☰</button>
+        <a class="pl-brand" href="livescore.html" aria-label="PARROTHIT LiveScore home">
+          <img src="assets/images/parrothit-logo.png" alt="" onerror="this.style.display='none'">
+          <span><b>PARROTHIT</b><small>LIVE<strong>SCORE</strong></small></span>
+        </a>
+        <div class="pl-header-actions">
+          <button class="pl-pill pl-bet-label" type="button" disabled aria-label="PARROTHIT sports scores">SCORES</button>
+          <button class="pl-icon-btn" id="plSearchBtn" type="button" aria-label="Search teams and competitions">⌕</button>
+        </div>
+      </div>
+      <div class="pl-menu" id="plMenu" hidden>
+        <a href="livescore.html" aria-current="page">Scores</a>
+        <a href="sports.html">Sports News</a>
+        <button type="button" id="plMenuFavourites">Favourites</button>
+        <a href="football.html">Football</a>
+        <a href="index.html">PARROTHIT Home</a>
+        <button type="button" id="plSettingsBtn">Settings</button>
+      </div>
+    </header>
+
+    <main class="pl-main">
+      <nav class="pl-sports" aria-label="Sports">
+        <button class="pl-sport active" type="button" aria-current="true"><span>⚽</span> Football</button>
+        <button class="pl-sport" type="button" disabled title="Hockey will be added in a future phase"><span>◉</span> Hockey</button>
+        <button class="pl-sport" type="button" disabled title="Basketball will be added in a future phase"><span>🏀</span> Basketball</button>
+        <button class="pl-sport" type="button" disabled title="Tennis will be added in a future phase"><span>🎾</span> Tennis</button>
+      </nav>
+
+      <section class="pl-datebar" aria-label="Match date">
+        <button class="pl-live-shortcut" id="plLiveShortcut" type="button"><i></i> LIVE</button>
+        <button class="pl-round-btn" id="plPrevDate" type="button" aria-label="Previous day">‹</button>
+        <div class="pl-current-date"><strong id="plDateLabel">Today</strong><small id="plSubDateLabel"></small></div>
+        <button class="pl-round-btn" id="plNextDate" type="button" aria-label="Next day">›</button>
+        <label class="pl-calendar-btn" for="plDateInput" aria-label="Choose date">▦<input id="plDateInput" type="date"></label>
+      </section>
+
+      <nav class="pl-view-tabs" aria-label="Match status">
+        <button class="active" data-view="today" type="button" aria-pressed="true">All matches</button>
+        <button data-view="live" type="button" aria-pressed="false">Live <span class="pl-tab-count" id="plLiveCount">0</span></button>
+        <button data-view="upcoming" type="button" aria-pressed="false">Upcoming</button>
+        <button data-view="results" type="button" aria-pressed="false">Results</button>
+      </nav>
+
+      <section class="pl-tools" aria-label="Match filters">
+        <label class="pl-select-wrap"><span>Competition</span>
+          <select id="plCompetition">
+            <option value="all">All competitions</option>
+            <option value="premier">Premier League</option>
+            <option value="laliga">La Liga</option>
+            <option value="seriea">Serie A</option>
+            <option value="bundesliga">Bundesliga</option>
+            <option value="ligue1">Ligue 1</option>
+            <option value="nigeria">Nigeria / NPFL</option>
+            <option value="champions">Champions League</option>
+          </select>
+        </label>
+        <div class="pl-search-box" id="plSearchBox" hidden>
+          <input id="plSearchInput" type="search" placeholder="Search teams or competitions" aria-label="Search teams or competitions">
+          <button id="plClearSearch" type="button" aria-label="Clear search">×</button>
+        </div>
+        <button class="pl-refresh" id="plFavourites" type="button" aria-pressed="false">☆ <span>Favourites</span></button>
+        <button class="pl-refresh" id="plRefresh" type="button">↻ <span>Refresh</span></button>
+      </section>
+
+      <div class="pl-status-row"><span id="plProviderStatus" role="status" aria-live="polite">Connecting to the active football provider…</span><span id="plUpdated"></span></div>
+      <section id="plMatches" class="pl-matches" aria-live="polite">
+        <div class="pl-state-card"><span class="pl-spinner"></span><strong>Loading football matches…</strong><p>Connecting to PARROTHIT's active football data provider.</p></div>
+      </section>
+      <div class="pl-footer-note">Scores and fixtures are supplied by the active provider configured in the Football Automation Room. Availability and match coverage depend on that provider.</div>
+    </main>
+    <footer class="pl-footer"><a href="index.html">PARROTHIT</a><span>•</span><span>NEWS THAT SPEAKS!</span><a href="sports.html">Sports</a></footer>
+  </div>
+
+  <dialog class="pl-dialog" id="plSettingsDialog">
+    <form method="dialog" class="pl-dialog-card">
+      <div class="pl-dialog-heading"><h2>LiveScore settings</h2><button class="pl-icon-btn" value="cancel" aria-label="Close settings">×</button></div>
+      <label class="pl-setting-line"><span>Auto-refresh live scores</span><input type="checkbox" id="plAutoRefresh" checked></label>
+      <label class="pl-setting-line"><span>Refresh interval</span><select id="plRefreshInterval"><option value="30">30 seconds</option><option value="60" selected>1 minute</option><option value="120">2 minutes</option></select></label>
+      <p>Automatic refresh applies while the Live tab is selected. Your choices are saved on this device.</p>
+      <button class="pl-primary-btn" value="save" id="plSaveSettings">Save settings</button>
+    </form>
+  </dialog>
+
+  <script src="supabase-config.js"></script>
+  <script src="js/livescore-config.js"></script>
+  <script src="js/livescore.js" defer></script>
+</body>
+</html>
