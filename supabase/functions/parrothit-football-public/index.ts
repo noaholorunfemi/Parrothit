@@ -341,13 +341,22 @@ function routeFor(providerCode: string, endpoints: Record<string, unknown>, view
 
 async function providerRequest(provider: Record<string, any>, view: string, date: string, competition: string): Promise<{ raw: unknown; response: Response }> {
   const base = validateBaseUrl(String(provider.api_base_url || ""));
+  const providerCode = String(provider.provider_code || "custom").toLowerCase();
   const endpoints = plainObject(provider.endpoints);
-  const route = expandTemplate(routeFor(String(provider.provider_code || "custom"), endpoints, view), date, view, competition);
+  const route = expandTemplate(routeFor(providerCode, endpoints, view), date, view, competition);
   const target = new URL(route.replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
   const params = plainObject(provider.default_query_params);
   for (const [key, rawValue] of Object.entries(params)) {
     const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view, competition) : String(rawValue);
     target.searchParams.set(key, value);
+  }
+  // The public visitor request always asks for "all" competitions. Remove a saved
+  // API-Football league parameter so a previous test/single-league setting cannot
+  // silently restrict the global fixtures feed to one competition.
+  if (providerCode === "api-football" && competition === "all") {
+    for (const key of [...target.searchParams.keys()]) {
+      if (key.toLowerCase() === "league") target.searchParams.delete(key);
+    }
   }
 
   const headers = new Headers();
