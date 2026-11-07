@@ -139,7 +139,148 @@ function cleanResponseMapping(value: unknown): Record<string, unknown> {
 }
 
 function expandTemplate(value: string, date: string, view: string): string {
-  return value.replaceAll("{date}", date).replaceAll("{view}", view).replaceAll("{competition}", "all");
+  const season = date.slice(0, 4);
+  return value.replaceAll("{date}", date).replaceAll("{view}", view).replaceAll("{competition}", "all").replaceAll("{season}", season);
+}
+
+function defaultEndpoints(providerCode: string): Record<string, string> {
+  if (providerCode === "openligadb") {
+    // OpenLigaDB documents match lookup by league shortcut + season, not a global date query.
+    // This preset intentionally targets one sample competition and must not be mistaken for worldwide coverage.
+    return { live: "/getmatchdata/bl1/{season}", today: "/getmatchdata/bl1/{season}", upcoming: "/getmatchdata/bl1/{season}", results: "/getmatchdata/bl1/{season}" };
+  }
+  if (providerCode === "api-football") {
+    return {
+      live: "/fixtures?live=all&timezone=Africa/Lagos",
+      today: "/fixtures?date={date}&timezone=Africa/Lagos",
+      upcoming: "/fixtures?date={date}&timezone=Africa/Lagos",
+      results: "/fixtures?date={date}&timezone=Africa/Lagos",
+    };
+  }
+  if (providerCode === "football-data-org") {
+    return {
+      live: "/v4/matches?status=IN_PLAY,PAUSED",
+      today: "/v4/matches?dateFrom={date}&dateTo={date}",
+      upcoming: "/v4/matches?dateFrom={date}&dateTo={date}",
+      results: "/v4/matches?dateFrom={date}&dateTo={date}",
+    };
+  }
+  return {};
+}
+
+function getPath(value: unknown, path: unknown): unknown {
+  if (typeof path !== "string" || !path.trim()) return undefined;
+  const parts = path.replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean);
+  let current: any = value;
+  for (const part of parts) {
+    if (current === null || current === undefined) return undefined;
+    current = current[part];
+  }
+  return current;
+}
+
+function providerRows(raw: unknown, providerCode: string, mapping: Record<string, unknown>): unknown[] | null {
+  if (providerCode === "openligadb") {
+    if (Array.isArray(raw)) return raw;
+    if (Array.isArray((raw as any)?.data)) return (raw as any).data;
+    return null;
+  }
+  const path = typeof mapping.matches_path === "string" ? mapping.matches_path : "";
+  const mapped = path ? getPath(raw, path) : undefined;
+  if (Array.isArray(mapped)) return mapped;
+  for (const candidate of ["response", "matches", "data", "fixtures", "events", "results"]) {
+    const found = getPath(raw, candidate);
+    if (Array.isArray(found)) return found;
+  }
+  return Array.isArray(raw) ? raw : null;
+}
+
+function builtInMappingFor(providerCode: string): Record<string, unknown> {
+  if (providerCode === "api-football") return {
+    matches_path: "response", id: "fixture.id", competition: "league.name",
+    home_team: "teams.home.name", away_team: "teams.away.name", status: "fixture.status.short", kickoff: "fixture.date",
+  };
+  if (providerCode === "football-data-org") return {
+    matches_path: "matches", id: "id", competition: "competition.name",
+    home_team: "homeTeam.name", away_team: "awayTeam.name", status: "status", kickoff: "utcDate",
+  };
+  return {};
+}
+
+function usableMatchCount(rows: unknown[], providerCode: string, mapping: Record<string, unknown>): number {
+  return rows.filter((row: any) => {
+    if (providerCode === "openligadb") {
+      return Boolean(row?.Team1?.TeamName && row?.Team2?.TeamName && row?.MatchDate && Number.isFinite(Date.parse(String(row.MatchDate))));
+    }
+    const home = getPath(row, mapping.home_team);
+    const away = getPath(row, mapping.away_team);
+    const kickoff = getPath(row, mapping.kickoff);
+    return Boolean(String(home ?? "").trim() && String(away ?? "").trim() && kickoff && Number.isFinite(Date.parse(String(kickoff))));
+  }).length;
+}
+
+async function providerFetch(config: Record<string, any>, view: string, date: string): Promise<{ http_status: number; raw_count: number; usable_count: number; list_found: boolean; duration_ms: number; message: string; endpoint: string }> {
+  const base = validateHttpsUrl(String(config.api_base_url || ""));
+  const endpointConfig = plainObject(config.endpoints);
+  const route = typeof endpointConfig[view] === "string" && String(endpointConfig[view]).trim()
+    ? String(endpointConfig[view]) : defaultEndpoints(String(config.provider_code || ""))[view];
+  if (!route) throw new Error(`No ${view} endpoint is configured. Add it under Match endpoints.`);
+  if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) throw new Error(`The ${view} endpoint must be a relative path on the configured API host.`);
+  const target = new URL(expandTemplate(route, date, view).replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
+  const safeEndpoint = target.toString();
+  const params = cleanJsonObject(config.default_query_params, "Default query parameters");
+  for (const [key, rawValue] of Object.entries(params)) {
+    const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view) : String(rawValue);
+    if (!target.searchParams.has(key)) target.searchParams.set(key, value);
+  }
+  const headers = new Headers();
+  const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
+  for (const [name, value] of Object.entries(customHeaders)) {
+    if (["host", "content-length", "authorization", "apikey"].includes(name.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${name}.`);
+    headers.set(name, String(value));
+  }
+  const authType = String(config.auth_type || (config.auth_header_name ? "header" : "none"));
+  if (authType !== "none") {
+    if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) throw new Error("API key required for this provider's authentication method.");
+    const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
+    if (authType === "header") headers.set(String(config.auth_header_name), config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey);
+    else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
+    else throw new Error("Unsupported provider authentication method.");
+  }
+  const started = Date.now();
+  const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
+  const duration = Date.now() - started;
+  if (!response.ok) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: `HTTP ${response.status} ${response.statusText || "error"}`, endpoint: safeEndpoint };
+  if (response.status === 204) return { http_status: 204, raw_count: 0, usable_count: 0, list_found: true, duration_ms: duration, message: "Provider returned HTTP 204 No Content; this is a valid empty response.", endpoint: safeEndpoint };
+  const bodyText = await readSmallResponseBody(response, 2 * 1024 * 1024);
+  if (!bodyText.trim()) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "Provider returned an empty response body.", endpoint: safeEndpoint };
+  let raw: unknown;
+  try { raw = JSON.parse(bodyText); } catch { return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "Provider response was not valid JSON.", endpoint: safeEndpoint }; }
+  if (hasProviderApiErrors(bodyText)) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "Provider returned an API-level error.", endpoint: safeEndpoint };
+  const mapping = Object.keys(plainObject(config.response_mapping)).length ? plainObject(config.response_mapping) : builtInMappingFor(String(config.provider_code || ""));
+  const rows = providerRows(raw, String(config.provider_code || ""), mapping);
+  if (!rows) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "JSON received, but no match list was found. Check matches_path in Response mapping.", endpoint: safeEndpoint };
+  const usable = usableMatchCount(rows, String(config.provider_code || ""), mapping);
+  const message = rows.length === 0 ? "Match list found; provider returned zero records for this feed/date." : `${rows.length} raw record(s); ${usable} record(s) contain usable team names and kickoff time.`;
+  return { http_status: response.status, raw_count: rows.length, usable_count: usable, list_found: true, duration_ms: duration, message, endpoint: safeEndpoint };
+}
+
+async function runProviderDiagnostics(config: Record<string, any>, date: string) {
+  const views = ["live", "today", "upcoming", "results"];
+  const diagnostics: Record<string, any>[] = [];
+  for (const view of views) {
+    try {
+      const result = await providerFetch(config, view, date);
+      diagnostics.push({ view, ...result, ok: result.http_status >= 200 && result.http_status < 300 && result.list_found });
+    } catch (error) {
+      diagnostics.push({ view, http_status: null, raw_count: 0, usable_count: 0, list_found: false, duration_ms: 0, ok: false, message: error instanceof Error ? error.message : "Request failed.", endpoint: "Not requested" });
+    }
+  }
+  const allFeedsResponded = diagnostics.length === 4 && diagnostics.every((item) => item.ok);
+  const rawCount = diagnostics.reduce((sum, item) => sum + Number(item.raw_count || 0), 0);
+  const usableCount = diagnostics.reduce((sum, item) => sum + Number(item.usable_count || 0), 0);
+  const matchDataVerified = allFeedsResponded && usableCount > 0;
+  return { diagnostics, all_feeds_responded: allFeedsResponded, raw_match_count: rawCount, usable_match_count: usableCount, match_data_verified: matchDataVerified };
 }
 
 async function requireAdmin(request: Request, admin: ReturnType<typeof createClient>) {
@@ -194,9 +335,9 @@ async function writeLog(admin: ReturnType<typeof createClient>, row: Record<stri
   }
 }
 
-function buildTestUrl(config: Record<string, any>): URL {
+function buildTestUrl(config: Record<string, any>, date = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())): URL {
   const base = validateHttpsUrl(String(config.api_base_url || ""));
-  const path = cleanTestPath(config.test_path);
+  const path = expandTemplate(cleanTestPath(config.test_path), date, "today");
   const target = new URL(path.replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
   const params = cleanJsonObject(config.default_query_params, "Default query parameters");
   for (const [key, value] of Object.entries(params)) target.searchParams.set(key, String(value));
@@ -312,7 +453,7 @@ Deno.serve(async (request: Request) => {
       for (let offset = 0; ; offset += pageSize) {
         const { data: page, error } = await admin
           .from("football_api_configs")
-          .select("id, provider_code, provider_name, sport, plan_type, api_base_url, test_path, auth_type, auth_header_name, auth_prefix, auth_query_param, custom_headers, default_query_params, endpoints, response_mapping, has_api_key, priority, is_enabled, last_tested_at, last_test_ok, last_test_http_status, last_test_message, last_quota_used, last_quota_limit, last_quota_remaining, last_quota_period, last_quota_checked_at, created_at, updated_at")
+          .select("id, provider_code, provider_name, sport, plan_type, api_base_url, test_path, auth_type, auth_header_name, auth_prefix, auth_query_param, custom_headers, default_query_params, endpoints, response_mapping, has_api_key, priority, is_enabled, last_tested_at, last_test_ok, last_test_http_status, last_test_message, last_quota_used, last_quota_limit, last_quota_remaining, last_quota_period, last_quota_checked_at, last_match_test_ok, last_raw_match_count, last_normalized_match_count, last_endpoint_diagnostics, created_at, updated_at")
           .order("priority", { ascending: true })
           .order("created_at", { ascending: true })
           .range(offset, offset + pageSize - 1);
@@ -390,7 +531,8 @@ Deno.serve(async (request: Request) => {
         last_tested_at: null,
         last_test_ok: null,
         last_test_http_status: null,
-        last_test_message: "Configuration changed. Run a new connection test before activation.",
+        last_test_message: "Configuration changed. Run full endpoint and match-data diagnostics before activation.",
+        last_match_test_ok: null, last_raw_match_count: null, last_normalized_match_count: null, last_endpoint_diagnostics: {},
         priority,
         is_enabled: isEnabled,
         ...keyFields,
@@ -422,7 +564,7 @@ Deno.serve(async (request: Request) => {
       const id = cleanText(body.id, 80);
       const config = await getConfig(admin, id);
       if (!config.is_enabled) throw new Error("Enable this provider before selecting it as primary.");
-      if (config.last_test_ok !== true) throw new Error("Run a successful connection test before selecting this provider as primary.");
+      if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error("Run full LiveScore diagnostics and verify at least one usable match record before selecting this provider as primary.");
       const { error } = await admin.from("football_automation_settings").update({
         selected_api_config_id: id,
         updated_by: actor.id,
@@ -440,7 +582,7 @@ Deno.serve(async (request: Request) => {
       if (settings.selected_api_config_id !== id) throw new Error("The API you are activating is not the currently selected provider. Select it as primary first.");
       const config = await getConfig(admin, id);
       if (!config.is_enabled) throw new Error("Enable this provider before activation.");
-      if (config.last_test_ok !== true) throw new Error("Run a successful connection test immediately before activating this provider.");
+      if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error("This provider has not passed full match-data verification. Run LiveScore diagnostics and verify at least one usable match record before activation.");
       const builtInAdapters = ["openligadb", "api-football", "football-data-org"];
       if (!builtInAdapters.includes(String(config.provider_code || ""))) {
         const endpoints = plainObject(config.endpoints);
@@ -524,7 +666,7 @@ Deno.serve(async (request: Request) => {
       if (selectedId) {
         const config = await getConfig(admin, selectedId);
         if (!config.is_enabled) throw new Error("The selected primary provider is disabled.");
-        if (config.last_test_ok !== true) throw new Error("The primary provider must pass a connection test before it can be selected.");
+        if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error("The primary provider must pass all four endpoint checks and return at least one usable match record before it can be selected.");
       }
       const fallbackEnabled = body.fallback_enabled === true;
       const cacheSeconds = clampInt(body.cache_seconds, 15, 3600, 60);
@@ -541,86 +683,96 @@ Deno.serve(async (request: Request) => {
       return json(200, { ok: true, message: "Football Automation Room settings saved." });
     }
 
-    if (action === "test") {
+    if (action === "test" || action === "diagnostics") {
       const id = cleanText(body.id, 80);
       const config = await getConfig(admin, id);
       if (!config.is_enabled) throw new Error("Enable this provider before testing its connection.");
-      const authType = config.auth_type || (config.auth_header_name ? "header" : "none");
-      if (authType !== "none" && !config.has_api_key) {
-        const message = "API key required for the configured authentication method.";
-        const testedAt = new Date().toISOString();
-        await admin.from("football_api_configs").update({ last_tested_at: testedAt, last_test_ok: false, last_test_http_status: null, last_test_message: message, last_quota_used: null, last_quota_limit: null, last_quota_remaining: null, last_quota_period: null, last_quota_checked_at: null, updated_at: testedAt }).eq("id", id);
-        await writeLog(admin, { event_type: "api_connection_test", config_id: id, success: false, message, actor_user_id: actor.id });
-        return json(200, { ok: true, test_ok: false, message });
+      const dateText = cleanText(body.date, 10);
+      const sampleDate = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      const diagnostics = await runProviderDiagnostics(config, sampleDate);
+
+      if (action === "diagnostics") {
+        return json(200, { ok: true, provider_name: config.provider_name, provider_code: config.provider_code, date: sampleDate, ...diagnostics });
       }
 
-      const target = buildTestUrl(config);
-      // API-Football accepts only its documented API key header; do not add an Accept header.
-      const headers = new Headers();
-      const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
-      for (const [headerName, headerValue] of Object.entries(customHeaders)) {
-        if (["host", "content-length", "authorization", "apikey"].includes(headerName.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${headerName}.`);
-        headers.set(headerName, String(headerValue));
-      }
-      if (authType !== "none" && config.api_key_ciphertext && config.api_key_iv) {
-        const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
-        const value = config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey;
-        if (authType === "header") headers.set(String(config.auth_header_name), value);
-        else target.searchParams.set(String(config.auth_query_param), clearKey);
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      const started = Date.now();
-      let testOk = false;
-      let httpStatus: number | null = null;
-      let message = "";
-      let quota = { used: null as number | null, limit: null as number | null, remaining: null as number | null, period: null as string | null };
+      let connectionOk = true;
+      let connectionMessage = "Base provider endpoint is reachable.";
+      let connectionStatus: number | null = null;
+      let connectionQuota = { used: null as number | null, limit: null as number | null, remaining: null as number | null, period: null as string | null };
       try {
-        const response = await fetch(target.toString(), { method: "GET", headers, signal: controller.signal, redirect: "error" });
-        httpStatus = response.status;
+        const target = buildTestUrl(config, sampleDate);
+        const headers = new Headers();
+        const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
+        for (const [headerName, headerValue] of Object.entries(customHeaders)) {
+          if (["host", "content-length", "authorization", "apikey"].includes(headerName.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${headerName}.`);
+          headers.set(headerName, String(headerValue));
+        }
+        const authType = String(config.auth_type || (config.auth_header_name ? "header" : "none"));
+        if (authType !== "none") {
+          if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) throw new Error("API key required for the configured authentication method.");
+          const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
+          const value = config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey;
+          if (authType === "header") headers.set(String(config.auth_header_name), value);
+          else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
+          else throw new Error("Unsupported provider authentication method.");
+        }
+        const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
+        connectionStatus = response.status;
         const bodyText = await readSmallResponseBody(response);
-        const apiError = hasProviderApiErrors(bodyText);
-        testOk = response.ok && !apiError;
-        quota = extractQuota(response, bodyText);
-        message = testOk
-          ? `Connection successful · HTTP ${response.status}.`
-          : (apiError ? `Provider returned an API-level error · HTTP ${response.status}. Check the API key and provider response.` : `Provider responded with HTTP ${response.status} ${response.statusText || "error"}.`);
+        connectionQuota = extractQuota(response, bodyText);
+        connectionOk = response.ok && !hasProviderApiErrors(bodyText);
+        if (!connectionOk) connectionMessage = `Provider check returned HTTP ${response.status} or an API-level error.`;
       } catch (error) {
-        const reason = error instanceof Error && error.name === "AbortError" ? "request timed out after 12 seconds" : "network request failed or the provider redirected the request";
-        message = `Connection failed: ${reason}.`;
-      } finally {
-        clearTimeout(timeout);
+        connectionOk = false;
+        connectionMessage = error instanceof Error ? error.message : "Provider connection failed.";
       }
-      const duration = Date.now() - started;
+
+      const testOk = connectionOk && diagnostics.all_feeds_responded && diagnostics.match_data_verified;
       const testedAt = new Date().toISOString();
+      const endpointJson = { date: sampleDate, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage }, feeds: diagnostics.diagnostics, raw_match_count: diagnostics.raw_match_count, usable_match_count: diagnostics.usable_match_count, match_data_verified: diagnostics.match_data_verified };
+      const message = testOk
+        ? `Provider and match data verified: ${diagnostics.usable_match_count} usable match record(s) across four feeds.`
+        : !connectionOk
+          ? `Provider connection check failed: ${connectionMessage}`
+          : !diagnostics.all_feeds_responded
+            ? "Provider connection succeeded, but one or more match endpoints or response lists failed. Review the endpoint diagnostics."
+            : `Endpoints responded, but no usable match record was found for ${sampleDate}. Choose a date with scheduled or completed fixtures and test again.`;
       const { error: updateError } = await admin.from("football_api_configs").update({
         last_tested_at: testedAt,
         last_test_ok: testOk,
-        last_test_http_status: httpStatus,
+        last_test_http_status: connectionStatus,
         last_test_message: message,
-        last_quota_used: quota.used,
-        last_quota_limit: quota.limit,
-        last_quota_remaining: quota.remaining,
-        last_quota_period: quota.period,
-        last_quota_checked_at: quota.period ? testedAt : null,
+        last_quota_used: connectionQuota.used,
+        last_quota_limit: connectionQuota.limit,
+        last_quota_remaining: connectionQuota.remaining,
+        last_quota_period: connectionQuota.period,
+        last_quota_checked_at: connectionQuota.period ? testedAt : null,
+        last_match_test_ok: diagnostics.match_data_verified,
+        last_raw_match_count: diagnostics.raw_match_count,
+        last_normalized_match_count: diagnostics.usable_match_count,
+        last_endpoint_diagnostics: endpointJson,
         updated_at: testedAt,
       }).eq("id", id);
       if (updateError) throw updateError;
       if (!testOk) {
         const settings = await getSettings(admin);
-        if (settings.selected_api_config_id === id || settings.active_api_config_id === id) {
-          const { error: clearPrimaryError } = await admin.from("football_automation_settings").update({
-            selected_api_config_id: settings.selected_api_config_id === id ? null : settings.selected_api_config_id,
-            active_api_config_id: settings.active_api_config_id === id ? null : settings.active_api_config_id,
-            public_livescore_enabled: settings.active_api_config_id === id ? false : settings.public_livescore_enabled,
-            updated_by: actor.id, updated_at: testedAt,
-          }).eq("id", true);
-          if (clearPrimaryError) throw clearPrimaryError;
+        if (settings.selected_api_config_id === id && settings.active_api_config_id !== id) {
+          const { error: clearSelectionError } = await admin.from("football_automation_settings").update({ selected_api_config_id: null, updated_by: actor.id, updated_at: testedAt }).eq("id", true);
+          if (clearSelectionError) throw clearSelectionError;
         }
       }
-      await writeLog(admin, { event_type: "api_connection_test", config_id: id, success: testOk, http_status: httpStatus, duration_ms: duration, message, actor_user_id: actor.id });
-      return json(200, { ok: true, test_ok: testOk, http_status: httpStatus, duration_ms: duration, message });
+      await writeLog(admin, { event_type: "football_provider_full_diagnostic", config_id: id, success: testOk, http_status: connectionStatus, duration_ms: diagnostics.diagnostics.reduce((sum, item) => sum + Number(item.duration_ms || 0), 0), message, actor_user_id: actor.id });
+      return json(200, { ok: true, test_ok: testOk, message, provider_name: config.provider_name, date: sampleDate, ...diagnostics, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage } });
+    }
+
+    if (action === "clear_cache") {
+      const settings = await getSettings(admin);
+      const activeId = settings.active_api_config_id;
+      if (!activeId) throw new Error("There is no active provider to clear from the public LiveScore cache.");
+      const { error } = await admin.from("football_public_cache").delete().like("cache_key", `livescore:${activeId}:%`);
+      if (error) throw error;
+      await writeLog(admin, { event_type: "public_livescore_cache_cleared", config_id: activeId, success: true, message: "Public LiveScore cache cleared by administrator.", actor_user_id: actor.id });
+      return json(200, { ok: true, message: "Cached LiveScore data for the active provider has been cleared. The next visitor request will fetch fresh provider data." });
     }
 
     return json(400, { ok: false, error: "Unknown Football Automation Room action." });
