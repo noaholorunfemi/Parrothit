@@ -69,10 +69,11 @@
     if (save) save.disabled = true;
     try {
       const settings = await invoke('get_timeout_settings');
-      const minutes = Number(settings.session_timeout_minutes) || 30;
-      if (select) select.value = String(minutes);
+      const minutes = Number(settings.session_timeout_minutes);
+      const selected = [0, 5, 15, 30, 60].includes(minutes) ? minutes : 30;
+      if (select) select.value = String(selected);
       const stat = $('currentTimeoutStat');
-      if (stat) stat.textContent = minutes === 60 ? '1 hour' : minutes + ' min';
+      if (stat) stat.textContent = selected === 0 ? 'Never (inactivity timeout off)' : selected === 60 ? '1 hour' : selected + ' min';
     } catch (error) {
       status(error.message || 'Could not load session timeout settings. Apply the SQL migration and deploy the Edge Function.', true);
     } finally { if (save) save.disabled = false; }
@@ -82,13 +83,14 @@
     const save = $('saveSessionTimeout');
     if (!select || !save) return;
     const minutes = Number(select.value);
-    if (![5, 10, 15, 30, 60].includes(minutes)) return status('Choose 5, 10, 15, 30 or 60 minutes.', true);
-    if (!window.confirm('Set the inactivity timeout to ' + (minutes === 60 ? '1 hour' : minutes + ' minutes') + ' for EVERY administrator account?')) return;
+    if (![0, 5, 15, 30, 60].includes(minutes)) return status('Choose 5, 15, 30, 60 minutes or Never.', true);
+    const label = minutes === 0 ? 'Never' : minutes === 60 ? '1 hour' : minutes + ' minutes';
+    if (!window.confirm('Set the inactivity timeout to ' + label + ' for EVERY administrator account?')) return;
     save.disabled = true;
     try {
       const result = await invoke('set_timeout_settings', { session_timeout_minutes: minutes });
       const stat = $('currentTimeoutStat');
-      if (stat) stat.textContent = minutes === 60 ? '1 hour' : minutes + ' min';
+      if (stat) stat.textContent = minutes === 0 ? 'Never (inactivity timeout off)' : minutes === 60 ? '1 hour' : minutes + ' min';
       status(result.message || 'Admin session timeout saved for every administrator.');
     } catch (error) {
       status(error.message || 'Could not save the session timeout.', true);

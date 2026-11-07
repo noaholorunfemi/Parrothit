@@ -106,9 +106,9 @@
   function startIdleTimeout(client, userId, deviceToken, initialTimeoutMinutes, initialLastActivityAt, goLogin, failPage) {
     if (!client || !userId || window.__PARROTHIT_IDLE_TIMER_STARTED__) return;
     window.__PARROTHIT_IDLE_TIMER_STARTED__ = true;
-    var ALLOWED = [5, 10, 15, 30, 60];
+    var ALLOWED = [0, 5, 15, 30, 60];
     var timeoutMinutes = ALLOWED.indexOf(Number(initialTimeoutMinutes)) >= 0 ? Number(initialTimeoutMinutes) : 30;
-    var LIMIT = timeoutMinutes * 60 * 1000;
+    var LIMIT = timeoutMinutes === 0 ? Infinity : timeoutMinutes * 60 * 1000;
     var parsedActivity = initialLastActivityAt ? new Date(initialLastActivityAt).getTime() : 0;
     var lastActivity = Number.isFinite(parsedActivity) && parsedActivity > 0 ? parsedActivity : Date.now();
     var lastWrite = 0;
@@ -124,7 +124,7 @@
       var minutes = Number(value);
       if (ALLOWED.indexOf(minutes) < 0) return;
       timeoutMinutes = minutes;
-      LIMIT = minutes * 60 * 1000;
+      LIMIT = minutes === 0 ? Infinity : minutes * 60 * 1000;
       window.PARROTHIT_ADMIN_IDLE_TIMEOUT_MS = LIMIT;
     }
     function hideWarning() {
@@ -182,7 +182,7 @@
       if (shared) lastActivity = Math.max(lastActivity, shared);
       var elapsed = Date.now() - lastActivity;
       if (elapsed >= LIMIT) { expire('idle-timeout'); return; }
-      if (LIMIT - elapsed <= 60000) showWarning(); else hideWarning();
+      if (LIMIT !== Infinity && LIMIT - elapsed <= 60000) showWarning(); else hideWarning();
       validate();
     }
     function markActivity() {
