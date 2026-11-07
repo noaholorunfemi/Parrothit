@@ -49,6 +49,19 @@
     if (username) username.value = profile?.username || user?.user_metadata?.username || '';
   }
 
+  async function releaseClaimedSession(client, userId) {
+    if (!userId) return;
+    try {
+      if (window.PARROTHITAdminSession && typeof window.PARROTHITAdminSession.release === 'function') {
+        await window.PARROTHITAdminSession.release(client, userId);
+      } else {
+        localStorage.removeItem('parrothit-admin-session-token-v1:' + String(userId));
+      }
+    } catch (error) {
+      console.warn('Could not release the pending passkey admin session:', error);
+    }
+  }
+
   async function validateAdminSession(client, source) {
     const { data: sessionData, error: sessionError } = await client.auth.getSession();
     const session = sessionData?.session;
@@ -64,6 +77,7 @@
       await window.PARROTHITAdminSession.claim(client, session.user.id);
     } catch (claimError) {
       console.error('PARROTHIT passkey session claim failed:', claimError);
+      await releaseClaimedSession(client, session.user.id);
       if (claimError && claimError.code === 'ADMIN_SUSPENDED') {
         setAppealDetails(session.user, claimError.profile || {});
         await client.auth.signOut({ scope: 'local' });
@@ -85,20 +99,23 @@
 
     if (profileError) {
       console.error('PARROTHIT passkey admin profile lookup failed:', profileError);
-      await client.auth.signOut();
+      await releaseClaimedSession(client, session.user.id);
+      await client.auth.signOut({ scope: 'local' });
       showAuthFailure('Your passkey signed in, but the administrator profile could not be verified. Please use password login or ask Admin 1 (Owner) to check your admin_profiles table permissions and columns.');
       return false;
     }
 
     if (!profile || !['owner', 'admin'].includes(String(profile.role || '').toLowerCase())) {
-      await client.auth.signOut();
+      await releaseClaimedSession(client, session.user.id);
+      await client.auth.signOut({ scope: 'local' });
       showAuthFailure('This passkey belongs to an account that is not an authorized PARROTHIT administrator.');
       return false;
     }
 
     if (profile.is_suspended === true) {
       setAppealDetails(session.user, profile);
-      await client.auth.signOut();
+      await releaseClaimedSession(client, session.user.id);
+      await client.auth.signOut({ scope: 'local' });
       if (typeof window.showAuthAlert === 'function') {
         window.showAuthAlert('suspended');
       } else {
