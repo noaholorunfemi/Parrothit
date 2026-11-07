@@ -90,8 +90,14 @@ button.commit-change:hover{background:#166534!important}
   const client=window.getParrothitSupabaseClient();
   const {data,error}=await client.auth.getSession();
   if(error||!data.session){goLogin();return}
-  const {data:profile,error:profileError}=await client.from('admin_profiles').select('role,username,is_suspended').eq('user_id',data.session.user.id).maybeSingle();
-  if(profileError||!profile||!['owner','admin'].includes(profile.role)||profile.is_suspended){await client.auth.signOut();goLogin();return}
+  // Use the SECURITY DEFINER RPC so profile verification is not blocked by
+  // admin_profiles row-level security. The RPC returns only this user's profile.
+  const {data:profile,error:profileError}=await client.rpc('get_my_admin_profile');
+  const role=String(profile&&profile.role||'').trim().toLowerCase();
+  if(profileError||!profile||String(profile.user_id||'')!==String(data.session.user.id)||!['owner','admin'].includes(role)||profile.is_suspended===true){
+    console.error('PARROTHIT dashboard admin verification failed:',profileError||{userId:data.session.user.id,profileUserId:profile&&profile.user_id,role:role});
+    await client.auth.signOut();goLogin();return;
+  }
   window.PARROTHIT_ADMIN_CLIENT=client;window.PARROTHIT_ADMIN_PROFILE=profile;window.dispatchEvent(new Event('parrothit-admin-ready'));
   document.documentElement.classList.remove('admin-auth-pending');document.body.classList.remove('admin-auth-pending');
   const top=document.querySelector('.top-actions');
