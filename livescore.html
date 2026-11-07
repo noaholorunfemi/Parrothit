@@ -58,17 +58,14 @@
       </nav>
 
       <section class="pl-tools" aria-label="Match filters">
-        <label class="pl-select-wrap"><span>Competition</span>
-          <select id="plCompetition">
+        <label class="pl-select-wrap pl-competition-select-wrap"><span>Competition · worldwide catalogue</span>
+          <select id="plCompetition" aria-label="Filter matches by competition">
             <option value="all">All competitions</option>
-            <option value="premier">Premier League</option>
-            <option value="laliga">LaLiga</option>
-            <option value="seriea">Serie A</option>
-            <option value="bundesliga">Bundesliga</option>
-            <option value="ligue1">Ligue 1</option>
-            <option value="nigeria">Nigeria / NPFL</option>
-            <option value="champions">Champions League</option>
           </select>
+          <small class="pl-competition-count" id="plCompetitionCount" aria-live="polite">Loading competition catalogue…</small>
+        </label>
+        <label class="pl-competition-search-wrap"><span>Find a competition</span>
+          <input id="plCompetitionSearch" type="search" placeholder="Search league, cup or country" autocomplete="off">
         </label>
         <div class="pl-search-box" id="plSearchBox" hidden>
           <input id="plSearchInput" type="search" placeholder="Search teams or competitions" aria-label="Search teams or competitions">
