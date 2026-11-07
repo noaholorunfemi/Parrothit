@@ -141,7 +141,7 @@
             </label>
             <label class="fr-field fr-field-wide">Match endpoints (JSON)
               <textarea id="fr-endpoints" rows="5" spellcheck="false">{}</textarea>
-              <small>Define routes per view: {"live":"/fixtures?live=all","today":"/fixtures?date={date}","upcoming":"/fixtures?date={date}","results":"/fixtures?date={date}"}. Placeholders: {date}, {view}, {competition}.</small>
+              <small>Define routes per view: {"live":"/fixtures?live=all","today":"/fixtures?date={date}","upcoming":"/fixtures?date={date}","results":"/fixtures?date={date}"}. Placeholders: {date}, {season}, {view}, {competition}.</small>
             </label>
             <label class="fr-field fr-field-wide">Response mapping (JSON)
               <textarea id="fr-response-mapping" rows="7" spellcheck="false">{}</textarea>
@@ -160,25 +160,25 @@
           <article class="fr-panel">
             <h3>Quick provider presets</h3>
             <p class="fr-panel-desc">Select a provider to prefill its common connection settings. You still control the endpoint, plan and API key.</p>
-            <button type="button" class="fr-preset-row" data-fr-preset="openligadb"><span class="fr-preset-icon">OL</span><span><strong>OpenLigaDB</strong><small>Free public endpoint · no API key</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="openligadb"><span class="fr-preset-icon">OL</span><span><strong>OpenLigaDB</strong><small>Free · competition-specific (not worldwide) · no API key</small></span><b>＋</b></button>
             <button type="button" class="fr-preset-row" data-fr-preset="api-football"><span class="fr-preset-icon">AF</span><span><strong>API-Football / API-Sports</strong><small>API key header: x-apisports-key</small></span><b>＋</b></button>
             <button type="button" class="fr-preset-row" data-fr-preset="football-data-org"><span class="fr-preset-icon">FD</span><span><strong>football-data.org</strong><small>API key header: X-Auth-Token</small></span><b>＋</b></button>
           </article>
           <article class="fr-panel fr-provider-rules">
             <h3>Provider rules</h3>
-            <ul><li>There is no fixed number of API configuration slots in this manager.</li><li>Provider request quotas and competition coverage are still controlled by each API provider.</li><li>Primary selection and fallback priority are separate from your general Newsroom Automation settings.</li><li>Connection tests confirm an HTTP response; they do not guarantee live coverage for every competition.</li></ul>
+            <ul><li>There is no fixed number of API configuration slots in this manager.</li><li>Provider request quotas and competition coverage are still controlled by each API provider.</li><li>Primary selection and fallback priority are separate from your general Newsroom Automation settings.</li><li>Provider activation requires four working match feeds and at least one real, normalized match record.</li><li>OpenLigaDB uses competition/season routes and is not a worldwide date-based feed.</li><li>API plan limits and competition coverage are controlled by the data provider.</li></ul>
           </article>
         </div>
       </div>
       <article class="fr-panel fr-table-panel">
         <div class="fr-panel-heading"><div><h3>Configured SPORT APIs</h3><p id="fr-config-count">Loading saved provider configurations…</p></div><button type="button" class="fr-button fr-button-quiet fr-button-small" id="fr-refresh-configs">↻ Refresh list</button></div>
-        <div class="fr-table-scroll"><table class="fr-table"><thead><tr><th>Provider</th><th>Sport / Plan</th><th>Priority</th><th>Connection</th><th>Quota / usage</th><th>Selected / active</th><th>Actions</th></tr></thead><tbody id="fr-api-rows"><tr><td colspan="7" class="fr-empty">Waiting for the secure configuration service…</td></tr></tbody></table></div>
+        <div class="fr-table-scroll"><table class="fr-table"><thead><tr><th>Provider</th><th>Sport / Plan</th><th>Priority</th><th>Match data verification</th><th>Quota / usage</th><th>Selected / active</th><th>Actions</th></tr></thead><tbody id="fr-api-rows"><tr><td colspan="7" class="fr-empty">Waiting for the secure configuration service…</td></tr></tbody></table></div>
       </article>
     </section>
 
     <section class="fr-view" id="fr-view-livescore" aria-labelledby="fr-livescore-title">
       <div class="fr-section-heading"><div><p class="fr-kicker">PUBLIC SCORE DATA</p><h2 id="fr-livescore-title">LiveScore Management</h2><p>Control which configured provider is prepared to supply PARROTHIT LiveScore.</p></div><a class="fr-button fr-button-primary" href="../livescore.html" target="_blank" rel="noopener">View public LiveScore ↗</a></div>
-      <div class="fr-notice"><strong>Provider activation:</strong> Save and test a provider, select it as primary in Automation Settings, then press <strong>Activate Selected Football API</strong>. Activation enables the public LiveScore endpoint to use that provider. A successful connection test alone does not guarantee every competition or live-score feature is supported.</div>
+      <div class="fr-notice"><strong>Provider activation:</strong> Save and test a provider, select it as primary in Automation Settings, then press <strong>Activate Selected Football API</strong>. Activation enables the public LiveScore endpoint to use that provider. A provider is activation-ready only after all four feeds return a match-list response and at least one real match can be normalized. Use the diagnostics panel to verify this before activation.</div>
       <div class="fr-grid-2">
         <article class="fr-panel">
           <div class="fr-panel-heading"><div><h3>Selected primary provider</h3><p id="fr-public-status" aria-live="polite">Public LiveScore is not active.</p></div><span id="fr-public-state" class="fr-pill fr-pill-stage">NOT ACTIVE</span></div>
@@ -188,7 +188,13 @@
         </article>
         <article class="fr-panel"><h3>Data integrity</h3><ul class="fr-integrity-list"><li>Public scores must come from a successful provider response.</li><li>Unavailable or stale provider data must be labelled, not presented as current live scores.</li><li>Provider responses are cached server-side for the configured interval to reduce unnecessary API requests.</li><li>Automatic backup-provider selection is reserved for Phase 2C and is not active in this release.</li></ul></article>
       </div>
-      <article class="fr-panel"><div class="fr-panel-heading"><div><h3>LiveScore integration status</h3><p>Current implementation boundary.</p></div><span class="fr-pill fr-pill-stage">MULTI-PROVIDER</span></div><div class="fr-integration-line"><span class="fr-integration-dot"></span><div><strong>Provider-driven match feed</strong><small>Built-in adapters are available for OpenLigaDB, API-Football and football-data.org. Custom APIs can use endpoint and response mapping settings.</small></div><em id="fr-adapter-state">Ready to configure</em></div></article>
+      <article class="fr-panel fr-data-diagnostics">
+        <div class="fr-panel-heading"><div><h3>LiveScore Data Diagnostics</h3><p>Tests the active/selected provider's actual live, today, upcoming and results endpoints. No simulated records are used.</p></div><span class="fr-pill fr-pill-stage">REAL DATA TEST</span></div>
+        <div class="fr-diagnostics-controls"><label class="fr-field">Sample date <input type="date" id="fr-diagnostics-date"><small>Choose a day known to contain fixtures/results when today's schedule is quiet.</small></label><div class="fr-form-actions"><button type="button" class="fr-button fr-button-primary" id="fr-run-diagnostics">Run fresh diagnostics</button><button type="button" class="fr-button fr-button-quiet" id="fr-clear-livescore-cache">Clear active-provider cache</button></div></div>
+        <p id="fr-diagnostics-summary" class="fr-form-feedback" role="status" aria-live="polite">Select or activate a provider, then run diagnostics to inspect real endpoint responses.</p>
+        <div id="fr-diagnostics-results" class="fr-diagnostics-results"></div>
+      </article>
+      <article class="fr-panel"><div class="fr-panel-heading"><div><h3>LiveScore integration status</h3><p>Current implementation boundary.</p></div><span class="fr-pill fr-pill-stage">MULTI-PROVIDER</span></div><div class="fr-integration-line"><span class="fr-integration-dot"></span><div><strong>Provider-driven match feed</strong><small>Built-in adapters are available for OpenLigaDB, API-Football and football-data.org. Custom APIs can use endpoint and response mapping settings. OpenLigaDB's preset is competition-specific and is not a global/worldwide source.</small></div><em id="fr-adapter-state">Ready to configure</em></div></article>
     </section>
 
     <section class="fr-view" id="fr-view-settings" aria-labelledby="fr-settings-title">
@@ -197,7 +203,7 @@
         <div class="fr-form-grid">
           <label class="fr-field fr-field-wide">Primary API provider
             <select id="fr-primary-select"><option value="">No primary provider selected</option></select>
-            <small>Only enabled providers with a successful connection test can be selected as the primary source. Use the LiveScore Management tab to activate the selected provider publicly.</small>
+            <small>Only enabled providers that pass all four endpoint checks and return at least one usable match record can be selected as primary. Use the LiveScore Management tab to activate the selected provider publicly.</small>
           </label>
           <label class="fr-check-field fr-field-wide"><input type="checkbox" id="fr-fallback-enabled" disabled><span><strong>Automatic provider fallback (planned Phase 2C)</strong><small>Not active in this release. Competition-aware backup selection will be implemented in the next phase.</small></span></label>
           <label class="fr-field">Cache duration (seconds)
