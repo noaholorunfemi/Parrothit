@@ -4,6 +4,7 @@
   if (window.PARROTHITAdminSession) return;
   const TOKEN_PREFIX = 'parrothit-admin-session-token-v1:';
   const DEVICE_KEY = 'parrothit-admin-device-id-v1';
+  const WELCOME_MARKER_KEY = 'parrothit-admin-welcome-pending-v1';
 
   function randomToken() {
     const bytes = new Uint8Array(48);
@@ -35,6 +36,18 @@
   function clearActivity(userId) {
     try { localStorage.removeItem(activityKey(userId)); } catch (_) {}
   }
+  function clearWelcomeMarker() {
+    try { sessionStorage.removeItem(WELCOME_MARKER_KEY); } catch (_) {}
+  }
+  function setWelcomeMarker(userId) {
+    try {
+      sessionStorage.setItem(WELCOME_MARKER_KEY, JSON.stringify({
+        user_id: String(userId),
+        issued_at: Date.now(),
+        nonce: randomToken().slice(0, 16)
+      }));
+    } catch (_) { /* Welcome presentation is optional; never block authentication. */ }
+  }
   function deviceName() {
     const ua = navigator.userAgent || '';
     let os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Mac OS|Macintosh/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Unknown OS';
@@ -50,6 +63,8 @@
     return result.data;
   }
   async function claim(client, userId) {
+    // Clear any leftover marker from an earlier incomplete sign-in attempt.
+    clearWelcomeMarker();
     const token = readToken(userId) || randomToken();
     const deviceId = getDeviceId();
     const { data, error } = await client.functions.invoke('parrothit-admin-session', {
@@ -69,6 +84,8 @@
     }
     // Start a new inactivity clock only after the server successfully claims this sign-in.
     writeFreshActivity(userId);
+    // The guarded page consumes this marker once, so refreshes/navigation do not replay it.
+    setWelcomeMarker(userId);
     return data;
   }
   async function release(client, userId) {
@@ -78,6 +95,7 @@
     }
     clearToken(userId);
     clearActivity(userId);
+    clearWelcomeMarker();
   }
   async function recordFailedLogin(client, identifier) {
     const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(identifier || '').trim().toLowerCase()));
