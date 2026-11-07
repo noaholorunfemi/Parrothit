@@ -44,4 +44,4 @@ revoke all on function public.get_my_admin_profile() from anon;
 grant execute on function public.get_my_admin_profile() to authenticated;
 
 comment on function public.get_my_admin_profile() is
-  'Returns only the authenticated user's PARROTHIT admin profile for login and authorization checks.';
+  'Returns only the authenticated user''s PARROTHIT admin profile for login and authorization checks.';
