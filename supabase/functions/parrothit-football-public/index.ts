@@ -109,9 +109,10 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
 function builtInMapping(providerCode: string): Record<string, unknown> {
   if (providerCode === "api-football") {
     return {
-      matches_path: "response", id: "fixture.id", competition: "league.name",
-      home_team: "teams.home.name", away_team: "teams.away.name",
+      matches_path: "response", id: "fixture.id", competition: "league.name", competition_id: "league.id",
+      competition_type: "league.type", home_team: "teams.home.name", away_team: "teams.away.name",
       home_logo: "teams.home.logo", away_logo: "teams.away.logo", competition_logo: "league.logo", country: "league.country",
+      country_code: "league.country_code", country_flag: "league.flag",
       home_score: "goals.home", away_score: "goals.away", status: "fixture.status.short",
       kickoff: "fixture.date", minute: "fixture.status.elapsed",
       venue_id: "fixture.venue.id", venue_name: "fixture.venue.name", venue_city: "fixture.venue.city",
@@ -122,9 +123,10 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
   }
   if (providerCode === "football-data-org") {
     return {
-      matches_path: "matches", id: "id", competition: "competition.name",
-      home_team: "homeTeam.name", away_team: "awayTeam.name",
+      matches_path: "matches", id: "id", competition: "competition.name", competition_id: "competition.id",
+      competition_type: "competition.type", home_team: "homeTeam.name", away_team: "awayTeam.name",
       home_logo: "homeTeam.crest", away_logo: "awayTeam.crest", competition_logo: "competition.emblem", country: "area.name",
+      country_code: "area.code", country_flag: "area.flag",
       home_score: "score.fullTime.home", away_score: "score.fullTime.away",
       status: "status", kickoff: "utcDate",
       live_status_values: ["IN_PLAY", "PAUSED"], finished_status_values: ["FINISHED"],
@@ -146,6 +148,8 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
       match_id: item?.MatchID ?? null,
       league: item?.LeagueName || item?.League?.LeagueName || "Football",
       league_code: item?.LeagueShortcut || item?.League?.LeagueShortcut || "",
+      competition_id: item?.LeagueID ?? item?.LeagueId ?? item?.League?.LeagueID ?? item?.League?.LeagueId ?? null,
+      competition_logo: item?.LeagueLogo || item?.League?.LeagueLogo || item?.League?.Logo || null,
       country: item?.LeagueCountry || item?.League?.Country || "",
       home: { name: home?.TeamName || "Home team" },
       away: { name: away?.TeamName || "Away team" },
@@ -199,13 +203,35 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       typeof mapping.away_logo === "string" ? mapping.away_logo : "",
       "teams.away.logo", "awayTeam.crest", "away.logo", "awayTeam.logo",
     ].filter(Boolean));
-    const competitionLogo = firstPath(row, [
+    const rawCompetitionLogo = firstPath(row, [
       typeof mapping.competition_logo === "string" ? mapping.competition_logo : "",
-      "league.logo", "competition.emblem", "competition.logo",
+      "league.logo", "competition.emblem", "competition.logo", "league_logo", "competition_logo",
     ].filter(Boolean));
+    const rawCompetitionId = firstPath(row, [
+      typeof mapping.competition_id === "string" ? mapping.competition_id : "",
+      "league.id", "competition.id", "competition_id", "league_id",
+    ].filter(Boolean));
+    const competitionId = rawCompetitionId == null ? "" : safeString(rawCompetitionId).trim();
+    const competitionType = firstPath(row, [
+      typeof mapping.competition_type === "string" ? mapping.competition_type : "",
+      "league.type", "competition.type", "competition_type", "league_type",
+    ].filter(Boolean));
+    const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
+    const numericCompetitionId = /^\d+$/.test(competitionId) ? competitionId : "";
+    const competitionLogo = rawCompetitionLogo || (normalizedProviderCode === "api-football" && numericCompetitionId
+      ? `https://media.api-sports.io/football/leagues/${numericCompetitionId}.png`
+      : null);
     const country = firstPath(row, [
       typeof mapping.country === "string" ? mapping.country : "",
       "league.country", "area.name", "country.name", "country",
+    ].filter(Boolean));
+    const countryCode = firstPath(row, [
+      typeof mapping.country_code === "string" ? mapping.country_code : "",
+      "league.country_code", "area.code", "country.code", "country_code",
+    ].filter(Boolean));
+    const countryFlag = firstPath(row, [
+      typeof mapping.country_flag === "string" ? mapping.country_flag : "",
+      "league.flag", "area.flag", "country.flag", "country_flag",
     ].filter(Boolean));
     const kickoff = objectPath(row, mapping.kickoff);
     if (!homeTeam || !awayTeam || kickoff == null || !Number.isFinite(Date.parse(String(kickoff)))) return null;
@@ -229,7 +255,6 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
     ].filter(Boolean));
     const numericVenueId = venueId != null && /^\d+$/.test(String(venueId)) ? String(venueId) : "";
     const explicitVenueImage = venueImage == null ? "" : safeString(venueImage).trim();
-    const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
     const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football"
       ? `https://media.api-sports.io/football/venues/${numericVenueId}.png`
       : (explicitVenueImage || null);
@@ -241,10 +266,15 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       match_id: matchId == null ? null : String(matchId),
       league: competition,
       league_code: safeString(objectPath(row, mapping.competition_code), ""),
+      competition_id: competitionId || null,
+      competition_type: competitionType == null ? "" : safeString(competitionType),
       home: { name: homeTeam, ...(homeLogo ? { logo: safeString(homeLogo) } : {}) },
       away: { name: awayTeam, ...(awayLogo ? { logo: safeString(awayLogo) } : {}) },
       competition_logo: competitionLogo ? safeString(competitionLogo) : null,
+      league_logo: competitionLogo ? safeString(competitionLogo) : null,
       country: country ? safeString(country) : "",
+      country_code: countryCode == null ? "" : safeString(countryCode),
+      country_flag: countryFlag == null ? "" : safeString(countryFlag),
       home_score: homeScore == null ? null : homeScore,
       away_score: awayScore == null ? null : awayScore,
       status,
@@ -356,6 +386,97 @@ async function providerRequest(provider: Record<string, any>, view: string, date
   return { raw, response };
 }
 
+
+function normalizedName(value: unknown): string {
+  return safeString(value).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function safeCompetitionImage(value: unknown): string {
+  const text = safeString(value).trim();
+  if (!text) return "";
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" ? url.href : "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+async function loadCatalogRows(db: ReturnType<typeof createClient>, providerId: string): Promise<Record<string, any>[]> {
+  const rows: Record<string, any>[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await db.from("football_competition_catalog")
+      .select("external_competition_id,competition_name,competition_type,country_name,country_code,country_flag_url,competition_logo_url,season_year,season_years,coverage")
+      .eq("provider_config_id", providerId).eq("is_enabled", true)
+      .order("country_name", { ascending: true }).order("competition_name", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
+async function loadCatalogRowsCached(db: ReturnType<typeof createClient>, providerId: string, providerName = "Football provider"): Promise<Record<string, any>[]> {
+  const cacheKey = `livescore:${providerId}:catalog`;
+  const now = new Date();
+  const { data: cached } = await db.from("football_public_cache")
+    .select("payload,expires_at").eq("cache_key", cacheKey).maybeSingle();
+  if (cached && new Date(cached.expires_at) > now && Array.isArray(cached.payload?.competitions)) {
+    return cached.payload.competitions as Record<string, any>[];
+  }
+  const competitions = await loadCatalogRows(db, providerId);
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  await db.from("football_public_cache").upsert({
+    cache_key: cacheKey,
+    payload: { ok: true, competitions, competition_count: competitions.length },
+    provider_name: `${providerName} competition catalogue`,
+    fetched_at: now.toISOString(),
+    expires_at: expiresAt,
+  });
+  return competitions;
+}
+
+function enrichWithCompetitionCatalog(matches: Record<string, any>[], catalog: Record<string, any>[], providerCode: string): Record<string, any>[] {
+  const byId = new Map<string, Record<string, any>>();
+  const byNameCountry = new Map<string, Record<string, any>>();
+  const byName = new Map<string, Record<string, any>[]>();
+  for (const item of catalog) {
+    if (item.external_competition_id != null) byId.set(String(item.external_competition_id), item);
+    const normalizedCompetition = normalizedName(item.competition_name);
+    byNameCountry.set(`${normalizedCompetition}|${normalizedName(item.country_name)}`, item);
+    if (!byName.has(normalizedCompetition)) byName.set(normalizedCompetition, []);
+    byName.get(normalizedCompetition)!.push(item);
+  }
+  const normalizedCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
+  return matches.map((match) => {
+    const matchId = match.competition_id == null ? "" : String(match.competition_id);
+    const byIdEntry = matchId ? byId.get(matchId) : undefined;
+    const normalizedCompetition = normalizedName(match.league);
+    const byNameEntry = byNameCountry.get(`${normalizedCompetition}|${normalizedName(match.country)}`)
+      || byNameCountry.get(`${normalizedCompetition}|${normalizedName("International")}`)
+      || (byName.get(normalizedCompetition)?.length === 1 ? byName.get(normalizedCompetition)![0] : undefined);
+    const catalogEntry = byIdEntry || byNameEntry;
+    const numericId = /^\d+$/.test(matchId) ? matchId : "";
+    const logo = safeCompetitionImage(match.competition_logo)
+      || safeCompetitionImage(match.league_logo)
+      || safeCompetitionImage(catalogEntry?.competition_logo_url)
+      || (normalizedCode === "api-football" && numericId ? `https://media.api-sports.io/football/leagues/${numericId}.png` : "");
+    return {
+      ...match,
+      provider_code: normalizedCode,
+      competition_logo: logo || null,
+      league_logo: logo || null,
+      competition_id: matchId || (catalogEntry?.external_competition_id == null ? null : String(catalogEntry.external_competition_id)),
+      competition_type: match.competition_type || catalogEntry?.competition_type || "",
+      country: match.country || catalogEntry?.country_name || "",
+      country_code: match.country_code || catalogEntry?.country_code || "",
+      country_flag: match.country_flag || catalogEntry?.country_flag_url || "",
+    };
+  });
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (request.method !== "POST") return reply(405, { ok: false, error: "POST required." });
@@ -363,6 +484,7 @@ Deno.serve(async (request: Request) => {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const action = String(body.action || "").toLowerCase();
     const view = ["live", "today", "upcoming", "results"].includes(body.view) ? String(body.view) : "live";
     const dateText = String(body.date || "");
     const date = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : todayInLagos();
@@ -374,6 +496,15 @@ Deno.serve(async (request: Request) => {
       .select("active_api_config_id,public_livescore_enabled,public_livescore_cache_seconds,cache_seconds")
       .eq("id", true).single();
     if (settingsError) throw settingsError;
+    if (action === "catalog") {
+      if (!settings?.active_api_config_id) return reply(200, { ok: true, competitions: [], competition_count: 0, message: "No active football provider has a competition catalogue yet." });
+      const { data: catalogProvider, error: catalogProviderError } = await db.from("football_api_configs")
+        .select("id,provider_name,provider_code,is_enabled").eq("id", settings.active_api_config_id).single();
+      if (catalogProviderError) throw catalogProviderError;
+      if (!catalogProvider?.is_enabled) return reply(200, { ok: true, competitions: [], competition_count: 0, message: "The active provider is disabled." });
+      const competitions = await loadCatalogRowsCached(db, String(catalogProvider.id), String(catalogProvider.provider_name || "Football provider"));
+      return reply(200, { ok: true, competitions, competition_count: competitions.length, provider: catalogProvider.provider_name, provider_code: catalogProvider.provider_code, message: competitions.length ? `${competitions.length.toLocaleString("en-US")} competitions available from ${catalogProvider.provider_name}.` : "The active provider's worldwide competition catalogue has not been synchronized yet. Ask an administrator to sync it in Football Automation Room." });
+    }
     if (settings?.public_livescore_enabled !== true) return reply(200, { ok: true, matches: [], view, date, message: "Public LiveScore is paused by the administrator." });
     if (!settings?.active_api_config_id) return reply(200, { ok: true, matches: [], view, date, message: "No football API has been activated. Activate a selected provider in Football Automation Room." });
 
@@ -397,17 +528,19 @@ Deno.serve(async (request: Request) => {
       normalized = result.matches;
       notice = result.notice;
     } else {
-      const mapping = Object.keys(plainObject(provider.response_mapping)).length ? plainObject(provider.response_mapping) : builtInMapping(String(provider.provider_code));
+      const mapping = { ...builtInMapping(String(provider.provider_code || "")), ...plainObject(provider.response_mapping) };
       if (!Object.keys(mapping).length) throw new Error("No response mapping is configured for this API. Add its JSON field paths in Football Automation Room.");
       normalized = normalizeMapped(raw, mapping, String(provider.provider_code || ""));
     }
 
+    const competitionCatalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
+    normalized = enrichWithCompetitionCatalog(normalized, competitionCatalog, String(provider.provider_code || ""));
     const matches = classify(normalized, view, date);
     const rawRows = provider.provider_code === "openligadb"
       ? (Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [])
       : providerRowsForDiagnostics(raw, plainObject(provider.response_mapping), String(provider.provider_code || ""));
     const payload: Record<string, unknown> = {
-      ok: true, matches, view, date, total_returned: matches.length,
+      ok: true, matches, view, date, total_returned: matches.length, competition_catalog_count: competitionCatalog.length,
       diagnostics: { raw_records: Array.isArray(rawRows) ? rawRows.length : 0, normalized_records: normalized.length, returned_records: matches.length, fetched_at: now.toISOString() },
     };
     if (notice) payload.message = notice;
