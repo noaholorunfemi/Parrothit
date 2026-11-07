@@ -20,3 +20,5 @@ body.football-room-page{margin:0;background:var(--fr-bg);color:var(--fr-ink);fon
 /* Worldwide competition catalogue controls */
 .fr-catalog-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:13px}.fr-catalog-controls .fr-field{min-width:0}.fr-catalog-controls select{width:100%;min-height:42px;padding:10px;border:1px solid var(--fr-line);border-radius:8px;background:#fff;color:#172033;font:inherit}.fr-catalog-controls small{display:block;margin-top:5px;color:var(--fr-muted);font-size:.76rem}.fr-catalog-panel .fr-form-feedback{margin:12px 0 0;padding:10px 12px;border-radius:8px;background:#f2f5f3}.fr-catalog-panel .fr-form-feedback.is-ok{background:#edf7f0;color:#24563a}.fr-catalog-panel .fr-form-feedback.is-error{background:#fff0ef;color:#9b241c}
 @media(max-width:650px){.fr-catalog-controls{grid-template-columns:1fr}.fr-catalog-controls .fr-button{width:100%}}
+
+.fr-row-actions button.pool{background:#eaf2ff;border-color:#b7ccf3;color:#174ea6}.fr-button-pool{background:#174ea6;color:#fff}.fr-button-pool:hover{background:#123d82}.fr-primary-cell{white-space:nowrap}.fr-row-actions button.danger:hover{background:#fff0ee}
