@@ -65,8 +65,9 @@
         return;
       }
 
-      var profile = await client.from('admin_profiles').select('user_id,role,is_suspended').eq('user_id', userId).maybeSingle();
-      if (profile.error || !profile.data || !['owner', 'admin'].includes(String(profile.data.role || '').toLowerCase()) || profile.data.is_suspended === true) {
+      var profile = await client.rpc('get_my_admin_profile');
+      var adminProfile = profile && profile.data;
+      if (profile.error || !adminProfile || String(adminProfile.user_id || '') !== String(userId) || !['owner', 'admin'].includes(String(adminProfile.role || '').trim().toLowerCase()) || adminProfile.is_suspended === true) {
         try { await client.functions.invoke('parrothit-admin-session', { body: { action: 'release', session_token: deviceToken } }); } catch (_) {}
         clearToken(userId);
         try { await client.auth.signOut({ scope: 'local' }); } catch (_) {}
@@ -90,7 +91,7 @@
       }
 
       window.PARROTHIT_ADMIN_CLIENT = client;
-      window.PARROTHIT_ADMIN_PROFILE = profile.data;
+      window.PARROTHIT_ADMIN_PROFILE = adminProfile;
       window.PARROTHIT_ADMIN_SESSION_TOKEN = deviceToken;
       window.PARROTHIT_ADMIN_SESSION_USER_ID = userId;
 
