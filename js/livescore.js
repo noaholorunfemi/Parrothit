@@ -184,7 +184,7 @@
     });
     (matches || []).forEach((match) => {
       const entry = competitionCatalogEntry(match);
-      const id = String(match?.competition_id ?? entry?.external_competition_id ?? '').trim();
+      const id = String(entry?.external_competition_id ?? match?.competition_id ?? match?.league_id ?? '').trim();
       const name = leagueName(match);
       const country = leagueCountry(match) || entry?.country_name || 'International';
       const key = id ? `comp:${id}` : `name:${normalizedCompetitionName(name)}|${normalizedCompetitionName(country)}`;
@@ -222,7 +222,11 @@
     const count = $('plCompetitionCount');
     if (count) {
       const source = catalogLoaded ? (catalogProvider ? `from ${catalogProvider}` : 'from provider catalogue') : 'from current match feed';
-      count.textContent = needle ? `${filtered.length.toLocaleString()} matching of ${all.length.toLocaleString()} competitions · ${source}` : `${all.length.toLocaleString()} competitions available · ${source}`;
+      if (catalogLoaded && competitionCatalog.length === 0) {
+        count.textContent = 'Worldwide catalogue is empty. Synchronize competitions in Football Automation Room.';
+      } else {
+        count.textContent = needle ? `${filtered.length.toLocaleString()} matching of ${all.length.toLocaleString()} competitions · ${source}` : `${all.length.toLocaleString()} competitions available · ${source}`;
+      }
     }
   }
   function competitionAllowed(match) {
@@ -231,7 +235,7 @@
     const entry = competitionCatalogEntry(match);
     if (selected.startsWith('comp:')) {
       const id = selected.slice(5);
-      return String(match?.competition_id ?? match?.league_id ?? entry?.external_competition_id ?? '') === id;
+      return String(entry?.external_competition_id ?? match?.competition_id ?? match?.league_id ?? '') === id;
     }
     if (selected.startsWith('name:')) {
       const [name, country] = selected.slice(5).split('|');
@@ -239,6 +243,42 @@
         && normalizedCompetitionName(leagueCountry(match) || entry?.country_name || 'International') === country;
     }
     return true;
+  }
+  function matchCompetitionKey(match) {
+    const entry = competitionCatalogEntry(match);
+    const id = String(entry?.external_competition_id ?? match?.competition_id ?? match?.league_id ?? '').trim();
+    const name = leagueName(match);
+    const country = leagueCountry(match) || entry?.country_name || 'International';
+    return id ? `comp:${id}` : `name:${normalizedCompetitionName(name)}|${normalizedCompetitionName(country)}`;
+  }
+  function catalogueCompetitionRecords(matches) {
+    const records = new Map();
+    const needle = normalizedCompetitionName(competitionSearchInput?.value || '');
+    competitionCatalog.forEach((item) => {
+      const id = String(item.external_competition_id ?? '').trim();
+      const name = String(item.competition_name || '').trim();
+      if (!name) return;
+      const country = String(item.country_name || 'International').trim() || 'International';
+      const key = id ? `comp:${id}` : `name:${normalizedCompetitionName(name)}|${normalizedCompetitionName(country)}`;
+      if (needle && !normalizedCompetitionName(`${name} ${country} ${item.competition_type || ''}`).includes(needle)) return;
+      records.set(key, {
+        key, name, country, type: String(item.competition_type || 'Competition'),
+        logo: item.competition_logo_url || '', countryCode: item.country_code || ''
+      });
+    });
+    (matches || []).forEach((match) => {
+      const key = matchCompetitionKey(match);
+      if (records.has(key)) return;
+      const name = leagueName(match);
+      const entry = competitionCatalogEntry(match);
+      const country = leagueCountry(match) || entry?.country_name || 'International';
+      if (needle && !normalizedCompetitionName(`${name} ${country} ${match?.competition_type || ''}`).includes(needle)) return;
+      records.set(key, {
+        key, name, country, type: String(match?.competition_type || 'Competition'),
+        logo: match?.competition_logo || match?.league_logo || '', countryCode: match?.country_code || ''
+      });
+    });
+    return [...records.values()].sort((a, b) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name));
   }
   async function loadCompetitionCatalog() {
     if (!endpoint || !anonKey) { competitionOptions(currentMatches); return; }
@@ -312,37 +352,89 @@
     if (currentPage > pages) currentPage = pages;
     renderPagination(filtered.length);
     if (!filtered.length) {
-      let title = 'No matches found for this selection.';
-      let message = 'Try another date, competition or status filter.';
-      if (favouritesOnly) { title = 'No favourite matches yet.'; message = 'Use the star beside a match to save it here.'; }
-      else if (searchInput.value.trim()) { title = 'No matching teams or competitions.'; message = 'Check the spelling or clear your search.'; }
-      else if (selectedView === 'live') { title = 'No live matches right now.'; message = 'Check upcoming fixtures or try again later.'; }
-      else if (selectedView === 'upcoming') { title = 'No upcoming matches for this date.'; message = 'Choose another date to check more fixtures.'; }
-      else if (selectedView === 'results') { title = 'No completed results for this date.'; message = 'Choose another date to view previous results.'; }
-      showState(title, message);
-      return;
+      const canBrowseCatalogue = compSelect.value === 'all' && catalogLoaded && competitionCatalog.length > 0
+        && !String(searchInput?.value || '').trim() && !favouritesOnly;
+      if (!canBrowseCatalogue) {
+        let title = 'No matches found for this selection.';
+        let message = 'Try another date, competition or status filter.';
+        if (favouritesOnly) { title = 'No favourite matches yet.'; message = 'Use the star beside a match to save it here.'; }
+        else if (searchInput.value.trim()) { title = 'No matching teams or competitions.'; message = 'Check the spelling or clear your search.'; }
+        else if (selectedView === 'live') { title = 'No live matches right now.'; message = 'Check upcoming fixtures or try again later.'; }
+        else if (selectedView === 'upcoming') { title = 'No upcoming matches for this date.'; message = 'Choose another date to view more fixtures.'; }
+        else if (selectedView === 'results') { title = 'No completed results for this date.'; message = 'Choose another date to view previous results.'; }
+        showState(title, message);
+        return;
+      }
     }
 
     const pageMatches = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-    const groups = new Map();
-    pageMatches.forEach((match) => {
-      const name = leagueName(match);
-      const country = leagueCountry(match);
-      const id = String(match?.competition_id || '');
-      const groupKey = id ? `id:${id}` : `name:${normalizedCompetitionName(name)}|${normalizedCompetitionName(country)}`;
-      if (!groups.has(groupKey)) groups.set(groupKey, { name, country, matches: [] });
-      groups.get(groupKey).matches.push(match);
-    });
-    const html = [...groups.entries()].sort(([, a], [, b]) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name)).map(([, group]) => {
-      const { name, country, matches } = group;
-      const logo = matches.map(competitionLogo).find(Boolean) || ''; 
-      const initial = esc(name.trim().slice(0, 2).toUpperCase() || 'FC');
-      const crest = logo
-        ? `<img class="pl-competition-logo" src="${esc(logo)}" alt="${esc(name)} logo" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-competition-mark" style="display:none">${initial}</span>`
-        : `<span class="pl-competition-mark">${initial}</span>`;
-      return `<details class="pl-competition" open><summary>${crest}<span class="pl-competition-name"><b>${esc(name)}</b><small>${esc(country || 'Football')}</small></span><span class="pl-group-count">${matches.length} ${matches.length === 1 ? 'match' : 'matches'}</span><span class="pl-chevron">›</span></summary><div class="pl-competition-matches">${matches.map(matchCard).join('')}</div></details>`;
-    }).join('');
-    matchRoot.innerHTML = html;
+    const browseAllCompetitions = compSelect.value === 'all'
+      && catalogLoaded && competitionCatalog.length > 0
+      && !String(searchInput?.value || '').trim() && !favouritesOnly;
+
+    if (browseAllCompetitions) {
+      const records = catalogueCompetitionRecords(filtered);
+      const allMatchesByKey = new Map();
+      const pageMatchesByKey = new Map();
+      filtered.forEach((match) => {
+        const key = matchCompetitionKey(match);
+        if (!allMatchesByKey.has(key)) allMatchesByKey.set(key, []);
+        allMatchesByKey.get(key).push(match);
+      });
+      pageMatches.forEach((match) => {
+        const key = matchCompetitionKey(match);
+        if (!pageMatchesByKey.has(key)) pageMatchesByKey.set(key, []);
+        pageMatchesByKey.get(key).push(match);
+      });
+
+      const countries = new Map();
+      records.forEach((record) => {
+        if (!countries.has(record.country)) countries.set(record.country, []);
+        countries.get(record.country).push(record);
+      });
+      const countryHtml = [...countries.entries()].map(([country, items]) => {
+        const fixtureCount = items.reduce((total, item) => total + (allMatchesByKey.get(item.key)?.length || 0), 0);
+        const itemHtml = items.map((item) => {
+          const allForCompetition = allMatchesByKey.get(item.key) || [];
+          const visible = pageMatchesByKey.get(item.key) || [];
+          const logo = item.logo || allForCompetition.map(competitionLogo).find(Boolean) || '';
+          const initial = esc(item.name.trim().slice(0, 2).toUpperCase() || 'FC');
+          const crest = safeImage(logo)
+            ? `<img class="pl-competition-logo" src="${esc(safeImage(logo))}" alt="${esc(item.name)} logo" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-competition-mark" style="display:none">${initial}</span>`
+            : `<span class="pl-competition-mark">${initial}</span>`;
+          const total = allForCompetition.length;
+          const countLabel = total ? `${total.toLocaleString()} ${total === 1 ? 'fixture' : 'fixtures'}` : 'No fixtures';
+          const content = visible.length
+            ? visible.map(matchCard).join('')
+            : total
+              ? `<p class="pl-no-competition-matches">${total.toLocaleString()} ${total === 1 ? 'fixture is' : 'fixtures are'} listed on another results page.</p>`
+              : `<p class="pl-no-competition-matches">No fixtures for this date and match-status selection.</p>`;
+          return `<details class="pl-competition" ${visible.length ? 'open' : ''}><summary>${crest}<span class="pl-competition-name"><b>${esc(item.name)}</b><small>${esc(item.country || 'International')}${item.type && item.type.toLowerCase() !== 'league' ? ` · ${esc(item.type)}` : ''}</small></span><span class="pl-group-count">${countLabel}</span><span class="pl-chevron">›</span></summary><div class="pl-competition-matches">${content}</div></details>`;
+        }).join('');
+        return `<details class="pl-country-block" open><summary><b>${esc(country)}</b><span>${items.length.toLocaleString()} ${items.length === 1 ? 'competition' : 'competitions'} · ${fixtureCount.toLocaleString()} ${fixtureCount === 1 ? 'fixture' : 'fixtures'}</span><i>›</i></summary><div class="pl-country-competitions">${itemHtml}</div></details>`;
+      }).join('');
+      const fixtureSummary = `<div class="pl-all-competitions-summary"><strong>All competitions</strong><span>${records.length.toLocaleString()} competitions in the active provider catalogue · ${filtered.length.toLocaleString()} fixtures match this date and status.</span></div>`;
+      matchRoot.innerHTML = fixtureSummary + countryHtml;
+    } else {
+      const groups = new Map();
+      pageMatches.forEach((match) => {
+        const name = leagueName(match);
+        const country = leagueCountry(match);
+        const groupKey = matchCompetitionKey(match);
+        if (!groups.has(groupKey)) groups.set(groupKey, { name, country, matches: [] });
+        groups.get(groupKey).matches.push(match);
+      });
+      const html = [...groups.entries()].sort(([, a], [, b]) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name)).map(([, group]) => {
+        const { name, country, matches } = group;
+        const logo = matches.map(competitionLogo).find(Boolean) || '';
+        const initial = esc(name.trim().slice(0, 2).toUpperCase() || 'FC');
+        const crest = logo
+          ? `<img class="pl-competition-logo" src="${esc(logo)}" alt="${esc(name)} logo" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-competition-mark" style="display:none">${initial}</span>`
+          : `<span class="pl-competition-mark">${initial}</span>`;
+        return `<details class="pl-competition" open><summary>${crest}<span class="pl-competition-name"><b>${esc(name)}</b><small>${esc(country || 'Football')}</small></span><span class="pl-group-count">${matches.length} ${matches.length === 1 ? 'match' : 'matches'}</span><span class="pl-chevron">›</span></summary><div class="pl-competition-matches">${matches.map(matchCard).join('')}</div></details>`;
+      }).join('');
+      matchRoot.innerHTML = html;
+    }
 
     matchRoot.querySelectorAll('[data-favourite]').forEach((button) => button.addEventListener('click', (event) => {
       event.preventDefault(); event.stopPropagation();
