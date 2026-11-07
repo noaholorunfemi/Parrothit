@@ -5,19 +5,20 @@
 
   const $ = (id) => document.getElementById(id);
   const state = { client: null, configs: [], settings: null, toastTimer: null };
+  function lagosToday() { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const get = (k) => parts.find((p) => p.type === k)?.value || ''; return `${get('year')}-${get('month')}-${get('day')}`; }
   const presets = {
     openligadb: {
       provider_code: 'openligadb', provider_name: 'OpenLigaDB (Free)', sport: 'football', plan_type: 'free',
-      api_base_url: 'https://api.openligadb.de', test_path: '/getavailableleagues',
+      api_base_url: 'https://api.openligadb.de', test_path: '/getavailableleagues/{season}',
       auth_type: 'none', auth_header_name: '', auth_prefix: '', auth_query_param: '', needs_key: false,
-      endpoints: { live: '/getmatchdata?matchDate={date}', today: '/getmatchdata?matchDate={date}', upcoming: '/getmatchdata?matchDate={date}', results: '/getmatchdata?matchDate={date}' },
+      endpoints: { live: '/getmatchdata/bl1/{season}', today: '/getmatchdata/bl1/{season}', upcoming: '/getmatchdata/bl1/{season}', results: '/getmatchdata/bl1/{season}' },
       default_query_params: {}, custom_headers: {}, response_mapping: {}
     },
     'api-football': {
       provider_code: 'api-football', provider_name: 'API-Football / API-Sports', sport: 'football', plan_type: 'free',
       api_base_url: 'https://v3.football.api-sports.io', test_path: '/status',
       auth_type: 'header', auth_header_name: 'x-apisports-key', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/fixtures?live=all', today: '/fixtures?date={date}', upcoming: '/fixtures?date={date}', results: '/fixtures?date={date}' },
+      endpoints: { live: '/fixtures?live=all&timezone=Africa/Lagos', today: '/fixtures?date={date}&timezone=Africa/Lagos', upcoming: '/fixtures?date={date}&timezone=Africa/Lagos', results: '/fixtures?date={date}&timezone=Africa/Lagos' },
       default_query_params: {}, custom_headers: {},
       response_mapping: { matches_path: 'response', id: 'fixture.id', competition: 'league.name', home_team: 'teams.home.name', away_team: 'teams.away.name', home_score: 'goals.home', away_score: 'goals.away', status: 'fixture.status.short', kickoff: 'fixture.date', minute: 'fixture.status.elapsed', live_status_values: ['1H','2H','HT','ET','BT','P','LIVE','IN_PLAY'], finished_status_values: ['FT','AET','PEN'], upcoming_status_values: ['NS','TBD'] }
     },
@@ -128,7 +129,8 @@
   }
 
   function configStatus(config) {
-    if (config.last_test_ok === true) return makeTag('Passed · ' + (config.last_test_http_status || 'HTTP'), 'ok');
+    if (config.last_test_ok === true && config.last_match_test_ok === true) return makeTag('Match data verified', 'ok');
+    if (config.last_test_ok === true) return makeTag('Connection only · no match sample', 'pending');
     if (config.last_test_ok === false) return makeTag('Failed', 'bad');
     return makeTag('Not tested', 'pending');
   }
@@ -187,7 +189,7 @@
       actions.appendChild(makeAction('Test', 'test', config.id, '', !config.is_enabled));
       actions.appendChild(makeAction('Edit', 'edit', config.id));
       actions.appendChild(makeAction(config.is_enabled ? 'Disable' : 'Enable', 'toggle', config.id));
-      actions.appendChild(makeAction('Set primary', 'primary', config.id, 'primary', !config.is_enabled || config.last_test_ok !== true || config.id === primaryId));
+      actions.appendChild(makeAction('Set primary', 'primary', config.id, 'primary', !config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true || config.id === primaryId));
       actions.appendChild(makeAction('Delete', 'delete', config.id, 'danger'));
       appendCell(tr, actions);
       body.appendChild(tr);
@@ -227,7 +229,7 @@
     const strong = document.createElement('strong'); strong.textContent = primary ? primary.provider_name : 'Not selected';
     const span = document.createElement('span');
     span.textContent = primary
-      ? (primary.last_test_ok === true ? 'Selected provider passed its latest connection test.' : 'Provider is selected, but must pass a connection test before activation.')
+      ? (primary.last_match_test_ok === true ? 'Provider passed endpoint and real match-data verification.' : 'Provider must pass all four endpoint checks and return at least one usable match before activation.')
       : 'Add and test an enabled sports API, then select it as primary in Automation Settings.';
     const activeLine = document.createElement('span');
     activeLine.textContent = isActive ? 'Currently serving public LiveScore: ' + active.provider_name : (settings.public_livescore_enabled === false || !active ? 'Public LiveScore is paused or no provider has been activated.' : 'Public LiveScore is not active.');
@@ -239,7 +241,7 @@
     const status = $('fr-public-status');
     if (status) status.textContent = isActive ? 'Public LiveScore is using ' + active.provider_name + '.' : 'Public LiveScore is not currently using a provider.';
     const activate = $('fr-activate-selected');
-    if (activate) { activate.disabled = !primary || primary.last_test_ok !== true; activate.textContent = isActive && active.id === (primary && primary.id) ? '✓ Selected API Is Active' : '⚡ Activate Selected Football API'; }
+    if (activate) { activate.disabled = !primary || primary.last_test_ok !== true || primary.last_match_test_ok !== true; activate.textContent = isActive && active.id === (primary && primary.id) ? '✓ Selected API Is Active' : '⚡ Activate Selected Football API'; }
     const pause = $('fr-pause-public');
     if (pause) pause.disabled = !isActive;
   }
@@ -250,10 +252,10 @@
     const previous = settings.selected_api_config_id || '';
     select.replaceChildren();
     const empty = document.createElement('option'); empty.value = ''; empty.textContent = 'No primary provider selected'; select.appendChild(empty);
-    state.configs.filter((x) => x.is_enabled && x.last_test_ok === true).forEach((config) => {
+    state.configs.filter((x) => x.is_enabled && x.last_test_ok === true && x.last_match_test_ok === true).forEach((config) => {
       const option = document.createElement('option'); option.value = config.id; option.textContent = config.provider_name + ' (' + config.plan_type + ')'; select.appendChild(option);
     });
-    select.value = state.configs.some((x) => x.id === previous && x.is_enabled && x.last_test_ok === true) ? previous : '';
+    select.value = state.configs.some((x) => x.id === previous && x.is_enabled && x.last_test_ok === true && x.last_match_test_ok === true) ? previous : ''; 
     $('fr-fallback-enabled').checked = settings.fallback_enabled === true;
     $('fr-cache-seconds').value = String(settings.cache_seconds || 60);
     $('fr-public-refresh').value = String(settings.public_refresh_seconds || 60);
@@ -382,10 +384,11 @@
         await loadAll(); toast(config.provider_name + ' selected. Use Activate Selected Football API in LiveScore Management to put it into action.');
       } else if (action === 'test') {
         setGlobalStatus('Testing ' + config.provider_name + ' connection…');
-        const result = await callRoom('test', { id: id });
+        const result = await callRoom('test', { id: id, date: $('fr-diagnostics-date')?.value || lagosToday() });
         await loadAll();
         toast(result.message || 'Connection test completed.');
-        setGlobalStatus(result.message || 'Connection test completed.', result.test_ok ? 'ok' : 'error');
+        setGlobalStatus(result.message || 'Provider diagnostics completed.', result.test_ok ? 'ok' : 'error');
+        if (result.diagnostics) { view('livescore'); renderDiagnostics(result); }
       }
     } catch (error) {
       toast(error.message || 'The requested action could not be completed.');
@@ -475,7 +478,7 @@
     const id = state.settings && state.settings.selected_api_config_id;
     const config = state.configs.find((item) => item.id === id);
     if (!config) { feedback('fr-activation-feedback', 'Select a primary API in Automation Settings first.', 'error'); view('settings'); return; }
-    if (!config.is_enabled || config.last_test_ok !== true) { feedback('fr-activation-feedback', 'The selected API must be enabled and pass its connection test before activation.', 'error'); return; }
+    if (!config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true) { feedback('fr-activation-feedback', 'The selected API must pass connection, endpoint and real match-data verification before activation.', 'error'); return; }
     if (!window.confirm('Put ' + config.provider_name + ' into action for the public PARROTHIT LiveScore? This will make it the active public football data provider.')) return;
     const button = $('fr-activate-selected');
     button.disabled = true;
@@ -506,6 +509,59 @@
     } finally { button.disabled = false; }
   }
 
+  function renderDiagnostics(result) {
+    const root = $('fr-diagnostics-results');
+    if (!root) return;
+    root.replaceChildren();
+    const summary = $('fr-diagnostics-summary');
+    if (summary) summary.textContent = `${result.provider_name || 'Provider'} · ${result.date || ''} · ${Number(result.raw_match_count || 0)} raw records · ${Number(result.usable_match_count || 0)} usable records · ${result.match_data_verified ? 'MATCH DATA VERIFIED' : 'NOT VERIFIED'}`;
+    const table = document.createElement('table');
+    table.className = 'fr-diagnostics-table';
+    const head = document.createElement('thead');
+    const header = document.createElement('tr');
+    ['Feed', 'Endpoint', 'HTTP', 'Raw', 'Usable', 'Result'].forEach((label) => { const th = document.createElement('th'); th.textContent = label; header.appendChild(th); });
+    head.appendChild(header); table.appendChild(head);
+    const body = document.createElement('tbody');
+    if (result.connection) {
+      const tr = document.createElement('tr');
+      ['CONNECTION', 'Configured test path', result.connection.http_status == null ? '—' : String(result.connection.http_status), '—', '—', result.connection.message || (result.connection.ok ? 'OK' : 'Failed')].forEach((value) => { const td = document.createElement('td'); td.textContent = value; tr.appendChild(td); });
+      body.appendChild(tr);
+    }
+    (result.diagnostics || []).forEach((item) => {
+      const tr = document.createElement('tr');
+      [String(item.view || '').toUpperCase(), item.endpoint || '—', item.http_status == null ? '—' : String(item.http_status), String(item.raw_count ?? 0), String(item.usable_count ?? 0), item.message || (item.ok ? 'OK' : 'Failed')].forEach((value) => { const td = document.createElement('td'); td.textContent = value; tr.appendChild(td); });
+      body.appendChild(tr);
+    });
+    table.appendChild(body); root.appendChild(table);
+  }
+
+  async function runActiveDiagnostics() {
+    const id = state.settings?.active_api_config_id || state.settings?.selected_api_config_id;
+    if (!id) { feedback('fr-diagnostics-summary', 'Select or activate a provider before running diagnostics.', 'error'); return; }
+    const button = $('fr-run-diagnostics');
+    button.disabled = true;
+    feedback('fr-diagnostics-summary', 'Requesting fresh provider data from all four match endpoints…');
+    try {
+      const result = await callRoom('diagnostics', { id, date: $('fr-diagnostics-date').value || lagosToday() });
+      renderDiagnostics(result);
+      setGlobalStatus(result.match_data_verified ? 'LiveScore diagnostics passed. Real match records were found.' : 'Diagnostics completed, but usable match data was not verified.', result.match_data_verified ? 'ok' : 'error');
+    } catch (error) {
+      feedback('fr-diagnostics-summary', error.message || 'LiveScore diagnostics failed.', 'error');
+    } finally { button.disabled = false; }
+  }
+
+  async function clearActiveCache() {
+    const button = $('fr-clear-livescore-cache');
+    button.disabled = true;
+    try {
+      const result = await callRoom('clear_cache', {});
+      toast(result.message || 'LiveScore cache cleared.');
+      setGlobalStatus(result.message || 'LiveScore cache cleared.', 'ok');
+    } catch (error) {
+      setGlobalStatus(error.message || 'Could not clear LiveScore cache.', 'error');
+    } finally { button.disabled = false; }
+  }
+
   function bindEvents() {
     document.querySelectorAll('[data-fr-view]').forEach((button) => button.addEventListener('click', () => view(button.getAttribute('data-fr-view'))));
     document.querySelectorAll('[data-fr-go]').forEach((button) => button.addEventListener('click', () => view(button.getAttribute('data-fr-go'))));
@@ -517,6 +573,8 @@
     $('fr-refresh-configs').addEventListener('click', () => loadAll().catch((error) => setGlobalStatus(error.message, 'error')));
     $('fr-activate-selected').addEventListener('click', activateSelectedProvider);
     $('fr-pause-public').addEventListener('click', pausePublicLivescore);
+    $('fr-run-diagnostics')?.addEventListener('click', runActiveDiagnostics);
+    $('fr-clear-livescore-cache')?.addEventListener('click', clearActiveCache);
     $('fr-api-rows').addEventListener('click', (event) => {
       const button = event.target.closest('[data-fr-action]');
       if (button) handleAction(button);
@@ -529,6 +587,7 @@
 
   async function init() {
     bindEvents();
+    if ($('fr-diagnostics-date') && !$('fr-diagnostics-date').value) $('fr-diagnostics-date').value = lagosToday();
     try {
       state.client = await waitForAdminClient();
       await loadAll();

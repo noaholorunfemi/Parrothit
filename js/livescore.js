@@ -299,8 +299,10 @@
       currentProvider = payload.provider || payload.provider_name || 'Active football provider';
       lastSuccessfulLoad = Date.now();
       competitionOptions(currentMatches);
-      const message = payload.message || `Connected · ${currentProvider}`;
-      setProviderMessage(message, payload.message && !currentMatches.length ? 'notice' : 'success');
+      const diagnostics = payload.diagnostics || {};
+      const emptyMessage = !currentMatches.length ? `No matches for ${selectedView} on ${safeDate(dateInput.value)} · ${Number(diagnostics.raw_records || 0)} raw / ${Number(diagnostics.normalized_records || 0)} usable records.` : '';
+      const message = payload.message || (emptyMessage || `Connected · ${currentProvider}`);
+      setProviderMessage(message, !currentMatches.length ? 'notice' : 'success');
       $('plUpdated').textContent = `Updated ${new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: LAGOS }).format(new Date())}${payload.cached ? ' · cached' : ''}`;
       renderMatches();
     } catch (error) {
