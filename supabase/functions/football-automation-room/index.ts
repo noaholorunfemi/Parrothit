@@ -312,6 +312,58 @@ async function getConfig(admin: ReturnType<typeof createClient>, id: string) {
   return data;
 }
 
+function validatePublicActivationConfig(config: Record<string, any>) {
+  if (!["football", "multi-sport"].includes(String(config.sport || "football").toLowerCase())) {
+    throw new Error(`${config.provider_name || "This provider"} is not configured for football. Set its sport to Football or Multi-sport before activation.`);
+  }
+  if (!config.is_enabled) throw new Error(`Enable ${config.provider_name || "this provider"} before activation.`);
+  if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error(`${config.provider_name || "This provider"} must pass all endpoint checks and return at least one usable match before activation.`);
+  const builtInAdapters = ["openligadb", "api-football", "football-data-org"];
+  if (!builtInAdapters.includes(String(config.provider_code || ""))) {
+    const endpoints = plainObject(config.endpoints);
+    const mapping = plainObject(config.response_mapping);
+    const requiredEndpoints = ["live", "today", "upcoming", "results"];
+    const missingEndpoints = requiredEndpoints.filter((key) => typeof endpoints[key] !== "string" || !String(endpoints[key]).startsWith("/"));
+    const requiredMappings = ["matches_path", "id", "competition", "home_team", "away_team", "status", "kickoff"];
+    const missingMappings = requiredMappings.filter((key) => typeof mapping[key] !== "string" || !String(mapping[key]).trim());
+    if (missingEndpoints.length || missingMappings.length) throw new Error(`${config.provider_name || "This custom API"} needs all four match endpoints and the required response mappings before activation.`);
+  }
+}
+
+async function getEnabledProviderRows(admin: ReturnType<typeof createClient>) {
+  const rows: Record<string, any>[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await admin.from("football_api_configs")
+      .select("id,provider_code,provider_name,sport,plan_type,priority,is_enabled,is_public_active,last_test_ok,last_match_test_ok,endpoints,response_mapping")
+      .eq("is_enabled", true).order("priority", { ascending: true }).range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
+async function refreshPublicActivationState(admin: ReturnType<typeof createClient>, actorId: string, preferredId?: string | null) {
+  const active = await getEnabledProviderRows(admin);
+  const activeProviders = active.filter((item) =>
+    ["football", "multi-sport"].includes(String(item.sport || "football").toLowerCase())
+    && item.is_public_active === true
+    && item.last_test_ok === true
+    && item.last_match_test_ok === true
+  );
+  const primaryId = preferredId || null;
+  const nextLegacyActiveId = (primaryId && activeProviders.some((item) => item.id === primaryId) ? primaryId : activeProviders[0]?.id) || null;
+  const { error } = await admin.from("football_automation_settings").update({
+    active_api_config_id: nextLegacyActiveId,
+    public_livescore_enabled: activeProviders.length > 0,
+    updated_by: actorId,
+    updated_at: new Date().toISOString(),
+  }).eq("id", true);
+  if (error) throw error;
+  return activeProviders;
+}
+
 async function getSettings(admin: ReturnType<typeof createClient>) {
   const { data, error } = await admin
     .from("football_automation_settings")
@@ -649,7 +701,7 @@ Deno.serve(async (request: Request) => {
       for (let offset = 0; ; offset += pageSize) {
         const { data: page, error } = await admin
           .from("football_api_configs")
-          .select("id, provider_code, provider_name, sport, plan_type, api_base_url, test_path, auth_type, auth_header_name, auth_prefix, auth_query_param, custom_headers, default_query_params, endpoints, response_mapping, has_api_key, priority, is_enabled, last_tested_at, last_test_ok, last_test_http_status, last_test_message, last_quota_used, last_quota_limit, last_quota_remaining, last_quota_period, last_quota_checked_at, last_match_test_ok, last_raw_match_count, last_normalized_match_count, last_endpoint_diagnostics, created_at, updated_at")
+          .select("id, provider_code, provider_name, sport, plan_type, api_base_url, test_path, auth_type, auth_header_name, auth_prefix, auth_query_param, custom_headers, default_query_params, endpoints, response_mapping, has_api_key, priority, is_enabled, is_public_active, last_tested_at, last_test_ok, last_test_http_status, last_test_message, last_quota_used, last_quota_limit, last_quota_remaining, last_quota_period, last_quota_checked_at, last_match_test_ok, last_raw_match_count, last_normalized_match_count, last_endpoint_diagnostics, created_at, updated_at")
           .order("priority", { ascending: true })
           .order("created_at", { ascending: true })
           .range(offset, offset + pageSize - 1);
@@ -731,6 +783,7 @@ Deno.serve(async (request: Request) => {
         last_match_test_ok: null, last_raw_match_count: null, last_normalized_match_count: null, last_endpoint_diagnostics: {},
         priority,
         is_enabled: isEnabled,
+        is_public_active: false,
         ...keyFields,
         updated_by: actor.id,
         updated_at: new Date().toISOString(),
@@ -738,18 +791,14 @@ Deno.serve(async (request: Request) => {
 
       if (existing) {
         const currentSettings = await getSettings(admin);
-        if (currentSettings.selected_api_config_id === id || currentSettings.active_api_config_id === id) {
-          const { error: settingsError } = await admin.from("football_automation_settings").update({
-            selected_api_config_id: currentSettings.selected_api_config_id === id ? null : currentSettings.selected_api_config_id,
-            active_api_config_id: currentSettings.active_api_config_id === id ? null : currentSettings.active_api_config_id,
-            public_livescore_enabled: currentSettings.active_api_config_id === id ? false : currentSettings.public_livescore_enabled,
-            updated_by: actor.id, updated_at: new Date().toISOString(),
-          }).eq("id", true);
-          if (settingsError) throw settingsError;
-        }
         const { error } = await admin.from("football_api_configs").update(values).eq("id", id);
         if (error) throw error;
-        return json(200, { ok: true, message: "Sports API configuration updated. Run a new test before selecting and activating it." });
+        if (currentSettings.selected_api_config_id === id) {
+          const { error: settingsError } = await admin.from("football_automation_settings").update({ selected_api_config_id: null, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("id", true);
+          if (settingsError) throw settingsError;
+        }
+        await refreshPublicActivationState(admin, actor.id, currentSettings.active_api_config_id === id ? null : currentSettings.active_api_config_id);
+        return json(200, { ok: true, message: "Sports API configuration updated and removed from the public pool until it passes fresh diagnostics. Other active providers remain in service." });
       }
       const { error } = await admin.from("football_api_configs").insert({ ...values, created_by: actor.id });
       if (error) throw error;
@@ -759,6 +808,7 @@ Deno.serve(async (request: Request) => {
     if (action === "set_primary") {
       const id = cleanText(body.id, 80);
       const config = await getConfig(admin, id);
+      if (!["football", "multi-sport"].includes(String(config.sport || "football").toLowerCase())) throw new Error("Only Football or Multi-sport providers can be selected for the football LiveScore primary preference.");
       if (!config.is_enabled) throw new Error("Enable this provider before selecting it as primary.");
       if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error("Run full LiveScore diagnostics and verify at least one usable match record before selecting this provider as primary.");
       const { error } = await admin.from("football_automation_settings").update({
@@ -771,96 +821,113 @@ Deno.serve(async (request: Request) => {
     }
 
 
+    if (action === "set_public_active") {
+      const id = cleanText(body.id, 80);
+      const active = body.active === true;
+      const config = await getConfig(admin, id);
+      if (active) validatePublicActivationConfig(config);
+      const { error } = await admin.from("football_api_configs").update({
+        is_public_active: active,
+        updated_by: actor.id,
+        updated_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) throw error;
+      const settings = await getSettings(admin);
+      const activeProviders = await refreshPublicActivationState(admin, actor.id, active ? (settings.selected_api_config_id || settings.active_api_config_id || id) : (settings.active_api_config_id === id ? settings.selected_api_config_id : settings.active_api_config_id));
+      await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
+      await writeLog(admin, { event_type: active ? "public_provider_added" : "public_provider_removed", config_id: id, success: true, message: `${config.provider_name} ${active ? "added to" : "removed from"} the public LiveScore provider pool. Active providers: ${activeProviders.length}.`, actor_user_id: actor.id });
+      return json(200, { ok: true, active_provider_count: activeProviders.length, message: active ? `${config.provider_name} added to the public LiveScore pool. ${activeProviders.length} provider(s) now contribute together.` : `${config.provider_name} removed from the public LiveScore pool. ${activeProviders.length} provider(s) remain active.` });
+    }
+
+    if (action === "activate_all_verified") {
+      const candidates = await getEnabledProviderRows(admin);
+      const footballCandidates = candidates.filter((item) => ["football", "multi-sport"].includes(String(item.sport || "football")) && item.last_test_ok === true && item.last_match_test_ok === true);
+      const eligible: Record<string, any>[] = [];
+      const skipped: string[] = [];
+      for (const config of footballCandidates) {
+        try { validatePublicActivationConfig(config); eligible.push(config); }
+        catch (_error) { skipped.push(String(config.provider_name || config.id)); }
+      }
+      if (!eligible.length) throw new Error("No enabled football providers have passed full endpoint and real-match diagnostics. Test providers before activating them.");
+      for (let offset = 0; offset < eligible.length; offset += 200) {
+        const batch = eligible.slice(offset, offset + 200).map((item) => item.id);
+        const { error } = await admin.from("football_api_configs").update({ is_public_active: true, updated_by: actor.id, updated_at: new Date().toISOString() }).in("id", batch);
+        if (error) throw error;
+      }
+      const settings = await getSettings(admin);
+      const activeProviders = await refreshPublicActivationState(admin, actor.id, settings.selected_api_config_id);
+      await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
+      await writeLog(admin, { event_type: "public_providers_bulk_activated", success: true, message: `${eligible.length} verified football providers activated together; ${skipped.length} skipped.`, actor_user_id: actor.id });
+      const skippedNote = skipped.length ? ` ${skipped.length} provider(s) were skipped because their activation configuration is incomplete.` : "";
+      return json(200, { ok: true, activated_count: eligible.length, active_provider_count: activeProviders.length, skipped_count: skipped.length, message: `${eligible.length} verified provider(s) are now active together. ${activeProviders.length} provider(s) contribute to public LiveScore.${skippedNote}` });
+    }
+
     if (action === "activate") {
       const settings = await getSettings(admin);
       const id = cleanText(body.id || settings.selected_api_config_id, 80);
       if (!id) throw new Error("Select a primary football API in Automation Settings before activation.");
       if (settings.selected_api_config_id !== id) throw new Error("The API you are activating is not the currently selected provider. Select it as primary first.");
       const config = await getConfig(admin, id);
-      if (!config.is_enabled) throw new Error("Enable this provider before activation.");
-      if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error("This provider has not passed full match-data verification. Run LiveScore diagnostics and verify at least one usable match record before activation.");
-      const builtInAdapters = ["openligadb", "api-football", "football-data-org"];
-      if (!builtInAdapters.includes(String(config.provider_code || ""))) {
-        const endpoints = plainObject(config.endpoints);
-        const mapping = plainObject(config.response_mapping);
-        const requiredEndpoints = ["live", "today", "upcoming", "results"];
-        const missingEndpoints = requiredEndpoints.filter((key) => typeof endpoints[key] !== "string" || !String(endpoints[key]).startsWith("/"));
-        const requiredMappings = ["matches_path", "id", "competition", "home_team", "away_team", "status", "kickoff"];
-        const missingMappings = requiredMappings.filter((key) => typeof mapping[key] !== "string" || !String(mapping[key]).trim());
-        if (missingEndpoints.length || missingMappings.length) {
-          throw new Error("This custom API needs all four match endpoints (live, today, upcoming, results) and response mappings for matches_path, id, competition, home_team, away_team, status and kickoff before activation.");
-        }
-      }
-      const { error } = await admin.from("football_automation_settings").update({
-        active_api_config_id: id,
-        public_livescore_enabled: true,
-        updated_by: actor.id,
-        updated_at: new Date().toISOString(),
-      }).eq("id", true);
+      validatePublicActivationConfig(config);
+      const { error } = await admin.from("football_api_configs").update({ is_public_active: true, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("id", id);
       if (error) throw error;
-      await admin.from("football_public_cache").delete().neq("cache_key", "");
-      await writeLog(admin, { event_type: "public_provider_activated", config_id: id, success: true, message: `${config.provider_name} activated for public LiveScore.`, actor_user_id: actor.id });
-      return json(200, { ok: true, message: `${config.provider_name} is now active for public PARROTHIT LiveScore.` });
+      const activeProviders = await refreshPublicActivationState(admin, actor.id, id);
+      await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
+      await writeLog(admin, { event_type: "public_provider_activated", config_id: id, success: true, message: `${config.provider_name} added to the public LiveScore pool.`, actor_user_id: actor.id });
+      return json(200, { ok: true, active_provider_count: activeProviders.length, message: `${config.provider_name} is now contributing to public PARROTHIT LiveScore. Other active providers remain enabled.` });
     }
 
     if (action === "deactivate") {
-      const settings = await getSettings(admin);
+      const { error: providerError } = await admin.from("football_api_configs").update({ is_public_active: false, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("is_public_active", true);
+      if (providerError) throw providerError;
       const { error } = await admin.from("football_automation_settings").update({
+        active_api_config_id: null,
         public_livescore_enabled: false,
         updated_by: actor.id,
         updated_at: new Date().toISOString(),
       }).eq("id", true);
       if (error) throw error;
-      await admin.from("football_public_cache").delete().neq("cache_key", "");
-      await writeLog(admin, { event_type: "public_livescore_paused", config_id: settings.active_api_config_id || null, success: true, message: "Public LiveScore paused by administrator.", actor_user_id: actor.id });
-      return json(200, { ok: true, message: "Public PARROTHIT LiveScore has been paused. Provider configurations were kept." });
+      await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
+      await writeLog(admin, { event_type: "public_livescore_paused", success: true, message: "All active public football providers paused by administrator.", actor_user_id: actor.id });
+      return json(200, { ok: true, message: "All public PARROTHIT LiveScore providers have been paused. Provider configurations and encrypted keys were kept." });
     }
 
     if (action === "set_enabled") {
       const id = cleanText(body.id, 80);
       const enabled = body.enabled === true;
-      const { error } = await admin.from("football_api_configs").update({
-        is_enabled: enabled,
-        updated_by: actor.id,
-        updated_at: new Date().toISOString(),
-      }).eq("id", id);
+      const values: Record<string, unknown> = { is_enabled: enabled, updated_by: actor.id, updated_at: new Date().toISOString() };
+      if (!enabled) values.is_public_active = false;
+      const { error } = await admin.from("football_api_configs").update(values).eq("id", id);
       if (error) throw error;
-      if (!enabled) {
-        const settings = await getSettings(admin);
-        if (settings.selected_api_config_id === id || settings.active_api_config_id === id) {
-          const { error: settingsError } = await admin.from("football_automation_settings").update({
-            selected_api_config_id: settings.selected_api_config_id === id ? null : settings.selected_api_config_id,
-            active_api_config_id: settings.active_api_config_id === id ? null : settings.active_api_config_id,
-            public_livescore_enabled: settings.active_api_config_id === id ? false : settings.public_livescore_enabled,
-            updated_by: actor.id, updated_at: new Date().toISOString(),
-          }).eq("id", true);
-          if (settingsError) throw settingsError;
-        }
+      const settings = await getSettings(admin);
+      if (!enabled && settings.selected_api_config_id === id) {
+        const { error: selectedError } = await admin.from("football_automation_settings").update({ selected_api_config_id: null, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("id", true);
+        if (selectedError) throw selectedError;
       }
-      return json(200, { ok: true, message: enabled ? "Provider enabled." : "Provider disabled." });
+      await refreshPublicActivationState(admin, actor.id, settings.active_api_config_id === id ? null : settings.active_api_config_id);
+      if (!enabled) await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
+      return json(200, { ok: true, message: enabled ? "Provider enabled. Add it to the public pool after fresh diagnostics." : "Provider disabled and removed from the public pool. Other active providers remain available." });
     }
 
     if (action === "delete") {
       const id = cleanText(body.id, 80);
       const settings = await getSettings(admin);
-      if (settings.selected_api_config_id === id || settings.active_api_config_id === id) {
-        const { error: settingsError } = await admin.from("football_automation_settings").update({
-          selected_api_config_id: settings.selected_api_config_id === id ? null : settings.selected_api_config_id,
-          active_api_config_id: settings.active_api_config_id === id ? null : settings.active_api_config_id,
-          public_livescore_enabled: settings.active_api_config_id === id ? false : settings.public_livescore_enabled,
-          updated_by: actor.id, updated_at: new Date().toISOString(),
-        }).eq("id", true);
-        if (settingsError) throw settingsError;
-      }
       const { error } = await admin.from("football_api_configs").delete().eq("id", id);
       if (error) throw error;
-      return json(200, { ok: true, message: "Sports API configuration deleted." });
+      if (settings.selected_api_config_id === id) {
+        const { error: selectedError } = await admin.from("football_automation_settings").update({ selected_api_config_id: null, updated_by: actor.id, updated_at: new Date().toISOString() }).eq("id", true);
+        if (selectedError) throw selectedError;
+      }
+      await refreshPublicActivationState(admin, actor.id, settings.active_api_config_id === id ? null : settings.active_api_config_id);
+      await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
+      return json(200, { ok: true, message: "Sports API configuration deleted. Other active providers remain in service." });
     }
 
     if (action === "save_settings") {
       const selectedId = body.selected_api_config_id ? cleanText(body.selected_api_config_id, 80) : null;
       if (selectedId) {
         const config = await getConfig(admin, selectedId);
+        if (!["football", "multi-sport"].includes(String(config.sport || "football").toLowerCase())) throw new Error("The primary provider must be configured for Football or Multi-sport.");
         if (!config.is_enabled) throw new Error("The selected primary provider is disabled.");
         if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error("The primary provider must pass all four endpoint checks and return at least one usable match record before it can be selected.");
       }
@@ -944,6 +1011,7 @@ Deno.serve(async (request: Request) => {
         last_quota_period: connectionQuota.period,
         last_quota_checked_at: connectionQuota.period ? testedAt : null,
         last_match_test_ok: diagnostics.match_data_verified,
+        is_public_active: testOk ? config.is_public_active === true : false,
         last_raw_match_count: diagnostics.raw_match_count,
         last_normalized_match_count: diagnostics.usable_match_count,
         last_endpoint_diagnostics: endpointJson,
@@ -952,23 +1020,22 @@ Deno.serve(async (request: Request) => {
       if (updateError) throw updateError;
       if (!testOk) {
         const settings = await getSettings(admin);
-        if (settings.selected_api_config_id === id && settings.active_api_config_id !== id) {
+        if (settings.selected_api_config_id === id) {
           const { error: clearSelectionError } = await admin.from("football_automation_settings").update({ selected_api_config_id: null, updated_by: actor.id, updated_at: testedAt }).eq("id", true);
           if (clearSelectionError) throw clearSelectionError;
         }
+        await refreshPublicActivationState(admin, actor.id, settings.active_api_config_id === id ? null : settings.active_api_config_id);
+        await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
       }
       await writeLog(admin, { event_type: "football_provider_full_diagnostic", config_id: id, success: testOk, http_status: connectionStatus, duration_ms: diagnostics.diagnostics.reduce((sum, item) => sum + Number(item.duration_ms || 0), 0), message, actor_user_id: actor.id });
       return json(200, { ok: true, test_ok: testOk, message, provider_name: config.provider_name, date: sampleDate, ...diagnostics, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage } });
     }
 
     if (action === "clear_cache") {
-      const settings = await getSettings(admin);
-      const activeId = settings.active_api_config_id;
-      if (!activeId) throw new Error("There is no active provider to clear from the public LiveScore cache.");
-      const { error } = await admin.from("football_public_cache").delete().like("cache_key", `livescore:${activeId}:%`);
+      const { error } = await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
       if (error) throw error;
-      await writeLog(admin, { event_type: "public_livescore_cache_cleared", config_id: activeId, success: true, message: "Public LiveScore cache cleared by administrator.", actor_user_id: actor.id });
-      return json(200, { ok: true, message: "Cached LiveScore data for the active provider has been cleared. The next visitor request will fetch fresh provider data." });
+      await writeLog(admin, { event_type: "public_livescore_cache_cleared", success: true, message: "Public LiveScore cache cleared for every configured provider.", actor_user_id: actor.id });
+      return json(200, { ok: true, message: "Cached LiveScore data for all providers has been cleared. The next visitor request will fetch fresh data from the full active provider pool." });
     }
 
     return json(400, { ok: false, error: "Unknown Football Automation Room action." });
