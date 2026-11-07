@@ -341,22 +341,13 @@ function routeFor(providerCode: string, endpoints: Record<string, unknown>, view
 
 async function providerRequest(provider: Record<string, any>, view: string, date: string, competition: string): Promise<{ raw: unknown; response: Response }> {
   const base = validateBaseUrl(String(provider.api_base_url || ""));
-  const providerCode = String(provider.provider_code || "custom").toLowerCase();
   const endpoints = plainObject(provider.endpoints);
-  const route = expandTemplate(routeFor(providerCode, endpoints, view), date, view, competition);
+  const route = expandTemplate(routeFor(String(provider.provider_code || "custom"), endpoints, view), date, view, competition);
   const target = new URL(route.replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
   const params = plainObject(provider.default_query_params);
   for (const [key, rawValue] of Object.entries(params)) {
     const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view, competition) : String(rawValue);
     target.searchParams.set(key, value);
-  }
-  // The public visitor request always asks for "all" competitions. Remove a saved
-  // API-Football league parameter so a previous test/single-league setting cannot
-  // silently restrict the global fixtures feed to one competition.
-  if (providerCode === "api-football" && competition === "all") {
-    for (const key of [...target.searchParams.keys()]) {
-      if (key.toLowerCase() === "league") target.searchParams.delete(key);
-    }
   }
 
   const headers = new Headers();
@@ -382,7 +373,7 @@ async function providerRequest(provider: Record<string, any>, view: string, date
     }
   }
 
-  const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(15000), redirect: "error" });
+  const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(10000), redirect: "error" });
   if (response.status === 204) return { raw: [], response };
   if (!response.ok) throw new Error(`Provider ${provider.provider_name} returned HTTP ${response.status} ${response.statusText || "error"}. Check its endpoint, key and plan access.`);
   const responseText = await response.text();
@@ -486,6 +477,260 @@ function enrichWithCompetitionCatalog(matches: Record<string, any>[], catalog: R
   });
 }
 
+async function loadActiveProviderConfigs(db: ReturnType<typeof createClient>, settings: Record<string, any>): Promise<Record<string, any>[]> {
+  const rows: Record<string, any>[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await db.from("football_api_configs")
+      .select("id,provider_name,provider_code,sport,plan_type,priority,api_base_url,auth_type,auth_header_name,auth_prefix,auth_query_param,api_key_ciphertext,api_key_iv,has_api_key,is_enabled,is_public_active,custom_headers,default_query_params,endpoints,response_mapping,last_test_ok,last_match_test_ok")
+      .eq("is_enabled", true)
+      .order("priority", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  if (settings.public_livescore_enabled !== true) return [];
+  const legacyId = String(settings.active_api_config_id || "");
+  return rows.filter((provider) =>
+    ["football", "multi-sport"].includes(String(provider.sport || "football").toLowerCase())
+    && (provider.is_public_active === true || (legacyId && String(provider.id) === legacyId))
+    && provider.last_test_ok === true
+    && provider.last_match_test_ok === true
+  );
+}
+
+function normalizedMatchIdentity(value: unknown): string {
+  return safeString(value).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function publicMatchKey(match: Record<string, any>, providerId: string): string {
+  const sourceId = safeString(match.match_id || match.id).trim();
+  if (sourceId) return `${providerId}:${sourceId}`;
+  const home = normalizedMatchIdentity(match.home?.name || match.home);
+  const away = normalizedMatchIdentity(match.away?.name || match.away);
+  const comp = normalizedMatchIdentity(match.league || match.competition);
+  const kickoff = safeString(match.kickoff).replace(/[^0-9]/g, "").slice(0, 12);
+  return `${providerId}:${comp}:${home}:${away}:${kickoff}`;
+}
+
+function matchIdentityBase(match: Record<string, any>): string {
+  const home = normalizedMatchIdentity(match.home?.name || match.home || match.home_team);
+  const away = normalizedMatchIdentity(match.away?.name || match.away || match.away_team);
+  const competition = normalizedMatchIdentity(match.league || match.competition || match.league_name);
+  const country = normalizedMatchIdentity(match.country || match.league_country);
+  const kickoff = Date.parse(safeString(match.kickoff || match.date));
+  const day = Number.isFinite(kickoff) ? dateInLagos(new Date(kickoff).toISOString()) : "";
+  if (!home || !away || !competition || !day) return "";
+  return `${competition}|${country}|${home}|${away}|${day}`;
+}
+
+function matchCompleteness(match: Record<string, any>): number {
+  let score = 0;
+  if (match.home_score !== null && match.home_score !== undefined && match.home_score !== "") score += 5;
+  if (match.away_score !== null && match.away_score !== undefined && match.away_score !== "") score += 5;
+  if (match.minute !== null && match.minute !== undefined && match.minute !== "") score += 2;
+  if (match.home?.logo) score += 1;
+  if (match.away?.logo) score += 1;
+  if (match.competition_logo || match.league_logo) score += 2;
+  if (match.venue || match.venue_name) score += 1;
+  if (match.venue_image || match.match_image) score += 1;
+  if (match.referee) score += 1;
+  return score;
+}
+
+function matchStatusRank(match: Record<string, any>): number {
+  const status = safeString(match.status).toUpperCase();
+  if (["FT", "AET", "PEN", "FINISHED", "FULL_TIME", "ENDED", "AWD", "WO"].includes(status)) return 3;
+  if (["LIVE", "IN_PLAY", "PAUSED", "1H", "2H", "HT", "ET", "BT", "P", "SUSP", "INT"].includes(status)) return 2;
+  return 1;
+}
+
+function preferredMatch(a: Record<string, any>, b: Record<string, any>, primaryId: string): Record<string, any> {
+  const aPrimary = String(a.provider_config_id || "") === primaryId ? 1000 : 0;
+  const bPrimary = String(b.provider_config_id || "") === primaryId ? 1000 : 0;
+  const aPriority = Number(a.source_priority || 999999);
+  const bPriority = Number(b.source_priority || 999999);
+  const aScore = aPrimary + matchCompleteness(a) + matchStatusRank(a) * 2 - Math.min(aPriority, 999999) / 100000;
+  const bScore = bPrimary + matchCompleteness(b) + matchStatusRank(b) * 2 - Math.min(bPriority, 999999) / 100000;
+  return aScore >= bScore ? a : b;
+}
+
+function mergeDuplicateMatch(existing: Record<string, any>, incoming: Record<string, any>, primaryId: string): Record<string, any> {
+  const preferred = preferredMatch(existing, incoming, primaryId);
+  const other = preferred === existing ? incoming : existing;
+  const merged: Record<string, any> = { ...other, ...preferred };
+  for (const side of ["home", "away"]) {
+    const primarySide = plainObject(preferred[side]);
+    const otherSide = plainObject(other[side]);
+    merged[side] = { ...otherSide, ...primarySide, logo: primarySide.logo || otherSide.logo || undefined };
+  }
+  for (const key of ["home_score", "away_score", "minute", "competition_logo", "league_logo", "country_flag", "country_code", "venue", "venue_city", "venue_image", "match_image", "referee"]) {
+    if (merged[key] === null || merged[key] === undefined || merged[key] === "") merged[key] = other[key] ?? preferred[key] ?? merged[key];
+  }
+  const sources = [...new Set([...(Array.isArray(existing.source_providers) ? existing.source_providers : [existing.provider_name].filter(Boolean)), ...(Array.isArray(incoming.source_providers) ? incoming.source_providers : [incoming.provider_name].filter(Boolean))].map(String))];
+  const sourceIds = [...new Set([...(Array.isArray(existing.source_match_ids) ? existing.source_match_ids : [existing.match_id].filter((x) => x != null)), ...(Array.isArray(incoming.source_match_ids) ? incoming.source_match_ids : [incoming.match_id].filter((x) => x != null))].map(String))];
+  const providerIds = [...new Set([...(Array.isArray(existing.source_provider_ids) ? existing.source_provider_ids : [existing.provider_config_id].filter(Boolean)), ...(Array.isArray(incoming.source_provider_ids) ? incoming.source_provider_ids : [incoming.provider_config_id].filter(Boolean))].map(String))];
+  merged.source_providers = sources;
+  merged.source_provider_ids = providerIds;
+  merged.source_match_ids = sourceIds;
+  merged.provider_count = providerIds.length || sources.length;
+  merged.public_match_key = publicMatchKey(preferred, String(preferred.provider_config_id || "provider"));
+  return merged;
+}
+
+function deduplicateMatches(matches: Record<string, any>[], primaryId: string): { matches: Record<string, any>[]; duplicates_removed: number } {
+  const output: Record<string, any>[] = [];
+  const buckets = new Map<string, number[]>();
+  let duplicatesRemoved = 0;
+  for (const match of matches) {
+    const base = matchIdentityBase(match);
+    const kickoff = Date.parse(safeString(match.kickoff || match.date));
+    let duplicateIndex = -1;
+    if (base) {
+      const candidates = buckets.get(base) || [];
+      duplicateIndex = candidates.find((index) => {
+        const existingKickoff = Date.parse(safeString(output[index].kickoff || output[index].date));
+        return Number.isFinite(kickoff) && Number.isFinite(existingKickoff) && Math.abs(kickoff - existingKickoff) <= 90 * 60 * 1000;
+      }) ?? -1;
+    }
+    if (duplicateIndex >= 0) {
+      output[duplicateIndex] = mergeDuplicateMatch(output[duplicateIndex], match, primaryId);
+      duplicatesRemoved += 1;
+    } else {
+      const index = output.push(match) - 1;
+      if (base) {
+        if (!buckets.has(base)) buckets.set(base, []);
+        buckets.get(base)!.push(index);
+      }
+    }
+  }
+  output.sort((a, b) => Date.parse(safeString(a.kickoff || a.date)) - Date.parse(safeString(b.kickoff || b.date)));
+  return { matches: output, duplicates_removed: duplicatesRemoved };
+}
+
+async function runWithConcurrency<T, R>(items: T[], concurrency: number, task: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (true) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await task(items[index]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function fetchOneProvider(
+  db: ReturnType<typeof createClient>,
+  provider: Record<string, any>,
+  view: string,
+  date: string,
+  competition: string,
+  ttl: number,
+): Promise<Record<string, any>> {
+  const cacheKey = `livescore:v2:${provider.id}:${view}:${date}:${competition}`;
+  const now = new Date();
+  const { data: cached } = await db.from("football_public_cache")
+    .select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
+  if (cached && new Date(cached.expires_at) > now && Array.isArray(cached.payload?.matches)) {
+    return { ok: true, cached: true, stale: false, provider: provider.provider_name, provider_id: provider.id, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null };
+  }
+
+  try {
+    const { raw, response } = await providerRequest(provider, view, date, competition);
+    let normalized: Record<string, any>[];
+    let notice = "";
+    if (provider.provider_code === "openligadb" && !Object.keys(plainObject(provider.response_mapping)).length) {
+      const rawRows = Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [];
+      const result = normalizeOpenLiga(rawRows);
+      normalized = result.matches as Record<string, any>[];
+      notice = result.notice;
+    } else {
+      const mapping = { ...builtInMapping(String(provider.provider_code || "")), ...plainObject(provider.response_mapping) };
+      if (!Object.keys(mapping).length) throw new Error("No response mapping is configured for this API. Add its JSON field paths in Football Automation Room.");
+      normalized = normalizeMapped(raw, mapping, String(provider.provider_code || "")) as Record<string, any>[];
+    }
+
+    const competitionCatalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
+    normalized = enrichWithCompetitionCatalog(normalized, competitionCatalog, String(provider.provider_code || "")) as Record<string, any>[];
+    const classified = classify(normalized, view, date).map((match: Record<string, any>) => ({
+      ...match,
+      provider_config_id: String(provider.id),
+      provider_code: String(provider.provider_code || "").toLowerCase().replace(/[\s_]+/g, "-"),
+      provider_name: String(provider.provider_name || "Football API"),
+      source_provider: String(provider.provider_name || "Football API"),
+      source_priority: Number(provider.priority || 999999),
+      source_match_id: match.match_id == null ? null : String(match.match_id),
+      source_providers: [String(provider.provider_name || "Football API")],
+      source_provider_ids: [String(provider.id)],
+      source_match_ids: match.match_id == null ? [] : [String(match.match_id)],
+      provider_count: 1,
+      public_match_key: publicMatchKey(match, String(provider.id)),
+    }));
+    const rawRows = provider.provider_code === "openligadb"
+      ? (Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [])
+      : providerRowsForDiagnostics(raw, plainObject(provider.response_mapping), String(provider.provider_code || ""));
+    const payload: Record<string, any> = {
+      ok: true,
+      matches: classified,
+      total_returned: classified.length,
+      competition_catalog_count: competitionCatalog.length,
+      diagnostics: {
+        raw_records: Array.isArray(rawRows) ? rawRows.length : 0,
+        normalized_records: normalized.length,
+        returned_records: classified.length,
+        fetched_at: now.toISOString(),
+        http_status: response.status,
+      },
+      ...(notice ? { message: notice } : {}),
+    };
+    const expiresAt = new Date(now.getTime() + ttl * 1000).toISOString();
+    await db.from("football_public_cache").upsert({ cache_key: cacheKey, payload, provider_name: provider.provider_name, fetched_at: now.toISOString(), expires_at: expiresAt });
+    return { ok: true, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, matches: classified, diagnostics: payload.diagnostics, http_status: response.status, message: notice };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Provider request failed.";
+    if (cached && Array.isArray(cached.payload?.matches) && now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000) {
+      return { ok: true, cached: true, stale: true, provider: provider.provider_name, provider_id: provider.id, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null, error: message };
+    }
+    return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, matches: [], diagnostics: {}, http_status: null, error: message };
+  }
+}
+
+async function loadCombinedCompetitionCatalog(
+  db: ReturnType<typeof createClient>,
+  providers: Record<string, any>[],
+): Promise<Record<string, any>[]> {
+  const providerCatalogs: Record<string, any>[][] = await runWithConcurrency(providers, 6, async (provider) => {
+    try {
+      const rows = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
+      return rows.map((row) => ({
+        ...row,
+        provider_config_id: String(provider.id),
+        provider_code: String(provider.provider_code || ""),
+        provider_name: String(provider.provider_name || "Football provider"),
+      }));
+    } catch (_error) {
+      return [] as Record<string, any>[];
+    }
+  });
+  const merged = new Map<string, Record<string, any>>();
+  for (const row of providerCatalogs.flat()) {
+    const key = `${normalizedMatchIdentity(row.competition_name)}|${normalizedMatchIdentity(row.country_name || "International")}`;
+    const existing = merged.get(key);
+    if (!existing) merged.set(key, { ...row, provider_names: [row.provider_name] });
+    else {
+      existing.provider_names = [...new Set([...(existing.provider_names || []), row.provider_name])];
+      if (!existing.competition_logo_url && row.competition_logo_url) existing.competition_logo_url = row.competition_logo_url;
+      if (!existing.country_flag_url && row.country_flag_url) existing.country_flag_url = row.country_flag_url;
+      if (!existing.competition_type && row.competition_type) existing.competition_type = row.competition_type;
+    }
+  }
+  return [...merged.values()].sort((a, b) => String(a.country_name || "").localeCompare(String(b.country_name || "")) || String(a.competition_name || "").localeCompare(String(b.competition_name || "")));
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (request.method !== "POST") return reply(405, { ok: false, error: "POST required." });
@@ -502,62 +747,95 @@ Deno.serve(async (request: Request) => {
     const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
     const { data: settings, error: settingsError } = await db.from("football_automation_settings")
-      .select("active_api_config_id,public_livescore_enabled,public_livescore_cache_seconds,cache_seconds")
+      .select("active_api_config_id,selected_api_config_id,public_livescore_enabled,public_livescore_cache_seconds,cache_seconds,public_refresh_seconds")
       .eq("id", true).single();
     if (settingsError) throw settingsError;
+
+    const activeProviders = await loadActiveProviderConfigs(db, settings || {});
     if (action === "catalog") {
-      if (!settings?.active_api_config_id) return reply(200, { ok: true, competitions: [], competition_count: 0, message: "No active football provider has a competition catalogue yet." });
-      const { data: catalogProvider, error: catalogProviderError } = await db.from("football_api_configs")
-        .select("id,provider_name,provider_code,is_enabled").eq("id", settings.active_api_config_id).single();
-      if (catalogProviderError) throw catalogProviderError;
-      if (!catalogProvider?.is_enabled) return reply(200, { ok: true, competitions: [], competition_count: 0, message: "The active provider is disabled." });
-      const competitions = await loadCatalogRowsCached(db, String(catalogProvider.id), String(catalogProvider.provider_name || "Football provider"));
-      return reply(200, { ok: true, competitions, competition_count: competitions.length, provider: catalogProvider.provider_name, provider_code: catalogProvider.provider_code, message: competitions.length ? `${competitions.length.toLocaleString("en-US")} competitions available from ${catalogProvider.provider_name}.` : "The active provider's worldwide competition catalogue has not been synchronized yet. Ask an administrator to sync it in Football Automation Room." });
-    }
-    if (settings?.public_livescore_enabled !== true) return reply(200, { ok: true, matches: [], view, date, message: "Public LiveScore is paused by the administrator." });
-    if (!settings?.active_api_config_id) return reply(200, { ok: true, matches: [], view, date, message: "No football API has been activated. Activate a selected provider in Football Automation Room." });
-
-    const cacheKey = `livescore:${settings.active_api_config_id}:${view}:${date}:${competition}`;
-    const now = new Date();
-    const { data: cached } = await db.from("football_public_cache").select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
-    if (cached && new Date(cached.expires_at) > now) return reply(200, { ...cached.payload, provider: cached.provider_name, cached: true });
-
-    const { data: provider, error: providerError } = await db.from("football_api_configs")
-      .select("id,provider_name,provider_code,api_base_url,auth_type,auth_header_name,auth_prefix,auth_query_param,api_key_ciphertext,api_key_iv,has_api_key,is_enabled,custom_headers,default_query_params,endpoints,response_mapping")
-      .eq("id", settings.active_api_config_id).single();
-    if (providerError) throw providerError;
-    if (!provider?.is_enabled) throw new Error("The active football API is disabled. Select and activate an enabled provider in Football Automation Room.");
-
-    const { raw, response } = await providerRequest(provider, view, date, competition);
-    let normalized: Record<string, unknown>[];
-    let notice = "";
-    if (provider.provider_code === "openligadb" && !Object.keys(plainObject(provider.response_mapping)).length) {
-      const rawRows = Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [];
-      const result = normalizeOpenLiga(rawRows);
-      normalized = result.matches;
-      notice = result.notice;
-    } else {
-      const mapping = { ...builtInMapping(String(provider.provider_code || "")), ...plainObject(provider.response_mapping) };
-      if (!Object.keys(mapping).length) throw new Error("No response mapping is configured for this API. Add its JSON field paths in Football Automation Room.");
-      normalized = normalizeMapped(raw, mapping, String(provider.provider_code || ""));
+      if (!activeProviders.length) return reply(200, { ok: true, competitions: [], competition_count: 0, provider: "", provider_count: 0, message: "No public football APIs are active yet. Add verified providers in Football Automation Room to populate the competition catalogue." });
+      const competitions = await loadCombinedCompetitionCatalog(db, activeProviders);
+      const providerLabel = `${activeProviders.length} active football API${activeProviders.length === 1 ? "" : "s"}`;
+      return reply(200, {
+        ok: true,
+        competitions,
+        competition_count: competitions.length,
+        provider: providerLabel,
+        provider_count: activeProviders.length,
+        providers: activeProviders.map((item) => ({ id: item.id, name: item.provider_name, code: item.provider_code })),
+        message: competitions.length
+          ? `${competitions.length.toLocaleString("en-US")} unique competitions synchronized across ${providerLabel}.`
+          : `The active provider catalogue${activeProviders.length === 1 ? " has" : "s have"} not been synchronized yet. Sync each provider's competition catalogue in Football Automation Room.`,
+      });
     }
 
-    const competitionCatalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
-    normalized = enrichWithCompetitionCatalog(normalized, competitionCatalog, String(provider.provider_code || ""));
-    const matches = classify(normalized, view, date);
-    const rawRows = provider.provider_code === "openligadb"
-      ? (Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [])
-      : providerRowsForDiagnostics(raw, plainObject(provider.response_mapping), String(provider.provider_code || ""));
-    const payload: Record<string, unknown> = {
-      ok: true, matches, view, date, total_returned: matches.length, competition_catalog_count: competitionCatalog.length,
-      diagnostics: { raw_records: Array.isArray(rawRows) ? rawRows.length : 0, normalized_records: normalized.length, returned_records: matches.length, fetched_at: now.toISOString() },
-    };
-    if (notice) payload.message = notice;
-    else if (!matches.length) payload.message = `Provider connected, but no matches matched the ${view} feed for ${date}. Raw records: ${Array.isArray(rawRows) ? rawRows.length : 0}; usable records: ${normalized.length}. Check the date, competition coverage and provider plan.`;
-    const ttl = Math.max(15, Math.min(3600, Number(settings.public_livescore_cache_seconds || settings.cache_seconds || 60)));
-    const expiresAt = new Date(now.getTime() + ttl * 1000).toISOString();
-    await db.from("football_public_cache").upsert({ cache_key: cacheKey, payload, provider_name: provider.provider_name, fetched_at: now.toISOString(), expires_at: expiresAt });
-    return reply(200, { ...payload, provider: provider.provider_name, provider_code: provider.provider_code, cached: false, source_http_status: response.status });
+    if (settings?.public_livescore_enabled !== true) return reply(200, { ok: true, matches: [], view, date, provider_count: 0, message: "Public LiveScore is paused by the administrator." });
+    if (!activeProviders.length) return reply(200, { ok: true, matches: [], view, date, provider_count: 0, message: "No football API providers have been activated. Add one or more verified providers in Football Automation Room." });
+
+    const ttl = Math.max(15, Math.min(3600, Number(settings.cache_seconds || settings.public_livescore_cache_seconds || 60)));
+    // All active providers are included. Requests are batched at a small concurrency level to avoid
+    // sudden rate-limit spikes while still using every activated service in the same visitor response.
+    const providerResults = await runWithConcurrency(activeProviders, 6, (provider) => fetchOneProvider(db, provider, view, date, competition, ttl));
+    const successfulProviders = providerResults.filter((result) => result.ok === true);
+    const failedProviders = providerResults.filter((result) => result.ok !== true);
+    const providerMatches = providerResults.flatMap((result) => Array.isArray(result.matches) ? result.matches : []);
+    const combined = deduplicateMatches(providerMatches, String(settings.selected_api_config_id || ""));
+    const counts = providerResults.reduce((acc, result) => {
+      acc.raw_records += Number(result.diagnostics?.raw_records || 0);
+      acc.normalized_records += Number(result.diagnostics?.normalized_records || 0);
+      acc.cached_providers += result.cached ? 1 : 0;
+      acc.stale_providers += result.stale ? 1 : 0;
+      return acc;
+    }, { raw_records: 0, normalized_records: 0, cached_providers: 0, stale_providers: 0 });
+    const providers = providerResults.map((result) => ({
+      id: result.provider_id,
+      name: result.provider,
+      ok: result.ok,
+      cached: result.cached,
+      stale: result.stale,
+      matches: Array.isArray(result.matches) ? result.matches.length : 0,
+      http_status: result.http_status,
+      ...(result.error ? { error: result.error } : {}),
+    }));
+    if (!successfulProviders.length) {
+      return reply(502, {
+        ok: false,
+        error: `All ${activeProviders.length} active football API provider(s) failed. ${failedProviders.slice(0, 3).map((item) => `${item.provider}: ${item.error}`).join("; ")}`,
+        matches: [],
+        provider_count: activeProviders.length,
+        providers,
+        diagnostics: { ...counts, duplicates_removed: 0, successful_providers: 0, failed_providers: failedProviders.length },
+      });
+    }
+
+    const providerLabel = `${successfulProviders.length}/${activeProviders.length} football API${activeProviders.length === 1 ? "" : "s"}`;
+    const failuresNote = failedProviders.length ? ` ${failedProviders.length} provider(s) could not be reached; successful feeds are still displayed.` : "";
+    const staleNote = counts.stale_providers ? ` ${counts.stale_providers} provider cache(s) are temporarily stale.` : "";
+    const message = combined.matches.length
+      ? `${combined.matches.length.toLocaleString("en-US")} unique match(es) combined from ${providerLabel}; ${combined.duplicates_removed} duplicate(s) merged.${failuresNote}${staleNote}`
+      : `Connected to ${providerLabel}, but no matches matched the ${view} feed for ${date}. Raw records: ${counts.raw_records}; usable records: ${counts.normalized_records}.${failuresNote}${staleNote}`;
+    return reply(200, {
+      ok: true,
+      matches: combined.matches,
+      view,
+      date,
+      total_returned: combined.matches.length,
+      provider: providerLabel,
+      provider_count: activeProviders.length,
+      successful_provider_count: successfulProviders.length,
+      failed_provider_count: failedProviders.length,
+      providers,
+      diagnostics: {
+        ...counts,
+        returned_records: combined.matches.length,
+        duplicates_removed: combined.duplicates_removed,
+        successful_providers: successfulProviders.length,
+        failed_providers: failedProviders.length,
+        fetched_at: new Date().toISOString(),
+      },
+      message,
+      cached: providerResults.every((result) => result.cached === true),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Football data unavailable.";
     return reply(502, { ok: false, error: message, matches: [] });
