@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure admin sign-in | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><style id="parrot-warning-styles">
+<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure admin sign-in | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><script src="../js/admin-session-client.js"></script><style id="parrot-warning-styles">
 #parrot-warning-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,10,20,.68);backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);opacity:0;visibility:hidden;transition:opacity .34s ease,visibility .34s ease,backdrop-filter .34s ease}
 #parrot-warning-overlay.pw-open{opacity:1;visibility:visible;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #parrot-warning-dialog{width:min(100%,430px);position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.78);border-radius:24px;background:linear-gradient(145deg,#fff 0%,#fff8f2 54%,#fff 100%);box-shadow:0 28px 90px rgba(0,0,0,.34);transform:translateY(30px) scale(.88) rotateX(7deg);opacity:0;transition:transform .48s cubic-bezier(.16,1,.3,1),opacity .3s ease;font-family:inherit;color:#171923;will-change:transform,opacity}
@@ -243,10 +243,11 @@ form.addEventListener('submit',async e=>{
     if(authError){showAuthAlert('unauthorized');return;}
     const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
     if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
-    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name,is_suspended,email').eq('user_id',sessionData.session.user.id).maybeSingle();
+    const {data:profile,error:profileError}=await appealClient.rpc('get_my_admin_profile');
     if(profileError){console.error('Could not read admin profile:',profileError);await appealClient.auth.signOut();showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
-    if(!profile||!['owner','admin'].includes(String(profile.role||'').toLowerCase())){
-      await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
+    if(!profile||String(profile.user_id||'')!==String(sessionData.session.user.id)||!['owner','admin'].includes(String(profile.role||'').trim().toLowerCase())){
+      console.warn('Admin profile verification did not match the authenticated user.',{authenticatedUserId:sessionData.session.user.id,profileUserId:profile&&profile.user_id,profileRole:profile&&profile.role});
+      await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but PARROTHIT could not verify a matching owner/admin profile for this Supabase user. Run the admin profile login SQL migration supplied with the fix, then try again.');return;
     }
     // This project may have an older admin_profiles schema without email/is_suspended columns.
     // Do not request missing columns during sign-in; the core owner check uses user_id + role.
@@ -256,6 +257,17 @@ form.addEventListener('submit',async e=>{
       document.getElementById('appealEmail').value=userEmail;
       document.getElementById('appealUsername').value=userName;
       showAuthAlert('suspended');return;
+    }
+    // Establish this browser as the account's active admin device before entering protected pages.
+    try{
+      if(!window.PARROTHITAdminSession)throw new Error('The admin session helper did not load. Check that js/admin-session-client.js is deployed.');
+      await window.PARROTHITAdminSession.claim(appealClient,sessionData.session.user.id);
+    }catch(sessionClaimError){
+      console.error('Could not establish the PARROTHIT admin device session:',sessionClaimError);
+      if(window.PARROTHITAdminSession)window.PARROTHITAdminSession.clearToken(sessionData.session.user.id);
+      await appealClient.auth.signOut();
+      showAuthAlert('unauthorized',sessionClaimError.message||'Could not establish the secure admin device session. Check the deployed PARROTHIT session service.');
+      return;
     }
     // Atomically consume the reactivation notice once, after a successful sign-in.
     try{const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");}catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr)}
