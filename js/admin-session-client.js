@@ -28,6 +28,13 @@
   function clearToken(userId) {
     try { localStorage.removeItem(tokenKey(userId)); } catch (_) {}
   }
+  function activityKey(userId) { return 'parrothit-admin-last-activity-v1:' + String(userId); }
+  function writeFreshActivity(userId) {
+    try { localStorage.setItem(activityKey(userId), String(Date.now())); } catch (_) {}
+  }
+  function clearActivity(userId) {
+    try { localStorage.removeItem(activityKey(userId)); } catch (_) {}
+  }
   function deviceName() {
     const ua = navigator.userAgent || '';
     let os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Mac OS|Macintosh/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Unknown OS';
@@ -60,6 +67,8 @@
       await client.functions.invoke('parrothit-admin-session', { body: { action: 'release', session_token: token } }).catch(() => {});
       throw new Error('This browser cannot securely save the device session. Enable site storage and try again.');
     }
+    // Start a new inactivity clock only after the server successfully claims this sign-in.
+    writeFreshActivity(userId);
     return data;
   }
   async function release(client, userId) {
@@ -68,6 +77,7 @@
       try { await client.functions.invoke('parrothit-admin-session', { body: { action: 'release', session_token: token } }); } catch (_) {}
     }
     clearToken(userId);
+    clearActivity(userId);
   }
   async function recordFailedLogin(client, identifier) {
     const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(identifier || '').trim().toLowerCase()));
