@@ -194,6 +194,15 @@
         <p id="fr-diagnostics-summary" class="fr-form-feedback" role="status" aria-live="polite">Select or activate a provider, then run diagnostics to inspect real endpoint responses.</p>
         <div id="fr-diagnostics-results" class="fr-diagnostics-results"></div>
       </article>
+      <article class="fr-panel fr-catalog-panel">
+        <div class="fr-panel-heading"><div><h3>Worldwide competition catalogue</h3><p>Synchronize leagues and cups separately from match results so the visitor dropdown can list competitions even when they have no fixtures on the selected date.</p></div><span class="fr-pill fr-pill-stage">GLOBAL CATALOGUE</span></div>
+        <div class="fr-catalog-controls">
+          <label class="fr-field">Provider catalogue source<select id="fr-catalog-provider-select"><option value="">Choose an enabled football provider</option></select><small>For a broad worldwide list, use the API-Football provider. Other APIs expose only their own available competitions and plan coverage.</small></label>
+          <button type="button" class="fr-button fr-button-primary" id="fr-sync-competition-catalog">↻ Synchronize competitions</button>
+        </div>
+        <p id="fr-catalog-feedback" class="fr-form-feedback" role="status" aria-live="polite">No competition catalogue synchronized in this session yet.</p>
+        <p class="fr-note">Competition logos are stored with the catalogue and reused on visitor results and match-centre pages. Missing provider images receive a branded text fallback instead of a broken-image icon.</p>
+      </article>
       <article class="fr-panel"><div class="fr-panel-heading"><div><h3>LiveScore integration status</h3><p>Current implementation boundary.</p></div><span class="fr-pill fr-pill-stage">MULTI-PROVIDER</span></div><div class="fr-integration-line"><span class="fr-integration-dot"></span><div><strong>Provider-driven match feed</strong><small>Built-in adapters are available for OpenLigaDB, API-Football and football-data.org. Custom APIs can use endpoint and response mapping settings. OpenLigaDB's preset is competition-specific and is not a global/worldwide source.</small></div><em id="fr-adapter-state">Ready to configure</em></div></article>
     </section>
 
