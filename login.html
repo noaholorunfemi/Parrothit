@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure admin sign-in | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.0"></script><script src="../supabase-config.js"></script><style id="parrot-warning-styles">
+<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Secure admin sign-in | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><style id="parrot-warning-styles">
 #parrot-warning-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,10,20,.68);backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);opacity:0;visibility:hidden;transition:opacity .34s ease,visibility .34s ease,backdrop-filter .34s ease}
 #parrot-warning-overlay.pw-open{opacity:1;visibility:visible;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 #parrot-warning-dialog{width:min(100%,430px);position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.78);border-radius:24px;background:linear-gradient(145deg,#fff 0%,#fff8f2 54%,#fff 100%);box-shadow:0 28px 90px rgba(0,0,0,.34);transform:translateY(30px) scale(.88) rotateX(7deg);opacity:0;transition:transform .48s cubic-bezier(.16,1,.3,1),opacity .3s ease;font-family:inherit;color:#171923;will-change:transform,opacity}
@@ -50,26 +50,10 @@
 @media(prefers-reduced-motion:reduce){.auth-alert-card.unauthorized{animation:none}}
 
 </style>
-<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"><link rel="stylesheet" href="css/livescore-access-patch.css">
-</head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
-<div class="livescore-access wrap"><a class="livescore-access-button" href="livescore.html"><span aria-hidden="true">⚽</span> Football LiveScore <span class="livescore-access-sub">Live matches · Fixtures · Results</span></a></div>
-
+<link rel="stylesheet" href="../css/admin-responsive.css?v=parrothit-v6"></head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
 <div class="back-home-wrap"><a class="back-home-link" href="../index.html">← Back home</a></div>
 <div class="admin-shell"><div class="admin-header"><h1>PARROTHIT ADMIN</h1><a href="../index.html">← View website</a></div><section class="admin-panel" style="max-width:520px;margin:30px auto"><h2>Administrator sign in</h2><p>Sign in using your administrator username or email and password.</p><form id="loginForm" class="admin-form"><label>Username or email<input id="loginName" autocomplete="username" required></label><label>Password <span class="password-wrap"><input id="loginPassword" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">👁</button></span></label>
-<label class="remember-row"><input id="rememberMe" type="checkbox" checked> Remember me on this device</label><button class="admin-btn" type="submit">Sign in securely</button></form>
-<div id="passkeySetupPanel" hidden style="margin:16px 0;padding:16px;border:1px solid #b7d8c4;border-radius:12px;background:#f0fdf4;color:#123b26">
-  <h3 style="margin:0 0 8px;color:#14532d">Enable fingerprint login</h3>
-  <p style="margin:0 0 12px">Save a passkey on this device. The device may use your fingerprint, face unlock, or screen-lock PIN. Your existing password will still work.</p>
-  <p id="passkeySetupStatus" role="status" aria-live="polite" style="margin:0 0 12px">Set up optional passkey login on this device.</p>
-  <div style="display:flex;gap:9px;flex-wrap:wrap">
-    <button id="enablePasskeyBtn" type="button" class="admin-btn" style="background:#15803d">Enable fingerprint / passkey</button>
-    <button id="skipPasskeyBtn" type="button" class="admin-btn" style="background:#475569">Continue without passkey</button>
-  </div>
-</div>
-<div style="margin:12px 0;padding-top:12px;border-top:1px solid #e5e7eb">
-  <button id="passkeyLoginBtn" type="button" class="admin-btn" style="width:100%;background:#075e36">Use fingerprint / passkey</button>
-  <p style="margin:7px 0 0;font-size:.88rem;color:#64748b">Available after an administrator has registered a passkey on this device or synced authenticator.</p>
-</div><p><a href="forgot-password.html">Forgot your password?</a></p><p id="loginMessage" role="status"></p><p class="meta">Setup required: copy your Supabase URL and public anon key into supabase-config.js (then update this page to load that file). Never use a service-role key here.</p></section></div>
+<label class="remember-row"><input id="rememberMe" type="checkbox" checked> Remember me on this device</label><button class="admin-btn" type="submit">Sign in securely</button></form><p><a href="forgot-password.html">Forgot your password?</a></p><p id="loginMessage" role="status"></p><p class="meta">Setup required: copy your Supabase URL and public anon key into supabase-config.js (then update this page to load that file). Never use a service-role key here.</p></section></div>
 <div class="auth-alert-layer" id="authAlertLayer" aria-hidden="true">
   <section class="auth-alert-card" id="authAlertCard" role="alertdialog" aria-modal="true" aria-labelledby="authAlertTitle" aria-describedby="authAlertMessage">
     <div class="auth-alert-bar"></div><div class="auth-alert-content">
@@ -99,14 +83,6 @@
 </div>
 <script>
 const form=document.getElementById('loginForm');
-const loginReason=new URLSearchParams(location.search).get('reason');
-if(loginReason==='idle-timeout'){
-  const loginNotice=document.getElementById('loginMessage');
-  if(loginNotice)loginNotice.textContent='Your admin session expired after the configured period of inactivity. Please sign in again.';
-}else if(loginReason==='session-revoked'){
-  const loginNotice=document.getElementById('loginMessage');
-  if(loginNotice)loginNotice.textContent='Your admin session was ended by a security action. Please sign in again.';
-}
 const alertLayer=document.getElementById('authAlertLayer');
 const alertCard=document.getElementById('authAlertCard');
 const alertTitle=document.getElementById('authAlertTitle');
@@ -223,132 +199,37 @@ form.addEventListener('submit',async e=>{
     }
     return;
   }
-
-  const msg=document.getElementById('loginMessage');
-  msg.textContent='';
-  if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||String(window.PARROTHIT_SUPABASE_URL).includes('YOUR-PROJECT')||!window.PARROTHIT_SUPABASE_ANON_KEY||String(window.PARROTHIT_SUPABASE_ANON_KEY).includes('YOUR_PUBLIC')){
-    msg.textContent='Supabase is not configured yet. Follow SETUP-SUPABASE.txt first.';
-    return;
-  }
-
-  const loginName=document.getElementById('loginName').value.trim();
-  const password=document.getElementById('loginPassword').value;
-  const btn=form.querySelector('button[type="submit"]');
-  let signedInUserId='';
-  let sessionClaimed=false;
-  if(btn)btn.disabled=true;
-
-  const releaseLoginSession=async(userId)=>{
-    if(!userId)return;
-    try{
-      if(window.PARROTHITAdminSession && typeof window.PARROTHITAdminSession.release==='function'){
-        await window.PARROTHITAdminSession.release(appealClient,userId);
-      }else{
-        localStorage.removeItem('parrothit-admin-session-token-v1:'+String(userId));
-      }
-    }catch(releaseError){
-      console.warn('Could not release the pending admin login session:',releaseError);
-    }
-    sessionClaimed=false;
-  };
-  const signOutLocal=async()=>{
-    try{if(appealClient)await appealClient.auth.signOut({scope:'local'});}catch(signOutError){console.warn('Could not clear the temporary login session:',signOutError);}
-  };
-
+  const msg=document.getElementById('loginMessage');msg.textContent='';
+  if(!window.supabase||!window.PARROTHIT_SUPABASE_URL||String(window.PARROTHIT_SUPABASE_URL).includes('YOUR-PROJECT')||!window.PARROTHIT_SUPABASE_ANON_KEY||String(window.PARROTHIT_SUPABASE_ANON_KEY).includes('YOUR_PUBLIC')){msg.textContent='Supabase is not configured yet. Follow SETUP-SUPABASE.txt first.';return;}
+  const loginName=document.getElementById('loginName').value.trim(),password=document.getElementById('loginPassword').value;
+  const btn=form.querySelector('button[type="submit"]');if(btn)btn.disabled=true;
   try{
     appealClient=window.getParrothitSupabaseClient();
     let email=loginName;
-    if(!loginName.includes('@')){
-      const {data,error}=await appealClient.rpc('resolve_admin_email',{p_username:loginName});
-      if(error||!data){
-        showAuthAlert('unauthorized','This username is not registered as a PARROTHIT administrator. Check the spelling or contact Admin 1 (Owner).');
-        return;
-      }
-      email=data;
-    }
-
+    if(!loginName.includes('@')){const {data,error}=await appealClient.rpc('resolve_admin_email',{p_username:loginName});if(error||!data){showAuthAlert('unauthorized','This username is not registered as a PARROTHIT administrator. Check the spelling or contact Admin 1 (Owner).');if(btn)btn.disabled=false;return;}email=data;}
     const {error:authError}=await appealClient.auth.signInWithPassword({email,password});
-    if(authError){
-      try{if(window.PARROTHITAdminSession&&window.PARROTHITAdminSession.recordFailedLogin)await window.PARROTHITAdminSession.recordFailedLogin(appealClient,loginName);}catch(auditError){console.warn('Could not record failed admin login:',auditError);}
-      showAuthAlert('unauthorized');
-      return;
-    }
-
+    if(authError){showAuthAlert('unauthorized');return;}
     const {data:sessionData,error:sessionError}=await appealClient.auth.getSession();
-    if(sessionError||!sessionData.session){
-      await signOutLocal();
-      showAuthAlert('unauthorized','The password was accepted, but PARROTHIT could not establish a secure sign-in session. Please try again.');
-      return;
-    }
-    signedInUserId=sessionData.session.user.id;
-
-    // Claim one active device session for this administrator. Different admin user IDs are independent.
-    try{
-      if(!window.PARROTHITAdminSession)throw new Error('The admin session helper did not load. Refresh this page.');
-      await window.PARROTHITAdminSession.claim(appealClient,signedInUserId);
-      sessionClaimed=true;
-    }catch(sessionClaimError){
-      console.error('PARROTHIT device session claim failed:',sessionClaimError);
-      await releaseLoginSession(signedInUserId);
-      if(sessionClaimError&&sessionClaimError.code==='ADMIN_SUSPENDED'){
-        const suspendedProfile=sessionClaimError.profile||{};
-        document.getElementById('appealEmail').value=sessionData.session.user.email||email;
-        document.getElementById('appealUsername').value=suspendedProfile.username||loginName;
-        showAuthAlert('suspended');
-      }else{
-        await signOutLocal();
-        signedInUserId='';
-        showAuthAlert('unauthorized',sessionClaimError&&sessionClaimError.message?sessionClaimError.message:'Could not register this administrator device session. Please try again.');
-      }
-      return;
-    }
-
-    const {data:profile,error:profileError}=await appealClient.from('admin_profiles')
-      .select('user_id,role,username,display_name,is_suspended,email')
-      .eq('user_id',signedInUserId).maybeSingle();
-    if(profileError){
-      console.error('Could not read admin profile:',profileError);
-      await releaseLoginSession(signedInUserId);
-      await signOutLocal();
-      signedInUserId='';
-      showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');
-      return;
-    }
+    if(sessionError||!sessionData.session){showAuthAlert('unauthorized');return;}
+    const {data:profile,error:profileError}=await appealClient.from('admin_profiles').select('user_id,role,username,display_name,is_suspended,email').eq('user_id',sessionData.session.user.id).maybeSingle();
+    if(profileError){console.error('Could not read admin profile:',profileError);await appealClient.auth.signOut();showAuthAlert('unauthorized','Your password was accepted, but the administrator profile could not be read. Check the admin_profiles table permissions and column names in Supabase.');return;}
     if(!profile||!['owner','admin'].includes(String(profile.role||'').toLowerCase())){
-      await releaseLoginSession(signedInUserId);
-      await signOutLocal();
-      signedInUserId='';
-      showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');
-      return;
+      await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but its admin_profiles role is not owner or admin. Check the user_id and role values in Supabase.');return;
     }
+    // This project may have an older admin_profiles schema without email/is_suspended columns.
+    // Do not request missing columns during sign-in; the core owner check uses user_id + role.
     if(profile.is_suspended===true){
       const userEmail=sessionData.session.user.email||email;
       const userName=profile.username||loginName;
       document.getElementById('appealEmail').value=userEmail;
       document.getElementById('appealUsername').value=userName;
-      await releaseLoginSession(signedInUserId);
-      showAuthAlert('suspended');
-      return;
+      showAuthAlert('suspended');return;
     }
-
     // Atomically consume the reactivation notice once, after a successful sign-in.
-    try{
-      const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');
-      if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");
-    }catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr);}
-
-    if(window.PARROTHIT_ADMIN_PASSKEY&&await window.PARROTHIT_ADMIN_PASSKEY.offerSetupAfterPasswordLogin(appealClient))return;
+    try{const {data:shouldNotify,error:noticeError}=await appealClient.rpc('consume_admin_reactivation_notice');if(!noticeError&&shouldNotify===true)alert("Congratulations and welcome back! You've been reactivated by Admin 1.");}catch(statusErr){console.warn('Could not check reactivation notice after login:',statusErr)}
     location.href=getAdminPostLoginDestination();
-  }catch(err){
-    console.error('Admin login failed:',err);
-    if(sessionClaimed&&signedInUserId){
-      await releaseLoginSession(signedInUserId);
-      await signOutLocal();
-    }
-    showAuthAlert('unauthorized',err&&err.message?err.message:'Administrator sign-in failed. Please try again.');
-  }finally{
-    if(btn)btn.disabled=false;
-  }
+  }catch(err){console.error('Admin login failed:',err);showAuthAlert('unauthorized');}
+  finally{if(btn)btn.disabled=false;}
 });
 </script><script>
 document.querySelectorAll('.password-toggle').forEach(btn=>btn.addEventListener('click',()=>{const input=btn.parentElement.querySelector('input');const show=input.type==='password';input.type=show?'text':'password';btn.textContent=show?'🙈':'👁';btn.setAttribute('aria-label',show?'Hide password':'Show password');btn.setAttribute('aria-pressed',String(show));}));
@@ -395,7 +276,5 @@ document.addEventListener('submit',async e=>{
 },true);
 })();
 </script>
-<script src="js/admin-session-client.js?v=20261104-per-admin-session-v2"></script><script src="js/admin-passkey-login.js" defer></script>
 <script src="js/parrothit-card-watermark.js" defer></script>
-<script src="js/parrothit-advertise-banner.js" defer></script>
 </body></html>
