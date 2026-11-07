@@ -107,7 +107,7 @@ function cleanEndpoints(value: unknown): Record<string, string> {
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Match endpoints must be a JSON object.");
   const output: Record<string, string> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (!["live", "today", "upcoming", "results"].includes(key)) throw new Error("Endpoint keys must be live, today, upcoming or results.");
+    if (!["live", "today", "upcoming", "results", "competitions"].includes(key)) throw new Error("Endpoint keys must be live, today, upcoming, results or competitions.");
     const route = cleanText(raw, 700);
     if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
       throw new Error(`The ${key} endpoint must be a relative path beginning with one slash.`);
@@ -197,8 +197,10 @@ function providerRows(raw: unknown, providerCode: string, mapping: Record<string
 
 function builtInMappingFor(providerCode: string): Record<string, unknown> {
   if (providerCode === "api-football") return {
-    matches_path: "response", id: "fixture.id", competition: "league.name",
-    home_team: "teams.home.name", away_team: "teams.away.name", status: "fixture.status.short", kickoff: "fixture.date",
+    matches_path: "response", id: "fixture.id", competition: "league.name", competition_id: "league.id",
+    competition_type: "league.type", competition_logo: "league.logo", country: "league.country",
+    country_code: "league.country_code", home_team: "teams.home.name", away_team: "teams.away.name",
+    home_logo: "teams.home.logo", away_logo: "teams.away.logo", status: "fixture.status.short", kickoff: "fixture.date",
   };
   if (providerCode === "football-data-org") return {
     matches_path: "matches", id: "id", competition: "competition.name",
@@ -435,6 +437,178 @@ function extractQuota(response: Response, bodyText: string) {
   return { used, limit, remaining, period };
 }
 
+
+function cleanImageUrl(value: unknown): string | null {
+  const text = cleanText(value, 1000);
+  if (!text) return null;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" ? url.href : null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function catalogPath(row: unknown, mapping: Record<string, unknown>, mappingKey: string, fallbacks: string[]): unknown {
+  const configured = typeof mapping[mappingKey] === "string" ? String(mapping[mappingKey]) : "";
+  if (configured) {
+    const value = getPath(row, configured);
+    if (value !== undefined && value !== null) return value;
+  }
+  return firstCatalogPath(row, fallbacks);
+}
+
+function firstCatalogPath(row: unknown, candidates: string[]): unknown {
+  for (const path of candidates) {
+    const value = getPath(row, path);
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
+function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record<string, unknown>[] {
+  const providerCode = String(config.provider_code || "").toLowerCase();
+  const mapping = plainObject(config.response_mapping);
+  let sourceRows: unknown;
+  if (providerCode === "api-football") sourceRows = getPath(raw, "response");
+  else if (providerCode === "football-data-org") sourceRows = getPath(raw, "competitions");
+  else if (providerCode === "openligadb") sourceRows = Array.isArray(raw) ? raw : getPath(raw, "data");
+  else {
+    const path = typeof mapping.competitions_path === "string" ? mapping.competitions_path : "";
+    sourceRows = path ? getPath(raw, path) : firstCatalogPath(raw, ["response", "competitions", "leagues", "data", "results"]);
+  }
+  if (!Array.isArray(sourceRows)) {
+    throw new Error("The provider returned JSON, but no competition list was found. For a custom provider, add a competitions endpoint and set response_mapping.competitions_path.");
+  }
+
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const row of sourceRows) {
+    const league = plainObject((row as any)?.league);
+    const area = plainObject((row as any)?.area);
+    const country = plainObject((row as any)?.country);
+    const seasons = Array.isArray((row as any)?.seasons) ? (row as any).seasons : [];
+    const currentSeason = seasons.find((item: any) => item?.current === true) || seasons.slice().sort((a: any, b: any) => Number(b?.year || 0) - Number(a?.year || 0))[0] || {};
+    const externalId = providerCode === "api-football"
+      ? league.id
+      : providerCode === "football-data-org"
+        ? (row as any)?.id
+        : providerCode === "openligadb"
+          ? firstCatalogPath(row, ["leagueId", "LeagueID", "LeagueId", "league_id", "id"])
+          : catalogPath(row, mapping, "catalog_id", ["league.id", "competition.id", "id", "leagueId", "league_id", "competition_id"]);
+    const nameValue = providerCode === "api-football"
+      ? league.name
+      : providerCode === "football-data-org"
+        ? (row as any)?.name
+        : providerCode === "openligadb"
+          ? firstCatalogPath(row, ["leagueName", "LeagueName", "name"])
+          : catalogPath(row, mapping, "catalog_name", ["league.name", "competition.name", "name", "leagueName", "league_name"]);
+    const id = cleanText(externalId, 100);
+    const name = cleanText(nameValue, 180);
+    if (!id || !name) continue;
+
+    const rawCountry = providerCode === "api-football" ? country.name
+      : providerCode === "football-data-org" ? area.name
+      : providerCode === "openligadb" ? firstCatalogPath(row, ["country", "countryName", "CountryName"]) || "Germany"
+      : catalogPath(row, mapping, "catalog_country", ["country.name", "area.name", "country", "country_name"]);
+    const rawType = providerCode === "api-football" ? league.type
+      : providerCode === "football-data-org" ? (row as any)?.type
+      : providerCode === "openligadb" ? firstCatalogPath(row, ["leagueType", "type"]) || "League"
+      : catalogPath(row, mapping, "catalog_type", ["league.type", "competition.type", "type"]);
+    const rawLogo = providerCode === "api-football" ? league.logo
+      : providerCode === "football-data-org" ? (row as any)?.emblem
+      : providerCode === "openligadb" ? firstCatalogPath(row, ["league_logo", "leagueLogo", "logo"])
+      : catalogPath(row, mapping, "catalog_logo", ["league.logo", "competition.logo", "emblem", "logo", "image"]);
+    const countryCode = providerCode === "api-football" ? country.code
+      : providerCode === "football-data-org" ? area.code
+      : providerCode === "openligadb" ? firstCatalogPath(row, ["countryCode", "country_code"])
+      : catalogPath(row, mapping, "catalog_country_code", ["country.code", "area.code", "country_code"]);
+    const countryFlag = providerCode === "api-football" ? country.flag
+      : providerCode === "football-data-org" ? (area as any)?.flag
+      : catalogPath(row, mapping, "catalog_country_flag", ["country.flag", "area.flag", "country_flag", "flag"]);
+    const years: number[] = providerCode === "api-football"
+      ? seasons.map((item: any) => Number(item?.year)).filter((value: number) => Number.isInteger(value) && value > 1800 && value < 3000)
+      : providerCode === "football-data-org"
+        ? [Number(String((row as any)?.currentSeason?.startDate || "").slice(0, 4))].filter((value: number) => Number.isInteger(value) && value > 1800)
+        : providerCode === "openligadb"
+          ? [Number(String(firstCatalogPath(row, ["leagueSeason", "LeagueSeason", "season"]) || "").slice(0, 4))].filter((value: number) => Number.isInteger(value) && value > 1800)
+          : [Number(catalogPath(row, mapping, "catalog_season", ["season", "currentSeason.startDate"]) || 0)].filter((value: number) => Number.isInteger(value) && value > 1800);
+    const seasonYear = providerCode === "api-football" ? Number(currentSeason?.year || Math.max(0, ...years))
+      : providerCode === "football-data-org" ? Number(years[0] || 0)
+      : Number(years.length ? Math.max(...years) : 0);
+    const current = providerCode === "api-football" ? currentSeason?.current === true : Boolean((row as any)?.currentSeason);
+    const numericId = /^\d+$/.test(id) ? id : "";
+    const logo = cleanImageUrl(rawLogo) || (providerCode === "api-football" && numericId ? `https://media.api-sports.io/football/leagues/${numericId}.png` : null);
+    const flag = cleanImageUrl(countryFlag);
+    byId.set(id, {
+      provider_code: providerCode,
+      external_competition_id: id,
+      competition_name: name,
+      competition_type: cleanText(rawType, 40) || "Competition",
+      country_name: cleanText(rawCountry, 100) || "International",
+      country_code: cleanText(countryCode, 20) || null,
+      country_flag_url: flag,
+      competition_logo_url: logo,
+      season_year: Number.isInteger(seasonYear) && seasonYear > 1800 ? seasonYear : null,
+      season_years: [...new Set(years)].sort((a, b) => b - a),
+      is_current_season: current,
+      coverage: plainObject((currentSeason as any)?.coverage),
+      is_enabled: true,
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
+  return [...byId.values()];
+}
+
+async function fetchCompetitionCatalog(config: Record<string, any>): Promise<Record<string, unknown>[]> {
+  const providerCode = String(config.provider_code || "").toLowerCase();
+  const endpoints = plainObject(config.endpoints);
+  const defaultRoute = providerCode === "api-football" ? "/leagues"
+    : providerCode === "football-data-org" ? "/v4/competitions"
+    : providerCode === "openligadb" ? `/getavailableleagues/${new Date().getFullYear()}`
+    : "";
+  const route = typeof endpoints.competitions === "string" && String(endpoints.competitions).trim()
+    ? String(endpoints.competitions).trim()
+    : defaultRoute;
+  if (!route) throw new Error("This provider has no configured competition-catalog endpoint. Use API-Football for a broad worldwide competition catalogue, or add a competitions route for a custom API.");
+  if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
+    throw new Error("Competition catalogue endpoint must be a relative path on the configured API host.");
+  }
+  const base = validateHttpsUrl(String(config.api_base_url || ""));
+  const season = String(new Date().getFullYear());
+  const target = new URL(expandTemplate(route, season + "-01-01", "catalog"), base.toString().replace(/\/$/, "") + "/");
+  const headers = new Headers();
+  const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
+  for (const [name, value] of Object.entries(customHeaders)) {
+    if (["host", "content-length", "authorization", "apikey"].includes(name.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${name}.`);
+    headers.set(name, String(value));
+  }
+  const authType = String(config.auth_type || (config.auth_header_name ? "header" : "none"));
+  if (authType !== "none") {
+    if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) throw new Error("This provider's API key is required to synchronize competitions.");
+    const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
+    if (authType === "header") {
+      const headerName = String(config.auth_header_name || (providerCode === "api-football" ? "x-apisports-key" : ""));
+      if (!headerName) throw new Error("Competition catalogue authentication header is missing.");
+      headers.set(headerName, config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey);
+    } else if (authType === "query") {
+      if (!config.auth_query_param) throw new Error("Competition catalogue authentication query parameter is missing.");
+      target.searchParams.set(String(config.auth_query_param), clearKey);
+    } else throw new Error("Unsupported provider authentication method.");
+  } else if (providerCode === "api-football" && config.has_api_key && config.api_key_ciphertext && config.api_key_iv) {
+    headers.set("x-apisports-key", await decryptSecret(config.api_key_ciphertext, config.api_key_iv));
+  }
+
+  const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(25000), redirect: "error" });
+  if (!response.ok) throw new Error(`Competition catalogue request returned HTTP ${response.status} ${response.statusText || "error"}. Check the provider key, plan and endpoint.`);
+  const bodyText = await readSmallResponseBody(response, 8 * 1024 * 1024);
+  if (!bodyText.trim()) throw new Error("The provider returned an empty competition catalogue response.");
+  if (hasProviderApiErrors(bodyText)) throw new Error("The provider reported an API-level error while loading its competition catalogue.");
+  let raw: unknown;
+  try { raw = JSON.parse(bodyText); } catch (_error) { throw new Error("The provider competition catalogue response was not valid JSON."); }
+  return normalizeCatalogRows(raw, config);
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json(405, { ok: false, error: "Method not allowed." });
@@ -446,6 +620,28 @@ Deno.serve(async (request: Request) => {
     const actor = await requireAdmin(request, admin);
     const body = await request.json().catch(() => ({}));
     const action = cleanText(body.action, 40).toLowerCase();
+
+    if (action === "sync_competitions") {
+      const settings = await getSettings(admin);
+      const id = cleanText(body.id || settings.active_api_config_id || settings.selected_api_config_id, 80);
+      if (!id) throw new Error("Select or activate a football API provider before synchronizing its competition catalogue.");
+      const config = await getConfig(admin, id);
+      if (!config.is_enabled) throw new Error("Enable the selected provider before synchronizing its competition catalogue.");
+      const rows = await fetchCompetitionCatalog(config);
+      if (!rows.length) throw new Error("The provider returned no usable competitions. Check its API plan and competition endpoint.");
+      const syncedAt = new Date().toISOString();
+      const values = rows.map((row) => ({ ...row, provider_config_id: id, provider_code: String(config.provider_code || "custom"), last_synced_at: syncedAt, updated_at: syncedAt }));
+      let saved = 0;
+      for (let offset = 0; offset < values.length; offset += 200) {
+        const batch = values.slice(offset, offset + 200);
+        const { error } = await admin.from("football_competition_catalog").upsert(batch, { onConflict: "provider_config_id,external_competition_id" });
+        if (error) throw error;
+        saved += batch.length;
+      }
+      await admin.from("football_public_cache").delete().like("cache_key", `livescore:${id}:%`);
+      await writeLog(admin, { event_type: "football_competition_catalog_synced", config_id: id, success: true, message: `${saved} competitions synchronized from ${config.provider_name}.`, actor_user_id: actor.id });
+      return json(200, { ok: true, provider_name: config.provider_name, provider_code: config.provider_code, competition_count: saved, synced_at: syncedAt, message: `${saved.toLocaleString("en-US")} competitions synchronized from ${config.provider_name}. The visitor dropdown will now show the provider's available leagues and cups.` });
+    }
 
     if (action === "list") {
       const configs: Record<string, any>[] = [];
