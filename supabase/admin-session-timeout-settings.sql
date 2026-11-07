@@ -1,14 +1,21 @@
 -- PARROTHIT configurable admin inactivity timeout.
 -- Apply AFTER supabase/admin-single-session-migration.sql.
--- Default: 30 minutes. Allowed values: 5, 10, 15, 30, 60.
+-- Default: 30 minutes. Allowed values: 5, 15, 30, 60, or 0 (Never).
+-- Never disables inactivity logout; manual logout, revocation, and Supabase Auth expiry remain active.
 
 create table if not exists public.admin_security_settings (
   setting_key text primary key check (setting_key = 'global'),
   session_timeout_minutes integer not null default 30
-    check (session_timeout_minutes in (5, 10, 15, 30, 60)),
+    check (session_timeout_minutes in (0, 5, 15, 30, 60)),
   updated_by uuid references auth.users(id) on delete set null,
   updated_at timestamptz not null default now()
 );
+
+alter table public.admin_security_settings drop constraint if exists admin_security_settings_session_timeout_minutes_check;
+alter table public.admin_security_settings add constraint admin_security_settings_session_timeout_minutes_check
+  check (session_timeout_minutes in (0, 5, 15, 30, 60));
+update public.admin_security_settings set session_timeout_minutes = 30
+where setting_key = 'global' and session_timeout_minutes = 10;
 
 insert into public.admin_security_settings (setting_key, session_timeout_minutes)
 values ('global', 30)
@@ -66,12 +73,12 @@ begin
 
   if found
      and v_current.expires_at > pg_catalog.now()
-     and v_current.last_activity_at > pg_catalog.now() - pg_catalog.make_interval(mins => v_timeout_minutes) then
+     and (v_timeout_minutes = 0 or v_current.last_activity_at > pg_catalog.now() - pg_catalog.make_interval(mins => v_timeout_minutes)) then
     if v_current.session_token_hash = p_session_token_hash then
       update public.admin_active_sessions
       set auth_session_id = p_auth_session_id,
           last_activity_at = pg_catalog.now(),
-          expires_at = pg_catalog.now() + interval '30 days',
+          expires_at = case when v_timeout_minutes = 0 then 'infinity'::timestamptz else pg_catalog.now() + interval '30 days' end,
           device_name = coalesce(nullif(p_device_name, ''), device_name),
           user_agent = coalesce(nullif(p_user_agent, ''), user_agent),
           device_fingerprint = coalesce(nullif(p_device_fingerprint, ''), device_fingerprint)
@@ -90,7 +97,7 @@ begin
   ) values (
     p_user_id, p_auth_session_id, p_session_token_hash, nullif(p_device_fingerprint, ''),
     coalesce(nullif(p_device_name, ''), 'Unknown device'), nullif(p_user_agent, ''),
-    pg_catalog.now(), pg_catalog.now(), pg_catalog.now() + interval '30 days'
+    pg_catalog.now(), pg_catalog.now(), case when v_timeout_minutes = 0 then 'infinity'::timestamptz else pg_catalog.now() + interval '30 days' end
   );
   return query select true, coalesce(nullif(p_device_name, ''), 'Unknown device'), pg_catalog.now(), pg_catalog.now();
 end;
@@ -120,7 +127,7 @@ as $$
       where s.user_id = auth.uid()
         and s.auth_session_id = nullif(auth.jwt() ->> 'session_id', '')::uuid
         and s.expires_at > pg_catalog.now()
-        and s.last_activity_at > pg_catalog.now() - pg_catalog.make_interval(mins => public.parrothit_admin_session_timeout_minutes())
+        and (public.parrothit_admin_session_timeout_minutes() = 0 or s.last_activity_at > pg_catalog.now() - pg_catalog.make_interval(mins => public.parrothit_admin_session_timeout_minutes()))
     )
   ) else true end;
 $$;
@@ -138,7 +145,7 @@ begin
     perform cron.schedule(
       'parrothit-admin-session-cleanup',
       '*/5 * * * *',
-      $job$delete from public.admin_active_sessions where expires_at <= now() or last_activity_at <= now() - make_interval(mins => public.parrothit_admin_session_timeout_minutes());$job$
+      $job$delete from public.admin_active_sessions where expires_at <= now() or (public.parrothit_admin_session_timeout_minutes() > 0 and last_activity_at <= now() - make_interval(mins => public.parrothit_admin_session_timeout_minutes()));$job$
     );
   end if;
 end;
