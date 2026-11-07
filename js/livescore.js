@@ -11,6 +11,7 @@
   const dateInput = $('plDateInput');
   const compSelect = $('plCompetition');
   const searchInput = $('plSearchInput');
+  const competitionSearchInput = $('plCompetitionSearch');
   const query = new URLSearchParams(location.search);
   const requestedView = query.get('view');
   const LAGOS = 'Africa/Lagos';
@@ -28,6 +29,10 @@
   let selectedView = initialView;
   let currentMatches = [];
   let currentProvider = '';
+  let competitionCatalog = [];
+  let catalogProvider = '';
+  let catalogLoaded = false;
+  let catalogRequest = null;
   let currentPage = 1;
   const PAGE_SIZE = 50;
   let activeRequest = null;
@@ -152,30 +157,122 @@
       <button class="pl-star ${saved ? 'is-saved' : ''}" type="button" data-favourite="${esc(id)}" aria-label="${saved ? 'Remove from' : 'Add to'} favourites" aria-pressed="${saved}">${saved ? '★' : '☆'}</button>
     </article>`;
   }
+  function normalizedCompetitionName(value) {
+    return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function competitionCatalogEntry(match) {
+    const id = String(match?.competition_id ?? match?.league_id ?? '');
+    if (id) {
+      const byId = competitionCatalog.find((item) => String(item.external_competition_id ?? '') === id);
+      if (byId) return byId;
+    }
+    const name = normalizedCompetitionName(leagueName(match));
+    const country = normalizedCompetitionName(leagueCountry(match));
+    return competitionCatalog.find((item) => normalizedCompetitionName(item.competition_name) === name && normalizedCompetitionName(item.country_name) === country)
+      || competitionCatalog.find((item) => normalizedCompetitionName(item.competition_name) === name);
+  }
   function competitionOptions(matches) {
-    const existing = new Set([...compSelect.options].map((option) => option.value));
-    [...new Set(matches.map(leagueName))].sort((a, b) => a.localeCompare(b)).forEach((name) => {
-      const key = `custom:${name}`;
-      if (!existing.has(key)) {
-        const option = document.createElement('option');
-        option.value = key;
-        option.textContent = name;
-        compSelect.append(option);
-      }
+    const selectedBefore = compSelect.value || 'all';
+    const records = new Map();
+    competitionCatalog.forEach((item) => {
+      const id = String(item.external_competition_id ?? '').trim();
+      const name = String(item.competition_name || '').trim();
+      if (!name) return;
+      const country = String(item.country_name || 'International').trim() || 'International';
+      const key = id ? `comp:${id}` : `name:${normalizedCompetitionName(name)}|${normalizedCompetitionName(country)}`;
+      records.set(key, { key, name, country, type: String(item.competition_type || 'Competition'), logo: item.competition_logo_url || '', countryCode: item.country_code || '' });
     });
+    (matches || []).forEach((match) => {
+      const entry = competitionCatalogEntry(match);
+      const id = String(match?.competition_id ?? entry?.external_competition_id ?? '').trim();
+      const name = leagueName(match);
+      const country = leagueCountry(match) || entry?.country_name || 'International';
+      const key = id ? `comp:${id}` : `name:${normalizedCompetitionName(name)}|${normalizedCompetitionName(country)}`;
+      if (!records.has(key)) records.set(key, { key, name, country, type: match?.competition_type || 'Competition', logo: match?.competition_logo || match?.league_logo || entry?.competition_logo_url || '', countryCode: match?.country_code || '' });
+    });
+
+    const needle = normalizedCompetitionName(competitionSearchInput?.value || '');
+    const all = [...records.values()].sort((a, b) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name));
+    const filtered = needle ? all.filter((item) => normalizedCompetitionName(`${item.name} ${item.country} ${item.type}`).includes(needle)) : all;
+    compSelect.replaceChildren();
+    const allOption = document.createElement('option');
+    allOption.value = 'all';
+    allOption.textContent = needle ? `All matching competitions (${filtered.length})` : `All competitions (${all.length.toLocaleString()})`;
+    compSelect.appendChild(allOption);
+
+    const byCountry = new Map();
+    filtered.forEach((item) => {
+      if (!byCountry.has(item.country)) byCountry.set(item.country, []);
+      byCountry.get(item.country).push(item);
+    });
+    [...byCountry.entries()].sort(([a], [b]) => a.localeCompare(b)).forEach(([country, items]) => {
+      const group = document.createElement('optgroup');
+      group.label = `${country} (${items.length})`;
+      items.forEach((item) => {
+        const option = document.createElement('option');
+        option.value = item.key;
+        option.textContent = `${item.name}${item.type && item.type.toLowerCase() !== 'league' ? ` · ${item.type}` : ''}`;
+        option.title = `${item.name} · ${country}`;
+        group.appendChild(option);
+      });
+      compSelect.appendChild(group);
+    });
+    const values = [...compSelect.options].map((option) => option.value);
+    compSelect.value = values.includes(selectedBefore) ? selectedBefore : 'all';
+    const count = $('plCompetitionCount');
+    if (count) {
+      const source = catalogLoaded ? (catalogProvider ? `from ${catalogProvider}` : 'from provider catalogue') : 'from current match feed';
+      count.textContent = needle ? `${filtered.length.toLocaleString()} matching of ${all.length.toLocaleString()} competitions · ${source}` : `${all.length.toLocaleString()} competitions available · ${source}`;
+    }
   }
   function competitionAllowed(match) {
     const selected = compSelect.value;
     if (selected === 'all') return true;
-    const haystack = `${leagueName(match)} ${leagueCountry(match)} ${match.league_code || ''}`.toLowerCase();
-    if (selected.startsWith('custom:')) return leagueName(match) === selected.slice(7);
-    const terms = {
-      premier: ['premier league', 'england'], laliga: ['la liga', 'laliga', 'spain'],
-      seriea: ['serie a', 'italy'], bundesliga: ['bundesliga', 'germany'],
-      ligue1: ['ligue 1', 'france'], nigeria: ['nigeria', 'npfl'],
-      champions: ['champions league', 'uefa champions']
-    }[selected] || [selected];
-    return terms.some((term) => haystack.includes(term));
+    const entry = competitionCatalogEntry(match);
+    if (selected.startsWith('comp:')) {
+      const id = selected.slice(5);
+      return String(match?.competition_id ?? match?.league_id ?? entry?.external_competition_id ?? '') === id;
+    }
+    if (selected.startsWith('name:')) {
+      const [name, country] = selected.slice(5).split('|');
+      return normalizedCompetitionName(leagueName(match)) === name
+        && normalizedCompetitionName(leagueCountry(match) || entry?.country_name || 'International') === country;
+    }
+    return true;
+  }
+  async function loadCompetitionCatalog() {
+    if (!endpoint || !anonKey) { competitionOptions(currentMatches); return; }
+    if (catalogRequest) catalogRequest.abort();
+    const controller = new AbortController();
+    catalogRequest = controller;
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST', cache: 'no-store', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+        body: JSON.stringify({ action: 'catalog' })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || `Competition catalogue returned HTTP ${response.status}.`);
+      competitionCatalog = Array.isArray(payload.competitions) ? payload.competitions : [];
+      catalogProvider = String(payload.provider || '');
+      catalogLoaded = true;
+      competitionOptions(currentMatches);
+      renderMatches();
+    } catch (error) {
+      if (error?.name === 'AbortError') return;
+      catalogLoaded = false;
+      competitionOptions(currentMatches);
+      if ($('plCompetitionCount')) $('plCompetitionCount').textContent = `Competition catalogue unavailable · ${error?.message || 'using match feed'}`;
+    } finally {
+      if (catalogRequest === controller) catalogRequest = null;
+    }
+  }
+  function competitionLogo(match) {
+    const entry = competitionCatalogEntry(match);
+    const id = String(match?.competition_id ?? entry?.external_competition_id ?? '');
+    const providerCode = String(match?.provider_code || '').toLowerCase().replace(/[\s_]+/g, '-');
+    const providerLogo = (providerCode === 'api-football' && /^\d+$/.test(id)) ? `https://media.api-sports.io/football/leagues/${id}.png` : '';
+    return safeImage(match?.competition_logo || match?.league_logo || entry?.competition_logo_url || providerLogo);
   }
   function filterMatches() {
     const search = String(searchInput?.value || '').trim().toLowerCase();
@@ -230,15 +327,19 @@
     const groups = new Map();
     pageMatches.forEach((match) => {
       const name = leagueName(match);
-      if (!groups.has(name)) groups.set(name, []);
-      groups.get(name).push(match);
+      const country = leagueCountry(match);
+      const id = String(match?.competition_id || '');
+      const groupKey = id ? `id:${id}` : `name:${normalizedCompetitionName(name)}|${normalizedCompetitionName(country)}`;
+      if (!groups.has(groupKey)) groups.set(groupKey, { name, country, matches: [] });
+      groups.get(groupKey).matches.push(match);
     });
-    const html = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, matches]) => {
-      const country = leagueCountry(matches[0]);
-      const logo = safeImage(matches[0].competition_logo || matches[0].league_logo);
+    const html = [...groups.entries()].sort(([, a], [, b]) => a.country.localeCompare(b.country) || a.name.localeCompare(b.name)).map(([, group]) => {
+      const { name, country, matches } = group;
+      const logo = matches.map(competitionLogo).find(Boolean) || ''; 
+      const initial = esc(name.trim().slice(0, 2).toUpperCase() || 'FC');
       const crest = logo
-        ? `<img class="pl-competition-logo" src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`
-        : `<span class="pl-competition-mark">${esc(name.slice(0, 2).toUpperCase())}</span>`;
+        ? `<img class="pl-competition-logo" src="${esc(logo)}" alt="${esc(name)} logo" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-competition-mark" style="display:none">${initial}</span>`
+        : `<span class="pl-competition-mark">${initial}</span>`;
       return `<details class="pl-competition" open><summary>${crest}<span class="pl-competition-name"><b>${esc(name)}</b><small>${esc(country || 'Football')}</small></span><span class="pl-group-count">${matches.length} ${matches.length === 1 ? 'match' : 'matches'}</span><span class="pl-chevron">›</span></summary><div class="pl-competition-matches">${matches.map(matchCard).join('')}</div></details>`;
     }).join('');
     matchRoot.innerHTML = html;
@@ -354,6 +455,7 @@
   $('plLiveShortcut').addEventListener('click', () => setView('live'));
   dateInput.addEventListener('change', () => setDate(dateInput.value));
   compSelect.addEventListener('change', () => { currentPage = 1; renderMatches(); });
+  competitionSearchInput?.addEventListener('input', () => { currentPage = 1; competitionOptions(currentMatches); renderMatches(); });
   $('plRefresh').addEventListener('click', fetchMatches);
   $('plFavourites').addEventListener('click', () => {
     currentPage = 1;
@@ -403,6 +505,8 @@
     $('plFavourites').classList.add('is-active');
     $('plFavourites').setAttribute('aria-pressed', 'true');
   }
+  competitionOptions([]);
+  loadCompetitionCatalog();
   fetchMatches();
   restartTimer();
 })();

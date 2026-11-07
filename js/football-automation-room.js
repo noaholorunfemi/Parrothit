@@ -262,7 +262,7 @@
   }
 
   function renderAll() {
-    renderRows(); renderHealth(); renderPrimary(); renderSettings();
+    renderRows(); renderHealth(); renderPrimary(); renderSettings(); renderCatalogProviderOptions();
     $('fr-stat-total').textContent = state.configs.length;
     $('fr-stat-enabled').textContent = state.configs.filter((x) => x.is_enabled).length;
     $('fr-stat-tested').textContent = state.configs.filter((x) => x.last_test_ok === true).length;
@@ -535,6 +535,63 @@
     table.appendChild(body); root.appendChild(table);
   }
 
+
+  function renderCatalogProviderOptions() {
+    const select = $('fr-catalog-provider-select');
+    if (!select) return;
+    const previous = select.value;
+    select.replaceChildren();
+    const prompt = document.createElement('option');
+    prompt.value = '';
+    prompt.textContent = 'Choose an enabled football provider';
+    select.appendChild(prompt);
+    const enabled = state.configs.filter((item) => item.is_enabled && String(item.sport || 'football').toLowerCase() === 'football')
+      .sort((a, b) => {
+        const activeA = a.id === state.settings?.active_api_config_id ? -1 : 0;
+        const activeB = b.id === state.settings?.active_api_config_id ? -1 : 0;
+        return activeA - activeB || String(a.provider_name).localeCompare(String(b.provider_name));
+      });
+    enabled.forEach((config) => {
+      const option = document.createElement('option');
+      option.value = config.id;
+      option.textContent = `${config.provider_name}${config.id === state.settings?.active_api_config_id ? ' · ACTIVE' : ''}`;
+      select.appendChild(option);
+    });
+    const preferred = previous || state.settings?.active_api_config_id || state.settings?.selected_api_config_id || enabled[0]?.id || '';
+    select.value = enabled.some((config) => config.id === preferred) ? preferred : '';
+  }
+
+  async function syncCompetitionCatalog() {
+    const select = $('fr-catalog-provider-select');
+    const id = select?.value || state.settings?.active_api_config_id || state.settings?.selected_api_config_id;
+    if (!id) {
+      feedback('fr-catalog-feedback', 'Choose or activate an enabled football provider before synchronizing the worldwide competition catalogue.', 'error');
+      return;
+    }
+    const config = state.configs.find((item) => item.id === id);
+    if (!config || !config.is_enabled) {
+      feedback('fr-catalog-feedback', 'The selected provider is disabled. Enable it before synchronizing competitions.', 'error');
+      return;
+    }
+    const button = $('fr-sync-competition-catalog');
+    button.disabled = true;
+    button.textContent = 'Synchronizing catalogue…';
+    feedback('fr-catalog-feedback', `Requesting the competition catalogue from ${config.provider_name}. This does not change the active public match provider.`, '');
+    try {
+      const result = await callRoom('sync_competitions', { id });
+      const count = Number(result.competition_count || 0);
+      feedback('fr-catalog-feedback', `${count.toLocaleString()} competitions synchronized from ${result.provider_name || config.provider_name}. ${result.message || ''}`, 'ok');
+      toast(`${count.toLocaleString()} competitions synchronized. The visitor catalogue will use them when this provider is active.`);
+      setGlobalStatus(`${count.toLocaleString()} competitions synchronized from ${result.provider_name || config.provider_name}.`, 'ok');
+    } catch (error) {
+      feedback('fr-catalog-feedback', error.message || 'Could not synchronize the competition catalogue.', 'error');
+      setGlobalStatus(error.message || 'Competition catalogue synchronization failed.', 'error');
+    } finally {
+      button.disabled = false;
+      button.textContent = '↻ Synchronize competitions';
+    }
+  }
+
   async function runActiveDiagnostics() {
     const id = state.settings?.active_api_config_id || state.settings?.selected_api_config_id;
     if (!id) { feedback('fr-diagnostics-summary', 'Select or activate a provider before running diagnostics.', 'error'); return; }
@@ -575,6 +632,7 @@
     $('fr-pause-public').addEventListener('click', pausePublicLivescore);
     $('fr-run-diagnostics')?.addEventListener('click', runActiveDiagnostics);
     $('fr-clear-livescore-cache')?.addEventListener('click', clearActiveCache);
+    $('fr-sync-competition-catalog')?.addEventListener('click', syncCompetitionCatalog);
     $('fr-api-rows').addEventListener('click', (event) => {
       const button = event.target.closest('[data-fr-action]');
       if (button) handleAction(button);

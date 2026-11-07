@@ -106,7 +106,13 @@
     providerName = provider || providerName;
     $('plMatchLoading').hidden = true;
     $('plMatchContent').hidden = false;
-    $('plMatchCompetition').textContent = [match.league || match.competition || 'Football', match.country || match.league_country || ''].filter(Boolean).join(' · ');
+    const competitionName = match.league || match.competition || 'Football';
+    const competitionCountry = match.country || match.league_country || '';
+    const competitionId = String(match.competition_id || match.league_id || '');
+    const competitionLogo = safeUrl(match.competition_logo || match.league_logo || (/^\d+$/.test(competitionId) && String(match.provider_code || '').toLowerCase().replace(/[\s_]+/g, '-') === 'api-football' ? `https://media.api-sports.io/football/leagues/${competitionId}.png` : ''));
+    const competitionInitial = esc(String(competitionName).slice(0, 2).toUpperCase() || 'FC');
+    const competitionHeading = $('plMatchCompetition');
+    competitionHeading.innerHTML = `${competitionLogo ? `<img class="pl-detail-competition-logo" src="${esc(competitionLogo)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-grid'">` : ''}<span class="pl-detail-competition-fallback"${competitionLogo ? ' style="display:none"' : ''}>${competitionInitial}</span><span>${esc([competitionName, competitionCountry].filter(Boolean).join(' · '))}</span>`;
     renderPictureCard(match);
     renderTeam('plHomeTeam', match, 'home');
     renderTeam('plAwayTeam', match, 'away');
