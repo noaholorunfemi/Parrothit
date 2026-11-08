@@ -112,7 +112,8 @@
               <select id="fr-sport"><option value="football">Football</option><option value="multi-sport">Multi-sport</option><option value="other">Other</option></select>
             </label>
             <label class="fr-field">API plan
-              <select id="fr-plan"><option value="free">Free / free tier</option><option value="paid">Paid</option><option value="custom">Custom / self-hosted</option></select>
+              <select id="fr-plan"><option value="free">Free / free tier</option><option value="developer">Developer (no data storage)</option><option value="business">Business (commercial + storage)</option><option value="professional">Professional (commercial + storage)</option><option value="enterprise">Enterprise (commercial + storage)</option><option value="paid">Paid / other provider</option><option value="custom">Custom / self-hosted</option></select>
+              <small>API Ninjas: Free is for development/testing only. Developer permits commercial use but not data caching/storage. Because PARROTHIT caches public match data, choose Business, Professional or Enterprise only after confirming the active subscription.</small>
             </label>
             <label class="fr-field fr-field-wide">API base URL
               <input id="fr-api-base" type="url" inputmode="url" placeholder="https://api.example.com" required>
