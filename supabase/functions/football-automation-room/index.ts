@@ -181,6 +181,14 @@ function defaultEndpoints(providerCode: string): Record<string, string> {
       results: "/v1/results?date={date}&per_page=1000",
     };
   }
+  if (providerCode === "api-ninjas") {
+    return {
+      live: "/v1/soccermatches?date={date}",
+      today: "/v1/soccermatches?date={date}",
+      upcoming: "/v1/soccermatches?date={date}",
+      results: "/v1/soccermatches?date={date}",
+    };
+  }
   return {};
 }
 
@@ -227,6 +235,12 @@ function builtInMappingFor(providerCode: string): Record<string, unknown> {
   if (providerCode === "football-data-org") return {
     matches_path: "matches", id: "id", competition: "competition.name",
     home_team: "homeTeam.name", away_team: "awayTeam.name", status: "status", kickoff: "utcDate",
+  };
+  if (providerCode === "api-ninjas") return {
+    matches_path: "", id: "game_id", competition: "league", competition_id: "league", competition_code: "league",
+    home_team: "home_team.name", away_team: "away_team.name", home_score: "home_score", away_score: "away_score",
+    status: "status", kickoff: "start_time", minute: "clock", venue_name: "venue.name", venue_city: "venue.city",
+    country_code: "venue.country", live_status_values: ["in_progress"], finished_status_values: ["final"], upcoming_status_values: ["scheduled"],
   };
   return {};
 }
@@ -307,9 +321,14 @@ async function providerFetch(config: Record<string, any>, view: string, date: st
 async function runProviderDiagnostics(config: Record<string, any>, date: string) {
   const views = ["live", "today", "upcoming", "results"];
   const diagnostics: Record<string, any>[] = [];
+  // API Ninjas' season query returns a representative batch even when the selected test day has no LaLiga match.
+  // Visitor-facing routes remain date-scoped; this wider sample is used only to verify the adapter and mapping.
+  const diagnosticConfig = String(config.provider_code || "") === "api-ninjas"
+    ? { ...config, endpoints: { live: "/v1/soccermatches?season={season}", today: "/v1/soccermatches?season={season}", upcoming: "/v1/soccermatches?season={season}", results: "/v1/soccermatches?season={season}" } }
+    : config;
   for (const view of views) {
     try {
-      const result = await providerFetch(config, view, date);
+      const result = await providerFetch(diagnosticConfig, view, date);
       diagnostics.push({ view, ...result, ok: result.http_status >= 200 && result.http_status < 300 && result.list_found });
     } catch (error) {
       diagnostics.push({ view, http_status: null, raw_count: 0, usable_count: 0, list_found: false, duration_ms: 0, ok: false, message: error instanceof Error ? error.message : "Request failed.", endpoint: "Not requested" });
@@ -354,8 +373,11 @@ function validatePublicActivationConfig(config: Record<string, any>) {
     throw new Error(`${config.provider_name || "This provider"} is not configured for football. Set its sport to Football or Multi-sport before activation.`);
   }
   if (!config.is_enabled) throw new Error(`Enable ${config.provider_name || "this provider"} before activation.`);
+  if (String(config.provider_code || "") === "api-ninjas" && String(config.plan_type || "free") === "free") {
+    throw new Error("API Ninjas does not permit commercial use on its free tier. Upgrade to the API Ninjas Premium plan, confirm your account's commercial-use entitlement, then set API plan to Paid and rerun diagnostics before activating this provider.");
+  }
   if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error(`${config.provider_name || "This provider"} must pass all endpoint checks and return at least one usable match before activation.`);
-  const builtInAdapters = ["openligadb", "api-football", "football-data-org", "sportmonks", "footballapi-org"];
+  const builtInAdapters = ["openligadb", "api-football", "football-data-org", "sportmonks", "footballapi-org", "api-ninjas"];
   if (!builtInAdapters.includes(String(config.provider_code || ""))) {
     const endpoints = plainObject(config.endpoints);
     const mapping = plainObject(config.response_mapping);
@@ -388,6 +410,7 @@ async function refreshPublicActivationState(admin: ReturnType<typeof createClien
     && item.is_public_active === true
     && item.last_test_ok === true
     && item.last_match_test_ok === true
+    && !(String(item.provider_code || "") === "api-ninjas" && String(item.plan_type || "free") === "free")
   );
   const primaryId = preferredId || null;
   const nextLegacyActiveId = (primaryId && activeProviders.some((item) => item.id === primaryId) ? primaryId : activeProviders[0]?.id) || null;
@@ -555,9 +578,40 @@ function firstCatalogPath(row: unknown, candidates: string[]): unknown {
   return undefined;
 }
 
+const API_NINJAS_FREE_COMPETITIONS = [
+  { code: "epl", name: "Premier League", country: "England", country_code: "GB" },
+  { code: "laliga", name: "LaLiga", country: "Spain", country_code: "ES" },
+  { code: "bundesliga", name: "Bundesliga", country: "Germany", country_code: "DE" },
+  { code: "seriea", name: "Serie A", country: "Italy", country_code: "IT" },
+  { code: "ligue1", name: "Ligue 1", country: "France", country_code: "FR" },
+  { code: "ucl", name: "UEFA Champions League", country: "Europe", country_code: "EU" },
+  { code: "uel", name: "UEFA Europa League", country: "Europe", country_code: "EU" },
+  { code: "mls", name: "Major League Soccer", country: "United States / Canada", country_code: "US" },
+];
+
 function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record<string, unknown>[] {
   const providerCode = String(config.provider_code || "").toLowerCase();
   const mapping = plainObject(config.response_mapping);
+  if (providerCode === "api-ninjas") {
+    const year = new Date().getFullYear();
+    return API_NINJAS_FREE_COMPETITIONS.map((item) => ({
+      provider_code: providerCode,
+      external_competition_id: item.code,
+      competition_name: item.name,
+      competition_type: item.code === "ucl" || item.code === "uel" ? "Cup" : "League",
+      country_name: item.country,
+      country_code: item.country_code,
+      country_flag_url: null,
+      competition_logo_url: null,
+      season_year: year,
+      season_years: [year],
+      is_current_season: true,
+      coverage: { plan: "free", source: "API Ninjas published Football API coverage", note: "Current-season fixtures/results. In-play score and clock fields require a paid plan." },
+      is_enabled: true,
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+  }
   let sourceRows: unknown;
   if (providerCode === "api-football") sourceRows = getPath(raw, "response");
   else if (providerCode === "football-data-org") sourceRows = getPath(raw, "competitions");
@@ -673,6 +727,7 @@ async function fetchCompetitionCatalog(config: Record<string, any>): Promise<Rec
     : providerCode === "sportmonks" ? "/leagues?include=country;seasons"
     : providerCode === "footballapi-org" ? "/v1/competitions"
     : providerCode === "openligadb" ? `/getavailableleagues/${new Date().getFullYear()}`
+    : providerCode === "api-ninjas" ? `/v1/soccermatches?league=laliga&season=${new Date().getFullYear()}`
     : "";
   const route = typeof endpoints.competitions === "string" && String(endpoints.competitions).trim()
     ? String(endpoints.competitions).trim()
