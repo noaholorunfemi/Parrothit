@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#050505">
   <meta name="description" content="Live football scores, fixtures and results from PARROTHIT LiveScore.">
   <title>PARROTHIT LiveScore — Football Scores</title>
-  <link rel="stylesheet" href="css/livescore.css">
+  <link rel="stylesheet" href="css/livescore.css?v=football-aggregation-20261108">
 </head>
 <body class="pl-body">
   <div class="pl-app">
@@ -80,7 +80,7 @@
         <div class="pl-state-card"><span class="pl-spinner"></span><strong>Loading football matches…</strong><p>Connecting to PARROTHIT's active football data provider.</p></div>
       </section>
       <nav id="plPagination" class="pl-pagination" aria-label="Match result pages" aria-live="polite"></nav>
-      <div class="pl-footer-note">Scores and fixtures are supplied by the active provider configured in the Football Automation Room. An empty schedule means the provider returned no matches for this selection; a connection failure is shown separately.</div>
+      <div class="pl-footer-note">Scores and fixtures are aggregated from every verified provider activated in the Football Automation Room. An empty schedule means the active services returned no matches for this selection; provider failures are reported separately.</div><div id="plProviderAttribution" class="pl-provider-attribution" aria-label="Sports data attribution"></div>
     </main>
 
     <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
@@ -101,8 +101,8 @@
   </dialog>
 
   <script src="supabase-config.js"></script>
-  <script src="js/livescore-config.js"></script>
+  <script src="js/livescore-config.js?v=football-aggregation-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
-  <script src="js/livescore.js" defer></script>
+  <script src="js/livescore.js?v=football-aggregation-20261108" defer></script>
 </body>
 </html>
