@@ -70,9 +70,12 @@ function firstPath(value: unknown, candidates: string[]): unknown {
   return undefined;
 }
 
-function expandTemplate(value: string, date: string, view: string, competition: string): string {
+function expandTemplate(value: string, date: string, view: string, competition: string, dateFrom = date, dateTo = date): string {
   return value
     .replaceAll("{date}", date)
+    .replaceAll("{from}", dateFrom).replaceAll("{to}", dateTo)
+    .replaceAll("{date_from}", dateFrom).replaceAll("{date_to}", dateTo)
+    .replaceAll("{start_date}", dateFrom).replaceAll("{end_date}", dateTo)
     .replaceAll("{season}", date.slice(0, 4))
     .replaceAll("{view}", view)
     .replaceAll("{competition}", encodeURIComponent(competition));
@@ -156,6 +159,31 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
   return {};
 }
 
+function builtInRangeEndpoints(providerCode: string): Record<string, string> {
+  // Use one range request where the provider natively supports date windows.
+  if (providerCode === "api-football") return {
+    upcoming: "/fixtures?from={from}&to={to}&timezone=Africa/Lagos",
+    results: "/fixtures?from={from}&to={to}&timezone=Africa/Lagos",
+  };
+  if (providerCode === "football-data-org") return {
+    upcoming: "/v4/matches?dateFrom={from}&dateTo={to}",
+    results: "/v4/matches?dateFrom={from}&dateTo={to}",
+  };
+  if (providerCode === "sportmonks") return {
+    upcoming: "/fixtures/between/{from}/{to}?include=participants;scores;state;league",
+    results: "/fixtures/between/{from}/{to}?include=participants;scores;state;league",
+  };
+  if (providerCode === "footballapi-org") return {
+    upcoming: "/v1/matches?date_from={from}&date_to={to}&per_page=1000",
+    results: "/v1/matches?date_from={from}&date_to={to}&per_page=1000",
+  };
+  if (providerCode === "bzzoiro") return {
+    upcoming: "/events/?date_from={from}&date_to={to}&limit=200",
+    results: "/events/?date_from={from}&date_to={to}&limit=200",
+  };
+  return {};
+}
+
 function builtInMapping(providerCode: string): Record<string, unknown> {
   if (providerCode === "api-football") {
     return {
@@ -197,7 +225,7 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
   if (providerCode === "sportapi-ai") return {
     matches_path: "fixtures", id: "id", competition: "league_name", competition_id: "league_id",
     home_team: "home_team", away_team: "away_team", home_score: "home_score", away_score: "away_score",
-    status: "status", kickoff: "kickoff",
+    status: "status", kickoff: "kickoff_utc",
   };
   if (providerCode === "footballdata-io") {
     return {
@@ -366,7 +394,7 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
   const finishedValues = new Set((Array.isArray(mapping.finished_status_values) ? mapping.finished_status_values : ["FT", "AET", "PEN", "FINISHED", "FULL_TIME", "FULLTIME", "ENDED", "AWD", "WO", "COMPLETED"]).map((x) => String(x).toUpperCase().replace(/[\s-]+/g, "_")));
   const upcomingValues = new Set((Array.isArray(mapping.upcoming_status_values) ? mapping.upcoming_status_values : ["NS", "TBD", "SCHEDULED", "TIMED", "NOT_STARTED", "POSTPONED", "PST", "UPCOMING"]).map((x) => String(x).toUpperCase().replace(/[\s-]+/g, "_")));
 
-  return rows.slice(0, 500).map((row: any) => {
+  return rows.slice(0, 5000).map((row: any) => {
     const rawStatus = firstPath(row, [
       typeof mapping.status === "string" ? mapping.status : "", "status.short", "status.name", "status.state", "status",
       "state.short", "state.name", "state", "match_status", "fixture.status.short",
@@ -411,7 +439,7 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
     const countryFlag = firstPath(row, [typeof mapping.country_flag === "string" ? mapping.country_flag : "", "league.flag", "area.flag", "country.flag", "country_flag"].filter(Boolean));
     const kickoff = firstPath(row, [
       typeof mapping.kickoff === "string" ? mapping.kickoff : "", "fixture.date", "utcDate", "starting_at", "kickoff", "kickoff_at",
-      "start_time", "scheduled_at", "match_date", "match_time", "date_time", "date", "time",
+      "kickoff_utc", "datetime", "start_time", "scheduled_at", "match_date", "match_time", "date_time", "date", "time",
     ].filter(Boolean)) ?? firstPath(raw, ["date", "requested_date", "fixture_date"]);
     if (!homeTeam || !awayTeam || kickoff == null || !Number.isFinite(Date.parse(String(kickoff)))) return null;
     let minute = firstPath(row, [typeof mapping.minute === "string" ? mapping.minute : "", "minute", "elapsed", "time.elapsed", "fixture.status.elapsed", "period.minute"].filter(Boolean));
@@ -480,40 +508,90 @@ function todayInLagos(): string {
   return dateInLagos(new Date().toISOString());
 }
 
-function classify(matches: Record<string, any>[], view: string, date: string): Record<string, any>[] {
+function shiftIsoDay(day: string, amount: number): string {
+  const value = new Date(`${day}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + amount);
+  return value.toISOString().slice(0, 10);
+}
+
+function daysBetweenInclusive(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  return Number.isFinite(start) && Number.isFinite(end) && end >= start
+    ? Math.floor((end - start) / 86400000) + 1 : 0;
+}
+
+function endOfLagosDay(day: string): string {
+  return new Date(`${shiftIsoDay(day, 1)}T00:00:00+01:00`).toISOString();
+}
+
+function classify(matches: Record<string, any>[], view: string, date: string, dateFrom = date, dateTo = date): Record<string, any>[] {
   const now = Date.now();
   return matches.filter((match) => {
     const timestamp = match.kickoff ? Date.parse(String(match.kickoff)) : NaN;
     const validDate = Number.isFinite(timestamp);
     const day = validDate ? dateInLagos(String(match.kickoff)) : "";
-    const finished = match.status === "FT";
-    const live = match.status === "LIVE";
+    const status = String(match.status || "").toUpperCase();
+    const finished = ["FT", "AET", "PEN", "FINISHED", "FULL_TIME", "ENDED", "AWD", "WO"].includes(status);
+    const live = ["LIVE", "IN_PLAY", "PAUSED", "1H", "2H", "HT", "ET", "BT", "P", "SUSP", "INT"].includes(status);
+    const inWindow = validDate && day >= dateFrom && day <= dateTo;
     if (view === "live") return live;
-    if (view === "results") return finished && validDate && day === date;
-    if (view === "upcoming") return !finished && !live && validDate && day === date && timestamp > now;
+    if (view === "window") return inWindow;
+    if (view === "results") return finished && inWindow;
+    if (view === "upcoming") return !finished && !live && inWindow && timestamp > now;
     if (view === "today") return validDate && day === date;
     return false;
   });
 }
 
-function routeFor(providerCode: string, endpoints: Record<string, unknown>, view: string): string {
-  const configured = endpoints[view] ?? endpoints.today;
-  const route = typeof configured === "string" && configured.trim() ? configured : builtInEndpoints(providerCode)[view];
-  if (!route) throw new Error("No endpoint is configured for the " + view + " feed. Add it under Match endpoints in Football Automation Room.");
-  if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\\\") || /^[a-z]+:\/\//i.test(route)) throw new Error("Provider endpoint must be a relative path on the configured API host.");
+function validateProviderRoute(route: string): string {
+  if (!route) throw new Error("No endpoint is configured for this football feed. Add it under Match endpoints in Football Automation Room.");
+  if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
+    throw new Error("Provider endpoint must be a relative path on the configured API host.");
+  }
   return route;
 }
 
-async function providerRequest(provider: Record<string, any>, view: string, date: string, competition: string): Promise<{ raw: unknown; response: Response }> {
-  const base = validateBaseUrl(String(provider.api_base_url || ""));
+function routeFor(providerCode: string, endpoints: Record<string, unknown>, view: string): string {
+  const configured = endpoints[view] ?? endpoints.today;
+  const route = typeof configured === "string" && configured.trim() ? configured : builtInEndpoints(providerCode)[view];
+  return validateProviderRoute(String(route || ""));
+}
+
+function rangeRouteFor(providerCode: string, endpoints: Record<string, unknown>, view: string): string {
+  const nestedRange = plainObject(endpoints.range);
+  const configured = endpoints[`${view}_range`] ?? endpoints[`${view}Range`] ?? nestedRange[view];
+  if (typeof configured === "string" && configured.trim()) return validateProviderRoute(configured);
+  const standardRoute = endpoints[view];
+  if (typeof standardRoute === "string" && /\{(?:from|to|date_from|date_to|start_date|end_date)\}/.test(standardRoute)) {
+    return validateProviderRoute(standardRoute);
+  }
+  const builtIns = builtInRangeEndpoints(providerCode);
+  // The range endpoints used for Upcoming/Results return all statuses unless a status filter
+  // is explicitly present, so they are also suitable for the Today calendar feed.
+  const builtIn = builtIns[view] || (view === "today" ? builtIns.upcoming : "");
+  return builtIn ? validateProviderRoute(builtIn) : "";
+}
+
+function expandProviderRoute(provider: Record<string, any>, view: string, date: string, competition: string, dateFrom: string, dateTo: string, routeOverride = ""): string {
   const endpoints = plainObject(provider.endpoints);
-  const route = expandTemplate(routeFor(String(provider.provider_code || "custom"), endpoints, view), date, view, competition);
+  const route = routeOverride || routeFor(String(provider.provider_code || "custom"), endpoints, view);
+  return expandTemplate(route, date, view, competition, dateFrom, dateTo);
+}
+
+async function providerRequest(
+  provider: Record<string, any>, view: string, date: string, competition: string,
+  dateFrom = date, dateTo = date, routeOverride = "", page = 1,
+): Promise<{ raw: unknown; response: Response }> {
+  const base = validateBaseUrl(String(provider.api_base_url || ""));
+  const route = expandProviderRoute(provider, view, date, competition, dateFrom, dateTo, routeOverride);
   const target = new URL(route.replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
   const params = plainObject(provider.default_query_params);
   for (const [key, rawValue] of Object.entries(params)) {
-    const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view, competition) : String(rawValue);
+    const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view, competition, dateFrom, dateTo) : String(rawValue);
     target.searchParams.set(key, value);
   }
+  if (page > 1) target.searchParams.set("page", String(page));
 
   const headers = new Headers();
   const customHeaders = plainObject(provider.custom_headers);
@@ -795,6 +873,31 @@ async function runWithConcurrency<T, R>(items: T[], concurrency: number, task: (
   return results;
 }
 
+function providerPagination(raw: unknown, providerCode: string): { current: number; total: number } | null {
+  const value = raw as any;
+  let current = 1;
+  let total = 1;
+  if (providerCode === "api-football") {
+    current = Number(value?.paging?.current || 1);
+    total = Number(value?.paging?.total || 1);
+  } else {
+    const pagination = value?.meta?.pagination || value?.pagination || value?.meta?.page || {};
+    current = Number(pagination.current_page || pagination.current || value?.meta?.current_page || 1);
+    total = Number(pagination.last_page || pagination.total_pages || pagination.totalPages || value?.meta?.last_page || 1);
+  }
+  if (!Number.isFinite(current) || !Number.isFinite(total) || total <= current) return null;
+  return { current, total };
+}
+
+function mergeProviderPage(base: unknown, next: unknown, providerCode: string): unknown {
+  const baseObject = plainObject(base);
+  const nextObject = plainObject(next);
+  const listKey = providerCode === "api-football" ? "response"
+    : (providerCode === "sportmonks" || providerCode === "footballapi-org") ? "data" : "";
+  if (!listKey || !Array.isArray(baseObject[listKey]) || !Array.isArray(nextObject[listKey])) return base;
+  return { ...baseObject, [listKey]: [...baseObject[listKey], ...nextObject[listKey]] };
+}
+
 async function fetchOneProvider(
   db: ReturnType<typeof createClient>,
   provider: Record<string, any>,
@@ -802,6 +905,12 @@ async function fetchOneProvider(
   date: string,
   competition: string,
   ttl: number,
+  dateFrom = date,
+  dateTo = date,
+  cacheKeyOverride = "",
+  routeOverride = "",
+  skipCatalog = false,
+  includeAllWindow = false,
 ): Promise<Record<string, any>> {
   if (provider.provider_code === "footballapi-org" && String(provider.plan_type || "free") === "free" && view === "live") {
     return {
@@ -810,16 +919,61 @@ async function fetchOneProvider(
       diagnostics: { notice: "FootballAPI.org live scores require membership. This complimentary plan can still contribute fixtures and settled results." },
     };
   }
-  const cacheKey = `livescore:v2:${provider.id}:${view}:${date}:${competition}`;
+  const code = String(provider.provider_code || "");
+  const cacheKey = cacheKeyOverride || `livescore:v4:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const now = new Date();
   const { data: cached } = await db.from("football_public_cache")
     .select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
-  if (cached && new Date(cached.expires_at) > now && Array.isArray(cached.payload?.matches)) {
-    return { ok: true, cached: true, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null };
+  const cachedPayload = plainObject(cached?.payload);
+  const cachedPagination = plainObject(cachedPayload.pagination);
+  const cachedIncomplete = cachedPagination.complete === false && Number(cachedPagination.next_page) > 1;
+  if (cached && new Date(cached.expires_at) > now && Array.isArray(cached.payload?.matches) && !cachedIncomplete) {
+    return {
+      ok: true, cached: true, stale: false, provider: provider.provider_name,
+      provider_id: provider.id, provider_code: provider.provider_code,
+      matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {},
+      pagination_pending: false, http_status: null,
+    };
   }
 
   try {
-    const { raw, response } = await providerRequest(provider, view, date, competition);
+    const priorMatches = cachedIncomplete && Array.isArray(cachedPayload.matches) ? cachedPayload.matches : [];
+    const priorDiagnostics = cachedIncomplete ? plainObject(cachedPayload.diagnostics) : {};
+    const nextPageStart = cachedIncomplete ? Math.max(1, Number(cachedPagination.next_page) || 1) : 1;
+    let reportedPages = cachedIncomplete ? Math.max(1, Number(cachedPagination.reported_pages) || 1) : 1;
+    let raw: unknown = null;
+    let response: Response | null = null;
+    let pagesFetchedThisPass = 0;
+    let pageFailure = "";
+    let nextPage = nextPageStart;
+
+    // Fetch up to twelve pages per visit. Incomplete page sets are saved with a cursor so the
+    // visitor's automatic follow-up request resumes at the next page rather than starting over.
+    const firstPage = await providerRequest(provider, view, date, competition, dateFrom, dateTo, routeOverride, nextPageStart);
+    raw = firstPage.raw;
+    response = firstPage.response;
+    pagesFetchedThisPass = 1;
+    const firstPagination = providerPagination(raw, code);
+    if (firstPagination) reportedPages = firstPagination.total;
+    else if (!cachedIncomplete) reportedPages = nextPageStart;
+    nextPage = nextPageStart + 1;
+
+    const chunkEnd = Math.min(reportedPages, nextPageStart + 11);
+    for (let page = nextPageStart + 1; page <= chunkEnd; page += 1) {
+      try {
+        const pageResult = await providerRequest(provider, view, date, competition, dateFrom, dateTo, routeOverride, page);
+        raw = mergeProviderPage(raw, pageResult.raw, code);
+        response = pageResult.response;
+        pagesFetchedThisPass += 1;
+        nextPage = page + 1;
+      } catch (pageError) {
+        pageFailure = pageError instanceof Error ? pageError.message : "page request failed";
+        nextPage = page;
+        break;
+      }
+    }
+
+    const paginationComplete = nextPage > reportedPages && !pageFailure;
     let normalized: Record<string, any>[];
     let notice = "";
     if (provider.provider_code === "openligadb" && !Object.keys(plainObject(provider.response_mapping)).length) {
@@ -832,17 +986,18 @@ async function fetchOneProvider(
     } else if (provider.provider_code === "footballapi-org") {
       normalized = normalizeFootballApiOrg(raw) as Record<string, any>[];
     } else {
-      const mapping = { ...builtInMapping(String(provider.provider_code || "")), ...plainObject(provider.response_mapping) };
+      const mapping = { ...builtInMapping(code), ...plainObject(provider.response_mapping) };
       if (!Object.keys(mapping).length) throw new Error("No response mapping is configured for this API. Add its JSON field paths in Football Automation Room.");
-      normalized = normalizeMapped(raw, mapping, String(provider.provider_code || "")) as Record<string, any>[];
+      normalized = normalizeMapped(raw, mapping, code) as Record<string, any>[];
     }
 
-    const competitionCatalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
-    normalized = enrichWithCompetitionCatalog(normalized, competitionCatalog, String(provider.provider_code || "")) as Record<string, any>[];
-    const classified = classify(normalized, view, date).map((match: Record<string, any>) => ({
+    const competitionCatalog = skipCatalog ? [] : await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
+    if (!skipCatalog) normalized = enrichWithCompetitionCatalog(normalized, competitionCatalog, code) as Record<string, any>[];
+    const classificationView = includeAllWindow && view === "today" ? "window" : view;
+    const classified = classify(normalized, classificationView, date, dateFrom, dateTo).map((match: Record<string, any>) => ({
       ...match,
       provider_config_id: String(provider.id),
-      provider_code: String(provider.provider_code || "").toLowerCase().replace(/[\s_]+/g, "-"),
+      provider_code: code.toLowerCase().replace(/[\s_]+/g, "-"),
       provider_name: String(provider.provider_name || "Football API"),
       source_provider: String(provider.provider_name || "Football API"),
       source_priority: Number(provider.priority || 999999),
@@ -853,33 +1008,197 @@ async function fetchOneProvider(
       provider_count: 1,
       public_match_key: publicMatchKey(match, String(provider.id)),
     }));
-    const rawRows = provider.provider_code === "openligadb"
-      ? (Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [])
-      : providerRowsForDiagnostics(raw, plainObject(provider.response_mapping), String(provider.provider_code || ""));
+    const combinedMatches = [...priorMatches, ...classified];
+    const rawRows = providerRowsForDiagnostics(raw, plainObject(provider.response_mapping), code);
+    const rawRecordCount = Number(priorDiagnostics.raw_records || 0) + (Array.isArray(rawRows) ? rawRows.length : 0);
+    const normalizedRecordCount = Number(priorDiagnostics.normalized_records || 0) + normalized.length;
+    const paginationProgress = {
+      complete: paginationComplete,
+      pages_fetched: Math.min(reportedPages, nextPage - 1),
+      reported_pages: reportedPages,
+      next_page: paginationComplete ? null : nextPage,
+      pages_fetched_this_pass: pagesFetchedThisPass,
+    };
+    const paginationNotice = pageFailure
+      ? ` Pagination paused at page ${nextPage}: ${pageFailure}.`
+      : !paginationComplete
+        ? ` Loaded ${paginationProgress.pages_fetched}/${reportedPages} pages; the next visitor refresh will continue at page ${nextPage}.`
+        : "";
     const payload: Record<string, any> = {
       ok: true,
-      matches: classified,
-      total_returned: classified.length,
+      matches: combinedMatches,
+      total_returned: combinedMatches.length,
       competition_catalog_count: competitionCatalog.length,
       diagnostics: {
-        raw_records: Array.isArray(rawRows) ? rawRows.length : 0,
-        normalized_records: normalized.length,
-        returned_records: classified.length,
+        raw_records: rawRecordCount,
+        normalized_records: normalizedRecordCount,
+        returned_records: combinedMatches.length,
         fetched_at: now.toISOString(),
-        http_status: response.status,
+        http_status: response?.status || null,
       },
-      ...(notice ? { message: notice } : {}),
+      pagination: paginationProgress,
+      ...(notice || paginationNotice ? { message: `${notice}${paginationNotice}`.trim() } : {}),
     };
-    const expiresAt = new Date(now.getTime() + ttl * 1000).toISOString();
+    const cacheTtl = paginationComplete ? ttl : 15 * 60;
+    const expiresAt = new Date(now.getTime() + cacheTtl * 1000).toISOString();
     await db.from("football_public_cache").upsert({ cache_key: cacheKey, payload, provider_name: provider.provider_name, fetched_at: now.toISOString(), expires_at: expiresAt });
-    return { ok: true, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: classified, diagnostics: payload.diagnostics, http_status: response.status, message: notice };
+    return {
+      ok: true, cached: false, stale: false, provider: provider.provider_name,
+      provider_id: provider.id, provider_code: provider.provider_code,
+      matches: combinedMatches, diagnostics: payload.diagnostics, http_status: response?.status || null,
+      pagination_pending: !paginationComplete,
+      pagination_progress: paginationProgress,
+      message: `${notice}${paginationNotice}`.trim(),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Provider request failed.";
-    if (cached && Array.isArray(cached.payload?.matches) && now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000) {
-      return { ok: true, cached: true, stale: true, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null, error: message };
+    if (cached && Array.isArray(cached.payload?.matches) && (cachedIncomplete || now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000)) {
+      return {
+        ok: true, cached: true, stale: true, provider: provider.provider_name,
+        provider_id: provider.id, provider_code: provider.provider_code,
+        matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {},
+        http_status: null, error: message,
+        pagination_pending: cachedIncomplete,
+        pagination_progress: cachedIncomplete ? cachedPagination : null,
+      };
     }
     return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {}, http_status: null, error: message };
   }
+}
+
+const DAILY_WINDOW_BATCH_DAYS = 7;
+const DAILY_WINDOW_CONCURRENCY = 2;
+const DAILY_WINDOW_CACHE_TTL_SECONDS = 24 * 60 * 60;
+
+async function readWindowCursor(db: ReturnType<typeof createClient>, cacheKey: string, firstDate: string): Promise<{ nextDate: string; complete: boolean }> {
+  const { data } = await db.from("football_public_cache").select("payload,expires_at").eq("cache_key", cacheKey).maybeSingle();
+  if (!data || new Date(data.expires_at) <= new Date()) return { nextDate: firstDate, complete: false };
+  const payload = plainObject(data.payload);
+  return {
+    nextDate: typeof payload.next_date === "string" ? payload.next_date : firstDate,
+    complete: payload.complete === true,
+  };
+}
+
+async function writeWindowCursor(db: ReturnType<typeof createClient>, cacheKey: string, providerName: string, nextDate: string, complete: boolean, firstDate: string, dateTo: string): Promise<void> {
+  await db.from("football_public_cache").upsert({
+    cache_key: cacheKey,
+    payload: {
+      next_date: nextDate, complete,
+      scanned_days: complete ? daysBetweenInclusive(firstDate, dateTo) : Math.max(0, daysBetweenInclusive(firstDate, nextDate) - 1),
+      total_days: daysBetweenInclusive(firstDate, dateTo), updated_at: new Date().toISOString(),
+    },
+    provider_name: providerName, fetched_at: new Date().toISOString(), expires_at: endOfLagosDay(firstDate),
+  });
+}
+
+async function loadWindowDayCache(db: ReturnType<typeof createClient>, cachePrefix: string): Promise<{ matches: Record<string, any>[]; raw: number; normalized: number }> {
+  const { data, error } = await db.from("football_public_cache")
+    .select("payload,expires_at,fetched_at").like("cache_key", `${cachePrefix}%`).order("fetched_at", { ascending: true });
+  if (error) throw error;
+  const now = Date.now();
+  const output: Record<string, any>[] = [];
+  let raw = 0, normalized = 0;
+  for (const row of data || []) {
+    const fetchedAt = Date.parse(String(row.fetched_at || ""));
+    if (Number.isFinite(fetchedAt) && now - fetchedAt > 26 * 60 * 60 * 1000) continue;
+    if (Array.isArray(row.payload?.matches)) output.push(...row.payload.matches);
+    raw += Number(row.payload?.diagnostics?.raw_records || 0);
+    normalized += Number(row.payload?.diagnostics?.normalized_records || 0);
+  }
+  return { matches: output, raw, normalized };
+}
+
+function providerHasFullWindowFeed(provider: Record<string, any>, view: string): boolean {
+  const route = routeFor(String(provider.provider_code || "custom"), plainObject(provider.endpoints), view);
+  return !route.includes("{date}") && !route.includes("{from}") && !route.includes("{to}")
+    && !route.includes("{date_from}") && !route.includes("{date_to}");
+}
+
+async function fetchProviderWindow(
+  db: ReturnType<typeof createClient>, provider: Record<string, any>, view: string,
+  selectedDate: string, competition: string, ttl: number, dateFrom: string, dateTo: string,
+): Promise<Record<string, any>> {
+  if (view === "live") return fetchOneProvider(db, provider, view, dateFrom, competition, ttl, dateFrom, dateFrom);
+
+  const code = String(provider.provider_code || "custom");
+  const endpoints = plainObject(provider.endpoints);
+  const rangeRoute = rangeRouteFor(code, endpoints, view);
+  if (rangeRoute) {
+    const cacheKey = `livescore:v4range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, rangeRoute, false, view === "today");
+    return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
+  }
+
+  if (providerHasFullWindowFeed(provider, view)) {
+    const cacheKey = `livescore:v4season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, "", false, view === "today");
+    return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
+  }
+
+  // Date-only services are synchronized progressively. Every response handles the current day plus
+  // a seven-day continuation batch, and the next visitor request resumes from the saved cursor.
+  const primaryDay = dateFrom;
+  const primaryKey = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
+  const primary = await fetchOneProvider(db, provider, view, primaryDay, competition, ttl, primaryDay, primaryDay, primaryKey, "", true);
+
+  const cursorKey = `livescore:v4window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursor = await readWindowCursor(db, cursorKey, shiftIsoDay(dateFrom, 1));
+  let nextDate = cursor.nextDate;
+  const batchResults: Record<string, any>[] = [];
+  let syncPending = !cursor.complete && nextDate <= dateTo;
+  if (syncPending) {
+    const days: string[] = [];
+    for (let index = 0; index < DAILY_WINDOW_BATCH_DAYS && nextDate <= dateTo; index += 1) {
+      days.push(nextDate);
+      nextDate = shiftIsoDay(nextDate, 1);
+    }
+    batchResults.push(...await runWithConcurrency(days, DAILY_WINDOW_CONCURRENCY, (day) => {
+      const key = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
+      return fetchOneProvider(db, provider, view, day, competition, DAILY_WINDOW_CACHE_TTL_SECONDS, day, day, key, "", true);
+    }));
+    const firstIncompleteIndex = batchResults.findIndex((item) => item.ok !== true || item.pagination_pending === true);
+    const retryFromDate = firstIncompleteIndex >= 0 ? days[firstIncompleteIndex] : nextDate;
+    const complete = retryFromDate > dateTo;
+    await writeWindowCursor(db, cursorKey, String(provider.provider_name || "Football provider"), retryFromDate, complete, dateFrom, dateTo);
+    nextDate = retryFromDate;
+    syncPending = !complete;
+  }
+
+  const prefix = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
+  const cachedWindow = await loadWindowDayCache(db, prefix);
+  let matches = cachedWindow.matches;
+  try {
+    const catalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
+    matches = enrichWithCompetitionCatalog(matches, catalog, code) as Record<string, any>[];
+  } catch (_error) { /* Competition metadata is optional; keep valid score rows. */ }
+  const filtered = view === "today"
+    ? matches.filter((match) => dateInLagos(String(match.kickoff || "")) === selectedDate)
+    : classify(matches, view, selectedDate, dateFrom, dateTo);
+  const failedDays = batchResults.filter((item) => item.ok !== true);
+  const paginationPending = primary.pagination_pending === true || batchResults.some((item) => item.pagination_pending === true);
+  const paginationProgress = primary.pagination_pending ? primary.pagination_progress : batchResults.find((item) => item.pagination_pending)?.pagination_progress || null;
+  const progress = {
+    scanned_days: cursor.complete ? daysBetweenInclusive(dateFrom, dateTo)
+      : Math.min(daysBetweenInclusive(dateFrom, dateTo), Math.max(1, daysBetweenInclusive(dateFrom, shiftIsoDay(nextDate, -1)))) ,
+    total_days: daysBetweenInclusive(dateFrom, dateTo),
+    next_date: syncPending ? nextDate : "",
+  };
+  const ok = primary.ok === true || batchResults.some((item) => item.ok === true) || filtered.length > 0;
+  const error = !ok ? (primary.error || failedDays[0]?.error || "No date in the requested window returned a usable response.")
+    : failedDays.length ? `${failedDays.length} date request(s) failed while syncing this provider.` : undefined;
+  return {
+    ok, cached: primary.cached === true && batchResults.every((item) => item.cached === true), stale: primary.stale === true,
+    provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code,
+    matches: filtered, http_status: primary.http_status,
+    diagnostics: {
+      raw_records: cachedWindow.raw, normalized_records: cachedWindow.normalized,
+      returned_records: filtered.length, scanned_days: progress.scanned_days, total_days: progress.total_days,
+    },
+    sync_pending: syncPending, sync_progress: progress,
+    pagination_pending: paginationPending, pagination_progress: paginationProgress,
+    ...(error ? { error } : {}),
+  };
 }
 
 async function loadCombinedCompetitionCatalog(
@@ -925,6 +1244,9 @@ Deno.serve(async (request: Request) => {
     const view = ["live", "today", "upcoming", "results"].includes(body.view) ? String(body.view) : "live";
     const dateText = String(body.date || "");
     const date = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : todayInLagos();
+    const dateFrom = todayInLagos();
+    const dateTo = `${dateFrom.slice(0, 4)}-12-31`;
+    const windowDays = daysBetweenInclusive(dateFrom, dateTo);
     const requestedCompetition = String(body.competition || "all").toLowerCase().slice(0, 40);
     const competition = /^[a-z0-9_-]+$/.test(requestedCompetition) ? requestedCompetition : "all";
     const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -958,7 +1280,18 @@ Deno.serve(async (request: Request) => {
     const ttl = Math.max(15, Math.min(3600, Number(settings.cache_seconds || settings.public_livescore_cache_seconds || 60)));
     // All active providers are included. Requests are batched at a small concurrency level to avoid
     // sudden rate-limit spikes while still using every activated service in the same visitor response.
-    const providerResults = await runWithConcurrency(activeProviders, 6, (provider) => fetchOneProvider(db, provider, view, date, competition, ttl));
+    const providerResults = await runWithConcurrency(activeProviders, 6, async (provider) => {
+      try {
+        return await fetchProviderWindow(db, provider, view, date, competition, ttl, dateFrom, dateTo);
+      } catch (providerError) {
+        return {
+          ok: false, cached: false, stale: false,
+          provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code,
+          matches: [], diagnostics: {}, http_status: null,
+          error: providerError instanceof Error ? providerError.message : "Provider window synchronization failed.",
+        };
+      }
+    });
     const successfulProviders = providerResults.filter((result) => result.ok === true);
     const failedProviders = providerResults.filter((result) => result.ok !== true);
     const providerMatches = providerResults.flatMap((result) => Array.isArray(result.matches) ? result.matches : []);
@@ -978,6 +1311,11 @@ Deno.serve(async (request: Request) => {
       cached: result.cached,
       stale: result.stale,
       matches: Array.isArray(result.matches) ? result.matches.length : 0,
+      sync_pending: result.sync_pending === true,
+      sync_progress: result.sync_progress || null,
+      pagination_pending: result.pagination_pending === true,
+      pagination_progress: result.pagination_progress || null,
+      ...(result.message ? { message: result.message } : {}),
       http_status: result.http_status,
       ...(result.error ? { error: result.error } : {}),
     }));
@@ -998,14 +1336,26 @@ Deno.serve(async (request: Request) => {
       ? ` ${failedProviders.length} provider(s) failed (${failureDetails}${failedProviders.length > 3 ? "; more failures omitted" : ""}); successful feeds are still displayed.`
       : "";
     const staleNote = counts.stale_providers ? ` ${counts.stale_providers} provider cache(s) are temporarily stale.` : "";
+    const pendingProviders = providerResults.filter((result) => result.sync_pending === true || result.pagination_pending === true);
+    const datePending = providerResults.filter((result) => result.sync_pending === true).length;
+    const pagePending = providerResults.filter((result) => result.pagination_pending === true).length;
+    const scannedDays = providerResults.reduce((max, result) => Math.max(max, Number(result.sync_progress?.scanned_days || 0)), 0);
+    const syncNote = pendingProviders.length
+      ? ` Sync in progress: ${datePending} provider(s) have date batches remaining (${scannedDays}/${windowDays} dates scanned); ${pagePending} provider(s) have more result pages.`
+      : ` Date window checked: ${dateFrom} to ${dateTo}.`;
     const message = combined.matches.length
-      ? `${combined.matches.length.toLocaleString("en-US")} unique match(es) combined from ${providerLabel}; ${combined.duplicates_removed} duplicate(s) merged.${failuresNote}${staleNote}`
-      : `Connected to ${providerLabel}, but no matches matched the ${view} feed for ${date}. Raw records: ${counts.raw_records}; usable records: ${counts.normalized_records}.${failuresNote}${staleNote}`;
+      ? `${combined.matches.length.toLocaleString("en-US")} unique match(es) combined from ${providerLabel}; ${combined.duplicates_removed} duplicate(s) merged.${syncNote}${failuresNote}${staleNote}`
+      : `Connected to ${providerLabel}, but no matches matched the ${view} feed in ${dateFrom} to ${dateTo}. Raw records: ${counts.raw_records}; usable records: ${counts.normalized_records}.${syncNote}${failuresNote}${staleNote}`;
     return reply(200, {
       ok: true,
       matches: combined.matches,
       view,
       date,
+      date_from: dateFrom,
+      date_to: dateTo,
+      date_window_days: windowDays,
+      sync_pending: pendingProviders.length > 0,
+      sync_pending_provider_count: pendingProviders.length,
       total_returned: combined.matches.length,
       provider: providerLabel,
       provider_count: activeProviders.length,
@@ -1018,6 +1368,9 @@ Deno.serve(async (request: Request) => {
         duplicates_removed: combined.duplicates_removed,
         successful_providers: successfulProviders.length,
         failed_providers: failedProviders.length,
+        window_days: windowDays,
+        window_sync_pending_providers: pendingProviders.length,
+        window_scanned_days: scannedDays,
         fetched_at: new Date().toISOString(),
       },
       message,
