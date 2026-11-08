@@ -103,6 +103,22 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
       results: "/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED",
     };
   }
+  if (providerCode === "sportmonks") {
+    return {
+      live: "/livescores/inplay?include=participants;scores;state;league",
+      today: "/fixtures/date/{date}?include=participants;scores;state;league",
+      upcoming: "/fixtures/date/{date}?include=participants;scores;state;league",
+      results: "/fixtures/date/{date}?include=participants;scores;state;league",
+    };
+  }
+  if (providerCode === "footballapi-org") {
+    return {
+      live: "/v1/live",
+      today: "/v1/matches?date_from={date}&date_to={date}&per_page=1000",
+      upcoming: "/v1/matches?date_from={date}&date_to={date}&status=scheduled&per_page=1000",
+      results: "/v1/results?date={date}&per_page=1000",
+    };
+  }
   return {};
 }
 
@@ -161,6 +177,94 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
     };
   });
   return { matches, notice: "OpenLigaDB is a free, community-maintained feed. This configured route covers one competition only; it does not provide worldwide coverage or dependable live status." };
+}
+
+function normalizeFootballApiOrg(raw: unknown): Record<string, unknown>[] {
+  const data = (raw as any)?.data;
+  const rows = Array.isArray(data) ? data : (data && typeof data === "object" ? [data] : []);
+  return rows.map((item: any) => {
+    const homeRaw = item?.home_club_name ?? item?.home ?? item?.home_team ?? "";
+    const awayRaw = item?.away_club_name ?? item?.away ?? item?.away_team ?? "";
+    const home = typeof homeRaw === "string" ? { name: homeRaw } : { name: homeRaw?.name || homeRaw?.club_name || "Home team", ...(homeRaw?.logo || homeRaw?.crest ? { logo: homeRaw.logo || homeRaw.crest } : {}) };
+    const away = typeof awayRaw === "string" ? { name: awayRaw } : { name: awayRaw?.name || awayRaw?.club_name || "Away team", ...(awayRaw?.logo || awayRaw?.crest ? { logo: awayRaw.logo || awayRaw.crest } : {}) };
+    const score = item?.score || {};
+    const homeScore = item?.home_goals ?? item?.home_score ?? score?.home ?? null;
+    const awayScore = item?.away_goals ?? item?.away_score ?? score?.away ?? null;
+    const rawStatus = String(item?.match_status || item?.status || "scheduled").trim().toLowerCase().replace(/[ -]+/g, "_");
+    let status = "Scheduled";
+    if (["finished", "full_time", "fulltime", "ft", "ended", "after_extra_time", "after_penalties"].includes(rawStatus)) status = "FT";
+    else if (["live", "in_play", "inplay", "paused", "half_time", "halftime", "first_half", "second_half", "extra_time", "penalties", "1h", "2h", "ht", "et"].includes(rawStatus)) status = "LIVE";
+    else if (["postponed", "cancelled", "abandoned"].includes(rawStatus)) status = "Scheduled";
+    const kickoff = item?.kickoff_utc || item?.kickoff || item?.date || null;
+    return {
+      match_id: item?.match_id == null ? null : String(item.match_id),
+      league: item?.competition_name || item?.competition || item?.league_name || "Football",
+      league_code: item?.competition || item?.competition_code || "",
+      competition_id: item?.competition_id || item?.competition || null,
+      country: item?.country_name || item?.country || "",
+      home, away,
+      home_score: homeScore == null ? null : Number(homeScore),
+      away_score: awayScore == null ? null : Number(awayScore),
+      status,
+      kickoff: kickoff == null ? null : String(kickoff),
+      minute: item?.elapsed_minutes == null ? null : String(item.elapsed_minutes),
+      venue: item?.ground_name || item?.ground || "",
+      venue_city: item?.city_name || item?.city || "",
+      referee: item?.referee_name || item?.referee || "",
+    };
+  }).filter((match: any) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
+}
+
+function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
+  const data = (raw as any)?.data;
+  const rows = Array.isArray(data) ? data : (data && typeof data === "object" ? [data] : []);
+  return rows.map((fixture: any) => {
+    const participants = Array.isArray(fixture?.participants) ? fixture.participants : [];
+    const home = participants.find((item: any) => String(item?.meta?.location || "").toLowerCase() === "home") || {};
+    const away = participants.find((item: any) => String(item?.meta?.location || "").toLowerCase() === "away") || {};
+    const scores = Array.isArray(fixture?.scores) ? fixture.scores : [];
+    const current = scores.filter((item: any) => String(item?.description || "").toUpperCase() === "CURRENT");
+    let homeScore: unknown = null;
+    let awayScore: unknown = null;
+    current.forEach((item: any) => {
+      const side = String(item?.score?.participant || "").toLowerCase();
+      if (side === "home") homeScore = item?.score?.goals ?? null;
+      if (side === "away") awayScore = item?.score?.goals ?? null;
+    });
+    const state = fixture?.state || {};
+    const stateText = String(state?.short_name || state?.name || state?.state || "").trim();
+    const stateKey = stateText.toLowerCase();
+    let status = "Scheduled";
+    if (/live|in.?play|1st half|first half|2nd half|second half|half time|half-time|extra time|penalt|break/.test(stateKey)) status = "LIVE";
+    else if (/finished|full time|full-time|after extra time|after penalties|ended/.test(stateKey)) status = "FT";
+    const league = fixture?.league || {};
+    const venue = fixture?.venue || {};
+    const kickoff = fixture?.starting_at || fixture?.starting_at_timestamp || null;
+    return {
+      match_id: fixture?.id == null ? null : String(fixture.id),
+      league: league?.name || fixture?.league_name || "Football",
+      league_code: league?.short_code || league?.short_name || "",
+      competition_id: fixture?.league_id == null ? null : String(fixture.league_id),
+      competition_type: league?.type || "League",
+      competition_logo: league?.image_path || null,
+      league_logo: league?.image_path || null,
+      country: league?.country?.name || league?.country_name || "",
+      country_code: league?.country?.iso2 || league?.country?.code || "",
+      home: { name: home?.name || "Home team", ...(home?.image_path ? { logo: home.image_path } : {}) },
+      away: { name: away?.name || "Away team", ...(away?.image_path ? { logo: away.image_path } : {}) },
+      home_score: homeScore,
+      away_score: awayScore,
+      status,
+      kickoff: kickoff == null ? null : String(kickoff),
+      minute: fixture?.periods?.[0]?.minutes == null ? null : String(fixture.periods[0].minutes),
+      venue_id: fixture?.venue_id == null ? null : String(fixture.venue_id),
+      venue: venue?.name || "",
+      venue_city: venue?.city_name || venue?.city || "",
+      venue_image: venue?.image_path || null,
+      match_image: venue?.image_path || null,
+      referee: fixture?.referee?.name || "",
+    };
+  }).filter((match: Record<string, any>) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
 
 function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, providerCode = ""): Record<string, unknown>[] {
@@ -292,6 +396,10 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
 
 
 function providerRowsForDiagnostics(raw: unknown, mapping: Record<string, unknown>, providerCode: string): unknown[] {
+  if (providerCode === "sportmonks" || providerCode === "footballapi-org") {
+    const data = (raw as any)?.data;
+    return Array.isArray(data) ? data : (data && typeof data === "object" ? [data] : []);
+  }
   if (providerCode === "openligadb") return Array.isArray(raw) ? raw : Array.isArray((raw as any)?.data) ? (raw as any).data : [];
   const path = typeof mapping.matches_path === "string" ? mapping.matches_path : "";
   const mapped = path ? objectPath(raw, path) : undefined;
@@ -631,6 +739,13 @@ async function fetchOneProvider(
   competition: string,
   ttl: number,
 ): Promise<Record<string, any>> {
+  if (provider.provider_code === "footballapi-org" && String(provider.plan_type || "free") === "free" && view === "live") {
+    return {
+      ok: true, cached: false, stale: false, provider: provider.provider_name,
+      provider_id: provider.id, matches: [], http_status: 200,
+      diagnostics: { notice: "FootballAPI.org live scores require membership. This complimentary plan can still contribute fixtures and settled results." },
+    };
+  }
   const cacheKey = `livescore:v2:${provider.id}:${view}:${date}:${competition}`;
   const now = new Date();
   const { data: cached } = await db.from("football_public_cache")
@@ -648,6 +763,10 @@ async function fetchOneProvider(
       const result = normalizeOpenLiga(rawRows);
       normalized = result.matches as Record<string, any>[];
       notice = result.notice;
+    } else if (provider.provider_code === "sportmonks") {
+      normalized = normalizeSportmonks(raw) as Record<string, any>[];
+    } else if (provider.provider_code === "footballapi-org") {
+      normalized = normalizeFootballApiOrg(raw) as Record<string, any>[];
     } else {
       const mapping = { ...builtInMapping(String(provider.provider_code || "")), ...plainObject(provider.response_mapping) };
       if (!Object.keys(mapping).length) throw new Error("No response mapping is configured for this API. Add its JSON field paths in Football Automation Room.");
