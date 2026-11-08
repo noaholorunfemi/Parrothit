@@ -321,22 +321,34 @@ async function providerFetch(config: Record<string, any>, view: string, date: st
 async function runProviderDiagnostics(config: Record<string, any>, date: string) {
   const views = ["live", "today", "upcoming", "results"];
   const diagnostics: Record<string, any>[] = [];
-  // API Ninjas' season query returns a representative batch even when the selected test day has no LaLiga match.
-  // Visitor-facing routes remain date-scoped; this wider sample is used only to verify the adapter and mapping.
-  const diagnosticConfig = String(config.provider_code || "") === "api-ninjas"
+  const isApiNinjas = String(config.provider_code || "").toLowerCase() === "api-ninjas";
+  // API Ninjas exposes one soccermatches endpoint, not four separate feed endpoints.
+  // Use one season-scoped request to verify the adapter and avoid spending quota on four identical calls.
+  const diagnosticConfig = isApiNinjas
     ? { ...config, endpoints: { live: "/v1/soccermatches?season={season}", today: "/v1/soccermatches?season={season}", upcoming: "/v1/soccermatches?season={season}", results: "/v1/soccermatches?season={season}" } }
     : config;
-  for (const view of views) {
+  if (isApiNinjas) {
     try {
-      const result = await providerFetch(diagnosticConfig, view, date);
-      diagnostics.push({ view, ...result, ok: result.http_status >= 200 && result.http_status < 300 && result.list_found });
+      const result = await providerFetch(diagnosticConfig, "today", date);
+      for (const view of views) diagnostics.push({ view, ...result, ok: result.http_status >= 200 && result.http_status < 300 && result.list_found, shared_endpoint_check: true });
     } catch (error) {
-      diagnostics.push({ view, http_status: null, raw_count: 0, usable_count: 0, list_found: false, duration_ms: 0, ok: false, message: error instanceof Error ? error.message : "Request failed.", endpoint: "Not requested" });
+      const failure = { http_status: null, raw_count: 0, usable_count: 0, list_found: false, duration_ms: 0, ok: false, message: error instanceof Error ? error.message : "Request failed.", endpoint: "Not requested", shared_endpoint_check: true };
+      for (const view of views) diagnostics.push({ view, ...failure });
+    }
+  } else {
+    for (const view of views) {
+      try {
+        const result = await providerFetch(diagnosticConfig, view, date);
+        diagnostics.push({ view, ...result, ok: result.http_status >= 200 && result.http_status < 300 && result.list_found });
+      } catch (error) {
+        diagnostics.push({ view, http_status: null, raw_count: 0, usable_count: 0, list_found: false, duration_ms: 0, ok: false, message: error instanceof Error ? error.message : "Request failed.", endpoint: "Not requested" });
+      }
     }
   }
   const allFeedsResponded = diagnostics.length === 4 && diagnostics.every((item) => item.ok);
-  const rawCount = diagnostics.reduce((sum, item) => sum + Number(item.raw_count || 0), 0);
-  const usableCount = diagnostics.reduce((sum, item) => sum + Number(item.usable_count || 0), 0);
+  // API Ninjas is verified with one shared endpoint call represented in all four feed rows.
+  const rawCount = isApiNinjas ? Number(diagnostics[0]?.raw_count || 0) : diagnostics.reduce((sum, item) => sum + Number(item.raw_count || 0), 0);
+  const usableCount = isApiNinjas ? Number(diagnostics[0]?.usable_count || 0) : diagnostics.reduce((sum, item) => sum + Number(item.usable_count || 0), 0);
   const matchDataVerified = allFeedsResponded && usableCount > 0;
   return { diagnostics, all_feeds_responded: allFeedsResponded, raw_match_count: rawCount, usable_match_count: usableCount, match_data_verified: matchDataVerified };
 }
@@ -368,13 +380,18 @@ async function getConfig(admin: ReturnType<typeof createClient>, id: string) {
   return data;
 }
 
+function apiNinjasPublicPlanAllowed(config: Record<string, any>): boolean {
+  if (String(config.provider_code || "").toLowerCase() !== "api-ninjas") return true;
+  return ["business", "professional", "enterprise"].includes(String(config.plan_type || "free").toLowerCase());
+}
+
 function validatePublicActivationConfig(config: Record<string, any>) {
   if (!["football", "multi-sport"].includes(String(config.sport || "football").toLowerCase())) {
     throw new Error(`${config.provider_name || "This provider"} is not configured for football. Set its sport to Football or Multi-sport before activation.`);
   }
   if (!config.is_enabled) throw new Error(`Enable ${config.provider_name || "this provider"} before activation.`);
-  if (String(config.provider_code || "") === "api-ninjas" && String(config.plan_type || "free") === "free") {
-    throw new Error("API Ninjas does not permit commercial use on its free tier. Upgrade to the API Ninjas Premium plan, confirm your account's commercial-use entitlement, then set API plan to Paid and rerun diagnostics before activating this provider.");
+  if (!apiNinjasPublicPlanAllowed(config)) {
+    throw new Error("API Ninjas public activation requires an active Business, Professional or Enterprise tier. Free is limited to development/testing/evaluation, and the Developer tier permits commercial use but does not permit data caching/storage. Because PARROTHIT caches public match data, choose the actual Business, Professional or Enterprise tier in API plan, save, rerun diagnostics and then activate.");
   }
   if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error(`${config.provider_name || "This provider"} must pass all endpoint checks and return at least one usable match before activation.`);
   const builtInAdapters = ["openligadb", "api-football", "football-data-org", "sportmonks", "footballapi-org", "api-ninjas"];
@@ -405,12 +422,23 @@ async function getEnabledProviderRows(admin: ReturnType<typeof createClient>) {
 
 async function refreshPublicActivationState(admin: ReturnType<typeof createClient>, actorId: string, preferredId?: string | null) {
   const active = await getEnabledProviderRows(admin);
+  const planBlockedActiveIds = active
+    .filter((item) => item.is_public_active === true && !apiNinjasPublicPlanAllowed(item))
+    .map((item) => item.id);
+  if (planBlockedActiveIds.length) {
+    const { error } = await admin.from("football_api_configs").update({
+      is_public_active: false,
+      updated_by: actorId,
+      updated_at: new Date().toISOString(),
+    }).in("id", planBlockedActiveIds);
+    if (error) throw error;
+  }
   const activeProviders = active.filter((item) =>
     ["football", "multi-sport"].includes(String(item.sport || "football").toLowerCase())
     && item.is_public_active === true
     && item.last_test_ok === true
     && item.last_match_test_ok === true
-    && !(String(item.provider_code || "") === "api-ninjas" && String(item.plan_type || "free") === "free")
+    && apiNinjasPublicPlanAllowed(item)
   );
   const primaryId = preferredId || null;
   const nextLegacyActiveId = (primaryId && activeProviders.some((item) => item.id === primaryId) ? primaryId : activeProviders[0]?.id) || null;
@@ -851,7 +879,7 @@ Deno.serve(async (request: Request) => {
       if (authType === "query" && !authQueryParam) throw new Error("Authentication query parameter name is required for query authentication.");
       if (!/^[a-z0-9_-]{1,60}$/.test(providerCode)) throw new Error("Provider code may contain lowercase letters, numbers, underscores and hyphens.");
       if (!/^[a-z0-9-]{1,40}$/.test(sport)) throw new Error("Sport value is invalid.");
-      if (!["free", "paid", "custom"].includes(planType)) throw new Error("API plan must be Free, Paid or Custom.");
+      if (!["free", "developer", "business", "professional", "enterprise", "paid", "custom"].includes(planType)) throw new Error("API plan must be Free, Developer, Business, Professional, Enterprise, Paid or Custom.");
       validateHttpsUrl(apiBaseUrl);
       if (authHeaderName && !/^[A-Za-z0-9-]{1,80}$/.test(authHeaderName)) throw new Error("Authentication header name is invalid.");
 
@@ -956,9 +984,15 @@ Deno.serve(async (request: Request) => {
       const skipped: string[] = [];
       for (const config of footballCandidates) {
         try { validatePublicActivationConfig(config); eligible.push(config); }
-        catch (_error) { skipped.push(String(config.provider_name || config.id)); }
+        catch (error) {
+          const reason = error instanceof Error ? error.message : "Activation requirements are not met.";
+          skipped.push(`${String(config.provider_name || config.id)}: ${reason}`);
+        }
       }
-      if (!eligible.length) throw new Error("No enabled football providers have passed full endpoint and real-match diagnostics. Test providers before activating them.");
+      if (!eligible.length) {
+        const reason = skipped.length ? ` Eligible-provider check: ${skipped.slice(0, 4).join(" | ")}` : " No enabled football provider has passed full endpoint and real-match diagnostics yet.";
+        throw new Error(`No verified football provider is currently eligible for public activation.${reason}`);
+      }
       for (let offset = 0; offset < eligible.length; offset += 200) {
         const batch = eligible.slice(offset, offset + 200).map((item) => item.id);
         const { error } = await admin.from("football_api_configs").update({ is_public_active: true, updated_by: actor.id, updated_at: new Date().toISOString() }).in("id", batch);
@@ -968,7 +1002,7 @@ Deno.serve(async (request: Request) => {
       const activeProviders = await refreshPublicActivationState(admin, actor.id, settings.selected_api_config_id);
       await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
       await writeLog(admin, { event_type: "public_providers_bulk_activated", success: true, message: `${eligible.length} verified football providers activated together; ${skipped.length} skipped.`, actor_user_id: actor.id });
-      const skippedNote = skipped.length ? ` ${skipped.length} provider(s) were skipped because their activation configuration is incomplete.` : "";
+      const skippedNote = skipped.length ? ` ${skipped.length} provider(s) were skipped: ${skipped.slice(0, 3).join("; ")}${skipped.length > 3 ? "; and others" : ""}.` : "";
       return json(200, { ok: true, activated_count: eligible.length, active_provider_count: activeProviders.length, skipped_count: skipped.length, message: `${eligible.length} verified provider(s) are now active together. ${activeProviders.length} provider(s) contribute to public LiveScore.${skippedNote}` });
     }
 
@@ -1073,38 +1107,50 @@ Deno.serve(async (request: Request) => {
       let connectionStatus: number | null = null;
       let connectionQuota = { used: null as number | null, limit: null as number | null, remaining: null as number | null, period: null as string | null };
       try {
-        const target = buildTestUrl(config, sampleDate);
-        const headers = new Headers();
-        const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
-        for (const [headerName, headerValue] of Object.entries(customHeaders)) {
-          if (["host", "content-length", "authorization", "apikey"].includes(headerName.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${headerName}.`);
-          headers.set(headerName, String(headerValue));
+        if (String(config.provider_code || "").toLowerCase() === "api-ninjas") {
+          // The API Ninjas diagnostics request already validates the API key and response.
+          // Reuse it instead of issuing a second identical request and consuming more quota.
+          const sample = diagnostics.diagnostics[0];
+          connectionStatus = sample?.http_status ?? null;
+          connectionOk = sample?.ok === true;
+          connectionMessage = sample?.message || (connectionOk ? "API Ninjas endpoint and key are reachable." : "API Ninjas connection check failed.");
+        } else {
+          const target = buildTestUrl(config, sampleDate);
+          const headers = new Headers();
+          const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
+          for (const [headerName, headerValue] of Object.entries(customHeaders)) {
+            if (["host", "content-length", "authorization", "apikey"].includes(headerName.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${headerName}.`);
+            headers.set(headerName, String(headerValue));
+          }
+          const authType = String(config.auth_type || (config.auth_header_name ? "header" : "none"));
+          if (authType !== "none") {
+            if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) throw new Error("API key required for the configured authentication method.");
+            const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
+            const value = config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey;
+            if (authType === "header") headers.set(String(config.auth_header_name), value);
+            else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
+            else throw new Error("Unsupported provider authentication method.");
+          }
+          const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
+          connectionStatus = response.status;
+          const bodyText = await readSmallResponseBody(response);
+          connectionQuota = extractQuota(response, bodyText);
+          connectionOk = response.ok && !hasProviderApiErrors(bodyText);
+          if (!connectionOk) connectionMessage = `Provider check returned HTTP ${response.status} or an API-level error.`;
         }
-        const authType = String(config.auth_type || (config.auth_header_name ? "header" : "none"));
-        if (authType !== "none") {
-          if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) throw new Error("API key required for the configured authentication method.");
-          const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
-          const value = config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey;
-          if (authType === "header") headers.set(String(config.auth_header_name), value);
-          else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
-          else throw new Error("Unsupported provider authentication method.");
-        }
-        const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
-        connectionStatus = response.status;
-        const bodyText = await readSmallResponseBody(response);
-        connectionQuota = extractQuota(response, bodyText);
-        connectionOk = response.ok && !hasProviderApiErrors(bodyText);
-        if (!connectionOk) connectionMessage = `Provider check returned HTTP ${response.status} or an API-level error.`;
       } catch (error) {
         connectionOk = false;
         connectionMessage = error instanceof Error ? error.message : "Provider connection failed.";
       }
 
       const testOk = connectionOk && diagnostics.all_feeds_responded && diagnostics.match_data_verified;
+      const isApiNinjas = String(config.provider_code || "").toLowerCase() === "api-ninjas";
       const testedAt = new Date().toISOString();
       const endpointJson = { date: sampleDate, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage }, feeds: diagnostics.diagnostics, raw_match_count: diagnostics.raw_match_count, usable_match_count: diagnostics.usable_match_count, match_data_verified: diagnostics.match_data_verified };
       const message = testOk
-        ? `Provider and match data verified: ${diagnostics.usable_match_count} usable match record(s) across four feeds.`
+        ? isApiNinjas
+          ? `API Ninjas connection and current-season match data verified: ${diagnostics.usable_match_count} usable match record(s) from its shared match endpoint.`
+          : `Provider and match data verified: ${diagnostics.usable_match_count} usable match record(s) across four feeds.`
         : !connectionOk
           ? `Provider connection check failed: ${connectionMessage}`
           : !diagnostics.all_feeds_responded
@@ -1137,7 +1183,7 @@ Deno.serve(async (request: Request) => {
         await refreshPublicActivationState(admin, actor.id, settings.active_api_config_id === id ? null : settings.active_api_config_id);
         await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
       }
-      await writeLog(admin, { event_type: "football_provider_full_diagnostic", config_id: id, success: testOk, http_status: connectionStatus, duration_ms: diagnostics.diagnostics.reduce((sum, item) => sum + Number(item.duration_ms || 0), 0), message, actor_user_id: actor.id });
+      await writeLog(admin, { event_type: "football_provider_full_diagnostic", config_id: id, success: testOk, http_status: connectionStatus, duration_ms: diagnostics.diagnostics.reduce((sum, item, index) => sum + (item.shared_endpoint_check === true && index > 0 ? 0 : Number(item.duration_ms || 0)), 0), message, actor_user_id: actor.id });
       return json(200, { ok: true, test_ok: testOk, message, provider_name: config.provider_name, date: sampleDate, ...diagnostics, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage } });
     }
 
