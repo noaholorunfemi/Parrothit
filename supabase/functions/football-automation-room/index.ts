@@ -181,14 +181,25 @@ function defaultEndpoints(providerCode: string): Record<string, string> {
       results: "/v1/results?date={date}&per_page=1000",
     };
   }
-  if (providerCode === "api-ninjas") {
-    return {
-      live: "/v1/soccermatches?date={date}",
-      today: "/v1/soccermatches?date={date}",
-      upcoming: "/v1/soccermatches?date={date}",
-      results: "/v1/soccermatches?date={date}",
-    };
-  }
+  if (providerCode === "footballdata-io") return {
+    live: "/fixtures/live", today: "/fixtures/today", upcoming: "/fixtures/upcoming", results: "/fixtures/results?date={date}",
+  };
+  if (providerCode === "api-ninjas") return {
+    live: "/v1/soccermatches?season={season}", today: "/v1/soccermatches?season={season}",
+    upcoming: "/v1/soccermatches?season={season}", results: "/v1/soccermatches?season={season}",
+  };
+  if (providerCode === "bzzoiro") return {
+    live: "/events/live/?limit=200", today: "/events/?date_from={date}&date_to={date}&limit=200",
+    upcoming: "/events/?date_from={date}&date_to={date}&status=upcoming&limit=200",
+    results: "/events/?date_from={date}&date_to={date}&status=finished&limit=200",
+  };
+  if (providerCode === "sportapi-ai") return { live: "/fixtures/date/{date}", today: "/fixtures/date/{date}", upcoming: "/fixtures/date/{date}", results: "/fixtures/date/{date}" };
+  if (providerCode === "sportscore") return {
+    live: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+    today: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+    upcoming: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+    results: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+  };
   return {};
 }
 
@@ -218,7 +229,7 @@ function providerRows(raw: unknown, providerCode: string, mapping: Record<string
   const path = typeof mapping.matches_path === "string" ? mapping.matches_path : "";
   const mapped = path ? getPath(raw, path) : undefined;
   if (Array.isArray(mapped)) return mapped;
-  for (const candidate of ["response", "matches", "data", "fixtures", "events", "results"]) {
+  for (const candidate of ["response", "matches", "fixtures", "events", "results", "data.matches", "data.fixtures", "data.events", "data.results", "data.response", "data"]) {
     const found = getPath(raw, candidate);
     if (Array.isArray(found)) return found;
   }
@@ -236,11 +247,24 @@ function builtInMappingFor(providerCode: string): Record<string, unknown> {
     matches_path: "matches", id: "id", competition: "competition.name",
     home_team: "homeTeam.name", away_team: "awayTeam.name", status: "status", kickoff: "utcDate",
   };
-  if (providerCode === "api-ninjas") return {
-    matches_path: "", id: "game_id", competition: "league", competition_id: "league", competition_code: "league",
-    home_team: "home_team.name", away_team: "away_team.name", home_score: "home_score", away_score: "away_score",
-    status: "status", kickoff: "start_time", minute: "clock", venue_name: "venue.name", venue_city: "venue.city",
-    country_code: "venue.country", live_status_values: ["in_progress"], finished_status_values: ["final"], upcoming_status_values: ["scheduled"],
+  if (providerCode === "bzzoiro") return {
+    matches_path: "results", id: "id", competition: "competition.name", home_team: "home_team", away_team: "away_team",
+    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "starting_at",
+  };
+  if (providerCode === "sportapi-ai") return {
+    matches_path: "fixtures", id: "id", competition: "league_name", home_team: "home_team", away_team: "away_team",
+    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff",
+  };
+  if (providerCode === "footballdata-io") return {
+    matches_path: "", id: "match_id", competition: "league.competition_name", competition_id: "league.league_id",
+    home_team: "home_team.team_name", away_team: "away_team.team_name", home_logo: "home_team.team_logo", away_logo: "away_team.team_logo",
+    home_score: "score.home", away_score: "score.away", status: "status", kickoff: "match_date",
+    live_status_values: ["LIVE", "IN_PLAY"], finished_status_values: ["FT", "AET", "PEN", "FINISHED", "COMPLETE", "COMPLETED"],
+    upcoming_status_values: ["NS", "SCHEDULED", "TIMED", "UPCOMING", "POSTPONED"],
+  };
+  if (providerCode === "sportscore") return {
+    matches_path: "matches", id: "id", competition: "competition.name", home_team: "home_team", away_team: "away_team",
+    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff",
   };
   return {};
 }
@@ -262,10 +286,15 @@ function usableMatchCount(rows: unknown[], providerCode: string, mapping: Record
       const kickoff = row?.kickoff_utc ?? row?.kickoff ?? row?.date;
       return Boolean(String(home ?? "").trim() && String(away ?? "").trim() && kickoff && Number.isFinite(Date.parse(String(kickoff))));
     }
-    const home = getPath(row, mapping.home_team);
-    const away = getPath(row, mapping.away_team);
-    const kickoff = getPath(row, mapping.kickoff);
-    return Boolean(String(home ?? "").trim() && String(away ?? "").trim() && kickoff && Number.isFinite(Date.parse(String(kickoff))));
+    const displayName = (value: any) => typeof value === "string" || typeof value === "number"
+      ? String(value).trim()
+      : String(value?.name ?? value?.team_name ?? value?.TeamName ?? value?.club_name ?? "").trim();
+    const homeRaw = getPath(row, mapping.home_team) ?? row?.home_team ?? row?.homeTeam ?? row?.home;
+    const awayRaw = getPath(row, mapping.away_team) ?? row?.away_team ?? row?.awayTeam ?? row?.away;
+    const home = displayName(homeRaw);
+    const away = displayName(awayRaw);
+    const kickoff = getPath(row, mapping.kickoff) ?? row?.start_time ?? row?.starting_at ?? row?.kickoff ?? row?.kickoff_at ?? row?.scheduled_at ?? row?.match_date ?? row?.match_time ?? row?.utcDate ?? row?.date ?? row?.time;
+    return Boolean(home && away && kickoff && Number.isFinite(Date.parse(String(kickoff))));
   }).length;
 }
 
@@ -313,7 +342,10 @@ async function providerFetch(config: Record<string, any>, view: string, date: st
   const mapping = Object.keys(plainObject(config.response_mapping)).length ? plainObject(config.response_mapping) : builtInMappingFor(String(config.provider_code || ""));
   const rows = providerRows(raw, String(config.provider_code || ""), mapping);
   if (!rows) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "JSON received, but no match list was found. Check matches_path in Response mapping.", endpoint: safeEndpoint };
-  const usable = usableMatchCount(rows, String(config.provider_code || ""), mapping);
+  const normalizedForDiagnostics = String(config.provider_code || "").toLowerCase() === "sportapi-ai"
+    ? rows.map((row: any) => ({ ...row, kickoff: row?.kickoff ?? row?.date ?? (raw as any)?.date, date: row?.date ?? (raw as any)?.date }))
+    : rows;
+  const usable = usableMatchCount(normalizedForDiagnostics, String(config.provider_code || ""), mapping);
   const message = rows.length === 0 ? "Match list found; provider returned zero records for this feed/date." : `${rows.length} raw record(s); ${usable} record(s) contain usable team names and kickoff time.`;
   return { http_status: response.status, raw_count: rows.length, usable_count: usable, list_found: true, duration_ms: duration, message, endpoint: safeEndpoint };
 }
@@ -322,8 +354,8 @@ async function runProviderDiagnostics(config: Record<string, any>, date: string)
   const views = ["live", "today", "upcoming", "results"];
   const diagnostics: Record<string, any>[] = [];
   const isApiNinjas = String(config.provider_code || "").toLowerCase() === "api-ninjas";
-  // API Ninjas exposes one soccermatches endpoint, not four separate feed endpoints.
-  // Use one season-scoped request to verify the adapter and avoid spending quota on four identical calls.
+  // API Ninjas exposes one season-scoped soccermatches endpoint. Reuse one
+  // response for diagnostics to avoid four identical calls consuming quota.
   const diagnosticConfig = isApiNinjas
     ? { ...config, endpoints: { live: "/v1/soccermatches?season={season}", today: "/v1/soccermatches?season={season}", upcoming: "/v1/soccermatches?season={season}", results: "/v1/soccermatches?season={season}" } }
     : config;
@@ -346,7 +378,6 @@ async function runProviderDiagnostics(config: Record<string, any>, date: string)
     }
   }
   const allFeedsResponded = diagnostics.length === 4 && diagnostics.every((item) => item.ok);
-  // API Ninjas is verified with one shared endpoint call represented in all four feed rows.
   const rawCount = isApiNinjas ? Number(diagnostics[0]?.raw_count || 0) : diagnostics.reduce((sum, item) => sum + Number(item.raw_count || 0), 0);
   const usableCount = isApiNinjas ? Number(diagnostics[0]?.usable_count || 0) : diagnostics.reduce((sum, item) => sum + Number(item.usable_count || 0), 0);
   const matchDataVerified = allFeedsResponded && usableCount > 0;
@@ -390,11 +421,9 @@ function validatePublicActivationConfig(config: Record<string, any>) {
     throw new Error(`${config.provider_name || "This provider"} is not configured for football. Set its sport to Football or Multi-sport before activation.`);
   }
   if (!config.is_enabled) throw new Error(`Enable ${config.provider_name || "this provider"} before activation.`);
-  if (!apiNinjasPublicPlanAllowed(config)) {
-    throw new Error("API Ninjas public activation requires an active Business, Professional or Enterprise tier. Free is limited to development/testing/evaluation, and the Developer tier permits commercial use but does not permit data caching/storage. Because PARROTHIT caches public match data, choose the actual Business, Professional or Enterprise tier in API plan, save, rerun diagnostics and then activate.");
-  }
+  if (!apiNinjasPublicPlanAllowed(config)) throw new Error("API Ninjas public activation requires an actual active Business, Professional or Enterprise tier. Free is limited to private development/testing, and Developer does not permit cached data storage. Confirm the plan with API Ninjas before choosing it here.");
   if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error(`${config.provider_name || "This provider"} must pass all endpoint checks and return at least one usable match before activation.`);
-  const builtInAdapters = ["openligadb", "api-football", "football-data-org", "sportmonks", "footballapi-org", "api-ninjas"];
+  const builtInAdapters = ["openligadb", "api-football", "football-data-org", "sportmonks", "footballapi-org", "api-ninjas", "bzzoiro", "sportapi-ai", "sportscore", "footballdata-io"];
   if (!builtInAdapters.includes(String(config.provider_code || ""))) {
     const endpoints = plainObject(config.endpoints);
     const mapping = plainObject(config.response_mapping);
@@ -422,23 +451,17 @@ async function getEnabledProviderRows(admin: ReturnType<typeof createClient>) {
 
 async function refreshPublicActivationState(admin: ReturnType<typeof createClient>, actorId: string, preferredId?: string | null) {
   const active = await getEnabledProviderRows(admin);
-  const planBlockedActiveIds = active
-    .filter((item) => item.is_public_active === true && !apiNinjasPublicPlanAllowed(item))
-    .map((item) => item.id);
-  if (planBlockedActiveIds.length) {
-    const { error } = await admin.from("football_api_configs").update({
-      is_public_active: false,
-      updated_by: actorId,
-      updated_at: new Date().toISOString(),
-    }).in("id", planBlockedActiveIds);
-    if (error) throw error;
+  const planBlocked = active.filter((item) => item.is_public_active === true && !apiNinjasPublicPlanAllowed(item));
+  if (planBlocked.length) {
+    const { error: blockedError } = await admin.from("football_api_configs").update({ is_public_active: false, updated_at: new Date().toISOString() }).in("id", planBlocked.map((item) => item.id));
+    if (blockedError) throw blockedError;
   }
   const activeProviders = active.filter((item) =>
     ["football", "multi-sport"].includes(String(item.sport || "football").toLowerCase())
+    && apiNinjasPublicPlanAllowed(item)
     && item.is_public_active === true
     && item.last_test_ok === true
     && item.last_match_test_ok === true
-    && apiNinjasPublicPlanAllowed(item)
   );
   const primaryId = preferredId || null;
   const nextLegacyActiveId = (primaryId && activeProviders.some((item) => item.id === primaryId) ? primaryId : activeProviders[0]?.id) || null;
@@ -606,40 +629,9 @@ function firstCatalogPath(row: unknown, candidates: string[]): unknown {
   return undefined;
 }
 
-const API_NINJAS_FREE_COMPETITIONS = [
-  { code: "epl", name: "Premier League", country: "England", country_code: "GB" },
-  { code: "laliga", name: "LaLiga", country: "Spain", country_code: "ES" },
-  { code: "bundesliga", name: "Bundesliga", country: "Germany", country_code: "DE" },
-  { code: "seriea", name: "Serie A", country: "Italy", country_code: "IT" },
-  { code: "ligue1", name: "Ligue 1", country: "France", country_code: "FR" },
-  { code: "ucl", name: "UEFA Champions League", country: "Europe", country_code: "EU" },
-  { code: "uel", name: "UEFA Europa League", country: "Europe", country_code: "EU" },
-  { code: "mls", name: "Major League Soccer", country: "United States / Canada", country_code: "US" },
-];
-
 function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record<string, unknown>[] {
   const providerCode = String(config.provider_code || "").toLowerCase();
   const mapping = plainObject(config.response_mapping);
-  if (providerCode === "api-ninjas") {
-    const year = new Date().getFullYear();
-    return API_NINJAS_FREE_COMPETITIONS.map((item) => ({
-      provider_code: providerCode,
-      external_competition_id: item.code,
-      competition_name: item.name,
-      competition_type: item.code === "ucl" || item.code === "uel" ? "Cup" : "League",
-      country_name: item.country,
-      country_code: item.country_code,
-      country_flag_url: null,
-      competition_logo_url: null,
-      season_year: year,
-      season_years: [year],
-      is_current_season: true,
-      coverage: { plan: "free", source: "API Ninjas published Football API coverage", note: "Current-season fixtures/results. In-play score and clock fields require a paid plan." },
-      is_enabled: true,
-      last_synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
-  }
   let sourceRows: unknown;
   if (providerCode === "api-football") sourceRows = getPath(raw, "response");
   else if (providerCode === "football-data-org") sourceRows = getPath(raw, "competitions");
@@ -755,7 +747,6 @@ async function fetchCompetitionCatalog(config: Record<string, any>): Promise<Rec
     : providerCode === "sportmonks" ? "/leagues?include=country;seasons"
     : providerCode === "footballapi-org" ? "/v1/competitions"
     : providerCode === "openligadb" ? `/getavailableleagues/${new Date().getFullYear()}`
-    : providerCode === "api-ninjas" ? `/v1/soccermatches?league=laliga&season=${new Date().getFullYear()}`
     : "";
   const route = typeof endpoints.competitions === "string" && String(endpoints.competitions).trim()
     ? String(endpoints.competitions).trim()
@@ -879,7 +870,7 @@ Deno.serve(async (request: Request) => {
       if (authType === "query" && !authQueryParam) throw new Error("Authentication query parameter name is required for query authentication.");
       if (!/^[a-z0-9_-]{1,60}$/.test(providerCode)) throw new Error("Provider code may contain lowercase letters, numbers, underscores and hyphens.");
       if (!/^[a-z0-9-]{1,40}$/.test(sport)) throw new Error("Sport value is invalid.");
-      if (!["free", "developer", "business", "professional", "enterprise", "paid", "custom"].includes(planType)) throw new Error("API plan must be Free, Developer, Business, Professional, Enterprise, Paid or Custom.");
+      if (!["free", "developer", "business", "professional", "enterprise", "paid", "custom"].includes(planType)) throw new Error("Choose a supported provider plan tier.");
       validateHttpsUrl(apiBaseUrl);
       if (authHeaderName && !/^[A-Za-z0-9-]{1,80}$/.test(authHeaderName)) throw new Error("Authentication header name is invalid.");
 
@@ -982,17 +973,16 @@ Deno.serve(async (request: Request) => {
       const footballCandidates = candidates.filter((item) => ["football", "multi-sport"].includes(String(item.sport || "football")) && item.last_test_ok === true && item.last_match_test_ok === true);
       const eligible: Record<string, any>[] = [];
       const skipped: string[] = [];
+      const planBlocked: string[] = [];
       for (const config of footballCandidates) {
         try { validatePublicActivationConfig(config); eligible.push(config); }
         catch (error) {
-          const reason = error instanceof Error ? error.message : "Activation requirements are not met.";
-          skipped.push(`${String(config.provider_name || config.id)}: ${reason}`);
+          const name = String(config.provider_name || config.id);
+          skipped.push(name);
+          if (String(config.provider_code || "").toLowerCase() === "api-ninjas" && !apiNinjasPublicPlanAllowed(config)) planBlocked.push(name);
         }
       }
-      if (!eligible.length) {
-        const reason = skipped.length ? ` Eligible-provider check: ${skipped.slice(0, 4).join(" | ")}` : " No enabled football provider has passed full endpoint and real-match diagnostics yet.";
-        throw new Error(`No verified football provider is currently eligible for public activation.${reason}`);
-      }
+      if (!eligible.length) throw new Error("No enabled football providers have passed full endpoint and real-match diagnostics. Test providers before activating them.");
       for (let offset = 0; offset < eligible.length; offset += 200) {
         const batch = eligible.slice(offset, offset + 200).map((item) => item.id);
         const { error } = await admin.from("football_api_configs").update({ is_public_active: true, updated_by: actor.id, updated_at: new Date().toISOString() }).in("id", batch);
@@ -1002,8 +992,9 @@ Deno.serve(async (request: Request) => {
       const activeProviders = await refreshPublicActivationState(admin, actor.id, settings.selected_api_config_id);
       await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
       await writeLog(admin, { event_type: "public_providers_bulk_activated", success: true, message: `${eligible.length} verified football providers activated together; ${skipped.length} skipped.`, actor_user_id: actor.id });
-      const skippedNote = skipped.length ? ` ${skipped.length} provider(s) were skipped: ${skipped.slice(0, 3).join("; ")}${skipped.length > 3 ? "; and others" : ""}.` : "";
-      return json(200, { ok: true, activated_count: eligible.length, active_provider_count: activeProviders.length, skipped_count: skipped.length, message: `${eligible.length} verified provider(s) are now active together. ${activeProviders.length} provider(s) contribute to public LiveScore.${skippedNote}` });
+      const skippedNote = skipped.length ? ` ${skipped.length} provider(s) were skipped: ${skipped.join(", ")}.` : "";
+      const planNote = planBlocked.length ? ` API Ninjas public caching requires a confirmed Business, Professional or Enterprise tier; Free/Developer configurations remain test-only.` : "";
+      return json(200, { ok: true, activated_count: eligible.length, active_provider_count: activeProviders.length, skipped_count: skipped.length, plan_blocked: planBlocked, message: `${eligible.length} verified provider(s) are now active together. ${activeProviders.length} provider(s) contribute to public LiveScore.${skippedNote}${planNote}` });
     }
 
     if (action === "activate") {
@@ -1108,35 +1099,33 @@ Deno.serve(async (request: Request) => {
       let connectionQuota = { used: null as number | null, limit: null as number | null, remaining: null as number | null, period: null as string | null };
       try {
         if (String(config.provider_code || "").toLowerCase() === "api-ninjas") {
-          // The API Ninjas diagnostics request already validates the API key and response.
-          // Reuse it instead of issuing a second identical request and consuming more quota.
           const sample = diagnostics.diagnostics[0];
           connectionStatus = sample?.http_status ?? null;
           connectionOk = sample?.ok === true;
           connectionMessage = sample?.message || (connectionOk ? "API Ninjas endpoint and key are reachable." : "API Ninjas connection check failed.");
         } else {
-          const target = buildTestUrl(config, sampleDate);
-          const headers = new Headers();
-          const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
-          for (const [headerName, headerValue] of Object.entries(customHeaders)) {
-            if (["host", "content-length", "authorization", "apikey"].includes(headerName.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${headerName}.`);
-            headers.set(headerName, String(headerValue));
-          }
-          const authType = String(config.auth_type || (config.auth_header_name ? "header" : "none"));
-          if (authType !== "none") {
-            if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) throw new Error("API key required for the configured authentication method.");
-            const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
-            const value = config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey;
-            if (authType === "header") headers.set(String(config.auth_header_name), value);
-            else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
-            else throw new Error("Unsupported provider authentication method.");
-          }
-          const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
-          connectionStatus = response.status;
-          const bodyText = await readSmallResponseBody(response);
-          connectionQuota = extractQuota(response, bodyText);
-          connectionOk = response.ok && !hasProviderApiErrors(bodyText);
-          if (!connectionOk) connectionMessage = `Provider check returned HTTP ${response.status} or an API-level error.`;
+        const target = buildTestUrl(config, sampleDate);
+        const headers = new Headers();
+        const customHeaders = cleanJsonObject(config.custom_headers, "Custom request headers");
+        for (const [headerName, headerValue] of Object.entries(customHeaders)) {
+          if (["host", "content-length", "authorization", "apikey"].includes(headerName.toLowerCase())) throw new Error(`Use the authentication fields rather than custom header ${headerName}.`);
+          headers.set(headerName, String(headerValue));
+        }
+        const authType = String(config.auth_type || (config.auth_header_name ? "header" : "none"));
+        if (authType !== "none") {
+          if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) throw new Error("API key required for the configured authentication method.");
+          const clearKey = await decryptSecret(config.api_key_ciphertext, config.api_key_iv);
+          const value = config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey;
+          if (authType === "header") headers.set(String(config.auth_header_name), value);
+          else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
+          else throw new Error("Unsupported provider authentication method.");
+        }
+        const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
+        connectionStatus = response.status;
+        const bodyText = await readSmallResponseBody(response);
+        connectionQuota = extractQuota(response, bodyText);
+        connectionOk = response.ok && !hasProviderApiErrors(bodyText);
+        if (!connectionOk) connectionMessage = `Provider check returned HTTP ${response.status} or an API-level error.`;
         }
       } catch (error) {
         connectionOk = false;
@@ -1144,12 +1133,12 @@ Deno.serve(async (request: Request) => {
       }
 
       const testOk = connectionOk && diagnostics.all_feeds_responded && diagnostics.match_data_verified;
-      const isApiNinjas = String(config.provider_code || "").toLowerCase() === "api-ninjas";
       const testedAt = new Date().toISOString();
       const endpointJson = { date: sampleDate, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage }, feeds: diagnostics.diagnostics, raw_match_count: diagnostics.raw_match_count, usable_match_count: diagnostics.usable_match_count, match_data_verified: diagnostics.match_data_verified };
+      const isApiNinjas = String(config.provider_code || "").toLowerCase() === "api-ninjas";
       const message = testOk
         ? isApiNinjas
-          ? `API Ninjas connection and current-season match data verified: ${diagnostics.usable_match_count} usable match record(s) from its shared match endpoint.`
+          ? `API Ninjas connection and match data verified: ${diagnostics.usable_match_count} usable match record(s) from its shared match endpoint.`
           : `Provider and match data verified: ${diagnostics.usable_match_count} usable match record(s) across four feeds.`
         : !connectionOk
           ? `Provider connection check failed: ${connectionMessage}`
@@ -1183,7 +1172,7 @@ Deno.serve(async (request: Request) => {
         await refreshPublicActivationState(admin, actor.id, settings.active_api_config_id === id ? null : settings.active_api_config_id);
         await admin.from("football_public_cache").delete().like("cache_key", "livescore:%");
       }
-      await writeLog(admin, { event_type: "football_provider_full_diagnostic", config_id: id, success: testOk, http_status: connectionStatus, duration_ms: diagnostics.diagnostics.reduce((sum, item, index) => sum + (item.shared_endpoint_check === true && index > 0 ? 0 : Number(item.duration_ms || 0)), 0), message, actor_user_id: actor.id });
+      await writeLog(admin, { event_type: "football_provider_full_diagnostic", config_id: id, success: testOk, http_status: connectionStatus, duration_ms: diagnostics.diagnostics.reduce((sum, item) => sum + Number(item.duration_ms || 0), 0), message, actor_user_id: actor.id });
       return json(200, { ok: true, test_ok: testOk, message, provider_name: config.provider_name, date: sampleDate, ...diagnostics, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage } });
     }
 
