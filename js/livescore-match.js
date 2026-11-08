@@ -16,6 +16,7 @@
   let currentMatch = null;
   let providerName = 'Active football provider';
   let refreshTimer = null;
+  let clockTickerTimer = null;
   let busy = false;
   let menuOpen = false;
 
@@ -47,8 +48,34 @@
   function isFinished(match) { return /^(FT|AET|PEN|FINISHED|FULL.?TIME|ENDED|COMPLETE)/i.test(String(match?.status || '')); }
   function isLive(match) { return /LIVE|IN.?PLAY|HALF.?TIME|1ST|2ND|(^|\b)(1H|2H|HT|ET|BT|P)(\b|$)/i.test(String(match?.status || '')) && !isFinished(match); }
   function statusText(match) {
+    const clock = window.PARROTHIT_LIVESCORE_CLOCK;
+    if (clock) return clock.format(match, true);
     if (isLive(match)) return match.minute !== null && match.minute !== undefined && match.minute !== '' ? `${match.minute}′ · LIVE` : 'LIVE';
     return isFinished(match) ? 'Full time' : String(match?.status || 'Scheduled');
+  }
+  function metadataText(value, fallback = 'Not supplied') {
+    if (value && typeof value === 'object') value = value.name || value.full_name || value.display_name || value.city || value.title || '';
+    const text = String(value ?? '').trim();
+    return text || fallback;
+  }
+  function matchStatusInfo(match) {
+    const label = statusText(match);
+    if (label === 'HT') return 'HALF-TIME';
+    if (label === 'FT') return 'FULL-TIME';
+    if (label === 'AET') return 'FULL-TIME (AFTER EXTRA TIME)';
+    if (label === 'PEN') return 'PENALTIES';
+    if (label === 'ET BREAK') return 'EXTRA-TIME BREAK';
+    if (label === 'SUSPENDED' || label === 'INTERRUPTED' || label === 'POSTPONED' || label === 'CANCELLED' || label === 'ABANDONED') return label;
+    if (isLive(match)) return label === 'LIVE' ? 'LIVE' : `LIVE · ${label.replace(/\s*·\s*LIVE$/, '')}`;
+    return label;
+  }
+  function restartClockTicker() {
+    if (clockTickerTimer) clearInterval(clockTickerTimer);
+    if (!window.PARROTHIT_LIVESCORE_CLOCK) return;
+    clockTickerTimer = setInterval(() => {
+      if (document.hidden || !currentMatch || !isLive(currentMatch)) return;
+      $('plDetailStatus').textContent = statusText(currentMatch);
+    }, 15000);
   }
   function formatDate(value) {
     if (!value) return 'Date not supplied';
@@ -103,6 +130,7 @@
 
   function show(match, provider) {
     currentMatch = match;
+    if (window.PARROTHIT_LIVESCORE_CLOCK) window.PARROTHIT_LIVESCORE_CLOCK.register(match);
     providerName = provider || providerName;
     $('plMatchLoading').hidden = true;
     $('plMatchContent').hidden = false;
@@ -125,14 +153,14 @@
     $('plProviderName').textContent = providerName;
 
     const fields = [
-      ['Competition', match.league || match.competition || 'Football'],
-      ['Country', match.country || match.league_country || 'Not supplied'],
-      ['Kick-off', formatDate(match.kickoff || match.date)],
-      ['Match status', statusText(match)],
-      ['Match ID', match.match_id || match.id || 'Not supplied'],
-      ['Venue', match.venue || match.venue_name || 'Not supplied'],
-      ['City', match.venue_city || 'Not supplied'],
-      ['Referee', match.referee || 'Not supplied']
+      ['Competition', metadataText(match.league || match.competition, 'Football')],
+      ['Country', metadataText(match.country || match.league_country)],
+      ['Kick-off', formatDate(match.kickoff || match.date || match.match_time)],
+      ['Match status', matchStatusInfo(match)],
+      ['Match ID', metadataText(match.match_id ?? match.id ?? match.source_match_ids?.[0])],
+      ['Venue', metadataText(match.venue || match.venue_name || match.stadium)],
+      ['City', metadataText(match.venue_city || match.city || match.stadium_city)],
+      ['Referee', metadataText(match.referee || match.referee_name)]
     ];
     $('plInfoGrid').innerHTML = fields.map(([label, value]) => `<div><small>${esc(label)}</small><b>${esc(value)}</b></div>`).join('');
 
@@ -145,6 +173,7 @@
     star.setAttribute('aria-label', saved ? 'Remove match from favourites' : 'Add match to favourites');
     document.title = `${teamName(match, 'home')} v ${teamName(match, 'away')} | PARROTHIT LiveScore`;
     restartLiveRefresh();
+    restartClockTicker();
   }
   function showError(message) {
     $('plMatchLoading').innerHTML = `<strong>Match data unavailable</strong><p>${esc(message)}</p><a class="pl-primary-btn" href="livescore.html">Return to LiveScore</a>`;

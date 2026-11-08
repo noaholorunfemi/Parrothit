@@ -149,6 +149,11 @@
     $('plRetry')?.addEventListener('click', fetchMatches);
   }
   function statusText(match) {
+    const clock = window.PARROTHIT_LIVESCORE_CLOCK;
+    if (clock) {
+      const label = clock.format(match, false);
+      if (label && (isLive(match) || /^(HT|FT|AET|PEN|ET BREAK|SUSPENDED|INTERRUPTED|POSTPONED|CANCELLED|ABANDONED)$/i.test(label))) return label;
+    }
     if (isLive(match)) return match.minute !== null && match.minute !== undefined && match.minute !== '' ? `${esc(match.minute)}′` : 'LIVE';
     if (isFinished(match)) return 'FT';
     return formatTime(match.kickoff || match.date || match.match_time);
@@ -176,9 +181,14 @@
     const saved = favourites().has(id);
     const title = `${teamName(match, 'home')} v ${teamName(match, 'away')}`;
     const live = isLive(match);
+    const clockKey = live && window.PARROTHIT_LIVESCORE_CLOCK ? window.PARROTHIT_LIVESCORE_CLOCK.register(match) : '';
+    const clockLabel = statusText(match);
+    const liveClockMarkup = live && clockKey
+      ? `<i></i><span data-pl-live-clock="${esc(clockKey)}">${esc(clockLabel)}</span>`
+      : (live ? `<i></i>${esc(clockLabel)}` : esc(clockLabel));
     return `<article class="pl-match-card ${live ? 'is-live' : ''}" data-match-key="${esc(id)}">
       <a class="pl-match-main" href="${href}" ${hasProviderId ? '' : 'aria-disabled="true" tabindex="-1"'} data-match-id="${hasProviderId ? esc(providerId) : ''}" aria-label="${esc(title)} match details">
-        <span class="pl-match-time ${live ? 'pl-match-live' : ''}">${live ? `<i></i>${statusText(match)}` : statusText(match)}</span>
+        <span class="pl-match-time ${live ? 'pl-match-live' : ''}">${liveClockMarkup}</span>
         <span class="pl-match-teams">${teamMarkup(match, 'home')}${teamMarkup(match, 'away')}</span>
         <span class="pl-match-score">${score}</span>
       </a>
@@ -558,6 +568,11 @@
   }
   competitionOptions([]);
   loadCompetitionCatalog();
+  if (window.PARROTHIT_LIVESCORE_CLOCK) {
+    window.setInterval(() => {
+      if (!document.hidden) window.PARROTHIT_LIVESCORE_CLOCK.updateVisible(matchRoot);
+    }, 15000);
+  }
   fetchMatches();
   restartTimer();
 })();
