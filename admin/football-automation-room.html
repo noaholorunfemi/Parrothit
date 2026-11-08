@@ -6,13 +6,13 @@
   <meta name="description" content="PARROTHIT dedicated football API and LiveScore automation administration room.">
   <title>Football Automation Room | PARROTHIT</title>
   <link rel="stylesheet" href="../css/style.css">
-  <link rel="stylesheet" href="../css/football-automation-room.css?v=31-free-source-directory-20261108">
+  <link rel="stylesheet" href="../css/football-automation-room.css?v=32-date-window-sync-20261108">
   <script>document.documentElement.classList.add('football-room-auth-pending');</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
-  <script src="../js/football-api-directory.js?v=31-free-source-directory-20261108"></script>
-  <script src="../js/football-automation-room.js?v=31-free-source-directory-20261108" defer></script>
+  <script src="../js/football-api-directory.js?v=32-date-window-sync-20261108"></script>
+  <script src="../js/football-automation-room.js?v=32-date-window-sync-20261108" defer></script>
 </head>
 <body class="football-room-page">
   <main class="fr-shell">
@@ -150,7 +150,7 @@
             </label>
             <label class="fr-field fr-field-wide">Match endpoints (JSON)
               <textarea id="fr-endpoints" rows="5" spellcheck="false">{}</textarea>
-              <small>Define routes per view: {"live":"/fixtures?live=all","today":"/fixtures?date={date}","upcoming":"/fixtures?date={date}","results":"/fixtures?date={date}"}. Placeholders: {date}, {season}, {view}, {competition}.</small>
+              <small>Define routes per view. Date-range APIs can use today_range, upcoming_range and results_range (or {from}/{to} placeholders in a standard route; for example, /fixtures?from={from}&amp;to={to}). Date-only APIs may use {date}; PARROTHIT syncs those dates in resumable 7-day batches. Also supported: {date_from}, {date_to}, {start_date}, {end_date}, {season}, {view}, {competition}.</small>
             </label>
             <label class="fr-field fr-field-wide">Response mapping (JSON)
               <textarea id="fr-response-mapping" rows="7" spellcheck="false">{}</textarea>
@@ -200,7 +200,7 @@
         <article class="fr-panel"><h3>Data integrity</h3><ul class="fr-integrity-list"><li>Public scores must come from a successful provider response.</li><li>Unavailable or stale provider data must be labelled, not presented as current live scores.</li><li>Provider responses are cached server-side for the configured interval to reduce unnecessary API requests.</li><li>All activated providers are queried together; provider priority helps decide which source version is preferred when two feeds report the same fixture.</li><li>Duplicate fixtures from different providers are merged, and provider-specific failures do not hide data returned by healthy providers.</li></ul></article>
       </div>
       <article class="fr-panel fr-data-diagnostics">
-        <div class="fr-panel-heading"><div><h3>LiveScore Data Diagnostics</h3><p>Tests one configured provider's actual live, today, upcoming and results endpoints. Run diagnostics on each API before adding it to the public provider pool. No simulated records are used.</p></div><span class="fr-pill fr-pill-stage">REAL DATA TEST</span></div>
+        <div class="fr-panel-heading"><div><h3>LiveScore Data Diagnostics</h3><p>Checks one configured provider's live, today, upcoming and results endpoints plus its match-list response structure. A provider can pass when no fixture is scheduled on the diagnostic date; the public feed synchronizes the full current-date-to-year-end window.</p></div><span class="fr-pill fr-pill-stage">REAL DATA TEST</span></div>
         <div class="fr-diagnostics-controls"><label class="fr-field">Sample date <input type="date" id="fr-diagnostics-date"><small>Choose a day known to contain fixtures/results when today's schedule is quiet.</small></label><div class="fr-form-actions"><button type="button" class="fr-button fr-button-primary" id="fr-run-diagnostics">Run fresh diagnostics</button><button type="button" class="fr-button fr-button-quiet" id="fr-clear-livescore-cache">Clear all provider caches</button></div></div>
         <p id="fr-diagnostics-summary" class="fr-form-feedback" role="status" aria-live="polite">Select or activate a provider, then run diagnostics to inspect real endpoint responses.</p>
         <div id="fr-diagnostics-results" class="fr-diagnostics-results"></div>
