@@ -26,7 +26,7 @@
       provider_code: 'football-data-org', provider_name: 'football-data.org', sport: 'football', plan_type: 'free',
       api_base_url: 'https://api.football-data.org', test_path: '/v4/competitions/PL',
       auth_type: 'header', auth_header_name: 'X-Auth-Token', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/v4/matches?status=IN_PLAY,PAUSED', today: '/v4/matches?dateFrom={date}&dateTo={date}', upcoming: '/v4/matches?dateFrom={date}&dateTo={date}', results: '/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED', upcoming_range: '/v4/matches?dateFrom={from}&dateTo={to}', results_range: '/v4/matches?dateFrom={from}&dateTo={to}' },
+      endpoints: { live: '/v4/matches?status=LIVE', today: '/v4/matches?dateFrom={date}&dateTo={date}', upcoming: '/v4/matches?dateFrom={date}&dateTo={date}', results: '/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED', upcoming_range: '/v4/matches?dateFrom={from}&dateTo={to}', results_range: '/v4/matches?dateFrom={from}&dateTo={to}' },
       default_query_params: {}, custom_headers: {},
       response_mapping: { matches_path: 'matches', id: 'id', competition: 'competition.name', home_team: 'homeTeam.name', away_team: 'awayTeam.name', home_score: 'score.fullTime.home', away_score: 'score.fullTime.away', status: 'status', kickoff: 'utcDate', live_status_values: ['IN_PLAY','PAUSED'], finished_status_values: ['FINISHED'], upcoming_status_values: ['SCHEDULED','TIMED','POSTPONED'] }
     },
