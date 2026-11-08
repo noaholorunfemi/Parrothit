@@ -29,6 +29,7 @@
   let selectedView = initialView;
   let currentMatches = [];
   let currentProvider = '';
+  let activeProviderRows = [];
   let competitionCatalog = [];
   let catalogProvider = '';
   let catalogLoaded = false;
@@ -116,6 +117,31 @@
     node.textContent = text;
     node.className = kind ? `pl-status-${kind}` : '';
   }
+  function updateProviderAttribution(providers) {
+    const host = $('plProviderAttribution');
+    if (!host) return;
+    host.replaceChildren();
+    const contributed = (code) => Array.isArray(providers) && providers.some((provider) =>
+      String(provider?.code || '').toLowerCase() === code && provider?.ok === true && Number(provider?.matches || 0) > 0
+    );
+    const links = [];
+    if (contributed('sportscore')) links.push({ href: 'https://sportscore.com/', text: 'Powered by SportScore' });
+    if (contributed('footballdata-io')) links.push({ href: 'https://footballdata.io/', text: 'Football data by Footballdata.io' });
+    if (!links.length) return;
+    const label = document.createElement('span');
+    label.textContent = 'Data partners: ';
+    host.appendChild(label);
+    links.forEach((item, index) => {
+      if (index) host.append(' · ');
+      const link = document.createElement('a');
+      link.href = item.href;
+      link.target = '_blank';
+      link.rel = 'dofollow noopener';
+      link.textContent = item.text;
+      host.appendChild(link);
+    });
+  }
+
   function showState(title, message, kind = 'empty') {
     matchRoot.innerHTML = `<div class="pl-state-card ${kind === 'error' ? 'is-error' : ''}"><strong>${esc(title)}</strong><p>${esc(message)}</p>${kind === 'error' ? '<button class="pl-primary-btn" id="plRetry" type="button">Try again</button>' : ''}</div>`;
     $('plRetry')?.addEventListener('click', fetchMatches);
@@ -388,6 +414,8 @@
       if (!Array.isArray(payload.matches)) throw new Error('The public football service responded without a matches array.');
 
       currentMatches = payload.matches;
+      activeProviderRows = Array.isArray(payload.providers) ? payload.providers : [];
+      updateProviderAttribution(activeProviderRows);
       currentPage = 1;
       currentProvider = payload.provider || (Number(payload.provider_count || 0) + ' active football APIs') || 'Active football provider';
       lastSuccessfulLoad = Date.now();
@@ -402,6 +430,8 @@
     } catch (error) {
       if (error?.name === 'AbortError' || sequence !== requestSequence) return;
       currentMatches = [];
+      activeProviderRows = [];
+      updateProviderAttribution(activeProviderRows);
       setProviderMessage('Football provider request failed.', 'error');
       showState('Football data unavailable', error?.message || 'The active provider could not return match data. Please try again.', 'error');
       currentPage = 1;

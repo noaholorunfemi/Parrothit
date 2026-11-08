@@ -44,15 +44,21 @@
       endpoints: { live: '/v1/live', today: '/v1/matches?date_from={date}&date_to={date}&per_page=1000', upcoming: '/v1/matches?date_from={date}&date_to={date}&status=scheduled&per_page=1000', results: '/v1/results?date={date}&per_page=1000', competitions: '/v1/competitions' },
       default_query_params: {}, custom_headers: {}, response_mapping: {}
     },
+    'footballdata-io': {
+      provider_code: 'footballdata-io', provider_name: 'Footballdata.io Football API', sport: 'football', plan_type: 'free',
+      api_base_url: 'https://footballdata.io/api/v1', test_path: '/fixtures/today',
+      auth_type: 'header', auth_header_name: 'Authorization', auth_prefix: 'Bearer', auth_query_param: '', needs_key: true,
+      endpoints: { live: '/fixtures/live', today: '/fixtures/today', upcoming: '/fixtures/upcoming', results: '/fixtures/results?date={date}' },
+      default_query_params: {}, custom_headers: {},
+      response_mapping: { matches_path: '', id: 'match_id', competition: 'league.competition_name', competition_id: 'league.league_id', home_team: 'home_team.team_name', away_team: 'away_team.team_name', home_logo: 'home_team.team_logo', away_logo: 'away_team.team_logo', home_score: 'score.home', away_score: 'score.away', status: 'status', kickoff: 'match_date', live_status_values: ['LIVE','IN_PLAY','live'], finished_status_values: ['FT','AET','PEN','FINISHED','COMPLETE','COMPLETED'], upcoming_status_values: ['NS','SCHEDULED','TIMED','UPCOMING','POSTPONED'] }
+    },
     'api-ninjas': {
       provider_code: 'api-ninjas', provider_name: 'API Ninjas Football / Soccer API', sport: 'football', plan_type: 'free',
       api_base_url: 'https://api.api-ninjas.com', test_path: '/v1/soccermatches?season={season}',
       auth_type: 'header', auth_header_name: 'X-Api-Key', auth_prefix: '', auth_query_param: '', needs_key: true,
       endpoints: {
-        live: '/v1/soccermatches?date={date}',
-        today: '/v1/soccermatches?date={date}',
-        upcoming: '/v1/soccermatches?date={date}',
-        results: '/v1/soccermatches?date={date}'
+        live: '/v1/soccermatches?season={season}', today: '/v1/soccermatches?season={season}',
+        upcoming: '/v1/soccermatches?season={season}', results: '/v1/soccermatches?season={season}'
       },
       default_query_params: { league: 'laliga' }, custom_headers: {},
       response_mapping: {
@@ -61,6 +67,27 @@
         status: 'status', kickoff: 'start_time', minute: 'clock', venue_name: 'venue.name', venue_city: 'venue.city',
         country_code: 'venue.country', live_status_values: ['in_progress'], finished_status_values: ['final'], upcoming_status_values: ['scheduled']
       }
+    },
+    'bzzoiro': {
+      provider_code: 'bzzoiro', provider_name: 'Bzzoiro Sports Data Football API', sport: 'football', plan_type: 'free',
+      api_base_url: 'https://sports.bzzoiro.com/api/v2', test_path: '/events/live/?limit=5',
+      auth_type: 'header', auth_header_name: 'Authorization', auth_prefix: 'Token', auth_query_param: '', needs_key: true,
+      endpoints: { live: '/events/live/?limit=200', today: '/events/?date_from={date}&date_to={date}&limit=200', upcoming: '/events/?date_from={date}&date_to={date}&status=upcoming&limit=200', results: '/events/?date_from={date}&date_to={date}&status=finished&limit=200' },
+      default_query_params: {}, custom_headers: {}, response_mapping: {}
+    },
+    'sportapi-ai': {
+      provider_code: 'sportapi-ai', provider_name: 'SportAPI.ai Football API', sport: 'football', plan_type: 'free',
+      api_base_url: 'https://sportapi.ai/api', test_path: '/fixtures/date/{date}',
+      auth_type: 'header', auth_header_name: 'X-Api-Key', auth_prefix: '', auth_query_param: '', needs_key: true,
+      endpoints: { live: '/fixtures/date/{date}', today: '/fixtures/date/{date}', upcoming: '/fixtures/date/{date}', results: '/fixtures/date/{date}' },
+      default_query_params: {}, custom_headers: {}, response_mapping: {}
+    },
+    'sportscore': {
+      provider_code: 'sportscore', provider_name: 'SportScore Public Football API', sport: 'football', plan_type: 'free',
+      api_base_url: 'https://sportscore.com', test_path: '/api/widget/matches/?sport=football&limit=5&src=parrothit.com',
+      auth_type: 'none', auth_header_name: '', auth_prefix: '', auth_query_param: '', needs_key: false,
+      endpoints: { live: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com', today: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com', upcoming: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com', results: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com' },
+      default_query_params: {}, custom_headers: {}, response_mapping: {}
     }
   };
   const providerDirectory = Array.isArray(window.PARROTHIT_FOOTBALL_API_DIRECTORY) ? window.PARROTHIT_FOOTBALL_API_DIRECTORY : [];
@@ -80,7 +107,7 @@
     const host = $('fr-provider-directory-list');
     if (!host) return;
     const query = String($('fr-directory-search')?.value || '').trim().toLowerCase();
-    const filtered = providerDirectory.filter((item) => [item.name, item.type, item.desc, item.code].join(' ').toLowerCase().includes(query));
+    const filtered = providerDirectory.filter((item) => [item.name, item.type, item.desc, item.code, item.accessLabel, item.dataScope].join(' ').toLowerCase().includes(query));
     host.replaceChildren();
     if (!filtered.length) {
       const empty = document.createElement('div'); empty.className = 'fr-empty'; empty.textContent = 'No services match that search.'; host.appendChild(empty);
@@ -89,12 +116,14 @@
       const card = document.createElement('article'); card.className = 'fr-directory-card';
       const top = document.createElement('div'); top.className = 'fr-directory-card-top';
       const title = document.createElement('strong'); title.textContent = item.name;
-      const badge = document.createElement('span'); badge.className = 'fr-directory-badge mode-' + item.mode; badge.textContent = item.type;
+      const badge = document.createElement('span'); badge.className = 'fr-directory-badge mode-' + item.mode + (item.accessLabel ? ' access-tag' : ''); badge.textContent = item.accessLabel || item.type;
       top.append(title, badge);
-      const desc = document.createElement('p'); desc.textContent = item.desc;
+      const desc = document.createElement('p'); desc.textContent = item.desc + (item.dataScope ? ' Data scope: ' + item.dataScope + '.' : '');
       const links = document.createElement('div'); links.className = 'fr-directory-links';
       const site = document.createElement('a'); site.href = item.site; site.target = '_blank'; site.rel = 'noopener noreferrer'; site.textContent = 'Website ↗'; links.appendChild(site);
-      if (item.docs) { const docs = document.createElement('a'); docs.href = item.docs; docs.target = '_blank'; docs.rel = 'noopener noreferrer'; docs.textContent = 'API information ↗'; links.appendChild(docs); }
+      if (item.docs) { const docs = document.createElement('a'); docs.href = item.docs; docs.target = '_blank'; docs.rel = 'noopener noreferrer'; docs.textContent = 'API documentation ↗'; links.appendChild(docs); }
+      const keyPage = item.keyPage || item.site || item.docs;
+      if (keyPage) { const key = document.createElement('a'); key.href = keyPage; key.target = '_blank'; key.rel = 'noopener noreferrer'; key.textContent = item.keyLabel || (item.noKey ? 'Free access / no key ↗' : 'Get API key / access ↗'); key.className = 'fr-directory-key-link'; links.appendChild(key); }
       const saved = state.configs.filter((config) => config.provider_code === item.code).length;
       const action = document.createElement('button'); action.type = 'button'; action.className = 'fr-button fr-button-small ' + (item.mode === 'native' ? 'fr-button-primary' : 'fr-button-quiet');
       action.textContent = saved ? '＋ Add another' : (item.mode === 'native' ? 'Add API key' : 'Set up adapter'); action.setAttribute('data-fr-directory-config', item.code);
@@ -104,7 +133,7 @@
       card.append(top, desc, links, foot); host.appendChild(card);
     });
     const count = $('fr-directory-count');
-    if (count) count.textContent = `Showing ${filtered.length} of ${providerDirectory.length} service profiles · ${providerDirectory.filter((item) => item.mode === 'native').length} native adapters`;
+    if (count) count.textContent = `Showing ${filtered.length} of ${providerDirectory.length} service profiles · first 30 are free/open access · ${providerDirectory.filter((item) => item.mode === 'native').length} built-in adapters`;
   }
 
   function applyDirectoryEntry(code) {
@@ -116,7 +145,7 @@
     $('fr-provider-code').value = item.code;
     $('fr-provider-name').value = item.name;
     $('fr-sport').value = 'football';
-    $('fr-plan').value = item.mode === 'native' ? 'free' : (item.mode === 'partner' ? 'paid' : 'custom');
+    $('fr-plan').value = item.accessLabel && /FREE/i.test(item.accessLabel) ? 'free' : (item.mode === 'partner' ? 'paid' : 'custom');
     $('fr-api-base').value = item.base || '';
     $('fr-test-path').value = item.test || '';
     $('fr-auth-type').value = item.auth || 'none';
@@ -125,11 +154,9 @@
     $('fr-auth-query-param').value = item.queryParam || '';
     $('fr-endpoints').value = JSON.stringify(item.endpoints || {}, null, 2);
     $('fr-response-mapping').value = JSON.stringify(item.mapping || {}, null, 2);
-    $('fr-key-help').textContent = item.mode === 'custom' || item.mode === 'partner' || item.mode === 'unofficial'
-      ? 'The key will be encrypted server-side. This service also needs its documented HTTPS base URL, match endpoints and JSON field mapping before it can pass LiveScore verification.'
-      : 'Enter the third-party API key/token. It will be encrypted server-side.';
+    $('fr-key-help').textContent = item.noKey ? 'This is a no-key public dataset or endpoint. Configure an HTTPS feed importer and JSON mapping if the source is compatible; historical datasets are not real-time score APIs.' : 'The API key will be encrypted server-side. Use the provider API documentation linked above for the exact auth header/prefix, HTTPS base URL, endpoints and response mapping.';
     view('apis');
-    feedback('fr-api-feedback', item.desc + (item.mode === 'native' ? ' The built-in adapter fills its supported endpoints automatically.' : ' Fill the provider-specific connection and response mapping fields, then run diagnostics.')); 
+    feedback('fr-api-feedback', item.desc + (presets[code] ? ' The built-in adapter fills its supported endpoints automatically.' : ' Fill the provider-specific connection and response mapping fields, then run diagnostics.')); 
     $('fr-provider-name').focus();
   }
 
@@ -301,13 +328,9 @@
       actions.appendChild(makeAction('Edit', 'edit', config.id));
       actions.appendChild(makeAction(config.is_enabled ? 'Disable' : 'Enable', 'toggle', config.id));
       actions.appendChild(makeAction('Set primary', 'primary', config.id, 'primary', !config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true || config.id === primaryId));
-      const premiumPlanRequired = !apiNinjasPublicPlanAllowed(config) && !isPublicActive;
-      const publicActionLabel = !isFootball ? 'Football only'
-        : isPublicActive ? (config.provider_code === 'api-ninjas' ? 'Deactivate Provider' : 'Remove from feed')
-        : premiumPlanRequired ? 'Business+ plan required'
-          : (config.provider_code === 'api-ninjas' ? 'Activate Provider' : 'Add to feed');
-      const publicAction = makeAction(publicActionLabel, 'public-toggle', config.id, isPublicActive ? 'danger' : 'pool', !isFootball || premiumPlanRequired || (!isPublicActive && (!config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true)));
-      if (premiumPlanRequired) publicAction.title = 'API Ninjas Free is for development/testing only; Developer does not allow data caching/storage. Public activation requires an active Business, Professional or Enterprise tier.';
+      const blockedByPlan = !apiNinjasPublicPlanAllowed(config) && !isPublicActive;
+      const publicAction = makeAction(!isFootball ? 'Football only' : isPublicActive ? 'Remove from feed' : blockedByPlan ? 'Business+ plan required' : 'Add to feed', 'public-toggle', config.id, isPublicActive ? 'danger' : 'pool', !isFootball || blockedByPlan || (!isPublicActive && (!config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true)));
+      if (blockedByPlan) publicAction.title = 'API Ninjas free is development/testing only; Developer does not allow caching. Public feed requires Business, Professional or Enterprise.';
       actions.appendChild(publicAction);
       actions.appendChild(makeAction('Delete', 'delete', config.id, 'danger')); 
       appendCell(tr, actions);
@@ -340,7 +363,7 @@
   function renderPrimary() {
     const settings = state.settings || {};
     const primaryId = settings.selected_api_config_id;
-    const activeProviders = state.configs.filter((config) => isFootballProvider(config) && config.is_enabled && config.last_test_ok === true && config.last_match_test_ok === true && (config.is_public_active === true || (config.id === settings.active_api_config_id && settings.public_livescore_enabled === true)));
+    const activeProviders = state.configs.filter((config) => isFootballProvider(config) && apiNinjasPublicPlanAllowed(config) && config.is_enabled && config.last_test_ok === true && config.last_match_test_ok === true && (config.is_public_active === true || (config.id === settings.active_api_config_id && settings.public_livescore_enabled === true)));
     const primary = state.configs.find((x) => x.id === primaryId && x.is_enabled);
     const isActive = settings.public_livescore_enabled === true && activeProviders.length > 0;
     $('fr-primary-details').replaceChildren();
@@ -458,13 +481,11 @@
     $('fr-endpoints').value = JSON.stringify(preset.endpoints || {}, null, 2);
     $('fr-response-mapping').value = JSON.stringify(preset.response_mapping || {}, null, 2);
     $('fr-priority').value = code === 'openligadb' ? '10' : '100';
-    $('fr-key-help').textContent = preset.needs_key ? 'Enter the API key/token from this provider account. It will be encrypted server-side.' : 'This OpenLigaDB preset does not require an API key.';
+    $('fr-key-help').textContent = preset.needs_key ? 'Enter the API key/token from this provider account. It will be encrypted server-side.' : (code === 'sportscore' ? 'No API key is required. SportScore requires its visible dofollow attribution link on pages using its data.' : 'This provider preset does not require an API key.');
     view('apis');
-    feedback('fr-api-feedback', code === 'openligadb'
-      ? 'Free no-key preset loaded. Save it, then test the connection.'
-      : code === 'api-ninjas'
-        ? 'API Ninjas preset loaded for LaLiga (laliga). Add your X-Api-Key, then save and test. Free credentials may be tested for development/evaluation, but cannot supply the public LiveScore feed. Developer allows commercial use but not data caching/storage; choose Business, Professional or Enterprise for public use only after confirming your account. The visitor competition filter applies to the combined matches; add one provider configuration per API Ninjas league you want included.'
-        : 'Preset loaded. Add your provider API key before testing the connection.');
+    feedback('fr-api-feedback', code === 'api-ninjas'
+      ? 'API Ninjas preset loaded with LaLiga by default. Add your X-Api-Key and save, then test. Free is for private development/testing only; public cached feeds require an actual Business, Professional or Enterprise subscription. For more leagues, create one provider configuration per league.'
+      : (preset.needs_key ? 'Preset loaded. Add your provider API key, save, then run diagnostics.' : 'Free no-key preset loaded. Save it, then test the connection.'));
     $('fr-provider-name').focus();
   }
 
@@ -617,6 +638,7 @@
     const config = state.configs.find((item) => item.id === id);
     if (!config) { feedback('fr-activation-feedback', 'Select a primary API in Automation Settings first.', 'error'); view('settings'); return; }
     if (!isFootballProvider(config)) { feedback('fr-activation-feedback', 'Only Football or Multi-sport API providers can be added to the football LiveScore feed.', 'error'); return; }
+    if (!apiNinjasPublicPlanAllowed(config)) { feedback('fr-activation-feedback', 'API Ninjas public activation requires an active Business, Professional or Enterprise tier. Free is for private testing; Developer does not permit data caching.', 'error'); return; }
     if (!config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true) { feedback('fr-activation-feedback', 'The selected API must pass connection, endpoint and real match-data verification before activation.', 'error'); return; }
     if (!window.confirm('Add ' + config.provider_name + ' to the public PARROTHIT LiveScore provider pool? Other active APIs will remain active.')) return;
     const button = $('fr-activate-selected');
