@@ -6,13 +6,13 @@
   <meta name="description" content="PARROTHIT dedicated football API and LiveScore automation administration room.">
   <title>Football Automation Room | PARROTHIT</title>
   <link rel="stylesheet" href="../css/style.css">
-  <link rel="stylesheet" href="../css/football-automation-room.css?v=32-date-window-sync-20261108">
+  <link rel="stylesheet" href="../css/football-automation-room.css?v=33-match-detail-routes-20261108">
   <script>document.documentElement.classList.add('football-room-auth-pending');</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
-  <script src="../js/football-api-directory.js?v=32-date-window-sync-20261108"></script>
-  <script src="../js/football-automation-room.js?v=32-date-window-sync-20261108" defer></script>
+  <script src="../js/football-api-directory.js?v=33-match-detail-routes-20261108"></script>
+  <script src="../js/football-automation-room.js?v=33-match-detail-routes-20261108" defer></script>
 </head>
 <body class="football-room-page">
   <main class="fr-shell">
@@ -150,11 +150,11 @@
             </label>
             <label class="fr-field fr-field-wide">Match endpoints (JSON)
               <textarea id="fr-endpoints" rows="5" spellcheck="false">{}</textarea>
-              <small>Define routes per view. Date-range APIs can use today_range, upcoming_range and results_range (or {from}/{to} placeholders in a standard route; for example, /fixtures?from={from}&amp;to={to}). Date-only APIs may use {date}; PARROTHIT syncs those dates in resumable 7-day batches. Also supported: {date_from}, {date_to}, {start_date}, {end_date}, {season}, {view}, {competition}.</small>
+              <small>Define routes per feed view. Optional Match Centre routes: match_details (one combined response), events, statistics, lineups, standings and head_to_head (aliases: h2h, table, match_events, match_statistics, match_lineups, competition_table, previous_meetings). Use placeholders such as {match_id}, {fixture_id}, {competition_id}, {home_id}, {away_id}, {season} and {date}. Date-range feeds may use {from}/{to}; date-only feeds sync in resumable 7-day batches. Add only routes documented by your API provider.</small>
             </label>
             <label class="fr-field fr-field-wide">Response mapping (JSON)
               <textarea id="fr-response-mapping" rows="7" spellcheck="false">{}</textarea>
-              <small>Map provider JSON paths into PARROTHIT fields. Example: {"matches_path":"response","id":"fixture.id","competition":"league.name","home_team":"teams.home.name","away_team":"teams.away.name","home_score":"goals.home","away_score":"goals.away","status":"fixture.status.short","kickoff":"fixture.date","minute":"fixture.status.elapsed"}. Empty mapping uses a known built-in adapter where available.</small>
+              <small>Map provider JSON paths into PARROTHIT fields. Competition/team fields include competition, competition_id, competition_type, competition_logo, country, home_team, away_team, home_logo and away_logo. Match fields include status, kickoff, minute, venue_name, venue_city and referee. Optional detail paths: events, statistics, lineups, standings and head_to_head. For endpoint responses you can also map events_path, statistics_path, lineups_path, standings_path and head_to_head_path. Competition catalogue mappings: competitions_path, catalog_id, catalog_name, catalog_logo, catalog_country, catalog_type, catalog_country_code and catalog_country_flag. Example: {"matches_path":"response","id":"fixture.id","competition":"league.name","competition_logo":"league.logo","country":"league.country","home_team":"teams.home.name","away_team":"teams.away.name","status":"fixture.status.short","kickoff":"fixture.date"}. Empty mapping uses a known built-in adapter where available. PARROTHIT never fabricates details that a provider does not return.</small>
             </label>
             <label class="fr-field">Priority
               <input id="fr-priority" type="number" min="1" max="999999" step="1" value="100" required>
