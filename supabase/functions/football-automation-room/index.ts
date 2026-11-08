@@ -138,6 +138,12 @@ function cleanResponseMapping(value: unknown): Record<string, unknown> {
   return output;
 }
 
+function shiftIsoDate(day: string, amount: number): string {
+  const value = new Date(`${day}T12:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + amount);
+  return value.toISOString().slice(0, 10);
+}
+
 function expandTemplate(value: string, date: string, view: string, dateFrom = date, dateTo = date): string {
   const season = date.slice(0, 4);
   return value.replaceAll("{date}", date)
@@ -163,7 +169,7 @@ function defaultEndpoints(providerCode: string): Record<string, string> {
   }
   if (providerCode === "football-data-org") {
     return {
-      live: "/v4/matches?status=IN_PLAY,PAUSED",
+      live: "/v4/matches?status=LIVE",
       today: "/v4/matches?dateFrom={date}&dateTo={date}",
       upcoming: "/v4/matches?dateFrom={date}&dateTo={date}",
       results: "/v4/matches?dateFrom={date}&dateTo={date}",
@@ -302,18 +308,51 @@ function usableMatchCount(rows: unknown[], providerCode: string, mapping: Record
   }).length;
 }
 
+function safeProviderEndpoint(target: URL): string {
+  const safe = new URL(target.toString());
+  for (const key of [...safe.searchParams.keys()]) {
+    if (/^(?:key|api[_-]?key|apikey|token|access[_-]?token|auth[_-]?token|secret)$/i.test(key)) {
+      safe.searchParams.set(key, "[redacted]");
+    }
+  }
+  return `${safe.pathname}${safe.search}`;
+}
+
+function summarizeProviderErrorBody(bodyText: string): string {
+  const text = String(bodyText || "").trim();
+  if (!text) return "";
+  let detail = text;
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed === "string") detail = parsed;
+    else if (parsed && typeof parsed === "object") {
+      const candidate = (parsed as any).error ?? (parsed as any).message ?? (parsed as any).detail ??
+        (parsed as any).error_description ?? (parsed as any).errors;
+      if (typeof candidate === "string") detail = candidate;
+      else if (candidate !== undefined) detail = JSON.stringify(candidate);
+    }
+  } catch { /* Provider may return plain-text error details. */ }
+  return detail.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").slice(0, 700);
+}
+
 async function providerFetch(config: Record<string, any>, view: string, date: string): Promise<{ http_status: number; raw_count: number; usable_count: number; list_found: boolean; duration_ms: number; message: string; endpoint: string }> {
   if (String(config.provider_code || "") === "footballapi-org" && String(config.plan_type || "free") === "free" && view === "live") {
     return { http_status: 200, raw_count: 0, usable_count: 0, list_found: true, duration_ms: 0, message: "Skipped by plan: FootballAPI.org live scores require membership. Fixtures and settled results can still be checked on the complimentary plan.", endpoint: "/v1/live (membership-only; not requested)" };
   }
   const base = validateHttpsUrl(String(config.api_base_url || ""));
   const endpointConfig = plainObject(config.endpoints);
-  const route = typeof endpointConfig[view] === "string" && String(endpointConfig[view]).trim()
+  let route = typeof endpointConfig[view] === "string" && String(endpointConfig[view]).trim()
     ? String(endpointConfig[view]) : defaultEndpoints(String(config.provider_code || ""))[view];
+  if (String(config.provider_code || "").toLowerCase() === "football-data-org" && view === "live" && route === "/v4/matches?status=IN_PLAY,PAUSED") {
+    route = "/v4/matches?status=LIVE";
+  }
   if (!route) throw new Error(`No ${view} endpoint is configured. Add it under Match endpoints.`);
   if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) throw new Error(`The ${view} endpoint must be a relative path on the configured API host.`);
-  const target = new URL(expandTemplate(route, date, view).replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
-  const safeEndpoint = target.toString();
+  // football-data.org uses an exclusive dateTo boundary. For a one-day diagnostic,
+  // request [date, next day) rather than the invalid zero-length [date, date) range.
+  const diagnosticDateTo = String(config.provider_code || "").toLowerCase() === "football-data-org" && /\bdateTo=|\{to\}|\{date_to\}/.test(route)
+    ? shiftIsoDate(date, 1) : date;
+  const target = new URL(expandTemplate(route, date, view, date, diagnosticDateTo).replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
   const params = cleanJsonObject(config.default_query_params, "Default query parameters");
   for (const [key, rawValue] of Object.entries(params)) {
     const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view) : String(rawValue);
@@ -333,10 +372,20 @@ async function providerFetch(config: Record<string, any>, view: string, date: st
     else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
     else throw new Error("Unsupported provider authentication method.");
   }
+  const safeEndpoint = safeProviderEndpoint(target);
   const started = Date.now();
   const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
   const duration = Date.now() - started;
-  if (!response.ok) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: `HTTP ${response.status} ${response.statusText || "error"}`, endpoint: safeEndpoint };
+  if (!response.ok) {
+    const errorText = await readSmallResponseBody(response, 4096);
+    const detail = summarizeProviderErrorBody(errorText);
+    const requestId = response.headers.get("x-request-id") || response.headers.get("x-correlation-id") || "";
+    return {
+      http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration,
+      message: `HTTP ${response.status} ${response.statusText || "error"}${detail ? `: ${detail}` : ". No error body was returned."}${requestId ? ` · Request ID: ${requestId}` : ""}`,
+      endpoint: safeEndpoint,
+    };
+  }
   if (response.status === 204) return { http_status: 204, raw_count: 0, usable_count: 0, list_found: true, duration_ms: duration, message: "Provider returned HTTP 204 No Content; this is a valid empty response.", endpoint: safeEndpoint };
   const bodyText = await readSmallResponseBody(response, 2 * 1024 * 1024);
   if (!bodyText.trim()) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "Provider returned an empty response body.", endpoint: safeEndpoint };
