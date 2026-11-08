@@ -25,9 +25,29 @@
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[char]));
+  function imageSource(value, depth = 0) {
+    if (depth > 3 || value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+    if (Array.isArray(value)) {
+      for (const item of value) { const found = imageSource(item, depth + 1); if (found) return found; }
+      return '';
+    }
+    if (typeof value === 'object') {
+      for (const key of ['url', 'secure_url', 'image_url', 'imageUrl', 'image_path', 'path', 'logo', 'crest', 'badge', 'team_logo', 'logo_url', 'crest_url', 'badge_url', 'image', 'icon', 'src', 'href']) {
+        const found = imageSource(value[key], depth + 1);
+        if (found) return found;
+      }
+    }
+    return '';
+  }
   const safeUrl = (value) => {
-    try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; }
-    catch { return ''; }
+    const source = imageSource(value);
+    if (!source) return '';
+    try {
+      const url = new URL(source.startsWith('//') ? `https:${source}` : source, location.href);
+      if (url.protocol === 'http:') url.protocol = 'https:';
+      return url.protocol === 'https:' ? url.href : '';
+    } catch { return ''; }
   };
   function getStored(key, fallback) {
     try { const value = localStorage.getItem(key); return value === null ? fallback : value; }
@@ -61,7 +81,13 @@
   }
   function teamLogo(match, side) {
     const team = teamObject(match, side);
-    return safeUrl(firstValue(team.logo, team.crest, team.image, match?.[`${side}_logo`]));
+    const candidates = [
+      team.logo, team.crest, team.image, team.image_path, team.team_logo, team.logo_url,
+      team.image_url, team.badge, team.badge_url, match?.[`${side}_logo`], match?.[`${side}_logo_url`],
+      match?.[`${side}_team_logo`], match?.[`${side}_crest`], match?.[`${side}_image`]
+    ];
+    for (const candidate of candidates) { const url = safeUrl(candidate); if (url) return url; }
+    return '';
   }
   const matchKey = (match) => String(match?.public_match_key ?? `${match?.league || match?.competition}|${teamName(match, 'home')}|${teamName(match, 'away')}|${match?.kickoff || ''}`);
   function isFinished(match) {
@@ -117,7 +143,7 @@
     const name = teamName(match, side);
     const logo = teamLogo(match, side);
     $(target).innerHTML = `${logo
-      ? `<img src="${esc(logo)}" alt="${esc(name)} badge" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.hidden=false"><span class="pl-detail-fallback" hidden>${esc(name.charAt(0).toUpperCase())}</span>`
+      ? `<img src="${esc(logo)}" alt="${esc(name)} badge" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" onerror="this.onerror=null;this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.hidden=false"><span class="pl-detail-fallback" hidden>${esc(name.charAt(0).toUpperCase())}</span>`
       : `<span class="pl-detail-fallback">${esc(name.charAt(0).toUpperCase())}</span>`}<b>${esc(name)}</b>`;
   }
   function renderCompetition(match) {
@@ -126,7 +152,7 @@
     const logo = safeUrl(firstValue(match?.competition_logo, match?.league_logo));
     const initial = esc(name.slice(0, 2).toUpperCase() || 'FC');
     $('plMatchCompetition').innerHTML = `${logo
-      ? `<img class="pl-detail-competition-logo" src="${esc(logo)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.hidden=false"><span class="pl-detail-competition-fallback" hidden>${initial}</span>`
+      ? `<img class="pl-detail-competition-logo" src="${esc(logo)}" alt="" referrerpolicy="strict-origin-when-cross-origin" onerror="this.onerror=null;this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.hidden=false"><span class="pl-detail-competition-fallback" hidden>${initial}</span>`
       : `<span class="pl-detail-competition-fallback">${initial}</span>`}<span class="pl-detail-competition-copy"><b>${esc(name)}</b><small>${esc(country)}</small></span>`;
   }
   function renderScoreboard(match) {
@@ -335,7 +361,7 @@
       $('plStandingsContent').innerHTML = `${filterMarkup}<div class="pl-table-wrap"><table class="pl-standings pl-form-table"><thead><tr><th>#</th><th>Team</th><th>Recent form</th><th>PTS</th></tr></thead><tbody>${scopedRows.map((row, index) => {
         const teamValue = row.team || row.participant || row.name || 'Team';
         const team = textValue(teamValue, 'Team');
-        const logo = safeUrl(asObject(teamValue).logo || asObject(teamValue).crest);
+        const logo = safeUrl(teamValue);
         const form = textValue(row.form || row.recent_form || row.last_five, '—');
         return `<tr><td>${esc(row.position ?? row.rank ?? index + 1)}</td><td class="pl-standings-team">${logo ? `<img src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}${esc(team)}</td><td><span class="pl-form-text">${esc(form)}</span></td><td><b>${esc(row.points ?? row.pts ?? '—')}</b></td></tr>`;
       }).join('')}</tbody></table></div>`;
@@ -344,7 +370,7 @@
         const scope = scopeFor(row);
         const teamValue = row.team || row.participant || row.name || 'Team';
         const team = textValue(teamValue, 'Team');
-        const logo = safeUrl(asObject(teamValue).logo || asObject(teamValue).crest);
+        const logo = safeUrl(teamValue);
         const played = scope.played ?? scope.matches ?? scope.played_games ?? '—';
         const wins = scope.win ?? scope.wins ?? scope.won ?? '—';
         const draws = scope.draw ?? scope.draws ?? '—';

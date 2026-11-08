@@ -66,13 +66,39 @@
     if (typeof value === 'string') return value;
     return value?.name || value?.team_name || value?.TeamName || (side === 'home' ? 'Home team' : 'Away team');
   };
+  function imageSource(value, depth = 0) {
+    if (depth > 3 || value === null || value === undefined) return '';
+    if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+    if (Array.isArray(value)) {
+      for (const item of value) { const found = imageSource(item, depth + 1); if (found) return found; }
+      return '';
+    }
+    if (typeof value === 'object') {
+      for (const key of ['url', 'secure_url', 'image_url', 'imageUrl', 'image_path', 'path', 'logo', 'crest', 'badge', 'team_logo', 'logo_url', 'crest_url', 'badge_url', 'image', 'icon', 'src', 'href']) {
+        const found = imageSource(value[key], depth + 1);
+        if (found) return found;
+      }
+    }
+    return '';
+  }
   const safeImage = (value) => {
-    try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; }
-    catch { return ''; }
+    const source = imageSource(value);
+    if (!source) return '';
+    try {
+      const url = new URL(source.startsWith('//') ? `https:${source}` : source, location.href);
+      if (url.protocol === 'http:') url.protocol = 'https:';
+      return url.protocol === 'https:' ? url.href : '';
+    } catch { return ''; }
   };
   const teamLogo = (match, side) => {
-    const value = match?.[side];
-    return safeImage((typeof value === 'object' && value ? value.logo : '') || match?.[`${side}_logo`]);
+    const team = match?.[side] ?? match?.[`${side}_team`] ?? {};
+    const candidates = [
+      team?.logo, team?.crest, team?.image, team?.image_path, team?.team_logo, team?.logo_url,
+      team?.image_url, team?.badge, team?.badge_url, match?.[`${side}_logo`], match?.[`${side}_logo_url`],
+      match?.[`${side}_team_logo`], match?.[`${side}_crest`], match?.[`${side}_image`]
+    ];
+    for (const candidate of candidates) { const url = safeImage(candidate); if (url) return url; }
+    return '';
   };
   const scoreValue = (match, side) => match?.[`${side}_score`] ?? match?.score?.[side] ?? null;
   const leagueName = (match) => String(match?.league || match?.competition || match?.league_name || 'Football');
@@ -163,7 +189,7 @@
     const logo = teamLogo(match, side);
     const initial = esc(name.trim().charAt(0).toUpperCase() || '•');
     const emblem = logo
-      ? `<img src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-team-fallback" style="display:none">${initial}</span>`
+      ? `<img src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" onerror="this.onerror=null;this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='grid'"><span class="pl-team-fallback" style="display:none">${initial}</span>`
       : `<span class="pl-team-fallback">${initial}</span>`;
     return `<span class="pl-team-block ${side === 'away' ? 'is-away' : ''}">${emblem}<span class="pl-team-name">${esc(name)}</span></span>`;
   }
