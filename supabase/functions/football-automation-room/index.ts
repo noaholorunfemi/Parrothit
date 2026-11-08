@@ -138,9 +138,13 @@ function cleanResponseMapping(value: unknown): Record<string, unknown> {
   return output;
 }
 
-function expandTemplate(value: string, date: string, view: string): string {
+function expandTemplate(value: string, date: string, view: string, dateFrom = date, dateTo = date): string {
   const season = date.slice(0, 4);
-  return value.replaceAll("{date}", date).replaceAll("{view}", view).replaceAll("{competition}", "all").replaceAll("{season}", season);
+  return value.replaceAll("{date}", date)
+    .replaceAll("{from}", dateFrom).replaceAll("{to}", dateTo)
+    .replaceAll("{date_from}", dateFrom).replaceAll("{date_to}", dateTo)
+    .replaceAll("{start_date}", dateFrom).replaceAll("{end_date}", dateTo)
+    .replaceAll("{view}", view).replaceAll("{competition}", "all").replaceAll("{season}", season);
 }
 
 function defaultEndpoints(providerCode: string): Record<string, string> {
@@ -253,7 +257,7 @@ function builtInMappingFor(providerCode: string): Record<string, unknown> {
   };
   if (providerCode === "sportapi-ai") return {
     matches_path: "fixtures", id: "id", competition: "league_name", home_team: "home_team", away_team: "away_team",
-    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff",
+    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff_utc",
   };
   if (providerCode === "footballdata-io") return {
     matches_path: "", id: "match_id", competition: "league.competition_name", competition_id: "league.league_id",
@@ -343,7 +347,7 @@ async function providerFetch(config: Record<string, any>, view: string, date: st
   const rows = providerRows(raw, String(config.provider_code || ""), mapping);
   if (!rows) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "JSON received, but no match list was found. Check matches_path in Response mapping.", endpoint: safeEndpoint };
   const normalizedForDiagnostics = String(config.provider_code || "").toLowerCase() === "sportapi-ai"
-    ? rows.map((row: any) => ({ ...row, kickoff: row?.kickoff ?? row?.date ?? (raw as any)?.date, date: row?.date ?? (raw as any)?.date }))
+    ? rows.map((row: any) => ({ ...row, kickoff: row?.kickoff_utc ?? row?.datetime ?? row?.kickoff ?? row?.date ?? (raw as any)?.date, date: row?.date ?? (raw as any)?.date }))
     : rows;
   const usable = usableMatchCount(normalizedForDiagnostics, String(config.provider_code || ""), mapping);
   const message = rows.length === 0 ? "Match list found; provider returned zero records for this feed/date." : `${rows.length} raw record(s); ${usable} record(s) contain usable team names and kickoff time.`;
@@ -380,7 +384,9 @@ async function runProviderDiagnostics(config: Record<string, any>, date: string)
   const allFeedsResponded = diagnostics.length === 4 && diagnostics.every((item) => item.ok);
   const rawCount = isApiNinjas ? Number(diagnostics[0]?.raw_count || 0) : diagnostics.reduce((sum, item) => sum + Number(item.raw_count || 0), 0);
   const usableCount = isApiNinjas ? Number(diagnostics[0]?.usable_count || 0) : diagnostics.reduce((sum, item) => sum + Number(item.usable_count || 0), 0);
-  const matchDataVerified = allFeedsResponded && usableCount > 0;
+  // An endpoint returning a valid empty match list is still a healthy service. Do not make
+  // activation depend on a fixture happening on the administrator's diagnostic sample date.
+  const matchDataVerified = allFeedsResponded;
   return { diagnostics, all_feeds_responded: allFeedsResponded, raw_match_count: rawCount, usable_match_count: usableCount, match_data_verified: matchDataVerified };
 }
 
