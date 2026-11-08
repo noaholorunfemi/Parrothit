@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#050505">
-  <meta name="description" content="PARROTHIT football match centre: match information, standings and head-to-head availability.">
+  <meta name="theme-color" content="#111111">
+  <meta name="description" content="PARROTHIT football match centre: live score, match information, events, statistics, line-ups, standings and head-to-head. ">
   <title>Match Centre | PARROTHIT LiveScore</title>
-  <link rel="stylesheet" href="css/livescore.css">
+  <link rel="stylesheet" href="css/livescore.css?v=match-centre-20261108">
 </head>
 <body class="pl-body">
   <div class="pl-app">
@@ -22,7 +22,7 @@
       </div>
       <nav class="pl-menu" id="plMenu" aria-label="LiveScore menu" hidden>
         <a href="livescore.html">Scores</a>
-        <a href="sports.html">News</a>
+        <a href="livescore.html?view=live">Live matches</a>
         <a href="livescore.html?view=favourites">Favourites</a>
         <a href="football.html">Football</a>
         <a href="index.html">PARROTHIT Home</a>
@@ -31,44 +31,57 @@
 
     <main class="pl-main pl-match-centre">
       <a class="pl-back-link" href="livescore.html">‹ Back to all scores</a>
-      <div id="plMatchLoading" class="pl-state-card"><span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Retrieving the match from the active football provider.</p></div>
-      <section id="plMatchContent" hidden>
-        <div class="pl-match-competition" id="plMatchCompetition">Football</div>
-        <section class="pl-match-picture-card" id="plMatchPictureCard" aria-label="Official match image from the active football provider">
-          <img id="plMatchPicture" class="pl-match-picture" alt="Official stadium or match image supplied by the football provider" hidden>
-          <div id="plPictureFallback" class="pl-picture-fallback">
-            <div class="pl-picture-team"><img id="plPictureHomeLogo" alt="" hidden><span id="plPictureHomeInitial">H</span><b id="plPictureHomeName">Home team</b></div>
-            <strong class="pl-picture-vs">VS</strong>
-            <div class="pl-picture-team"><img id="plPictureAwayLogo" alt="" hidden><span id="plPictureAwayInitial">A</span><b id="plPictureAwayName">Away team</b></div>
-            <small id="plPictureFallbackNote">Official team badges from the active provider</small>
+      <div id="plMatchLoading" class="pl-state-card"><span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Retrieving verified match information from the active football providers.</p></div>
+      <section id="plMatchContent" class="pl-match-view" hidden>
+        <div class="pl-match-competition-bar">
+          <div class="pl-match-competition" id="plMatchCompetition">
+            <span class="pl-detail-competition-fallback">FC</span><span><b>Football</b><small>Competition</small></span>
           </div>
-          <div class="pl-picture-overlay"><span id="plPictureBadge">MATCH CENTRE</span><b id="plPictureCaption">Official match imagery</b></div>
-        </section>
-        <div class="pl-match-hero">
-          <div class="pl-detail-team" id="plHomeTeam"></div>
-          <div class="pl-detail-score"><strong id="plDetailScore">– : –</strong><span id="plDetailStatus">Scheduled</span><small id="plDetailDate"></small></div>
-          <div class="pl-detail-team" id="plAwayTeam"></div>
+          <button id="plDetailFavourite" class="pl-star pl-detail-star" type="button" aria-label="Add match to favourites" aria-pressed="false">☆</button>
         </div>
-        <div class="pl-match-meta"><span id="plProviderName">Provider data</span><button id="plDetailFavourite" class="pl-star" type="button" aria-label="Add match to favourites" aria-pressed="false">☆</button></div>
-        <nav class="pl-detail-tabs" aria-label="Match details">
-          <button class="active" data-detail-tab="info" type="button">Info</button>
-          <button data-detail-tab="table" type="button">Table</button>
-          <button data-detail-tab="h2h" type="button">H2H</button>
+
+        <section class="pl-match-hero pl-scoreboard" aria-label="Match score">
+          <div class="pl-detail-team" id="plHomeTeam"></div>
+          <div class="pl-detail-score">
+            <strong id="plDetailScore">– : –</strong>
+            <span id="plDetailStatus" class="pl-match-state">Scheduled</span>
+            <small id="plDetailDate"></small>
+          </div>
+          <div class="pl-detail-team" id="plAwayTeam"></div>
+        </section>
+        <div class="pl-match-meta"><span id="plProviderName">Data from active football providers</span><span id="plMatchDataUpdated" aria-live="polite"></span></div>
+
+        <nav class="pl-detail-tabs" aria-label="Match details" role="tablist">
+          <button class="active" id="plTabInfo" data-detail-tab="info" role="tab" aria-selected="true" aria-controls="plPanelInfo" type="button">Info</button>
+          <button id="plTabSummary" data-detail-tab="summary" role="tab" aria-selected="false" aria-controls="plPanelSummary" type="button">Summary</button>
+          <button id="plTabStats" data-detail-tab="stats" role="tab" aria-selected="false" aria-controls="plPanelStats" type="button">Stats</button>
+          <button id="plTabLineups" data-detail-tab="lineups" role="tab" aria-selected="false" aria-controls="plPanelLineups" type="button">Line-ups</button>
+          <button id="plTabTable" data-detail-tab="table" role="tab" aria-selected="false" aria-controls="plPanelTable" type="button">Table</button>
+          <button id="plTabH2H" data-detail-tab="h2h" role="tab" aria-selected="false" aria-controls="plPanelH2H" type="button">H2H</button>
         </nav>
-        <section class="pl-detail-panel active" data-detail-panel="info">
-          <h2>Match information</h2><div class="pl-info-grid" id="plInfoGrid"></div>
-          <div class="pl-provider-limits" id="plEventsNote">Events, lineups and statistics appear only when the active provider supplies those fields.</div>
+
+        <section class="pl-detail-panel active" id="plPanelInfo" data-detail-panel="info" role="tabpanel" aria-labelledby="plTabInfo">
+          <h2>Match information</h2>
+          <div class="pl-info-grid" id="plInfoGrid"></div>
+          <p class="pl-provider-limits" id="plEventsNote">Match information is shown when supplied by the selected football provider.</p>
         </section>
-        <section class="pl-detail-panel" data-detail-panel="table" hidden>
-          <h2>Competition table</h2>
-          <div class="pl-state-card"><strong>Standings are not included in this match feed.</strong><p>Connect a provider standings endpoint and mapping in Football Automation Room to display verified table data here.</p></div>
+        <section class="pl-detail-panel" id="plPanelSummary" data-detail-panel="summary" role="tabpanel" aria-labelledby="plTabSummary" hidden>
+          <h2>Match summary</h2><div id="plSummaryContent"></div>
         </section>
-        <section class="pl-detail-panel" data-detail-panel="h2h" hidden>
-          <h2>Head-to-head</h2>
-          <div class="pl-state-card"><strong>Head-to-head data is not available from the active match feed.</strong><p>This section will show previous meetings when the selected provider exposes an H2H endpoint and the integration is enabled.</p></div>
+        <section class="pl-detail-panel" id="plPanelStats" data-detail-panel="stats" role="tabpanel" aria-labelledby="plTabStats" hidden>
+          <h2>Match statistics</h2><div id="plStatsContent"></div>
+        </section>
+        <section class="pl-detail-panel" id="plPanelLineups" data-detail-panel="lineups" role="tabpanel" aria-labelledby="plTabLineups" hidden>
+          <h2>Team line-ups</h2><div id="plLineupsContent"></div>
+        </section>
+        <section class="pl-detail-panel" id="plPanelTable" data-detail-panel="table" role="tabpanel" aria-labelledby="plTabTable" hidden>
+          <h2>Competition table</h2><div id="plStandingsContent"></div>
+        </section>
+        <section class="pl-detail-panel" id="plPanelH2H" data-detail-panel="h2h" role="tabpanel" aria-labelledby="plTabH2H" hidden>
+          <h2>Head-to-head</h2><div id="plH2HContent"></div>
         </section>
       </section>
-      <div class="pl-footer-note">PARROTHIT displays only verified information returned by the selected football provider. Missing scores, events, standings and statistics are never fabricated.</div>
+      <div class="pl-footer-note">PARROTHIT displays provider-supplied match facts only. Events, statistics, line-ups, standings and previous meetings appear when the active provider supplies them.</div>
     </main>
     <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
       <div><h3>PARROTHIT</h3><p>News that speaks! A Nigeria-first news platform with a global outlook.</p></div>
@@ -77,9 +90,9 @@
     </div><div class="footer-bottom">© <span id="year"></span> PARROTHIT. All rights reserved. <span class="pl-footer-tagline">NEWS THAT SPEAKS!</span></div></div></footer>
   </div>
   <script src="supabase-config.js"></script>
-  <script src="js/livescore-config.js"></script>
-  <script src="js/livescore-clock.js?v=match-clock-20261108"></script>
+  <script src="js/livescore-config.js?v=match-centre-20261108"></script>
+  <script src="js/livescore-clock.js?v=match-centre-clock-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
-  <script src="js/livescore-match.js?v=match-clock-20261108" defer></script>
+  <script src="js/livescore-match.js?v=match-centre-20261108" defer></script>
 </body>
 </html>
