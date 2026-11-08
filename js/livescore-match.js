@@ -43,7 +43,7 @@
   };
   const teamLogo = (match, side) => safeUrl(typeof match?.[side] === 'object' ? match?.[side]?.logo : match?.[`${side}_logo`]);
   const matchPicture = (match) => safeUrl(match?.match_image || match?.venue_image || match?.image_url || match?.image);
-  const matchKey = (match) => String(match?.match_id ?? match?.id ?? `${match?.league}|${teamName(match, 'home')}|${teamName(match, 'away')}|${match?.kickoff || ''}`);
+  const matchKey = (match) => String(match?.public_match_key ?? `${match?.league}|${teamName(match, 'home')}|${teamName(match, 'away')}|${match?.kickoff || ''}`);
   function isFinished(match) { return /^(FT|AET|PEN|FINISHED|FULL.?TIME|ENDED|COMPLETE)/i.test(String(match?.status || '')); }
   function isLive(match) { return /LIVE|IN.?PLAY|HALF.?TIME|1ST|2ND|(^|\b)(1H|2H|HT|ET|BT|P)(\b|$)/i.test(String(match?.status || '')) && !isFinished(match); }
   function statusText(match) {
@@ -160,7 +160,7 @@
     if (!currentMatch) {
       try {
         const cached = JSON.parse(sessionStorage.getItem(`parrothit_ls_match_${matchId}`) || 'null');
-        if (cached && String(cached.match_id ?? cached.id ?? '') === String(matchId)) show(cached, 'Recently loaded provider data');
+        if (cached && String(cached.public_match_key ?? cached.match_id ?? cached.id ?? '') === String(matchId)) show(cached, Array.isArray(cached.source_providers) ? cached.source_providers.join(' + ') : 'Recently loaded provider data');
       } catch { /* cached navigation data is optional */ }
     }
     try {
@@ -172,15 +172,15 @@
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || `Provider returned HTTP ${response.status}.`);
       if (!Array.isArray(payload.matches)) throw new Error('The public football service did not return a matches array.');
-      const fresh = payload.matches.find((item) => String(item.match_id ?? item.id ?? '') === String(matchId));
+      const fresh = payload.matches.find((item) => String(item.public_match_key ?? item.match_id ?? item.id ?? '') === String(matchId));
       if (!fresh) {
         if (currentMatch) {
-          $('plEventsNote').textContent = 'The active provider did not include this match in its latest response. The match details shown above are the last match data opened from the scores list.';
+          $('plEventsNote').textContent = 'The active provider pool did not include this match in its latest response. The match details shown above are the last match data opened from the scores list.';
           return;
         }
-        throw new Error('This match was not returned by the active provider for the selected date. It may have moved to another date or may not be covered by this API.');
+        throw new Error('This match was not returned by any active provider for the selected date. It may have moved to another date or may not be covered by this API.');
       }
-      show(fresh, payload.provider || 'Active football provider');
+      show(fresh, Array.isArray(fresh.source_providers) && fresh.source_providers.length ? fresh.source_providers.join(' + ') : (payload.provider || 'Active football APIs'));
       if (payload.message) $('plEventsNote').textContent = payload.message;
       else $('plEventsNote').textContent = 'Events, lineups and statistics appear only when the active provider supplies those fields.';
     } catch (error) {
