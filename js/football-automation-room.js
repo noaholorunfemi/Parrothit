@@ -43,6 +43,24 @@
       auth_type: 'header', auth_header_name: 'X-API-Key', auth_prefix: '', auth_query_param: '', needs_key: true,
       endpoints: { live: '/v1/live', today: '/v1/matches?date_from={date}&date_to={date}&per_page=1000', upcoming: '/v1/matches?date_from={date}&date_to={date}&status=scheduled&per_page=1000', results: '/v1/results?date={date}&per_page=1000', competitions: '/v1/competitions' },
       default_query_params: {}, custom_headers: {}, response_mapping: {}
+    },
+    'api-ninjas': {
+      provider_code: 'api-ninjas', provider_name: 'API Ninjas Football / Soccer API', sport: 'football', plan_type: 'free',
+      api_base_url: 'https://api.api-ninjas.com', test_path: '/v1/soccermatches?season={season}',
+      auth_type: 'header', auth_header_name: 'X-Api-Key', auth_prefix: '', auth_query_param: '', needs_key: true,
+      endpoints: {
+        live: '/v1/soccermatches?date={date}',
+        today: '/v1/soccermatches?date={date}',
+        upcoming: '/v1/soccermatches?date={date}',
+        results: '/v1/soccermatches?date={date}'
+      },
+      default_query_params: { league: 'laliga' }, custom_headers: {},
+      response_mapping: {
+        matches_path: '', id: 'game_id', competition: 'league', competition_id: 'league', competition_code: 'league',
+        home_team: 'home_team.name', away_team: 'away_team.name', home_score: 'home_score', away_score: 'away_score',
+        status: 'status', kickoff: 'start_time', minute: 'clock', venue_name: 'venue.name', venue_city: 'venue.city',
+        country_code: 'venue.country', live_status_values: ['in_progress'], finished_status_values: ['final'], upcoming_status_values: ['scheduled']
+      }
     }
   };
   const providerDirectory = Array.isArray(window.PARROTHIT_FOOTBALL_API_DIRECTORY) ? window.PARROTHIT_FOOTBALL_API_DIRECTORY : [];
@@ -275,11 +293,18 @@
       appendCell(tr, marker, marker !== '—' ? 'fr-primary-cell' : '');
       const actions = document.createElement('div');
       actions.className = 'fr-row-actions';
-      actions.appendChild(makeAction('Test', 'test', config.id, '', !config.is_enabled));
+      actions.appendChild(makeAction(config.provider_code === 'api-ninjas' ? 'Test Connection' : 'Test', 'test', config.id, '', !config.is_enabled));
       actions.appendChild(makeAction('Edit', 'edit', config.id));
       actions.appendChild(makeAction(config.is_enabled ? 'Disable' : 'Enable', 'toggle', config.id));
       actions.appendChild(makeAction('Set primary', 'primary', config.id, 'primary', !config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true || config.id === primaryId));
-      actions.appendChild(makeAction(!isFootball ? 'Football only' : isPublicActive ? 'Remove from feed' : 'Add to feed', 'public-toggle', config.id, isPublicActive ? 'danger' : 'pool', !isFootball || (!isPublicActive && (!config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true))));
+      const premiumPlanRequired = config.provider_code === 'api-ninjas' && String(config.plan_type || 'free') === 'free' && !isPublicActive;
+      const publicActionLabel = !isFootball ? 'Football only'
+        : isPublicActive ? (config.provider_code === 'api-ninjas' ? 'Deactivate Provider' : 'Remove from feed')
+        : premiumPlanRequired ? 'Premium plan required'
+          : (config.provider_code === 'api-ninjas' ? 'Activate Provider' : 'Add to feed');
+      const publicAction = makeAction(publicActionLabel, 'public-toggle', config.id, isPublicActive ? 'danger' : 'pool', !isFootball || premiumPlanRequired || (!isPublicActive && (!config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true)));
+      if (premiumPlanRequired) publicAction.title = 'API Ninjas commercial use requires its Premium plan. Testing is available, but public activation is blocked while this is set to Free.';
+      actions.appendChild(publicAction);
       actions.appendChild(makeAction('Delete', 'delete', config.id, 'danger')); 
       appendCell(tr, actions);
       body.appendChild(tr);
@@ -430,7 +455,11 @@
     $('fr-priority').value = code === 'openligadb' ? '10' : '100';
     $('fr-key-help').textContent = preset.needs_key ? 'Enter the API key/token from this provider account. It will be encrypted server-side.' : 'This OpenLigaDB preset does not require an API key.';
     view('apis');
-    feedback('fr-api-feedback', code === 'openligadb' ? 'Free no-key preset loaded. Save it, then test the connection.' : 'Preset loaded. Add your provider API key before testing the connection.');
+    feedback('fr-api-feedback', code === 'openligadb'
+      ? 'Free no-key preset loaded. Save it, then test the connection.'
+      : code === 'api-ninjas'
+        ? 'API Ninjas preset loaded for LaLiga (laliga). Add your X-Api-Key, then save and test. Free access includes current-season fixtures/results; live match-minute and in-play score fields require a paid plan.'
+        : 'Preset loaded. Add your provider API key before testing the connection.');
     $('fr-provider-name').focus();
   }
 
