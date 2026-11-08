@@ -311,6 +311,12 @@ function normalizeFootballApiOrg(raw: unknown): Record<string, unknown>[] {
       venue: item?.ground_name || item?.ground?.name || item?.ground || item?.venue?.name || item?.venue || "",
       venue_city: item?.city_name || item?.city || item?.ground?.city || item?.venue?.city || "",
       referee: item?.referee_name || item?.referee?.name || item?.referee || "",
+      events: safePublicDetail(item?.events || item?.incidents || item?.timeline),
+      statistics: safePublicDetail(item?.statistics || item?.stats || item?.match_statistics),
+      lineups: safePublicDetail(item?.lineups || item?.team_lineups || item?.formations),
+      standings: safePublicDetail(item?.standings || item?.table),
+      head_to_head: safePublicDetail(item?.head_to_head || item?.h2h || item?.previous_matches),
+      round: item?.round || item?.matchday || "",
     };
   }).filter((match: any) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
@@ -369,6 +375,12 @@ function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
       venue_image: venue?.image_path || null,
       match_image: venue?.image_path || null,
       referee: fixture?.referee?.name || fixture?.referee_name || "",
+      events: safePublicDetail(fixture?.events || fixture?.incidents || fixture?.timeline),
+      statistics: safePublicDetail(fixture?.statistics || fixture?.stats),
+      lineups: safePublicDetail(fixture?.lineups || fixture?.formations),
+      standings: safePublicDetail(fixture?.standings || fixture?.league?.standings),
+      head_to_head: safePublicDetail(fixture?.head_to_head || fixture?.h2h || fixture?.previous_matches),
+      round: fixture?.round || fixture?.stage?.name || "",
     };
   }).filter((match: Record<string, any>) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
@@ -387,6 +399,24 @@ function canonicalMatchStatus(value: unknown, liveValues: Set<string>, finishedV
   if (finishedValues.has(key) || /^(FT|AET|PEN|FINISHED|FULL_TIME|FULLTIME|ENDED|COMPLETE|COMPLETED|AFTER_EXTRA_TIME|AFTER_PENALTIES|AWARDED|WO)$/.test(key) || /(FINISHED|FULL_TIME|COMPLETED|ENDED)$/.test(key)) return "FT";
   if (upcomingValues.has(key) || /^(NS|NOT_STARTED|SCHEDULED|TIMED|UPCOMING|POSTPONED|PST|TBD|DELAYED)$/.test(key)) return "Scheduled";
   return raw || "Unknown";
+}
+
+function safePublicDetail(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value.slice(0, 400);
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (depth >= 5) return null;
+  if (Array.isArray(value)) return value.slice(0, 120).map((item) => safePublicDetail(item, depth + 1));
+  if (typeof value === "object") {
+    const source = value as Record<string, unknown>;
+    const output: Record<string, unknown> = {};
+    const blocked = /^(api_?key|token|authorization|headers?|secret|password|email|phone)$/i;
+    Object.entries(source).slice(0, 50).forEach(([key, item]) => {
+      if (!blocked.test(key) && item !== undefined) output[key] = safePublicDetail(item, depth + 1);
+    });
+    return output;
+  }
+  return null;
 }
 
 function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, providerCode = ""): Record<string, unknown>[] {
@@ -482,6 +512,12 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
     const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football" ? `https://media.api-sports.io/football/venues/${numericVenueId}.png` : (explicitVenueImage || null);
     const refereeRaw = firstPath(row, [typeof mapping.referee === "string" ? mapping.referee : "", "fixture.referee", "referee.name", "referee", "official.name", "officials[0].name", "referees[0].name", "referee_name"].filter(Boolean));
     const referee = teamDisplayName(refereeRaw);
+    const events = firstPath(row, [typeof mapping.events === "string" ? mapping.events : "", "events", "incidents", "timeline", "event_list", "response.events", "fixture.events"].filter(Boolean));
+    const statistics = firstPath(row, [typeof mapping.statistics === "string" ? mapping.statistics : "", "statistics", "stats", "match_statistics", "response.statistics", "fixture.statistics"].filter(Boolean));
+    const lineups = firstPath(row, [typeof mapping.lineups === "string" ? mapping.lineups : "", "lineups", "team_lineups", "formations", "response.lineups", "fixture.lineups"].filter(Boolean));
+    const standings = firstPath(row, [typeof mapping.standings === "string" ? mapping.standings : "", "standings", "league.standings", "competition.standings", "league_table", "table"].filter(Boolean));
+    const headToHead = firstPath(row, [typeof mapping.head_to_head === "string" ? mapping.head_to_head : "", "head_to_head", "h2h", "head2head", "previous_matches", "head_to_head.matches"].filter(Boolean));
+    const round = firstPath(row, ["league.round", "competition.round", "round", "matchday", "week"]);
     return {
       match_id: matchId == null ? null : String(matchId),
       league: competition,
@@ -510,6 +546,12 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       venue_image: providerVenueImage == null ? null : safeString(providerVenueImage),
       match_image: providerVenueImage == null ? null : safeString(providerVenueImage),
       referee: referee == null ? "" : safeString(referee),
+      events: safePublicDetail(events),
+      statistics: safePublicDetail(statistics),
+      lineups: safePublicDetail(lineups),
+      standings: safePublicDetail(standings),
+      head_to_head: safePublicDetail(headToHead),
+      round: round == null ? "" : safeString(round),
     };
   }).filter((match: Record<string, unknown> | null): match is Record<string, unknown> => Boolean(match));
 }
@@ -887,7 +929,7 @@ function mergeDuplicateMatch(existing: Record<string, any>, incoming: Record<str
     const otherSide = plainObject(other[side]);
     merged[side] = { ...otherSide, ...primarySide, logo: primarySide.logo || otherSide.logo || undefined };
   }
-  for (const key of ["home_score", "away_score", "minute", "minute_extra", "status_code", "status_detail", "started_at", "competition_logo", "league_logo", "country_flag", "country_code", "venue", "venue_city", "venue_image", "match_image", "venue_id", "referee"]) {
+  for (const key of ["home_score", "away_score", "minute", "minute_extra", "status_code", "status_detail", "started_at", "competition_logo", "league_logo", "country_flag", "country_code", "venue", "venue_city", "venue_image", "match_image", "venue_id", "referee", "events", "statistics", "lineups", "standings", "head_to_head", "round"]) {
     if (merged[key] === null || merged[key] === undefined || merged[key] === "") merged[key] = other[key] ?? preferred[key] ?? merged[key];
   }
   const sources = [...new Set([...(Array.isArray(existing.source_providers) ? existing.source_providers : [existing.provider_name].filter(Boolean)), ...(Array.isArray(incoming.source_providers) ? incoming.source_providers : [incoming.provider_name].filter(Boolean))].map(String))];
@@ -992,7 +1034,7 @@ async function fetchOneProvider(
     };
   }
   const code = String(provider.provider_code || "");
-  const cacheKey = cacheKeyOverride || `livescore:v5:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cacheKey = cacheKeyOverride || `livescore:v6:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const now = new Date();
   const { data: cached } = await db.from("football_public_cache")
     .select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
@@ -1193,7 +1235,7 @@ async function fetchFootballDataOrgWindowInBatches(
   rangeRoute: string,
 ): Promise<Record<string, any>> {
   const code = String(provider.provider_code || "football-data-org");
-  const cursorKey = `livescore:v5-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v6-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, dateFrom);
   let nextDate = cursor.nextDate;
   let chunkResult: Record<string, any> | null = null;
@@ -1213,7 +1255,7 @@ async function fetchFootballDataOrgWindowInBatches(
       .replaceAll("{date_to}", apiDateToExclusive)
       .replaceAll("{start_date}", chunkFrom)
       .replaceAll("{end_date}", apiDateToExclusive);
-    const chunkKey = `livescore:v5-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
+    const chunkKey = `livescore:v6-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
     chunkResult = await fetchOneProvider(
       db, provider, view, chunkFrom, competition, Math.max(DAILY_WINDOW_CACHE_TTL_SECONDS, ttl),
       chunkFrom, chunkThrough, chunkKey, chunkRoute, true, view === "today",
@@ -1226,7 +1268,7 @@ async function fetchFootballDataOrgWindowInBatches(
     );
   }
 
-  const cachePrefix = `livescore:v5-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
+  const cachePrefix = `livescore:v6-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
   const cachedWindow = await loadWindowDayCache(db, cachePrefix);
   let matches = cachedWindow.matches;
   try {
@@ -1288,13 +1330,13 @@ async function fetchProviderWindow(
     return fetchFootballDataOrgWindowInBatches(db, provider, view, selectedDate, competition, ttl, dateFrom, dateTo, rangeRoute);
   }
   if (rangeRoute) {
-    const cacheKey = `livescore:v5range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v6range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, rangeRoute, false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
 
   if (providerHasFullWindowFeed(provider, view)) {
-    const cacheKey = `livescore:v5season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v6season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, "", false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
@@ -1302,10 +1344,10 @@ async function fetchProviderWindow(
   // Date-only services are synchronized progressively. Every response handles the current day plus
   // a seven-day continuation batch, and the next visitor request resumes from the saved cursor.
   const primaryDay = dateFrom;
-  const primaryKey = `livescore:v5day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
+  const primaryKey = `livescore:v6day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
   const primary = await fetchOneProvider(db, provider, view, primaryDay, competition, ttl, primaryDay, primaryDay, primaryKey, "", true);
 
-  const cursorKey = `livescore:v5window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v6window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, shiftIsoDay(dateFrom, 1));
   let nextDate = cursor.nextDate;
   const batchResults: Record<string, any>[] = [];
@@ -1317,7 +1359,7 @@ async function fetchProviderWindow(
       nextDate = shiftIsoDay(nextDate, 1);
     }
     batchResults.push(...await runWithConcurrency(days, DAILY_WINDOW_CONCURRENCY, (day) => {
-      const key = `livescore:v5day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
+      const key = `livescore:v6day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
       return fetchOneProvider(db, provider, view, day, competition, DAILY_WINDOW_CACHE_TTL_SECONDS, day, day, key, "", true);
     }));
     const firstIncompleteIndex = batchResults.findIndex((item) => item.ok !== true || item.pagination_pending === true);
@@ -1328,7 +1370,7 @@ async function fetchProviderWindow(
     syncPending = !complete;
   }
 
-  const prefix = `livescore:v5day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
+  const prefix = `livescore:v6day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
   const cachedWindow = await loadWindowDayCache(db, prefix);
   let matches = cachedWindow.matches;
   try {
