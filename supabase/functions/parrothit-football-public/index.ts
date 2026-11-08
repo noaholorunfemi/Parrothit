@@ -119,6 +119,15 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
       results: "/v1/results?date={date}&per_page=1000",
     };
   }
+  if (providerCode === "api-ninjas") {
+    // API Ninjas accepts one league code per request. The saved provider config chooses the league (LaLiga by default).
+    return {
+      live: "/v1/soccermatches?date={date}",
+      today: "/v1/soccermatches?date={date}",
+      upcoming: "/v1/soccermatches?date={date}",
+      results: "/v1/soccermatches?date={date}",
+    };
+  }
   return {};
 }
 
@@ -147,6 +156,14 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
       status: "status", kickoff: "utcDate",
       live_status_values: ["IN_PLAY", "PAUSED"], finished_status_values: ["FINISHED"],
       upcoming_status_values: ["SCHEDULED", "TIMED", "POSTPONED"],
+    };
+  }
+  if (providerCode === "api-ninjas") {
+    return {
+      matches_path: "", id: "game_id", competition: "league", competition_id: "league", competition_code: "league",
+      home_team: "home_team.name", away_team: "away_team.name", home_score: "home_score", away_score: "away_score",
+      status: "status", kickoff: "start_time", minute: "clock", venue_name: "venue.name", venue_city: "venue.city",
+      country_code: "venue.country", live_status_values: ["in_progress"], finished_status_values: ["final"], upcoming_status_values: ["scheduled"],
     };
   }
   return {};
@@ -298,6 +315,10 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
     let awayScore = objectPath(row, mapping.away_score);
     if (homeScore == null && mapping.home_score === "score.fullTime.home") homeScore = firstPath(row, ["score.halfTime.home", "score.regularTime.home", "score.extraTime.home", "score.penalties.home"]);
     if (awayScore == null && mapping.away_score === "score.fullTime.away") awayScore = firstPath(row, ["score.halfTime.away", "score.regularTime.away", "score.extraTime.away", "score.penalties.away"]);
+    if (providerCode.toLowerCase() === "api-ninjas") {
+      homeScore = homeScore == null || homeScore === "" || !Number.isFinite(Number(homeScore)) ? null : Number(homeScore);
+      awayScore = awayScore == null || awayScore === "" || !Number.isFinite(Number(awayScore)) ? null : Number(awayScore);
+    }
     const matchId = objectPath(row, mapping.id);
     const homeLogo = firstPath(row, [
       typeof mapping.home_logo === "string" ? mapping.home_logo : "",
@@ -339,7 +360,8 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
     ].filter(Boolean));
     const kickoff = objectPath(row, mapping.kickoff);
     if (!homeTeam || !awayTeam || kickoff == null || !Number.isFinite(Date.parse(String(kickoff)))) return null;
-    const minute = objectPath(row, mapping.minute);
+    let minute = objectPath(row, mapping.minute);
+    if (providerCode.toLowerCase() === "api-ninjas" && minute != null && !/^\s*\d{1,3}'?(?:\+\d{1,2}')?\s*$/.test(String(minute))) minute = null;
     const venueId = firstPath(row, [
       typeof mapping.venue_id === "string" ? mapping.venue_id : "",
       "fixture.venue.id", "venue.id", "venue_id",
@@ -573,6 +595,7 @@ function enrichWithCompetitionCatalog(matches: Record<string, any>[], catalog: R
       || (normalizedCode === "api-football" && numericId ? `https://media.api-sports.io/football/leagues/${numericId}.png` : "");
     return {
       ...match,
+      ...(normalizedCode === "api-ninjas" && catalogEntry?.competition_name ? { league: catalogEntry.competition_name, league_code: match.league_code || match.league } : {}),
       provider_code: normalizedCode,
       competition_logo: logo || null,
       league_logo: logo || null,
@@ -605,6 +628,7 @@ async function loadActiveProviderConfigs(db: ReturnType<typeof createClient>, se
     && (provider.is_public_active === true || (legacyId && String(provider.id) === legacyId))
     && provider.last_test_ok === true
     && provider.last_match_test_ok === true
+    && !(String(provider.provider_code || "") === "api-ninjas" && String(provider.plan_type || "free") === "free")
   );
 }
 
