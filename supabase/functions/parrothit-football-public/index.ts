@@ -119,13 +119,38 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
       results: "/v1/results?date={date}&per_page=1000",
     };
   }
-  if (providerCode === "api-ninjas") {
-    // API Ninjas accepts one league code per request. The saved provider config chooses the league (LaLiga by default).
+  if (providerCode === "footballdata-io") {
     return {
-      live: "/v1/soccermatches?date={date}",
-      today: "/v1/soccermatches?date={date}",
-      upcoming: "/v1/soccermatches?date={date}",
-      results: "/v1/soccermatches?date={date}",
+      live: "/fixtures/live", today: "/fixtures/today", upcoming: "/fixtures/upcoming", results: "/fixtures/results?date={date}",
+    };
+  }
+  if (providerCode === "api-ninjas") {
+    // API Ninjas provides one season-scoped fixture/results endpoint; each config's
+    // default_query_params.league identifies the league being queried.
+    return {
+      live: "/v1/soccermatches?season={season}",
+      today: "/v1/soccermatches?season={season}",
+      upcoming: "/v1/soccermatches?season={season}",
+      results: "/v1/soccermatches?season={season}",
+    };
+  }
+  if (providerCode === "bzzoiro") {
+    return {
+      live: "/events/live/?limit=200",
+      today: "/events/?date_from={date}&date_to={date}&limit=200",
+      upcoming: "/events/?date_from={date}&date_to={date}&status=upcoming&limit=200",
+      results: "/events/?date_from={date}&date_to={date}&status=finished&limit=200",
+    };
+  }
+  if (providerCode === "sportapi-ai") {
+    return { live: "/fixtures/date/{date}", today: "/fixtures/date/{date}", upcoming: "/fixtures/date/{date}", results: "/fixtures/date/{date}" };
+  }
+  if (providerCode === "sportscore") {
+    return {
+      live: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+      today: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+      upcoming: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+      results: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
     };
   }
   return {};
@@ -158,14 +183,35 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
       upcoming_status_values: ["SCHEDULED", "TIMED", "POSTPONED"],
     };
   }
-  if (providerCode === "api-ninjas") {
+  if (providerCode === "api-ninjas") return {
+    matches_path: "", id: "game_id", competition: "league", competition_id: "league", competition_code: "league",
+    home_team: "home_team.name", away_team: "away_team.name", home_score: "home_score", away_score: "away_score",
+    status: "status", kickoff: "start_time", minute: "clock", venue_name: "venue.name", venue_city: "venue.city",
+    country_code: "venue.country", live_status_values: ["in_progress"], finished_status_values: ["final"], upcoming_status_values: ["scheduled"],
+  };
+  if (providerCode === "bzzoiro") return {
+    matches_path: "results", id: "id", competition: "competition.name", home_team: "home_team",
+    away_team: "away_team", home_score: "home_score", away_score: "away_score", status: "status",
+    kickoff: "starting_at", minute: "minute",
+  };
+  if (providerCode === "sportapi-ai") return {
+    matches_path: "fixtures", id: "id", competition: "league_name", competition_id: "league_id",
+    home_team: "home_team", away_team: "away_team", home_score: "home_score", away_score: "away_score",
+    status: "status", kickoff: "kickoff",
+  };
+  if (providerCode === "footballdata-io") {
     return {
-      matches_path: "", id: "game_id", competition: "league", competition_id: "league", competition_code: "league",
-      home_team: "home_team.name", away_team: "away_team.name", home_score: "home_score", away_score: "away_score",
-      status: "status", kickoff: "start_time", minute: "clock", venue_name: "venue.name", venue_city: "venue.city",
-      country_code: "venue.country", live_status_values: ["in_progress"], finished_status_values: ["final"], upcoming_status_values: ["scheduled"],
+      matches_path: "", id: "match_id", competition: "league.competition_name", competition_id: "league.league_id",
+      home_team: "home_team.team_name", away_team: "away_team.team_name", home_logo: "home_team.team_logo", away_logo: "away_team.team_logo",
+      home_score: "score.home", away_score: "score.away", status: "status", kickoff: "match_date",
+      live_status_values: ["LIVE", "IN_PLAY"], finished_status_values: ["FT", "AET", "PEN", "FINISHED", "COMPLETE", "COMPLETED"],
+      upcoming_status_values: ["NS", "SCHEDULED", "TIMED", "UPCOMING", "POSTPONED"],
     };
   }
+  if (providerCode === "sportscore") return {
+    matches_path: "matches", id: "id", competition: "competition.name", home_team: "home_team",
+    away_team: "away_team", home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff",
+  };
   return {};
 }
 
@@ -284,11 +330,30 @@ function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
   }).filter((match: Record<string, any>) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
 
+function teamDisplayName(value: unknown, fallback = ""): string {
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  const obj = plainObject(value);
+  return safeString(obj.name ?? obj.team_name ?? obj.TeamName ?? obj.club_name ?? obj.display_name ?? obj.short_name, fallback).trim();
+}
+
+function canonicalMatchStatus(value: unknown, liveValues: Set<string>, finishedValues: Set<string>, upcomingValues: Set<string>): string {
+  const obj = plainObject(value);
+  const raw = safeString(obj.short ?? obj.name ?? obj.state ?? obj.status ?? value, "Unknown").trim();
+  const key = raw.toUpperCase().replace(/[\s-]+/g, "_");
+  if (liveValues.has(key) || /^(LIVE|IN_PLAY|INPLAY|IN_PROGRESS|1H|2H|HT|HALF_TIME|FIRST_HALF|SECOND_HALF|EXTRA_TIME|PENALT(?:Y|IES)|PAUSED|BREAK|SUSPENDED|INTERRUPTED|ET|BT|P)$/.test(key) || /(^|_)(LIVE|IN_PLAY|IN_PROGRESS|FIRST_HALF|SECOND_HALF)(_|$)/.test(key)) return "LIVE";
+  if (finishedValues.has(key) || /^(FT|AET|PEN|FINISHED|FULL_TIME|FULLTIME|ENDED|COMPLETE|COMPLETED|AFTER_EXTRA_TIME|AFTER_PENALTIES|AWARDED|WO)$/.test(key) || /(FINISHED|FULL_TIME|COMPLETED|ENDED)$/.test(key)) return "FT";
+  if (upcomingValues.has(key) || /^(NS|NOT_STARTED|SCHEDULED|TIMED|UPCOMING|POSTPONED|PST|TBD|DELAYED)$/.test(key)) return "Scheduled";
+  return raw || "Unknown";
+}
+
 function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, providerCode = ""): Record<string, unknown>[] {
   const matchesPath = typeof mapping.matches_path === "string" ? mapping.matches_path : "";
   let rows: unknown = matchesPath ? objectPath(raw, matchesPath) : undefined;
   if (!Array.isArray(rows)) {
-    const candidates = ["response", "matches", "data", "fixtures", "events", "results"];
+    const candidates = [
+      "response", "matches", "fixtures", "events", "results", "data.matches", "data.fixtures",
+      "data.events", "data.results", "data.response", "data", "payload.matches", "payload.fixtures",
+    ];
     for (const path of candidates) {
       const candidate = objectPath(raw, path);
       if (Array.isArray(candidate)) { rows = candidate; break; }
@@ -297,114 +362,85 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
   if (!Array.isArray(rows) && Array.isArray(raw)) rows = raw;
   if (!Array.isArray(rows)) throw new Error("The provider responded, but its match list could not be found. Check the Response mapping JSON.");
 
-  const liveValues = new Set((Array.isArray(mapping.live_status_values) ? mapping.live_status_values : ["LIVE", "IN_PLAY", "PAUSED", "1H", "2H", "HT", "ET", "BT", "P", "SUSP", "INT", "HALF_TIME", "FIRST_HALF", "SECOND_HALF"]).map((x) => String(x).toUpperCase()));
-  const finishedValues = new Set((Array.isArray(mapping.finished_status_values) ? mapping.finished_status_values : ["FT", "AET", "PEN", "FINISHED", "FULL_TIME", "FULLTIME", "ENDED", "AWD", "WO"]).map((x) => String(x).toUpperCase()));
-  const upcomingValues = new Set((Array.isArray(mapping.upcoming_status_values) ? mapping.upcoming_status_values : ["NS", "TBD", "SCHEDULED", "TIMED", "NOT_STARTED", "POSTPONED", "PST"]).map((x) => String(x).toUpperCase()));
+  const liveValues = new Set((Array.isArray(mapping.live_status_values) ? mapping.live_status_values : ["LIVE", "IN_PLAY", "PAUSED", "1H", "2H", "HT", "ET", "BT", "P", "SUSP", "INT", "HALF_TIME", "FIRST_HALF", "SECOND_HALF"]).map((x) => String(x).toUpperCase().replace(/[\s-]+/g, "_")));
+  const finishedValues = new Set((Array.isArray(mapping.finished_status_values) ? mapping.finished_status_values : ["FT", "AET", "PEN", "FINISHED", "FULL_TIME", "FULLTIME", "ENDED", "AWD", "WO", "COMPLETED"]).map((x) => String(x).toUpperCase().replace(/[\s-]+/g, "_")));
+  const upcomingValues = new Set((Array.isArray(mapping.upcoming_status_values) ? mapping.upcoming_status_values : ["NS", "TBD", "SCHEDULED", "TIMED", "NOT_STARTED", "POSTPONED", "PST", "UPCOMING"]).map((x) => String(x).toUpperCase().replace(/[\s-]+/g, "_")));
 
   return rows.slice(0, 500).map((row: any) => {
-    const rawStatus = safeString(objectPath(row, mapping.status), "");
-    const statusKey = rawStatus.toUpperCase();
-    let status = rawStatus || "Unknown";
-    if (liveValues.has(statusKey)) status = "LIVE";
-    else if (finishedValues.has(statusKey)) status = "FT";
-    else if (upcomingValues.has(statusKey)) status = "Scheduled";
-    const competition = safeString(objectPath(row, mapping.competition), "Football");
-    const homeTeam = safeString(objectPath(row, mapping.home_team), "").trim();
-    const awayTeam = safeString(objectPath(row, mapping.away_team), "").trim();
-    let homeScore = objectPath(row, mapping.home_score);
-    let awayScore = objectPath(row, mapping.away_score);
+    const rawStatus = firstPath(row, [
+      typeof mapping.status === "string" ? mapping.status : "", "status.short", "status.name", "status.state", "status",
+      "state.short", "state.name", "state", "match_status", "fixture.status.short",
+    ].filter(Boolean));
+    const status = canonicalMatchStatus(rawStatus, liveValues, finishedValues, upcomingValues);
+    const competitionRaw = firstPath(row, [
+      typeof mapping.competition === "string" ? mapping.competition : "", "league.name", "competition.name", "league_name", "competition_name", "tournament.name",
+    ].filter(Boolean));
+    const competition = teamDisplayName(competitionRaw, "Football") || "Football";
+    const homeRaw = firstPath(row, [
+      typeof mapping.home_team === "string" ? mapping.home_team : "", "home_team.name", "homeTeam.name", "teams.home.name", "home.name", "home", "homeTeam", "home_team",
+    ].filter(Boolean));
+    const awayRaw = firstPath(row, [
+      typeof mapping.away_team === "string" ? mapping.away_team : "", "away_team.name", "awayTeam.name", "teams.away.name", "away.name", "away", "awayTeam", "away_team",
+    ].filter(Boolean));
+    const homeTeam = teamDisplayName(homeRaw);
+    const awayTeam = teamDisplayName(awayRaw);
+    let homeScore = firstPath(row, [
+      typeof mapping.home_score === "string" ? mapping.home_score : "", "home_score", "home_goals", "score.home", "scores.home", "goals.home", "score.home_team",
+    ].filter(Boolean));
+    let awayScore = firstPath(row, [
+      typeof mapping.away_score === "string" ? mapping.away_score : "", "away_score", "away_goals", "score.away", "scores.away", "goals.away", "score.away_team",
+    ].filter(Boolean));
     if (homeScore == null && mapping.home_score === "score.fullTime.home") homeScore = firstPath(row, ["score.halfTime.home", "score.regularTime.home", "score.extraTime.home", "score.penalties.home"]);
     if (awayScore == null && mapping.away_score === "score.fullTime.away") awayScore = firstPath(row, ["score.halfTime.away", "score.regularTime.away", "score.extraTime.away", "score.penalties.away"]);
     if (providerCode.toLowerCase() === "api-ninjas") {
       homeScore = homeScore == null || homeScore === "" || !Number.isFinite(Number(homeScore)) ? null : Number(homeScore);
       awayScore = awayScore == null || awayScore === "" || !Number.isFinite(Number(awayScore)) ? null : Number(awayScore);
     }
-    const matchId = objectPath(row, mapping.id);
-    const homeLogo = firstPath(row, [
-      typeof mapping.home_logo === "string" ? mapping.home_logo : "",
-      "teams.home.logo", "homeTeam.crest", "home.logo", "homeTeam.logo",
-    ].filter(Boolean));
-    const awayLogo = firstPath(row, [
-      typeof mapping.away_logo === "string" ? mapping.away_logo : "",
-      "teams.away.logo", "awayTeam.crest", "away.logo", "awayTeam.logo",
-    ].filter(Boolean));
-    const rawCompetitionLogo = firstPath(row, [
-      typeof mapping.competition_logo === "string" ? mapping.competition_logo : "",
-      "league.logo", "competition.emblem", "competition.logo", "league_logo", "competition_logo",
-    ].filter(Boolean));
-    const rawCompetitionId = firstPath(row, [
-      typeof mapping.competition_id === "string" ? mapping.competition_id : "",
-      "league.id", "competition.id", "competition_id", "league_id",
-    ].filter(Boolean));
+    const matchId = firstPath(row, [typeof mapping.id === "string" ? mapping.id : "", "id", "fixture.id", "event_id", "match_id"].filter(Boolean));
+    const homeLogo = firstPath(row, [typeof mapping.home_logo === "string" ? mapping.home_logo : "", "teams.home.logo", "homeTeam.crest", "home.logo", "homeTeam.logo", "home_team.logo"].filter(Boolean));
+    const awayLogo = firstPath(row, [typeof mapping.away_logo === "string" ? mapping.away_logo : "", "teams.away.logo", "awayTeam.crest", "away.logo", "awayTeam.logo", "away_team.logo"].filter(Boolean));
+    const rawCompetitionLogo = firstPath(row, [typeof mapping.competition_logo === "string" ? mapping.competition_logo : "", "league.logo", "competition.emblem", "competition.logo", "league_logo", "competition_logo"].filter(Boolean));
+    const rawCompetitionId = firstPath(row, [typeof mapping.competition_id === "string" ? mapping.competition_id : "", "league.id", "competition.id", "competition_id", "league_id"].filter(Boolean));
     const competitionId = rawCompetitionId == null ? "" : safeString(rawCompetitionId).trim();
-    const competitionType = firstPath(row, [
-      typeof mapping.competition_type === "string" ? mapping.competition_type : "",
-      "league.type", "competition.type", "competition_type", "league_type",
-    ].filter(Boolean));
+    const competitionType = firstPath(row, [typeof mapping.competition_type === "string" ? mapping.competition_type : "", "league.type", "competition.type", "competition_type", "league_type"].filter(Boolean));
     const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
     const numericCompetitionId = /^\d+$/.test(competitionId) ? competitionId : "";
-    const competitionLogo = rawCompetitionLogo || (normalizedProviderCode === "api-football" && numericCompetitionId
-      ? `https://media.api-sports.io/football/leagues/${numericCompetitionId}.png`
-      : null);
-    const country = firstPath(row, [
-      typeof mapping.country === "string" ? mapping.country : "",
-      "league.country", "area.name", "country.name", "country",
-    ].filter(Boolean));
-    const countryCode = firstPath(row, [
-      typeof mapping.country_code === "string" ? mapping.country_code : "",
-      "league.country_code", "area.code", "country.code", "country_code",
-    ].filter(Boolean));
-    const countryFlag = firstPath(row, [
-      typeof mapping.country_flag === "string" ? mapping.country_flag : "",
-      "league.flag", "area.flag", "country.flag", "country_flag",
-    ].filter(Boolean));
-    const kickoff = objectPath(row, mapping.kickoff);
+    const competitionLogo = rawCompetitionLogo || (normalizedProviderCode === "api-football" && numericCompetitionId ? `https://media.api-sports.io/football/leagues/${numericCompetitionId}.png` : null);
+    const country = firstPath(row, [typeof mapping.country === "string" ? mapping.country : "", "league.country", "area.name", "country.name", "country"].filter(Boolean));
+    const countryCode = firstPath(row, [typeof mapping.country_code === "string" ? mapping.country_code : "", "league.country_code", "area.code", "country.code", "country_code"].filter(Boolean));
+    const countryFlag = firstPath(row, [typeof mapping.country_flag === "string" ? mapping.country_flag : "", "league.flag", "area.flag", "country.flag", "country_flag"].filter(Boolean));
+    const kickoff = firstPath(row, [
+      typeof mapping.kickoff === "string" ? mapping.kickoff : "", "fixture.date", "utcDate", "starting_at", "kickoff", "kickoff_at",
+      "start_time", "scheduled_at", "match_date", "match_time", "date_time", "date", "time",
+    ].filter(Boolean)) ?? firstPath(raw, ["date", "requested_date", "fixture_date"]);
     if (!homeTeam || !awayTeam || kickoff == null || !Number.isFinite(Date.parse(String(kickoff)))) return null;
-    let minute = objectPath(row, mapping.minute);
+    let minute = firstPath(row, [typeof mapping.minute === "string" ? mapping.minute : "", "minute", "elapsed", "time.elapsed", "fixture.status.elapsed", "period.minute"].filter(Boolean));
     if (providerCode.toLowerCase() === "api-ninjas" && minute != null && !/^\s*\d{1,3}'?(?:\+\d{1,2}')?\s*$/.test(String(minute))) minute = null;
-    const venueId = firstPath(row, [
-      typeof mapping.venue_id === "string" ? mapping.venue_id : "",
-      "fixture.venue.id", "venue.id", "venue_id",
-    ].filter(Boolean));
-    const venueName = firstPath(row, [
-      typeof mapping.venue_name === "string" ? mapping.venue_name : "",
-      "fixture.venue.name", "venue.name", "venue_name",
-    ].filter(Boolean));
-    const venueCity = firstPath(row, [
-      typeof mapping.venue_city === "string" ? mapping.venue_city : "",
-      "fixture.venue.city", "venue.city", "venue_city",
-    ].filter(Boolean));
-    const venueImage = firstPath(row, [
-      typeof mapping.match_image === "string" ? mapping.match_image : "",
-      typeof mapping.venue_image === "string" ? mapping.venue_image : "",
-      "fixture.venue.image", "venue.image", "match_image", "venue_image", "image_url",
-    ].filter(Boolean));
+    const venueId = firstPath(row, [typeof mapping.venue_id === "string" ? mapping.venue_id : "", "fixture.venue.id", "venue.id", "venue_id"].filter(Boolean));
+    const venueName = firstPath(row, [typeof mapping.venue_name === "string" ? mapping.venue_name : "", "fixture.venue.name", "venue.name", "venue_name"].filter(Boolean));
+    const venueCity = firstPath(row, [typeof mapping.venue_city === "string" ? mapping.venue_city : "", "fixture.venue.city", "venue.city", "venue_city"].filter(Boolean));
+    const venueImage = firstPath(row, [typeof mapping.match_image === "string" ? mapping.match_image : "", typeof mapping.venue_image === "string" ? mapping.venue_image : "", "fixture.venue.image", "venue.image", "match_image", "venue_image", "image_url"].filter(Boolean));
     const numericVenueId = venueId != null && /^\d+$/.test(String(venueId)) ? String(venueId) : "";
     const explicitVenueImage = venueImage == null ? "" : safeString(venueImage).trim();
-    const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football"
-      ? `https://media.api-sports.io/football/venues/${numericVenueId}.png`
-      : (explicitVenueImage || null);
-    const referee = firstPath(row, [
-      typeof mapping.referee === "string" ? mapping.referee : "",
-      "fixture.referee", "referee",
-    ].filter(Boolean));
+    const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football" ? `https://media.api-sports.io/football/venues/${numericVenueId}.png` : (explicitVenueImage || null);
+    const referee = firstPath(row, [typeof mapping.referee === "string" ? mapping.referee : "", "fixture.referee", "referee"].filter(Boolean));
     return {
       match_id: matchId == null ? null : String(matchId),
       league: competition,
-      league_code: safeString(objectPath(row, mapping.competition_code), ""),
+      league_code: safeString(firstPath(row, [typeof mapping.competition_code === "string" ? mapping.competition_code : "", "league.code", "competition.code", "league_code"].filter(Boolean)), ""),
       competition_id: competitionId || null,
       competition_type: competitionType == null ? "" : safeString(competitionType),
       home: { name: homeTeam, ...(homeLogo ? { logo: safeString(homeLogo) } : {}) },
       away: { name: awayTeam, ...(awayLogo ? { logo: safeString(awayLogo) } : {}) },
       competition_logo: competitionLogo ? safeString(competitionLogo) : null,
       league_logo: competitionLogo ? safeString(competitionLogo) : null,
-      country: country ? safeString(country) : "",
+      country: country ? teamDisplayName(country) : "",
       country_code: countryCode == null ? "" : safeString(countryCode),
       country_flag: countryFlag == null ? "" : safeString(countryFlag),
       home_score: homeScore == null ? null : homeScore,
       away_score: awayScore == null ? null : awayScore,
       status,
-      kickoff: kickoff == null ? null : safeString(kickoff),
+      kickoff: safeString(kickoff),
       minute: minute == null ? null : safeString(minute),
       venue_id: venueId == null ? null : safeString(venueId),
       venue: venueName == null ? "" : safeString(venueName),
@@ -416,7 +452,6 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
   }).filter((match: Record<string, unknown> | null): match is Record<string, unknown> => Boolean(match));
 }
 
-
 function providerRowsForDiagnostics(raw: unknown, mapping: Record<string, unknown>, providerCode: string): unknown[] {
   if (providerCode === "sportmonks" || providerCode === "footballapi-org") {
     const data = (raw as any)?.data;
@@ -426,9 +461,9 @@ function providerRowsForDiagnostics(raw: unknown, mapping: Record<string, unknow
   const path = typeof mapping.matches_path === "string" ? mapping.matches_path : "";
   const mapped = path ? objectPath(raw, path) : undefined;
   if (Array.isArray(mapped)) return mapped;
-  for (const candidate of ["response", "matches", "data", "fixtures", "events", "results"]) {
-    const found = objectPath(raw, candidate);
-    if (Array.isArray(found)) return found;
+  for (const candidate of ["response", "matches", "fixtures", "events", "results", "data.matches", "data.fixtures", "data.events", "data.results", "data.response", "data"]) {
+    const rows = objectPath(raw, candidate);
+    if (Array.isArray(rows)) return rows;
   }
   return Array.isArray(raw) ? raw : [];
 }
@@ -479,6 +514,7 @@ async function providerRequest(provider: Record<string, any>, view: string, date
     const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view, competition) : String(rawValue);
     target.searchParams.set(key, value);
   }
+
   const headers = new Headers();
   const customHeaders = plainObject(provider.custom_headers);
   for (const [name, rawValue] of Object.entries(customHeaders)) {
@@ -548,23 +584,29 @@ async function loadCatalogRows(db: ReturnType<typeof createClient>, providerId: 
 }
 
 async function loadCatalogRowsCached(db: ReturnType<typeof createClient>, providerId: string, providerName = "Football provider"): Promise<Record<string, any>[]> {
+  // Competition metadata is optional enrichment. A missing catalog table, cache row or
+  // schema migration must never discard an otherwise valid score feed.
   const cacheKey = `livescore:${providerId}:catalog`;
   const now = new Date();
-  const { data: cached } = await db.from("football_public_cache")
-    .select("payload,expires_at").eq("cache_key", cacheKey).maybeSingle();
-  if (cached && new Date(cached.expires_at) > now && Array.isArray(cached.payload?.competitions)) {
-    return cached.payload.competitions as Record<string, any>[];
+  try {
+    const { data: cached } = await db.from("football_public_cache")
+      .select("payload,expires_at").eq("cache_key", cacheKey).maybeSingle();
+    if (cached && new Date(cached.expires_at) > now && Array.isArray(cached.payload?.competitions)) {
+      return cached.payload.competitions as Record<string, any>[];
+    }
+    const competitions = await loadCatalogRows(db, providerId);
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+    await db.from("football_public_cache").upsert({
+      cache_key: cacheKey,
+      payload: { ok: true, competitions, competition_count: competitions.length },
+      provider_name: `${providerName} competition catalogue`,
+      fetched_at: now.toISOString(),
+      expires_at: expiresAt,
+    });
+    return competitions;
+  } catch (_error) {
+    return [];
   }
-  const competitions = await loadCatalogRows(db, providerId);
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
-  await db.from("football_public_cache").upsert({
-    cache_key: cacheKey,
-    payload: { ok: true, competitions, competition_count: competitions.length },
-    provider_name: `${providerName} competition catalogue`,
-    fetched_at: now.toISOString(),
-    expires_at: expiresAt,
-  });
-  return competitions;
 }
 
 function enrichWithCompetitionCatalog(matches: Record<string, any>[], catalog: Record<string, any>[], providerCode: string): Record<string, any>[] {
@@ -594,7 +636,6 @@ function enrichWithCompetitionCatalog(matches: Record<string, any>[], catalog: R
       || (normalizedCode === "api-football" && numericId ? `https://media.api-sports.io/football/leagues/${numericId}.png` : "");
     return {
       ...match,
-      ...(normalizedCode === "api-ninjas" && catalogEntry?.competition_name ? { league: catalogEntry.competition_name, league_code: match.league_code || match.league } : {}),
       provider_code: normalizedCode,
       competition_logo: logo || null,
       league_logo: logo || null,
@@ -627,13 +668,8 @@ async function loadActiveProviderConfigs(db: ReturnType<typeof createClient>, se
     && (provider.is_public_active === true || (legacyId && String(provider.id) === legacyId))
     && provider.last_test_ok === true
     && provider.last_match_test_ok === true
-    && apiNinjasPublicPlanAllowed(provider)
+    && (String(provider.provider_code || "").toLowerCase() !== "api-ninjas" || ["business", "professional", "enterprise"].includes(String(provider.plan_type || "free").toLowerCase()))
   );
-}
-
-function apiNinjasPublicPlanAllowed(provider: Record<string, any>): boolean {
-  if (String(provider.provider_code || "").toLowerCase() !== "api-ninjas") return true;
-  return ["business", "professional", "enterprise"].includes(String(provider.plan_type || "free").toLowerCase());
 }
 
 function normalizedMatchIdentity(value: unknown): string {
@@ -770,7 +806,7 @@ async function fetchOneProvider(
   if (provider.provider_code === "footballapi-org" && String(provider.plan_type || "free") === "free" && view === "live") {
     return {
       ok: true, cached: false, stale: false, provider: provider.provider_name,
-      provider_id: provider.id, matches: [], http_status: 200,
+      provider_id: provider.id, provider_code: provider.provider_code, matches: [], http_status: 200,
       diagnostics: { notice: "FootballAPI.org live scores require membership. This complimentary plan can still contribute fixtures and settled results." },
     };
   }
@@ -779,7 +815,7 @@ async function fetchOneProvider(
   const { data: cached } = await db.from("football_public_cache")
     .select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
   if (cached && new Date(cached.expires_at) > now && Array.isArray(cached.payload?.matches)) {
-    return { ok: true, cached: true, stale: false, provider: provider.provider_name, provider_id: provider.id, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null };
+    return { ok: true, cached: true, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null };
   }
 
   try {
@@ -836,13 +872,13 @@ async function fetchOneProvider(
     };
     const expiresAt = new Date(now.getTime() + ttl * 1000).toISOString();
     await db.from("football_public_cache").upsert({ cache_key: cacheKey, payload, provider_name: provider.provider_name, fetched_at: now.toISOString(), expires_at: expiresAt });
-    return { ok: true, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, matches: classified, diagnostics: payload.diagnostics, http_status: response.status, message: notice };
+    return { ok: true, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: classified, diagnostics: payload.diagnostics, http_status: response.status, message: notice };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Provider request failed.";
     if (cached && Array.isArray(cached.payload?.matches) && now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000) {
-      return { ok: true, cached: true, stale: true, provider: provider.provider_name, provider_id: provider.id, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null, error: message };
+      return { ok: true, cached: true, stale: true, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null, error: message };
     }
-    return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, matches: [], diagnostics: {}, http_status: null, error: message };
+    return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {}, http_status: null, error: message };
   }
 }
 
@@ -937,6 +973,7 @@ Deno.serve(async (request: Request) => {
     const providers = providerResults.map((result) => ({
       id: result.provider_id,
       name: result.provider,
+      code: result.provider_code || "",
       ok: result.ok,
       cached: result.cached,
       stale: result.stale,
@@ -956,7 +993,10 @@ Deno.serve(async (request: Request) => {
     }
 
     const providerLabel = `${successfulProviders.length}/${activeProviders.length} football API${activeProviders.length === 1 ? "" : "s"}`;
-    const failuresNote = failedProviders.length ? ` ${failedProviders.length} provider(s) could not be reached; successful feeds are still displayed.` : "";
+    const failureDetails = failedProviders.slice(0, 3).map((item) => `${item.provider}: ${String(item.error || "request failed").slice(0, 160)}`).join("; ");
+    const failuresNote = failedProviders.length
+      ? ` ${failedProviders.length} provider(s) failed (${failureDetails}${failedProviders.length > 3 ? "; more failures omitted" : ""}); successful feeds are still displayed.`
+      : "";
     const staleNote = counts.stale_providers ? ` ${counts.stale_providers} provider cache(s) are temporarily stale.` : "";
     const message = combined.matches.length
       ? `${combined.matches.length.toLocaleString("en-US")} unique match(es) combined from ${providerLabel}; ${combined.duplicates_removed} duplicate(s) merged.${failuresNote}${staleNote}`
