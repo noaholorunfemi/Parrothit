@@ -479,7 +479,6 @@ async function providerRequest(provider: Record<string, any>, view: string, date
     const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view, competition) : String(rawValue);
     target.searchParams.set(key, value);
   }
-
   const headers = new Headers();
   const customHeaders = plainObject(provider.custom_headers);
   for (const [name, rawValue] of Object.entries(customHeaders)) {
@@ -628,8 +627,13 @@ async function loadActiveProviderConfigs(db: ReturnType<typeof createClient>, se
     && (provider.is_public_active === true || (legacyId && String(provider.id) === legacyId))
     && provider.last_test_ok === true
     && provider.last_match_test_ok === true
-    && !(String(provider.provider_code || "") === "api-ninjas" && String(provider.plan_type || "free") === "free")
+    && apiNinjasPublicPlanAllowed(provider)
   );
+}
+
+function apiNinjasPublicPlanAllowed(provider: Record<string, any>): boolean {
+  if (String(provider.provider_code || "").toLowerCase() !== "api-ninjas") return true;
+  return ["business", "professional", "enterprise"].includes(String(provider.plan_type || "free").toLowerCase());
 }
 
 function normalizedMatchIdentity(value: unknown): string {
