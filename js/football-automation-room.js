@@ -229,6 +229,10 @@
     return button;
   }
 
+  function apiNinjasPublicPlanAllowed(config) {
+    return String(config?.provider_code || '').toLowerCase() !== 'api-ninjas' || ['business', 'professional', 'enterprise'].includes(String(config?.plan_type || 'free').toLowerCase());
+  }
+
   function isFootballProvider(config) {
     return ['football', 'multi-sport'].includes(String(config?.sport || 'football').toLowerCase());
   }
@@ -288,7 +292,7 @@
       quota.textContent = quotaText(config);
       appendCell(tr, quota);
       const isFootball = isFootballProvider(config);
-      const isPublicActive = isFootball && config.is_enabled && config.last_test_ok === true && config.last_match_test_ok === true && (config.is_public_active === true || (config.id === activeId && state.settings.public_livescore_enabled === true));
+      const isPublicActive = isFootball && apiNinjasPublicPlanAllowed(config) && config.is_enabled && config.last_test_ok === true && config.last_match_test_ok === true && (config.is_public_active === true || (config.id === activeId && state.settings.public_livescore_enabled === true));
       const marker = !isFootball ? 'NOT A FOOTBALL API' : isPublicActive ? (config.id === primaryId ? 'PUBLIC ACTIVE · PRIMARY' : 'PUBLIC ACTIVE') : config.id === primaryId ? 'PRIMARY PREFERENCE' : '—';
       appendCell(tr, marker, marker !== '—' ? 'fr-primary-cell' : '');
       const actions = document.createElement('div');
@@ -297,13 +301,13 @@
       actions.appendChild(makeAction('Edit', 'edit', config.id));
       actions.appendChild(makeAction(config.is_enabled ? 'Disable' : 'Enable', 'toggle', config.id));
       actions.appendChild(makeAction('Set primary', 'primary', config.id, 'primary', !config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true || config.id === primaryId));
-      const premiumPlanRequired = config.provider_code === 'api-ninjas' && String(config.plan_type || 'free') === 'free' && !isPublicActive;
+      const premiumPlanRequired = !apiNinjasPublicPlanAllowed(config) && !isPublicActive;
       const publicActionLabel = !isFootball ? 'Football only'
         : isPublicActive ? (config.provider_code === 'api-ninjas' ? 'Deactivate Provider' : 'Remove from feed')
-        : premiumPlanRequired ? 'Premium plan required'
+        : premiumPlanRequired ? 'Business+ plan required'
           : (config.provider_code === 'api-ninjas' ? 'Activate Provider' : 'Add to feed');
       const publicAction = makeAction(publicActionLabel, 'public-toggle', config.id, isPublicActive ? 'danger' : 'pool', !isFootball || premiumPlanRequired || (!isPublicActive && (!config.is_enabled || config.last_test_ok !== true || config.last_match_test_ok !== true)));
-      if (premiumPlanRequired) publicAction.title = 'API Ninjas commercial use requires its Premium plan. Testing is available, but public activation is blocked while this is set to Free.';
+      if (premiumPlanRequired) publicAction.title = 'API Ninjas Free is for development/testing only; Developer does not allow data caching/storage. Public activation requires an active Business, Professional or Enterprise tier.';
       actions.appendChild(publicAction);
       actions.appendChild(makeAction('Delete', 'delete', config.id, 'danger')); 
       appendCell(tr, actions);
@@ -361,12 +365,13 @@
     const selected = state.configs.find((item) => item.id === primaryId);
     const selectedActive = !!selected && activeProviders.some((item) => item.id === selected.id);
     if (activate) {
-      activate.disabled = !selected || !isFootballProvider(selected) || !selected.is_enabled || selected.last_test_ok !== true || selected.last_match_test_ok !== true || selectedActive;
-      activate.textContent = selectedActive ? '✓ Selected API already active' : '＋ Add selected API to pool';
+      activate.disabled = !selected || !isFootballProvider(selected) || !apiNinjasPublicPlanAllowed(selected) || !selected.is_enabled || selected.last_test_ok !== true || selected.last_match_test_ok !== true || selectedActive;
+      activate.textContent = selectedActive ? '✓ Selected API already active' : (selected && !apiNinjasPublicPlanAllowed(selected) ? 'Business+ plan required' : '＋ Add selected API to pool');
     }
     const activateAll = $('fr-activate-all-verified');
-    const readyInactive = state.configs.filter((item) => isFootballProvider(item) && item.is_enabled && item.last_test_ok === true && item.last_match_test_ok === true && !activeProviders.some((activeItem) => activeItem.id === item.id));
-    if (activateAll) { activateAll.disabled = readyInactive.length === 0; activateAll.textContent = readyInactive.length ? `⚡ Activate all verified (${readyInactive.length})` : '✓ All verified APIs active'; }
+    const readyInactive = state.configs.filter((item) => isFootballProvider(item) && apiNinjasPublicPlanAllowed(item) && item.is_enabled && item.last_test_ok === true && item.last_match_test_ok === true && !activeProviders.some((activeItem) => activeItem.id === item.id));
+    const planBlocked = state.configs.filter((item) => isFootballProvider(item) && !apiNinjasPublicPlanAllowed(item) && item.is_enabled && item.last_test_ok === true && item.last_match_test_ok === true && !activeProviders.some((activeItem) => activeItem.id === item.id));
+    if (activateAll) { activateAll.disabled = readyInactive.length === 0; activateAll.textContent = readyInactive.length ? `⚡ Activate all verified (${readyInactive.length})` : (planBlocked.length ? `Business+ required for ${planBlocked.length} API Ninjas` : '✓ All verified APIs active'); }
     const pause = $('fr-pause-public');
     if (pause) pause.disabled = !isActive;
   }
@@ -458,7 +463,7 @@
     feedback('fr-api-feedback', code === 'openligadb'
       ? 'Free no-key preset loaded. Save it, then test the connection.'
       : code === 'api-ninjas'
-        ? 'API Ninjas preset loaded for LaLiga (laliga). Add your X-Api-Key, then save and test. Free access includes current-season fixtures/results; live match-minute and in-play score fields require a paid plan.'
+        ? 'API Ninjas preset loaded for LaLiga (laliga). Add your X-Api-Key, then save and test. Free credentials may be tested for development/evaluation, but cannot supply the public LiveScore feed. Developer allows commercial use but not data caching/storage; choose Business, Professional or Enterprise for public use only after confirming your account. The visitor competition filter applies to the combined matches; add one provider configuration per API Ninjas league you want included.'
         : 'Preset loaded. Add your provider API key before testing the connection.');
     $('fr-provider-name').focus();
   }
@@ -471,7 +476,7 @@
     if (!$('fr-provider-code').querySelector('option[value="' + CSS.escape(config.provider_code || 'custom') + '"]')) $('fr-provider-code').value = 'custom';
     $('fr-provider-name').value = config.provider_name || '';
     $('fr-sport').value = ['football', 'multi-sport', 'other'].includes(config.sport) ? config.sport : 'other';
-    $('fr-plan').value = ['free', 'paid', 'custom'].includes(config.plan_type) ? config.plan_type : 'custom';
+    $('fr-plan').value = ['free', 'developer', 'business', 'professional', 'enterprise', 'paid', 'custom'].includes(config.plan_type) ? config.plan_type : 'custom';
     $('fr-api-base').value = config.api_base_url || '';
     $('fr-test-path').value = config.test_path || '';
     $('fr-auth-type').value = config.auth_type || (config.auth_header_name ? 'header' : 'none');
@@ -629,7 +634,7 @@
   }
 
   async function activateAllVerifiedProviders() {
-    const ready = state.configs.filter((item) => isFootballProvider(item) && item.is_enabled && item.last_test_ok === true && item.last_match_test_ok === true && item.is_public_active !== true);
+    const ready = state.configs.filter((item) => isFootballProvider(item) && apiNinjasPublicPlanAllowed(item) && item.is_enabled && item.last_test_ok === true && item.last_match_test_ok === true && item.is_public_active !== true);
     if (!ready.length) { feedback('fr-activation-feedback', 'There are no additional verified providers to activate.', 'ok'); return; }
     if (!window.confirm(`Activate all ${ready.length} verified football API provider(s) together? Existing active providers will remain active.`)) return;
     const button = $('fr-activate-all-verified');
