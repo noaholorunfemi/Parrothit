@@ -107,7 +107,7 @@ function cleanEndpoints(value: unknown): Record<string, string> {
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Match endpoints must be a JSON object.");
   const output: Record<string, string> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (!["live", "today", "upcoming", "results", "competitions"].includes(key)) throw new Error("Endpoint keys must be live, today, upcoming, results or competitions.");
+    if (!["live", "today", "upcoming", "results", "competitions", "match_details", "events", "statistics", "lineups", "standings", "table", "head_to_head", "h2h", "match_events", "match_statistics", "match_lineups", "competition_table", "previous_meetings"].includes(key)) throw new Error("Endpoint keys must be feed views, competitions, or supported match-centre detail routes (events, statistics, lineups, standings, head_to_head or match_details).");
     const route = cleanText(raw, 700);
     if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
       throw new Error(`The ${key} endpoint must be a relative path beginning with one slash.`);
@@ -126,7 +126,7 @@ function cleanResponseMapping(value: unknown): Record<string, unknown> {
   if (value == null) return {};
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Response mapping must be a JSON object.");
   const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length > 30) throw new Error("Response mapping cannot contain more than 30 entries.");
+  if (entries.length > 50) throw new Error("Response mapping cannot contain more than 50 entries.");
   const output: Record<string, unknown> = {};
   for (const [key, raw] of entries) {
     if (["live_status_values", "finished_status_values", "upcoming_status_values"].includes(key)) {
@@ -262,8 +262,13 @@ function builtInMappingFor(providerCode: string): Record<string, unknown> {
     home_score: "home_score", away_score: "away_score", status: "status", kickoff: "starting_at",
   };
   if (providerCode === "sportapi-ai") return {
-    matches_path: "fixtures", id: "id", competition: "league_name", home_team: "home_team", away_team: "away_team",
-    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff_utc",
+    matches_path: "fixtures", id: "id", competition: "league_name", competition_id: "league_id",
+    competition_logo: "league_logo", competition_type: "league_type", country: "country_name",
+    home_team: "home_team", away_team: "away_team", home_logo: "home_logo", away_logo: "away_logo",
+    home_score: "home_score", away_score: "away_score", status: "status", status_detail: "status_detail",
+    kickoff: "kickoff_utc", minute: "elapsed_minutes", venue_name: "venue_name", venue_city: "city_name",
+    referee: "referee_name", events: "events", statistics: "statistics", lineups: "lineups",
+    standings: "standings", head_to_head: "head_to_head",
   };
   if (providerCode === "footballdata-io") return {
     matches_path: "", id: "match_id", competition: "league.competition_name", competition_id: "league.league_id",
@@ -657,10 +662,25 @@ function extractQuota(response: Response, bodyText: string) {
 
 
 function cleanImageUrl(value: unknown): string | null {
-  const text = cleanText(value, 1000);
+  const imageText = (value: unknown, depth = 0): string => {
+    if (depth > 3 || value === null || value === undefined) return "";
+    if (typeof value === "string" || typeof value === "number") return String(value).trim();
+    if (Array.isArray(value)) {
+      for (const item of value) { const candidate = imageText(item, depth + 1); if (candidate) return candidate; }
+    } else if (typeof value === "object") {
+      const object = value as Record<string, unknown>;
+      for (const key of ["url", "secure_url", "image_url", "imageUrl", "image_path", "path", "logo", "crest", "badge", "icon", "src"]) {
+        const candidate = imageText(object[key], depth + 1);
+        if (candidate) return candidate;
+      }
+    }
+    return "";
+  };
+  const text = cleanText(imageText(value), 1000);
   if (!text) return null;
   try {
-    const url = new URL(text);
+    const url = new URL(text.startsWith("//") ? `https:${text}` : text);
+    if (url.protocol === "http:") url.protocol = "https:";
     return url.protocol === "https:" ? url.href : null;
   } catch (_error) {
     return null;
@@ -745,7 +765,7 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
       : providerCode === "sportmonks" ? (row as any)?.image_path
       : providerCode === "footballapi-org" ? firstCatalogPath(row, ["image_url", "logo_url", "emblem"])
       : providerCode === "openligadb" ? firstCatalogPath(row, ["league_logo", "leagueLogo", "logo"])
-      : catalogPath(row, mapping, "catalog_logo", ["league.logo", "competition.logo", "emblem", "logo", "image"]);
+      : catalogPath(row, mapping, "catalog_logo", ["league.logo", "league.logo_url", "league.logoUrl", "league.image", "league.image_path", "league.crest", "league.badge", "competition.logo", "competition.logo_url", "competition.image", "competition.image_url", "competition.imageUrl", "competition.emblem", "competition.crest", "tournament.logo", "tournament.logo_url", "tournament.image", "tournament.image_url", "cup.logo", "championship.logo", "league_logo", "league_logo_url", "competition_logo", "competition_logo_url", "emblem", "crest", "badge", "logo", "image_url", "image_path", "image"]);
     const countryCode = providerCode === "api-football" ? country.code
       : providerCode === "football-data-org" ? area.code
       : providerCode === "sportmonks" ? firstCatalogPath(row, ["country.iso2", "country.code", "country_code"])
