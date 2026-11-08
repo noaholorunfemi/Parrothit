@@ -100,7 +100,7 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
   }
   if (providerCode === "football-data-org") {
     return {
-      live: "/v4/matches?status=IN_PLAY,PAUSED",
+      live: "/v4/matches?status=LIVE",
       today: "/v4/matches?dateFrom={date}&dateTo={date}",
       upcoming: "/v4/matches?dateFrom={date}&dateTo={date}",
       results: "/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED",
@@ -575,8 +575,40 @@ function rangeRouteFor(providerCode: string, endpoints: Record<string, unknown>,
 
 function expandProviderRoute(provider: Record<string, any>, view: string, date: string, competition: string, dateFrom: string, dateTo: string, routeOverride = ""): string {
   const endpoints = plainObject(provider.endpoints);
-  const route = routeOverride || routeFor(String(provider.provider_code || "custom"), endpoints, view);
+  let route = routeOverride || routeFor(String(provider.provider_code || "custom"), endpoints, view);
+  // Keep already-saved legacy configurations compatible with football-data.org's
+  // documented LIVE status alias while new configurations are saved with it.
+  if (String(provider.provider_code || "").toLowerCase() === "football-data-org" && view === "live" && route === "/v4/matches?status=IN_PLAY,PAUSED") {
+    route = "/v4/matches?status=LIVE";
+  }
   return expandTemplate(route, date, view, competition, dateFrom, dateTo);
+}
+
+function safeProviderRequestUrl(target: URL): string {
+  const safe = new URL(target.toString());
+  for (const key of [...safe.searchParams.keys()]) {
+    if (/^(?:key|api[_-]?key|apikey|token|access[_-]?token|auth[_-]?token|secret)$/i.test(key)) {
+      safe.searchParams.set(key, "[redacted]");
+    }
+  }
+  return `${safe.pathname}${safe.search}`;
+}
+
+function summarizeProviderErrorBody(bodyText: string): string {
+  const text = String(bodyText || "").trim();
+  if (!text) return "";
+  let detail = text;
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed === "string") detail = parsed;
+    else if (parsed && typeof parsed === "object") {
+      const candidate = (parsed as any).error ?? (parsed as any).message ?? (parsed as any).detail ??
+        (parsed as any).error_description ?? (parsed as any).errors;
+      if (typeof candidate === "string") detail = candidate;
+      else if (candidate !== undefined) detail = JSON.stringify(candidate);
+    }
+  } catch { /* Provider may return plain-text error details. */ }
+  return detail.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").slice(0, 700);
 }
 
 async function providerRequest(
@@ -618,7 +650,13 @@ async function providerRequest(
 
   const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(10000), redirect: "error" });
   if (response.status === 204) return { raw: [], response };
-  if (!response.ok) throw new Error(`Provider ${provider.provider_name} returned HTTP ${response.status} ${response.statusText || "error"}. Check its endpoint, key and plan access.`);
+  if (!response.ok) {
+    const errorText = (await response.text().catch(() => "")).slice(0, 4096);
+    const detail = summarizeProviderErrorBody(errorText);
+    const requestPath = safeProviderRequestUrl(target);
+    const requestId = response.headers.get("x-request-id") || response.headers.get("x-correlation-id") || "";
+    throw new Error(`Provider ${provider.provider_name} returned HTTP ${response.status} ${response.statusText || "error"}${detail ? `: ${detail}` : ". No error body was returned."} Request: ${requestPath}${requestId ? ` · Request ID: ${requestId}` : ""}`);
+  }
   const responseText = await response.text();
   if (!responseText.trim()) return { raw: [], response };
   let raw: unknown;
@@ -1115,6 +1153,94 @@ function providerHasFullWindowFeed(provider: Record<string, any>, view: string):
     && !route.includes("{date_from}") && !route.includes("{date_to}");
 }
 
+async function fetchFootballDataOrgWindowInBatches(
+  db: ReturnType<typeof createClient>, provider: Record<string, any>, view: string,
+  selectedDate: string, competition: string, ttl: number, dateFrom: string, dateTo: string,
+  rangeRoute: string,
+): Promise<Record<string, any>> {
+  const code = String(provider.provider_code || "football-data-org");
+  const cursorKey = `livescore:v4-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursor = await readWindowCursor(db, cursorKey, dateFrom);
+  let nextDate = cursor.nextDate;
+  let chunkResult: Record<string, any> | null = null;
+  let chunkFrom = "";
+  let chunkThrough = "";
+
+  // football-data.org treats dateTo as an exclusive boundary. Fetch at most seven
+  // calendar days at a time and send the day after the last desired date as dateTo.
+  if (!cursor.complete && nextDate <= dateTo) {
+    chunkFrom = nextDate;
+    chunkThrough = [shiftIsoDay(chunkFrom, 6), dateTo].sort()[0];
+    const apiDateToExclusive = shiftIsoDay(chunkThrough, 1);
+    const chunkRoute = rangeRoute
+      .replaceAll("{from}", chunkFrom)
+      .replaceAll("{to}", apiDateToExclusive)
+      .replaceAll("{date_from}", chunkFrom)
+      .replaceAll("{date_to}", apiDateToExclusive)
+      .replaceAll("{start_date}", chunkFrom)
+      .replaceAll("{end_date}", apiDateToExclusive);
+    const chunkKey = `livescore:v4-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
+    chunkResult = await fetchOneProvider(
+      db, provider, view, chunkFrom, competition, Math.max(DAILY_WINDOW_CACHE_TTL_SECONDS, ttl),
+      chunkFrom, chunkThrough, chunkKey, chunkRoute, true, view === "today",
+    );
+    const chunkSucceeded = chunkResult.ok === true && chunkResult.stale !== true && chunkResult.pagination_pending !== true;
+    nextDate = chunkSucceeded ? shiftIsoDay(chunkThrough, 1) : chunkFrom;
+    await writeWindowCursor(
+      db, cursorKey, String(provider.provider_name || "football-data.org"),
+      nextDate, nextDate > dateTo, dateFrom, dateTo,
+    );
+  }
+
+  const cachePrefix = `livescore:v4-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
+  const cachedWindow = await loadWindowDayCache(db, cachePrefix);
+  let matches = cachedWindow.matches;
+  try {
+    const catalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "football-data.org"));
+    matches = enrichWithCompetitionCatalog(matches, catalog, code) as Record<string, any>[];
+  } catch (_error) { /* Competition metadata is optional; keep valid score rows. */ }
+
+  const filtered = view === "today"
+    ? matches.filter((match) => dateInLagos(String(match.kickoff || "")) === selectedDate)
+    : classify(matches, view, selectedDate, dateFrom, dateTo);
+  const totalDays = daysBetweenInclusive(dateFrom, dateTo);
+  const scannedDays = Math.min(totalDays, Math.max(0, daysBetweenInclusive(dateFrom, shiftIsoDay(nextDate, -1))));
+  const syncPending = nextDate <= dateTo;
+  const ok = chunkResult?.ok === true || cursor.complete || cachedWindow.raw > 0 || cachedWindow.normalized > 0;
+  const error = chunkResult && (chunkResult.ok !== true || Boolean(chunkResult.error))
+    ? String(chunkResult.error || "football-data.org date batch did not complete successfully.")
+    : !ok ? "football-data.org has not returned a successful date batch yet." : undefined;
+  const progress = {
+    scanned_days: scannedDays,
+    total_days: totalDays,
+    next_date: syncPending ? nextDate : "",
+    last_batch_from: chunkFrom || null,
+    last_batch_through: chunkThrough || null,
+    batch_days: 7,
+    date_to_exclusive: true,
+  };
+  return {
+    ok, cached: chunkResult?.cached === true || !chunkResult, stale: chunkResult?.stale === true,
+    provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code,
+    matches: filtered,
+    http_status: chunkResult?.http_status ?? null,
+    diagnostics: {
+      raw_records: cachedWindow.raw,
+      normalized_records: cachedWindow.normalized,
+      returned_records: filtered.length,
+      scanned_days: scannedDays,
+      total_days: totalDays,
+      last_batch_from: chunkFrom || null,
+      last_batch_through: chunkThrough || null,
+    },
+    sync_pending: syncPending,
+    sync_progress: progress,
+    pagination_pending: chunkResult?.pagination_pending === true,
+    pagination_progress: chunkResult?.pagination_progress || null,
+    ...(error ? { error } : {}),
+  };
+}
+
 async function fetchProviderWindow(
   db: ReturnType<typeof createClient>, provider: Record<string, any>, view: string,
   selectedDate: string, competition: string, ttl: number, dateFrom: string, dateTo: string,
@@ -1124,6 +1250,9 @@ async function fetchProviderWindow(
   const code = String(provider.provider_code || "custom");
   const endpoints = plainObject(provider.endpoints);
   const rangeRoute = rangeRouteFor(code, endpoints, view);
+  if (code === "football-data-org" && rangeRoute) {
+    return fetchFootballDataOrgWindowInBatches(db, provider, view, selectedDate, competition, ttl, dateFrom, dateTo, rangeRoute);
+  }
   if (rangeRoute) {
     const cacheKey = `livescore:v4range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, rangeRoute, false, view === "today");
