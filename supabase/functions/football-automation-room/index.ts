@@ -165,6 +165,22 @@ function defaultEndpoints(providerCode: string): Record<string, string> {
       results: "/v4/matches?dateFrom={date}&dateTo={date}",
     };
   }
+  if (providerCode === "sportmonks") {
+    return {
+      live: "/livescores/inplay?include=participants;scores;state;league",
+      today: "/fixtures/date/{date}?include=participants;scores;state;league",
+      upcoming: "/fixtures/date/{date}?include=participants;scores;state;league",
+      results: "/fixtures/date/{date}?include=participants;scores;state;league",
+    };
+  }
+  if (providerCode === "footballapi-org") {
+    return {
+      live: "/v1/live",
+      today: "/v1/matches?date_from={date}&date_to={date}&per_page=1000",
+      upcoming: "/v1/matches?date_from={date}&date_to={date}&status=scheduled&per_page=1000",
+      results: "/v1/results?date={date}&per_page=1000",
+    };
+  }
   return {};
 }
 
@@ -180,6 +196,12 @@ function getPath(value: unknown, path: unknown): unknown {
 }
 
 function providerRows(raw: unknown, providerCode: string, mapping: Record<string, unknown>): unknown[] | null {
+  if (providerCode === "sportmonks" || providerCode === "footballapi-org") {
+    const data = (raw as any)?.data;
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === "object") return [data];
+    return null;
+  }
   if (providerCode === "openligadb") {
     if (Array.isArray(raw)) return raw;
     if (Array.isArray((raw as any)?.data)) return (raw as any).data;
@@ -211,8 +233,20 @@ function builtInMappingFor(providerCode: string): Record<string, unknown> {
 
 function usableMatchCount(rows: unknown[], providerCode: string, mapping: Record<string, unknown>): number {
   return rows.filter((row: any) => {
+    if (providerCode === "sportmonks") {
+      const participants = Array.isArray(row?.participants) ? row.participants : [];
+      const home = participants.find((item: any) => String(item?.meta?.location || "").toLowerCase() === "home");
+      const away = participants.find((item: any) => String(item?.meta?.location || "").toLowerCase() === "away");
+      return Boolean(home?.name && away?.name && row?.starting_at && Number.isFinite(Date.parse(String(row.starting_at))));
+    }
     if (providerCode === "openligadb") {
       return Boolean(row?.Team1?.TeamName && row?.Team2?.TeamName && row?.MatchDate && Number.isFinite(Date.parse(String(row.MatchDate))));
+    }
+    if (providerCode === "footballapi-org") {
+      const home = row?.home_club_name ?? row?.home?.name ?? row?.home;
+      const away = row?.away_club_name ?? row?.away?.name ?? row?.away;
+      const kickoff = row?.kickoff_utc ?? row?.kickoff ?? row?.date;
+      return Boolean(String(home ?? "").trim() && String(away ?? "").trim() && kickoff && Number.isFinite(Date.parse(String(kickoff))));
     }
     const home = getPath(row, mapping.home_team);
     const away = getPath(row, mapping.away_team);
@@ -222,6 +256,9 @@ function usableMatchCount(rows: unknown[], providerCode: string, mapping: Record
 }
 
 async function providerFetch(config: Record<string, any>, view: string, date: string): Promise<{ http_status: number; raw_count: number; usable_count: number; list_found: boolean; duration_ms: number; message: string; endpoint: string }> {
+  if (String(config.provider_code || "") === "footballapi-org" && String(config.plan_type || "free") === "free" && view === "live") {
+    return { http_status: 200, raw_count: 0, usable_count: 0, list_found: true, duration_ms: 0, message: "Skipped by plan: FootballAPI.org live scores require membership. Fixtures and settled results can still be checked on the complimentary plan.", endpoint: "/v1/live (membership-only; not requested)" };
+  }
   const base = validateHttpsUrl(String(config.api_base_url || ""));
   const endpointConfig = plainObject(config.endpoints);
   const route = typeof endpointConfig[view] === "string" && String(endpointConfig[view]).trim()
@@ -318,7 +355,7 @@ function validatePublicActivationConfig(config: Record<string, any>) {
   }
   if (!config.is_enabled) throw new Error(`Enable ${config.provider_name || "this provider"} before activation.`);
   if (config.last_test_ok !== true || config.last_match_test_ok !== true) throw new Error(`${config.provider_name || "This provider"} must pass all endpoint checks and return at least one usable match before activation.`);
-  const builtInAdapters = ["openligadb", "api-football", "football-data-org"];
+  const builtInAdapters = ["openligadb", "api-football", "football-data-org", "sportmonks", "footballapi-org"];
   if (!builtInAdapters.includes(String(config.provider_code || ""))) {
     const endpoints = plainObject(config.endpoints);
     const mapping = plainObject(config.response_mapping);
@@ -524,6 +561,7 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
   let sourceRows: unknown;
   if (providerCode === "api-football") sourceRows = getPath(raw, "response");
   else if (providerCode === "football-data-org") sourceRows = getPath(raw, "competitions");
+  else if (providerCode === "sportmonks" || providerCode === "footballapi-org") sourceRows = getPath(raw, "data");
   else if (providerCode === "openligadb") sourceRows = Array.isArray(raw) ? raw : getPath(raw, "data");
   else {
     const path = typeof mapping.competitions_path === "string" ? mapping.competitions_path : "";
@@ -542,15 +580,19 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
     const currentSeason = seasons.find((item: any) => item?.current === true) || seasons.slice().sort((a: any, b: any) => Number(b?.year || 0) - Number(a?.year || 0))[0] || {};
     const externalId = providerCode === "api-football"
       ? league.id
-      : providerCode === "football-data-org"
+      : providerCode === "football-data-org" || providerCode === "sportmonks"
         ? (row as any)?.id
+        : providerCode === "footballapi-org"
+          ? firstCatalogPath(row, ["competition", "slug", "id", "competition_id"])
         : providerCode === "openligadb"
           ? firstCatalogPath(row, ["leagueId", "LeagueID", "LeagueId", "league_id", "id"])
           : catalogPath(row, mapping, "catalog_id", ["league.id", "competition.id", "id", "leagueId", "league_id", "competition_id"]);
     const nameValue = providerCode === "api-football"
       ? league.name
-      : providerCode === "football-data-org"
+      : providerCode === "football-data-org" || providerCode === "sportmonks"
         ? (row as any)?.name
+        : providerCode === "footballapi-org"
+          ? firstCatalogPath(row, ["competition_name", "name", "competition", "slug"])
         : providerCode === "openligadb"
           ? firstCatalogPath(row, ["leagueName", "LeagueName", "name"])
           : catalogPath(row, mapping, "catalog_name", ["league.name", "competition.name", "name", "leagueName", "league_name"]);
@@ -560,18 +602,25 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
 
     const rawCountry = providerCode === "api-football" ? country.name
       : providerCode === "football-data-org" ? area.name
+      : providerCode === "sportmonks" ? firstCatalogPath(row, ["country.name", "country_name"]) || "International"
+      : providerCode === "footballapi-org" ? firstCatalogPath(row, ["country", "country_name", "country.name"]) || "International"
       : providerCode === "openligadb" ? firstCatalogPath(row, ["country", "countryName", "CountryName"]) || "Germany"
       : catalogPath(row, mapping, "catalog_country", ["country.name", "area.name", "country", "country_name"]);
     const rawType = providerCode === "api-football" ? league.type
-      : providerCode === "football-data-org" ? (row as any)?.type
+      : providerCode === "football-data-org" || providerCode === "sportmonks" ? (row as any)?.type || "League"
+      : providerCode === "footballapi-org" ? firstCatalogPath(row, ["kind", "type", "competition_type"]) || "League"
       : providerCode === "openligadb" ? firstCatalogPath(row, ["leagueType", "type"]) || "League"
       : catalogPath(row, mapping, "catalog_type", ["league.type", "competition.type", "type"]);
     const rawLogo = providerCode === "api-football" ? league.logo
       : providerCode === "football-data-org" ? (row as any)?.emblem
+      : providerCode === "sportmonks" ? (row as any)?.image_path
+      : providerCode === "footballapi-org" ? firstCatalogPath(row, ["image_url", "logo_url", "emblem"])
       : providerCode === "openligadb" ? firstCatalogPath(row, ["league_logo", "leagueLogo", "logo"])
       : catalogPath(row, mapping, "catalog_logo", ["league.logo", "competition.logo", "emblem", "logo", "image"]);
     const countryCode = providerCode === "api-football" ? country.code
       : providerCode === "football-data-org" ? area.code
+      : providerCode === "sportmonks" ? firstCatalogPath(row, ["country.iso2", "country.code", "country_code"])
+      : providerCode === "footballapi-org" ? firstCatalogPath(row, ["country_code", "country.code"])
       : providerCode === "openligadb" ? firstCatalogPath(row, ["countryCode", "country_code"])
       : catalogPath(row, mapping, "catalog_country_code", ["country.code", "area.code", "country_code"]);
     const countryFlag = providerCode === "api-football" ? country.flag
@@ -583,7 +632,9 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
         ? [Number(String((row as any)?.currentSeason?.startDate || "").slice(0, 4))].filter((value: number) => Number.isInteger(value) && value > 1800)
         : providerCode === "openligadb"
           ? [Number(String(firstCatalogPath(row, ["leagueSeason", "LeagueSeason", "season"]) || "").slice(0, 4))].filter((value: number) => Number.isInteger(value) && value > 1800)
-          : [Number(catalogPath(row, mapping, "catalog_season", ["season", "currentSeason.startDate"]) || 0)].filter((value: number) => Number.isInteger(value) && value > 1800);
+          : providerCode === "footballapi-org"
+          ? [Number(String((row as any)?.since || "").match(/\d{4}/)?.[0] || 0)].filter((value: number) => Number.isInteger(value) && value > 1800)
+          : [Number(catalogPath(row, mapping, "catalog_season", ["season", "season_start_year", "first_season", "since", "currentSeason.startDate"]) || 0)].filter((value: number) => Number.isInteger(value) && value > 1800);
     const seasonYear = providerCode === "api-football" ? Number(currentSeason?.year || Math.max(0, ...years))
       : providerCode === "football-data-org" ? Number(years[0] || 0)
       : Number(years.length ? Math.max(...years) : 0);
@@ -603,8 +654,10 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
       season_year: Number.isInteger(seasonYear) && seasonYear > 1800 ? seasonYear : null,
       season_years: [...new Set(years)].sort((a, b) => b - a),
       is_current_season: current,
-      coverage: plainObject((currentSeason as any)?.coverage),
-      is_enabled: true,
+      coverage: providerCode === "footballapi-org"
+        ? { your_key_reads: (row as any)?.your_key_reads !== false, since: (row as any)?.since || null, tier: (row as any)?.tier ?? null, kind: (row as any)?.kind || null }
+        : plainObject((currentSeason as any)?.coverage),
+      is_enabled: providerCode === "footballapi-org" ? (row as any)?.your_key_reads !== false : true,
       last_synced_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -617,6 +670,8 @@ async function fetchCompetitionCatalog(config: Record<string, any>): Promise<Rec
   const endpoints = plainObject(config.endpoints);
   const defaultRoute = providerCode === "api-football" ? "/leagues"
     : providerCode === "football-data-org" ? "/v4/competitions"
+    : providerCode === "sportmonks" ? "/leagues?include=country;seasons"
+    : providerCode === "footballapi-org" ? "/v1/competitions"
     : providerCode === "openligadb" ? `/getavailableleagues/${new Date().getFullYear()}`
     : "";
   const route = typeof endpoints.competitions === "string" && String(endpoints.competitions).trim()
