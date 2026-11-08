@@ -70,6 +70,39 @@ function firstPath(value: unknown, candidates: string[]): unknown {
   return undefined;
 }
 
+// Football providers use different names and shapes for club crests. Normalize both
+// plain URLs and nested image objects before the public response reaches the browser.
+function imageUrlValue(value: unknown, depth = 0): string {
+  if (depth > 3 || value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = imageUrlValue(item, depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+  const object = plainObject(value);
+  for (const key of ["url", "secure_url", "image_url", "imageUrl", "image_path", "path", "logo", "crest", "badge", "team_logo", "logo_url", "crest_url", "badge_url", "src", "href"]) {
+    const found = imageUrlValue(object[key], depth + 1);
+    if (found) return found;
+  }
+  return "";
+}
+
+function safePublicImageUrl(value: unknown): string | null {
+  const raw = imageUrlValue(value);
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.startsWith("//") ? `https:${raw}` : raw);
+    // Upgrade provider-hosted HTTP images because the PARROTHIT visitor page is HTTPS.
+    if (url.protocol === "http:") url.protocol = "https:";
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function expandTemplate(value: string, date: string, view: string, competition: string, dateFrom = date, dateTo = date): string {
   return value
     .replaceAll("{date}", date)
@@ -260,8 +293,8 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
       competition_id: item?.LeagueID ?? item?.LeagueId ?? item?.League?.LeagueID ?? item?.League?.LeagueId ?? null,
       competition_logo: item?.LeagueLogo || item?.League?.LeagueLogo || item?.League?.Logo || null,
       country: item?.LeagueCountry || item?.League?.Country || "",
-      home: { name: home?.TeamName || "Home team" },
-      away: { name: away?.TeamName || "Away team" },
+      home: { name: home?.TeamName || "Home team", ...(safePublicImageUrl(home?.TeamIconUrl || home?.TeamIcon || home?.teamIconUrl || home?.logo || home?.image) ? { logo: safePublicImageUrl(home?.TeamIconUrl || home?.TeamIcon || home?.teamIconUrl || home?.logo || home?.image) } : {}) },
+      away: { name: away?.TeamName || "Away team", ...(safePublicImageUrl(away?.TeamIconUrl || away?.TeamIcon || away?.teamIconUrl || away?.logo || away?.image) ? { logo: safePublicImageUrl(away?.TeamIconUrl || away?.TeamIcon || away?.teamIconUrl || away?.logo || away?.image) } : {}) },
       home_score: lastResult?.PointsTeam1 ?? null,
       away_score: lastResult?.PointsTeam2 ?? null,
       // OpenLigaDB match records do not reliably provide a live event clock; never invent a live state from kickoff time.
@@ -281,8 +314,12 @@ function normalizeFootballApiOrg(raw: unknown): Record<string, unknown>[] {
   return rows.map((item: any) => {
     const homeRaw = item?.home_club_name ?? item?.home ?? item?.home_team ?? "";
     const awayRaw = item?.away_club_name ?? item?.away ?? item?.away_team ?? "";
-    const home = typeof homeRaw === "string" ? { name: homeRaw } : { name: homeRaw?.name || homeRaw?.club_name || "Home team", ...(homeRaw?.logo || homeRaw?.crest ? { logo: homeRaw.logo || homeRaw.crest } : {}) };
-    const away = typeof awayRaw === "string" ? { name: awayRaw } : { name: awayRaw?.name || awayRaw?.club_name || "Away team", ...(awayRaw?.logo || awayRaw?.crest ? { logo: awayRaw.logo || awayRaw.crest } : {}) };
+    const homeLogo = safePublicImageUrl(homeRaw) || safePublicImageUrl(item?.home_club_logo || item?.home_logo || item?.home_logo_url || item?.home_team_logo || item?.home_club_badge_url)
+      || safePublicImageUrl(item?.home_team || item?.home_club || item?.homeTeam);
+    const awayLogo = safePublicImageUrl(awayRaw) || safePublicImageUrl(item?.away_club_logo || item?.away_logo || item?.away_logo_url || item?.away_team_logo || item?.away_club_badge_url)
+      || safePublicImageUrl(item?.away_team || item?.away_club || item?.awayTeam);
+    const home = { name: typeof homeRaw === "string" ? homeRaw : homeRaw?.name || homeRaw?.club_name || "Home team", ...(homeLogo ? { logo: homeLogo } : {}) };
+    const away = { name: typeof awayRaw === "string" ? awayRaw : awayRaw?.name || awayRaw?.club_name || "Away team", ...(awayLogo ? { logo: awayLogo } : {}) };
     const score = item?.score || {};
     const homeScore = item?.home_goals ?? item?.home_score ?? score?.home ?? null;
     const awayScore = item?.away_goals ?? item?.away_score ?? score?.away ?? null;
@@ -358,8 +395,8 @@ function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
       league_logo: league?.image_path || null,
       country: league?.country?.name || league?.country_name || "",
       country_code: league?.country?.iso2 || league?.country?.code || "",
-      home: { name: home?.name || "Home team", ...(home?.image_path ? { logo: home.image_path } : {}) },
-      away: { name: away?.name || "Away team", ...(away?.image_path ? { logo: away.image_path } : {}) },
+      home: { name: home?.name || "Home team", ...(safePublicImageUrl(home?.image_path || home?.logo || home?.image) ? { logo: safePublicImageUrl(home?.image_path || home?.logo || home?.image) } : {}) },
+      away: { name: away?.name || "Away team", ...(safePublicImageUrl(away?.image_path || away?.logo || away?.image) ? { logo: safePublicImageUrl(away?.image_path || away?.logo || away?.image) } : {}) },
       home_score: homeScore,
       away_score: awayScore,
       status,
@@ -479,13 +516,33 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       awayScore = awayScore == null || awayScore === "" || !Number.isFinite(Number(awayScore)) ? null : Number(awayScore);
     }
     const matchId = firstPath(row, [typeof mapping.id === "string" ? mapping.id : "", "id", "fixture.id", "event_id", "match_id"].filter(Boolean));
-    const homeLogo = firstPath(row, [typeof mapping.home_logo === "string" ? mapping.home_logo : "", "teams.home.logo", "homeTeam.crest", "home.logo", "homeTeam.logo", "home_team.logo"].filter(Boolean));
-    const awayLogo = firstPath(row, [typeof mapping.away_logo === "string" ? mapping.away_logo : "", "teams.away.logo", "awayTeam.crest", "away.logo", "awayTeam.logo", "away_team.logo"].filter(Boolean));
+    const homeTeamId = firstPath(row, ["teams.home.id", "homeTeam.id", "home_team.id", "home.id", "home_team_id", "home_id"]);
+    const awayTeamId = firstPath(row, ["teams.away.id", "awayTeam.id", "away_team.id", "away.id", "away_team_id", "away_id"]);
+    const rawHomeLogo = firstPath(row, [
+      typeof mapping.home_logo === "string" ? mapping.home_logo : "",
+      "teams.home.logo", "teams.home.image", "teams.home.crest", "teams.home.logo_url", "teams.home.image_path",
+      "homeTeam.crest", "homeTeam.logo", "homeTeam.logo_url", "homeTeam.image", "homeTeam.image_path", "homeTeam.badge", "homeTeam.badge_url",
+      "home.logo", "home.crest", "home.image", "home.logo_url", "home.image_url", "home.badge", "home.badge_url", "home.crest_url",
+      "home_team.logo", "home_team.crest", "home_team.image", "home_team.image_path", "home_team.team_logo", "home_team.logo_url", "home_team.image_url", "home_team.badge", "home_team.badge_url", "home_team.crest_url",
+      "home_team_logo", "home_logo_url", "home_crest", "home_badge_url", "home_club_logo", "home_club_badge_url"
+    ].filter(Boolean));
+    const rawAwayLogo = firstPath(row, [
+      typeof mapping.away_logo === "string" ? mapping.away_logo : "",
+      "teams.away.logo", "teams.away.image", "teams.away.crest", "teams.away.logo_url", "teams.away.image_path",
+      "awayTeam.crest", "awayTeam.logo", "awayTeam.logo_url", "awayTeam.image", "awayTeam.image_path", "awayTeam.badge", "awayTeam.badge_url",
+      "away.logo", "away.crest", "away.image", "away.logo_url", "away.image_url", "away.badge", "away.badge_url", "away.crest_url",
+      "away_team.logo", "away_team.crest", "away_team.image", "away_team.image_path", "away_team.team_logo", "away_team.logo_url", "away_team.image_url", "away_team.badge", "away_team.badge_url", "away_team.crest_url",
+      "away_team_logo", "away_logo_url", "away_crest", "away_badge_url", "away_club_logo", "away_club_badge_url"
+    ].filter(Boolean));
+    const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
+    const homeLogo = safePublicImageUrl(rawHomeLogo) || safePublicImageUrl(homeRaw)
+      || (normalizedProviderCode === "api-football" && homeTeamId != null && /^\d+$/.test(String(homeTeamId)) ? `https://media.api-sports.io/football/teams/${homeTeamId}.png` : null);
+    const awayLogo = safePublicImageUrl(rawAwayLogo) || safePublicImageUrl(awayRaw)
+      || (normalizedProviderCode === "api-football" && awayTeamId != null && /^\d+$/.test(String(awayTeamId)) ? `https://media.api-sports.io/football/teams/${awayTeamId}.png` : null);
     const rawCompetitionLogo = firstPath(row, [typeof mapping.competition_logo === "string" ? mapping.competition_logo : "", "league.logo", "competition.emblem", "competition.logo", "league_logo", "competition_logo"].filter(Boolean));
     const rawCompetitionId = firstPath(row, [typeof mapping.competition_id === "string" ? mapping.competition_id : "", "league.id", "competition.id", "competition_id", "league_id"].filter(Boolean));
     const competitionId = rawCompetitionId == null ? "" : safeString(rawCompetitionId).trim();
     const competitionType = firstPath(row, [typeof mapping.competition_type === "string" ? mapping.competition_type : "", "league.type", "competition.type", "competition_type", "league_type"].filter(Boolean));
-    const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
     const numericCompetitionId = /^\d+$/.test(competitionId) ? competitionId : "";
     const competitionLogo = rawCompetitionLogo || (normalizedProviderCode === "api-football" && numericCompetitionId ? `https://media.api-sports.io/football/leagues/${numericCompetitionId}.png` : null);
     const country = firstPath(row, [typeof mapping.country === "string" ? mapping.country : "", "league.country", "competition.country.name", "tournament.country.name", "area.name", "country.name", "country_name", "league_country", "country"].filter(Boolean));
@@ -524,8 +581,8 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       league_code: safeString(firstPath(row, [typeof mapping.competition_code === "string" ? mapping.competition_code : "", "league.code", "competition.code", "league_code"].filter(Boolean)), ""),
       competition_id: competitionId || null,
       competition_type: competitionType == null ? "" : safeString(competitionType),
-      home: { name: homeTeam, ...(homeLogo ? { logo: safeString(homeLogo) } : {}) },
-      away: { name: awayTeam, ...(awayLogo ? { logo: safeString(awayLogo) } : {}) },
+      home: { name: homeTeam, ...(homeLogo ? { logo: homeLogo } : {}) },
+      away: { name: awayTeam, ...(awayLogo ? { logo: awayLogo } : {}) },
       competition_logo: competitionLogo ? safeString(competitionLogo) : null,
       league_logo: competitionLogo ? safeString(competitionLogo) : null,
       country: country ? teamDisplayName(country) : "",
@@ -1034,7 +1091,7 @@ async function fetchOneProvider(
     };
   }
   const code = String(provider.provider_code || "");
-  const cacheKey = cacheKeyOverride || `livescore:v6:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cacheKey = cacheKeyOverride || `livescore:v7:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const now = new Date();
   const { data: cached } = await db.from("football_public_cache")
     .select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
@@ -1235,7 +1292,7 @@ async function fetchFootballDataOrgWindowInBatches(
   rangeRoute: string,
 ): Promise<Record<string, any>> {
   const code = String(provider.provider_code || "football-data-org");
-  const cursorKey = `livescore:v6-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v7-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, dateFrom);
   let nextDate = cursor.nextDate;
   let chunkResult: Record<string, any> | null = null;
@@ -1255,7 +1312,7 @@ async function fetchFootballDataOrgWindowInBatches(
       .replaceAll("{date_to}", apiDateToExclusive)
       .replaceAll("{start_date}", chunkFrom)
       .replaceAll("{end_date}", apiDateToExclusive);
-    const chunkKey = `livescore:v6-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
+    const chunkKey = `livescore:v7-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
     chunkResult = await fetchOneProvider(
       db, provider, view, chunkFrom, competition, Math.max(DAILY_WINDOW_CACHE_TTL_SECONDS, ttl),
       chunkFrom, chunkThrough, chunkKey, chunkRoute, true, view === "today",
@@ -1268,7 +1325,7 @@ async function fetchFootballDataOrgWindowInBatches(
     );
   }
 
-  const cachePrefix = `livescore:v6-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
+  const cachePrefix = `livescore:v7-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
   const cachedWindow = await loadWindowDayCache(db, cachePrefix);
   let matches = cachedWindow.matches;
   try {
@@ -1330,13 +1387,13 @@ async function fetchProviderWindow(
     return fetchFootballDataOrgWindowInBatches(db, provider, view, selectedDate, competition, ttl, dateFrom, dateTo, rangeRoute);
   }
   if (rangeRoute) {
-    const cacheKey = `livescore:v6range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v7range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, rangeRoute, false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
 
   if (providerHasFullWindowFeed(provider, view)) {
-    const cacheKey = `livescore:v6season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v7season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, "", false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
@@ -1344,10 +1401,10 @@ async function fetchProviderWindow(
   // Date-only services are synchronized progressively. Every response handles the current day plus
   // a seven-day continuation batch, and the next visitor request resumes from the saved cursor.
   const primaryDay = dateFrom;
-  const primaryKey = `livescore:v6day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
+  const primaryKey = `livescore:v7day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
   const primary = await fetchOneProvider(db, provider, view, primaryDay, competition, ttl, primaryDay, primaryDay, primaryKey, "", true);
 
-  const cursorKey = `livescore:v6window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v7window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, shiftIsoDay(dateFrom, 1));
   let nextDate = cursor.nextDate;
   const batchResults: Record<string, any>[] = [];
@@ -1359,7 +1416,7 @@ async function fetchProviderWindow(
       nextDate = shiftIsoDay(nextDate, 1);
     }
     batchResults.push(...await runWithConcurrency(days, DAILY_WINDOW_CONCURRENCY, (day) => {
-      const key = `livescore:v6day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
+      const key = `livescore:v7day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
       return fetchOneProvider(db, provider, view, day, competition, DAILY_WINDOW_CACHE_TTL_SECONDS, day, day, key, "", true);
     }));
     const firstIncompleteIndex = batchResults.findIndex((item) => item.ok !== true || item.pagination_pending === true);
@@ -1370,7 +1427,7 @@ async function fetchProviderWindow(
     syncPending = !complete;
   }
 
-  const prefix = `livescore:v6day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
+  const prefix = `livescore:v7day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
   const cachedWindow = await loadWindowDayCache(db, prefix);
   let matches = cachedWindow.matches;
   try {
