@@ -18,7 +18,7 @@
       provider_code: 'api-football', provider_name: 'API-Football / API-Sports', sport: 'football', plan_type: 'free',
       api_base_url: 'https://v3.football.api-sports.io', test_path: '/status',
       auth_type: 'header', auth_header_name: 'x-apisports-key', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/fixtures?live=all&timezone=Africa/Lagos', today: '/fixtures?date={date}&timezone=Africa/Lagos', upcoming: '/fixtures?date={date}&timezone=Africa/Lagos', results: '/fixtures?date={date}&timezone=Africa/Lagos' },
+      endpoints: { live: '/fixtures?live=all&timezone=Africa/Lagos', today: '/fixtures?date={date}&timezone=Africa/Lagos', upcoming: '/fixtures?date={date}&timezone=Africa/Lagos', results: '/fixtures?date={date}&timezone=Africa/Lagos', upcoming_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos', results_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos' },
       default_query_params: {}, custom_headers: {},
       response_mapping: { matches_path: 'response', id: 'fixture.id', competition: 'league.name', home_team: 'teams.home.name', away_team: 'teams.away.name', home_score: 'goals.home', away_score: 'goals.away', status: 'fixture.status.short', kickoff: 'fixture.date', minute: 'fixture.status.elapsed', live_status_values: ['1H','2H','HT','ET','BT','P','LIVE','IN_PLAY'], finished_status_values: ['FT','AET','PEN'], upcoming_status_values: ['NS','TBD'] }
     },
@@ -26,7 +26,7 @@
       provider_code: 'football-data-org', provider_name: 'football-data.org', sport: 'football', plan_type: 'free',
       api_base_url: 'https://api.football-data.org', test_path: '/v4/competitions/PL',
       auth_type: 'header', auth_header_name: 'X-Auth-Token', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/v4/matches?status=IN_PLAY,PAUSED', today: '/v4/matches?dateFrom={date}&dateTo={date}', upcoming: '/v4/matches?dateFrom={date}&dateTo={date}', results: '/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED' },
+      endpoints: { live: '/v4/matches?status=IN_PLAY,PAUSED', today: '/v4/matches?dateFrom={date}&dateTo={date}', upcoming: '/v4/matches?dateFrom={date}&dateTo={date}', results: '/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED', upcoming_range: '/v4/matches?dateFrom={from}&dateTo={to}', results_range: '/v4/matches?dateFrom={from}&dateTo={to}' },
       default_query_params: {}, custom_headers: {},
       response_mapping: { matches_path: 'matches', id: 'id', competition: 'competition.name', home_team: 'homeTeam.name', away_team: 'awayTeam.name', home_score: 'score.fullTime.home', away_score: 'score.fullTime.away', status: 'status', kickoff: 'utcDate', live_status_values: ['IN_PLAY','PAUSED'], finished_status_values: ['FINISHED'], upcoming_status_values: ['SCHEDULED','TIMED','POSTPONED'] }
     },
@@ -34,7 +34,7 @@
       provider_code: 'sportmonks', provider_name: 'Sportmonks Football API v3', sport: 'football', plan_type: 'paid',
       api_base_url: 'https://api.sportmonks.com/v3/football', test_path: '/livescores?include=participants;scores;state;league',
       auth_type: 'header', auth_header_name: 'Authorization', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/livescores/inplay?include=participants;scores;state;league', today: '/fixtures/date/{date}?include=participants;scores;state;league', upcoming: '/fixtures/date/{date}?include=participants;scores;state;league', results: '/fixtures/date/{date}?include=participants;scores;state;league' },
+      endpoints: { live: '/livescores/inplay?include=participants;scores;state;league', today: '/fixtures/date/{date}?include=participants;scores;state;league', upcoming: '/fixtures/date/{date}?include=participants;scores;state;league', results: '/fixtures/date/{date}?include=participants;scores;state;league', upcoming_range: '/fixtures/between/{from}/{to}?include=participants;scores;state;league', results_range: '/fixtures/between/{from}/{to}?include=participants;scores;state;league' },
       default_query_params: {}, custom_headers: {}, response_mapping: {}
     },
     'footballapi-org': {
@@ -72,7 +72,7 @@
       provider_code: 'bzzoiro', provider_name: 'Bzzoiro Sports Data Football API', sport: 'football', plan_type: 'free',
       api_base_url: 'https://sports.bzzoiro.com/api/v2', test_path: '/events/live/?limit=5',
       auth_type: 'header', auth_header_name: 'Authorization', auth_prefix: 'Token', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/events/live/?limit=200', today: '/events/?date_from={date}&date_to={date}&limit=200', upcoming: '/events/?date_from={date}&date_to={date}&status=upcoming&limit=200', results: '/events/?date_from={date}&date_to={date}&status=finished&limit=200' },
+      endpoints: { live: '/events/live/?limit=200', today: '/events/?date_from={date}&date_to={date}&limit=200', upcoming: '/events/?date_from={date}&date_to={date}&status=upcoming&limit=200', results: '/events/?date_from={date}&date_to={date}&status=finished&limit=200', upcoming_range: '/events/?date_from={from}&date_to={to}&limit=200', results_range: '/events/?date_from={from}&date_to={to}&limit=200' },
       default_query_params: {}, custom_headers: {}, response_mapping: {}
     },
     'sportapi-ai': {
@@ -776,11 +776,11 @@
     if (!id) { feedback('fr-diagnostics-summary', 'Select or activate a provider before running diagnostics.', 'error'); return; }
     const button = $('fr-run-diagnostics');
     button.disabled = true;
-    feedback('fr-diagnostics-summary', 'Requesting fresh provider data from all four match endpoints…');
+    feedback('fr-diagnostics-summary', 'Checking all four provider endpoints. Empty fixture dates are accepted when the endpoints and response format are valid; public sync covers the current date through December 31.');
     try {
       const result = await callRoom('diagnostics', { id, date: $('fr-diagnostics-date').value || lagosToday() });
       renderDiagnostics(result);
-      setGlobalStatus(result.match_data_verified ? 'LiveScore diagnostics passed. Real match records were found.' : 'Diagnostics completed, but usable match data was not verified.', result.match_data_verified ? 'ok' : 'error');
+      setGlobalStatus(result.match_data_verified ? 'Provider endpoints and response structure verified. Fixtures may not be scheduled on the diagnostic date.' : 'Diagnostics failed. Check endpoint responses and match-list mapping.', result.match_data_verified ? 'ok' : 'error');
     } catch (error) {
       feedback('fr-diagnostics-summary', error.message || 'LiveScore diagnostics failed.', 'error');
     } finally { button.disabled = false; }

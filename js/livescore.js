@@ -39,6 +39,8 @@
   let activeRequest = null;
   let requestSequence = 0;
   let refreshTimer = null;
+  let windowSyncTimer = null;
+  let windowSyncPasses = 0;
   let lastSuccessfulLoad = 0;
   let favouritesOnly = requestedView === 'favourites';
   let autoRefresh = readStorage('parrothit_ls_auto', 'true') !== 'false';
@@ -387,7 +389,12 @@
       button.setAttribute('aria-pressed', String(active));
     });
   }
-  async function fetchMatches() {
+  async function fetchMatches(isWindowSyncPass = false) {
+    if (!isWindowSyncPass) {
+      windowSyncPasses = 0;
+      if (windowSyncTimer) clearTimeout(windowSyncTimer);
+      windowSyncTimer = null;
+    }
     const sequence = ++requestSequence;
     if (activeRequest) activeRequest.abort();
     const controller = new AbortController();
@@ -406,7 +413,14 @@
       const response = await fetch(endpoint, {
         method: 'POST', cache: 'no-store', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-        body: JSON.stringify({ view: selectedView, date: safeDate(dateInput.value), competition: 'all' })
+        body: JSON.stringify({
+          view: selectedView,
+          date: safeDate(dateInput.value),
+          date_from: lagosDate(),
+          date_to: `${lagosDate().slice(0, 4)}-12-31`,
+          range_scope: 'rest-of-current-year',
+          competition: 'all'
+        })
       });
       const payload = await response.json().catch(() => ({}));
       if (sequence !== requestSequence) return;
@@ -424,13 +438,27 @@
       const diagnosticsNote = `${Number(diagnostics.successful_providers || payload.successful_provider_count || 0)} provider(s) responding · ${Number(diagnostics.duplicates_removed || 0)} duplicate(s) merged`;
       const emptyMessage = !currentMatches.length ? `No matches for ${selectedView} on ${safeDate(dateInput.value)} · ${Number(diagnostics.raw_records || 0)} raw / ${Number(diagnostics.normalized_records || 0)} usable records across ${Number(payload.successful_provider_count || payload.provider_count || 0)} provider(s).` : '';
       const message = payload.message || (emptyMessage || `Connected · ${currentProvider} · ${diagnosticsNote}`);
-      setProviderMessage(message, !currentMatches.length ? 'notice' : 'success');
+      setProviderMessage(message, payload.sync_pending ? 'notice' : (!currentMatches.length ? 'notice' : 'success'));
       $('plUpdated').textContent = `Updated ${new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: LAGOS }).format(new Date())}${payload.cached ? ' · cached' : ''}`;
       renderMatches();
+      // Continue date-only providers in small batches. Range-capable and season feeds are already
+      // fetched in one request; the browser only polls again while at least one provider has days left.
+      if (payload.sync_pending === true && windowSyncPasses < 15 && selectedView !== 'live') {
+        windowSyncPasses += 1;
+        windowSyncTimer = setTimeout(() => {
+          windowSyncTimer = null;
+          fetchMatches(true);
+        }, 850);
+      } else if (payload.sync_pending !== true) {
+        windowSyncPasses = 0;
+      }
     } catch (error) {
       if (error?.name === 'AbortError' || sequence !== requestSequence) return;
       currentMatches = [];
       activeProviderRows = [];
+      windowSyncPasses = 0;
+      if (windowSyncTimer) clearTimeout(windowSyncTimer);
+      windowSyncTimer = null;
       updateProviderAttribution(activeProviderRows);
       setProviderMessage('Football provider request failed.', 'error');
       showState('Football data unavailable', error?.message || 'The active provider could not return match data. Please try again.', 'error');
