@@ -80,7 +80,15 @@
       api_base_url: 'https://sportapi.ai/api', test_path: '/fixtures/date/{date}',
       auth_type: 'header', auth_header_name: 'X-Api-Key', auth_prefix: '', auth_query_param: '', needs_key: true,
       endpoints: { live: '/fixtures/date/{date}', today: '/fixtures/date/{date}', upcoming: '/fixtures/date/{date}', results: '/fixtures/date/{date}' },
-      default_query_params: {}, custom_headers: {}, response_mapping: {}
+      default_query_params: {}, custom_headers: {}, response_mapping: {
+        matches_path: 'fixtures', id: 'id', competition: 'league_name', competition_id: 'league_id',
+        competition_logo: 'league_logo', competition_type: 'league_type', country: 'country_name',
+        home_team: 'home_team', away_team: 'away_team', home_logo: 'home_logo', away_logo: 'away_logo',
+        home_score: 'home_score', away_score: 'away_score', status: 'status', status_detail: 'status_detail',
+        kickoff: 'kickoff_utc', minute: 'elapsed_minutes', venue_name: 'venue_name', venue_city: 'city_name',
+        referee: 'referee_name', events: 'events', statistics: 'statistics', lineups: 'lineups',
+        standings: 'standings', head_to_head: 'head_to_head'
+      }
     },
     'sportscore': {
       provider_code: 'sportscore', provider_name: 'SportScore Public Football API', sport: 'football', plan_type: 'free',

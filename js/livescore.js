@@ -328,7 +328,7 @@
     const id = String(match?.competition_id ?? entry?.external_competition_id ?? '');
     const providerCode = String(match?.provider_code || '').toLowerCase().replace(/[\s_]+/g, '-');
     const providerLogo = (providerCode === 'api-football' && /^\d+$/.test(id)) ? `https://media.api-sports.io/football/leagues/${id}.png` : '';
-    return safeImage(match?.competition_logo || match?.league_logo || entry?.competition_logo_url || providerLogo);
+    return safeImage(match?.competition_logo || match?.league_logo || match?.competition_logo_url || match?.league_logo_url || match?.competition?.logo || match?.competition?.emblem || entry?.competition_logo_url || providerLogo);
   }
   function filterMatches() {
     const search = String(searchInput?.value || '').trim().toLowerCase();
