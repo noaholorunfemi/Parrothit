@@ -192,7 +192,8 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
       home_logo: "teams.home.logo", away_logo: "teams.away.logo", competition_logo: "league.logo", country: "league.country",
       country_code: "league.country_code", country_flag: "league.flag",
       home_score: "goals.home", away_score: "goals.away", status: "fixture.status.short",
-      kickoff: "fixture.date", minute: "fixture.status.elapsed",
+      kickoff: "fixture.date", minute: "fixture.status.elapsed", minute_extra: "fixture.status.extra",
+      status_detail: "fixture.status.long", status_code: "fixture.status.short",
       venue_id: "fixture.venue.id", venue_name: "fixture.venue.name", venue_city: "fixture.venue.city",
       venue_image: "fixture.venue.image", referee: "fixture.referee",
       live_status_values: ["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "IN_PLAY", "PAUSED", "SUSP", "INT"],
@@ -251,6 +252,7 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
     const lastResult = results.length ? results[results.length - 1] : {};
     const kickoff = item?.MatchDate || null;
     const finished = item?.MatchIsFinished === true || String(item?.MatchIsFinished).toLowerCase() === "true";
+    const location = item?.MatchLocation || item?.Location || item?.venue || {};
     return {
       match_id: item?.MatchID ?? null,
       league: item?.LeagueName || item?.League?.LeagueName || "Football",
@@ -264,7 +266,10 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
       away_score: lastResult?.PointsTeam2 ?? null,
       // OpenLigaDB match records do not reliably provide a live event clock; never invent a live state from kickoff time.
       status: finished ? "FT" : "Scheduled",
+      status_code: finished ? "FT" : "NS",
       kickoff,
+      venue: location?.LocationStadium || location?.stadium || location?.name || "",
+      venue_city: location?.LocationCity || location?.city || "",
     };
   });
   return { matches, notice: "OpenLigaDB is a free, community-maintained feed. This configured route covers one competition only; it does not provide worldwide coverage or dependable live status." };
@@ -297,11 +302,15 @@ function normalizeFootballApiOrg(raw: unknown): Record<string, unknown>[] {
       home_score: homeScore == null ? null : Number(homeScore),
       away_score: awayScore == null ? null : Number(awayScore),
       status,
+      status_code: item?.status_code || item?.match_status || item?.status || "",
+      status_detail: item?.status_text || item?.status_description || item?.match_status_text || "",
       kickoff: kickoff == null ? null : String(kickoff),
       minute: item?.elapsed_minutes == null ? null : String(item.elapsed_minutes),
-      venue: item?.ground_name || item?.ground || "",
-      venue_city: item?.city_name || item?.city || "",
-      referee: item?.referee_name || item?.referee || "",
+      minute_extra: item?.elapsed_extra == null ? null : String(item.elapsed_extra),
+      started_at: item?.actual_start || item?.started_at || item?.match_started_at || null,
+      venue: item?.ground_name || item?.ground?.name || item?.ground || item?.venue?.name || item?.venue || "",
+      venue_city: item?.city_name || item?.city || item?.ground?.city || item?.venue?.city || "",
+      referee: item?.referee_name || item?.referee?.name || item?.referee || "",
     };
   }).filter((match: any) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
@@ -326,10 +335,12 @@ function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
     const stateText = String(state?.short_name || state?.name || state?.state || "").trim();
     const stateKey = stateText.toLowerCase();
     let status = "Scheduled";
-    if (/live|in.?play|1st half|first half|2nd half|second half|half time|half-time|extra time|penalt|break/.test(stateKey)) status = "LIVE";
-    else if (/finished|full time|full-time|after extra time|after penalties|ended/.test(stateKey)) status = "FT";
+    if (/finished|full time|full-time|after extra time|after penalties|ended/.test(stateKey)) status = "FT";
+    else if (/live|in.?play|1st half|first half|2nd half|second half|half time|half-time|extra time|penalt|break/.test(stateKey)) status = "LIVE";
     const league = fixture?.league || {};
     const venue = fixture?.venue || {};
+    const periods = Array.isArray(fixture?.periods) ? fixture.periods : [];
+    const activePeriod = periods.find((period: any) => period?.is_current === true || period?.is_current_period === true || period?.is_live === true) || periods[periods.length - 1] || {};
     const kickoff = fixture?.starting_at || fixture?.starting_at_timestamp || null;
     return {
       match_id: fixture?.id == null ? null : String(fixture.id),
@@ -346,14 +357,18 @@ function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
       home_score: homeScore,
       away_score: awayScore,
       status,
+      status_code: state?.short_name || state?.state || stateText,
+      status_detail: state?.name || stateText,
       kickoff: kickoff == null ? null : String(kickoff),
-      minute: fixture?.periods?.[0]?.minutes == null ? null : String(fixture.periods[0].minutes),
+      minute: activePeriod?.minutes ?? fixture?.clock?.minute ?? fixture?.time?.minute ?? null,
+      minute_extra: activePeriod?.minutes_extra ?? fixture?.clock?.extra ?? fixture?.time?.extra ?? null,
+      started_at: fixture?.actual_start || fixture?.started_at || fixture?.starting_at_actual || null,
       venue_id: fixture?.venue_id == null ? null : String(fixture.venue_id),
-      venue: venue?.name || "",
-      venue_city: venue?.city_name || venue?.city || "",
+      venue: venue?.name || fixture?.ground?.name || "",
+      venue_city: venue?.city_name || venue?.city?.name || venue?.city || fixture?.ground?.city?.name || fixture?.ground?.city || "",
       venue_image: venue?.image_path || null,
       match_image: venue?.image_path || null,
-      referee: fixture?.referee?.name || "",
+      referee: fixture?.referee?.name || fixture?.referee_name || "",
     };
   }).filter((match: Record<string, any>) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
@@ -400,6 +415,15 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       "state.short", "state.name", "state", "match_status", "fixture.status.short",
     ].filter(Boolean));
     const status = canonicalMatchStatus(rawStatus, liveValues, finishedValues, upcomingValues);
+    const rawStatusObject = plainObject(rawStatus);
+    const statusCode = firstPath(row, [
+      typeof mapping.status_code === "string" ? mapping.status_code : "",
+      "fixture.status.short", "status.short", "status.code", "state.short_name", "state.code", "status_code",
+    ].filter(Boolean)) ?? rawStatusObject.short ?? rawStatusObject.code ?? (typeof rawStatus === "string" ? rawStatus : "");
+    const statusDetail = firstPath(row, [
+      typeof mapping.status_detail === "string" ? mapping.status_detail : "",
+      "fixture.status.long", "status.long", "status.description", "status.name", "state.name", "status_text", "match_status_text",
+    ].filter(Boolean)) ?? rawStatusObject.long ?? rawStatusObject.name ?? "";
     const competitionRaw = firstPath(row, [
       typeof mapping.competition === "string" ? mapping.competition : "", "league.name", "competition.name", "league_name", "competition_name", "tournament.name",
     ].filter(Boolean));
@@ -434,7 +458,7 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
     const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
     const numericCompetitionId = /^\d+$/.test(competitionId) ? competitionId : "";
     const competitionLogo = rawCompetitionLogo || (normalizedProviderCode === "api-football" && numericCompetitionId ? `https://media.api-sports.io/football/leagues/${numericCompetitionId}.png` : null);
-    const country = firstPath(row, [typeof mapping.country === "string" ? mapping.country : "", "league.country", "area.name", "country.name", "country"].filter(Boolean));
+    const country = firstPath(row, [typeof mapping.country === "string" ? mapping.country : "", "league.country", "competition.country.name", "tournament.country.name", "area.name", "country.name", "country_name", "league_country", "country"].filter(Boolean));
     const countryCode = firstPath(row, [typeof mapping.country_code === "string" ? mapping.country_code : "", "league.country_code", "area.code", "country.code", "country_code"].filter(Boolean));
     const countryFlag = firstPath(row, [typeof mapping.country_flag === "string" ? mapping.country_flag : "", "league.flag", "area.flag", "country.flag", "country_flag"].filter(Boolean));
     const kickoff = firstPath(row, [
@@ -442,16 +466,22 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       "kickoff_utc", "datetime", "start_time", "scheduled_at", "match_date", "match_time", "date_time", "date", "time",
     ].filter(Boolean)) ?? firstPath(raw, ["date", "requested_date", "fixture_date"]);
     if (!homeTeam || !awayTeam || kickoff == null || !Number.isFinite(Date.parse(String(kickoff)))) return null;
-    let minute = firstPath(row, [typeof mapping.minute === "string" ? mapping.minute : "", "minute", "elapsed", "time.elapsed", "fixture.status.elapsed", "period.minute"].filter(Boolean));
+    let minute = firstPath(row, [typeof mapping.minute === "string" ? mapping.minute : "", "minute", "elapsed", "time.elapsed", "fixture.status.elapsed", "period.minute", "clock.minute"].filter(Boolean));
+    if (minute && typeof minute === "object") minute = firstPath(minute, ["elapsed", "minute", "value"]);
     if (providerCode.toLowerCase() === "api-ninjas" && minute != null && !/^\s*\d{1,3}'?(?:\+\d{1,2}')?\s*$/.test(String(minute))) minute = null;
-    const venueId = firstPath(row, [typeof mapping.venue_id === "string" ? mapping.venue_id : "", "fixture.venue.id", "venue.id", "venue_id"].filter(Boolean));
-    const venueName = firstPath(row, [typeof mapping.venue_name === "string" ? mapping.venue_name : "", "fixture.venue.name", "venue.name", "venue_name"].filter(Boolean));
-    const venueCity = firstPath(row, [typeof mapping.venue_city === "string" ? mapping.venue_city : "", "fixture.venue.city", "venue.city", "venue_city"].filter(Boolean));
-    const venueImage = firstPath(row, [typeof mapping.match_image === "string" ? mapping.match_image : "", typeof mapping.venue_image === "string" ? mapping.venue_image : "", "fixture.venue.image", "venue.image", "match_image", "venue_image", "image_url"].filter(Boolean));
+    const minuteExtra = firstPath(row, [typeof mapping.minute_extra === "string" ? mapping.minute_extra : "", "minute_extra", "elapsed_extra", "fixture.status.extra", "time.extra", "period.minute_extra"].filter(Boolean));
+    const startedAt = firstPath(row, [typeof mapping.started_at === "string" ? mapping.started_at : "", "actual_start", "started_at", "match_started_at", "start_time_actual", "fixture.actual_start"].filter(Boolean));
+    const venueId = firstPath(row, [typeof mapping.venue_id === "string" ? mapping.venue_id : "", "fixture.venue.id", "venue.id", "venue_id", "stadium.id"].filter(Boolean));
+    const venueNameRaw = firstPath(row, [typeof mapping.venue_name === "string" ? mapping.venue_name : "", "fixture.venue.name", "venue.name", "venue_name", "stadium.name", "ground.name", "venue", "stadium", "ground"].filter(Boolean));
+    const venueName = teamDisplayName(venueNameRaw);
+    const venueCityRaw = firstPath(row, [typeof mapping.venue_city === "string" ? mapping.venue_city : "", "fixture.venue.city", "venue.city", "venue.location.city", "venue_city", "stadium.city", "ground.city", "location.city", "city_name", "city"].filter(Boolean));
+    const venueCity = teamDisplayName(venueCityRaw);
+    const venueImage = firstPath(row, [typeof mapping.match_image === "string" ? mapping.match_image : "", typeof mapping.venue_image === "string" ? mapping.venue_image : "", "fixture.venue.image", "venue.image", "stadium.image", "match_image", "venue_image", "image_url"].filter(Boolean));
     const numericVenueId = venueId != null && /^\d+$/.test(String(venueId)) ? String(venueId) : "";
     const explicitVenueImage = venueImage == null ? "" : safeString(venueImage).trim();
     const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football" ? `https://media.api-sports.io/football/venues/${numericVenueId}.png` : (explicitVenueImage || null);
-    const referee = firstPath(row, [typeof mapping.referee === "string" ? mapping.referee : "", "fixture.referee", "referee"].filter(Boolean));
+    const refereeRaw = firstPath(row, [typeof mapping.referee === "string" ? mapping.referee : "", "fixture.referee", "referee.name", "referee", "official.name", "officials[0].name", "referees[0].name", "referee_name"].filter(Boolean));
+    const referee = teamDisplayName(refereeRaw);
     return {
       match_id: matchId == null ? null : String(matchId),
       league: competition,
@@ -468,8 +498,12 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       home_score: homeScore == null ? null : homeScore,
       away_score: awayScore == null ? null : awayScore,
       status,
+      status_code: statusCode == null ? "" : safeString(statusCode),
+      status_detail: statusDetail == null ? "" : safeString(statusDetail),
       kickoff: safeString(kickoff),
       minute: minute == null ? null : safeString(minute),
+      minute_extra: minuteExtra == null ? null : safeString(minuteExtra),
+      started_at: startedAt == null ? null : safeString(startedAt),
       venue_id: venueId == null ? null : safeString(venueId),
       venue: venueName == null ? "" : safeString(venueName),
       venue_city: venueCity == null ? "" : safeString(venueCity),
@@ -853,7 +887,7 @@ function mergeDuplicateMatch(existing: Record<string, any>, incoming: Record<str
     const otherSide = plainObject(other[side]);
     merged[side] = { ...otherSide, ...primarySide, logo: primarySide.logo || otherSide.logo || undefined };
   }
-  for (const key of ["home_score", "away_score", "minute", "competition_logo", "league_logo", "country_flag", "country_code", "venue", "venue_city", "venue_image", "match_image", "referee"]) {
+  for (const key of ["home_score", "away_score", "minute", "minute_extra", "status_code", "status_detail", "started_at", "competition_logo", "league_logo", "country_flag", "country_code", "venue", "venue_city", "venue_image", "match_image", "venue_id", "referee"]) {
     if (merged[key] === null || merged[key] === undefined || merged[key] === "") merged[key] = other[key] ?? preferred[key] ?? merged[key];
   }
   const sources = [...new Set([...(Array.isArray(existing.source_providers) ? existing.source_providers : [existing.provider_name].filter(Boolean)), ...(Array.isArray(incoming.source_providers) ? incoming.source_providers : [incoming.provider_name].filter(Boolean))].map(String))];
@@ -958,7 +992,7 @@ async function fetchOneProvider(
     };
   }
   const code = String(provider.provider_code || "");
-  const cacheKey = cacheKeyOverride || `livescore:v4:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cacheKey = cacheKeyOverride || `livescore:v5:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const now = new Date();
   const { data: cached } = await db.from("football_public_cache")
     .select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
@@ -1159,7 +1193,7 @@ async function fetchFootballDataOrgWindowInBatches(
   rangeRoute: string,
 ): Promise<Record<string, any>> {
   const code = String(provider.provider_code || "football-data-org");
-  const cursorKey = `livescore:v4-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v5-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, dateFrom);
   let nextDate = cursor.nextDate;
   let chunkResult: Record<string, any> | null = null;
@@ -1179,7 +1213,7 @@ async function fetchFootballDataOrgWindowInBatches(
       .replaceAll("{date_to}", apiDateToExclusive)
       .replaceAll("{start_date}", chunkFrom)
       .replaceAll("{end_date}", apiDateToExclusive);
-    const chunkKey = `livescore:v4-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
+    const chunkKey = `livescore:v5-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
     chunkResult = await fetchOneProvider(
       db, provider, view, chunkFrom, competition, Math.max(DAILY_WINDOW_CACHE_TTL_SECONDS, ttl),
       chunkFrom, chunkThrough, chunkKey, chunkRoute, true, view === "today",
@@ -1192,7 +1226,7 @@ async function fetchFootballDataOrgWindowInBatches(
     );
   }
 
-  const cachePrefix = `livescore:v4-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
+  const cachePrefix = `livescore:v5-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
   const cachedWindow = await loadWindowDayCache(db, cachePrefix);
   let matches = cachedWindow.matches;
   try {
@@ -1254,13 +1288,13 @@ async function fetchProviderWindow(
     return fetchFootballDataOrgWindowInBatches(db, provider, view, selectedDate, competition, ttl, dateFrom, dateTo, rangeRoute);
   }
   if (rangeRoute) {
-    const cacheKey = `livescore:v4range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v5range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, rangeRoute, false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
 
   if (providerHasFullWindowFeed(provider, view)) {
-    const cacheKey = `livescore:v4season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v5season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, "", false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
@@ -1268,10 +1302,10 @@ async function fetchProviderWindow(
   // Date-only services are synchronized progressively. Every response handles the current day plus
   // a seven-day continuation batch, and the next visitor request resumes from the saved cursor.
   const primaryDay = dateFrom;
-  const primaryKey = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
+  const primaryKey = `livescore:v5day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
   const primary = await fetchOneProvider(db, provider, view, primaryDay, competition, ttl, primaryDay, primaryDay, primaryKey, "", true);
 
-  const cursorKey = `livescore:v4window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v5window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, shiftIsoDay(dateFrom, 1));
   let nextDate = cursor.nextDate;
   const batchResults: Record<string, any>[] = [];
@@ -1283,7 +1317,7 @@ async function fetchProviderWindow(
       nextDate = shiftIsoDay(nextDate, 1);
     }
     batchResults.push(...await runWithConcurrency(days, DAILY_WINDOW_CONCURRENCY, (day) => {
-      const key = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
+      const key = `livescore:v5day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
       return fetchOneProvider(db, provider, view, day, competition, DAILY_WINDOW_CACHE_TTL_SECONDS, day, day, key, "", true);
     }));
     const firstIncompleteIndex = batchResults.findIndex((item) => item.ok !== true || item.pagination_pending === true);
@@ -1294,7 +1328,7 @@ async function fetchProviderWindow(
     syncPending = !complete;
   }
 
-  const prefix = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
+  const prefix = `livescore:v5day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
   const cachedWindow = await loadWindowDayCache(db, prefix);
   let matches = cachedWindow.matches;
   try {
