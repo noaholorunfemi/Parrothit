@@ -11,8 +11,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
-  <script src="../js/football-api-directory.js?v=50-service-profiles-20261108"></script>
-  <script src="../js/football-automation-room.js?v=50-service-profiles-20261108" defer></script>
+  <script src="../js/football-api-directory.js?v=api-ninjas-native-20261108"></script>
+  <script src="../js/football-automation-room.js?v=api-ninjas-native-20261108" defer></script>
 </head>
 <body class="football-room-page">
   <main class="fr-shell">
@@ -83,10 +83,10 @@
       </div>
       <div class="fr-notice"><strong>Security:</strong> API keys are encrypted by the server before storage. They are never returned to this page or written to browser storage. When editing a provider, leave the API key field blank to keep the previously saved key.</div>
       <article class="fr-panel fr-directory-panel" aria-labelledby="fr-directory-heading">
-        <div class="fr-panel-heading"><div><h3 id="fr-directory-heading">50 Football SPORT API Services</h3><p>Choose a service to start an independent provider configuration. More custom providers can be added later without a fixed limit.</p></div><span class="fr-pill fr-pill-free">50 SERVICE DIRECTORY</span></div>
-        <div class="fr-directory-tools"><label class="fr-field">Search football API services<input id="fr-directory-search" type="search" placeholder="Search provider, feature or category..."></label><span id="fr-directory-count" class="fr-directory-count">Loading 50 services…</span></div>
+        <div class="fr-panel-heading"><div><h3 id="fr-directory-heading">51 Football SPORT API Services</h3><p>Choose a service to start an independent provider configuration. More custom providers can be added later without a fixed limit.</p></div><span class="fr-pill fr-pill-free">51 SERVICE DIRECTORY</span></div>
+        <div class="fr-directory-tools"><label class="fr-field">Search football API services<input id="fr-directory-search" type="search" placeholder="Search provider, feature or category..."></label><span id="fr-directory-count" class="fr-directory-count">Loading 51 services…</span></div>
         <div id="fr-provider-directory-list" class="fr-provider-directory-list"><div class="fr-empty">Loading football API directory…</div></div>
-        <p class="fr-note">A directory entry is a service profile, not proof that the vendor grants API access. Five native adapters have built-in routes and response handling. Other services may require a commercial account, exact endpoints, authentication details and response mapping. Only verified providers can be activated.</p>
+        <p class="fr-note">A directory entry is a service profile, not proof that the vendor grants API access. Six native adapters have built-in routes and response handling. Other services may require a commercial account, exact endpoints, authentication details and response mapping. Only verified providers can be activated.</p>
       </article>
       <div class="fr-grid-2 fr-api-layout">
         <form id="fr-api-form" class="fr-panel fr-form-panel" autocomplete="off">
@@ -101,6 +101,7 @@
                 <option value="football-data-org">football-data.org</option>
                 <option value="sportmonks">Sportmonks Football API v3</option>
                 <option value="footballapi-org">FootballAPI.org</option>
+                <option value="api-ninjas">API Ninjas Football / Soccer API</option>
               </select>
               <small>Choose a preset to fill the recommended base URL and test endpoint.</small>
             </label>
@@ -174,6 +175,7 @@
             <button type="button" class="fr-preset-row" data-fr-preset="football-data-org"><span class="fr-preset-icon">FD</span><span><strong>football-data.org</strong><small>API key header: X-Auth-Token</small></span><b>＋</b></button>
             <button type="button" class="fr-preset-row" data-fr-preset="sportmonks"><span class="fr-preset-icon">SM</span><span><strong>Sportmonks Football API v3</strong><small>API token · native football adapter</small></span><b>＋</b></button>
             <button type="button" class="fr-preset-row" data-fr-preset="footballapi-org"><span class="fr-preset-icon">FA</span><span><strong>FootballAPI.org</strong><small>X-API-Key · native adapter · plan limits apply</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="api-ninjas"><span class="fr-preset-icon">AN</span><span><strong>API Ninjas Football / Soccer API</strong><small>X-Api-Key · LaLiga preset · fixtures and results</small></span><b>＋</b></button>
           </article>
           <article class="fr-panel fr-provider-rules">
             <h3>Provider rules</h3>
