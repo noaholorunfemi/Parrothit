@@ -1,12 +1,12 @@
--- PARROTHIT shared media repair (50 MiB per bucket object).
+-- PARROTHIT shared media repair (100 MiB per bucket object).
 -- Run this in Supabase SQL Editor as project owner. Creates the exact bucket IDs
 -- used by this project and preserves uid-folder restrictions for community members.
--- The bucket-level cap is 52,428,800 bytes (50 MiB). In Supabase Dashboard, also set
--- Storage > Configuration > Global file size limit to 50 MiB (52,428,800 bytes) so
+-- The bucket-level cap is 104,857,600 bytes (100 MiB). In Supabase Dashboard, also set
+-- Storage > Configuration > Global file size limit to 100 MiB (104,857,600 bytes) so
 -- the project-wide cap matches the buckets. SQL cannot change the dashboard-wide cap.
 
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('parrothit-media','parrothit-media',true,52428800),('parrot-media','parrot-media',true,52428800)
+values ('parrothit-media','parrothit-media',true,104857600),('parrot-media','parrot-media',true,104857600)
 on conflict (id) do update set name=excluded.name, public=true, file_size_limit=excluded.file_size_limit;
 
 drop policy if exists "public reads PARROTHIT media" on storage.objects;
