@@ -4,7 +4,7 @@
   window.__PARROTHIT_FOOTBALL_ROOM__ = true;
 
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, configs: [], settings: null, toastTimer: null };
+  const state = { client: null, configs: [], settings: null, recentLogs: [], toastTimer: null };
   function lagosToday() { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const get = (k) => parts.find((p) => p.type === k)?.value || ''; return `${get('year')}-${get('month')}-${get('day')}`; }
   const presets = {
     openligadb: {
@@ -80,15 +80,7 @@
       api_base_url: 'https://sportapi.ai/api', test_path: '/fixtures/date/{date}',
       auth_type: 'header', auth_header_name: 'X-Api-Key', auth_prefix: '', auth_query_param: '', needs_key: true,
       endpoints: { live: '/fixtures/date/{date}', today: '/fixtures/date/{date}', upcoming: '/fixtures/date/{date}', results: '/fixtures/date/{date}' },
-      default_query_params: {}, custom_headers: {}, response_mapping: {
-        matches_path: 'fixtures', id: 'id', competition: 'league_name', competition_id: 'league_id',
-        competition_logo: 'league_logo', competition_type: 'league_type', country: 'country_name',
-        home_team: 'home_team', away_team: 'away_team', home_logo: 'home_logo', away_logo: 'away_logo',
-        home_score: 'home_score', away_score: 'away_score', status: 'status', status_detail: 'status_detail',
-        kickoff: 'kickoff_utc', minute: 'elapsed_minutes', venue_name: 'venue_name', venue_city: 'city_name',
-        referee: 'referee_name', events: 'events', statistics: 'statistics', lineups: 'lineups',
-        standings: 'standings', head_to_head: 'head_to_head'
-      }
+      default_query_params: {}, custom_headers: {}, response_mapping: {}
     },
     'sportscore': {
       provider_code: 'sportscore', provider_name: 'SportScore Public Football API', sport: 'football', plan_type: 'free',
@@ -422,8 +414,31 @@
     $('fr-public-refresh').value = String(settings.public_refresh_seconds || 60);
   }
 
+  function renderPublicProviderLogs() {
+    const body = $('fr-public-provider-log-rows');
+    if (!body) return;
+    body.replaceChildren();
+    if (!state.recentLogs.length) {
+      const tr = document.createElement('tr');
+      const td = appendCell(tr, 'No public-feed errors or sync events have been recorded yet.', 'fr-empty');
+      td.colSpan = 6; body.appendChild(tr); return;
+    }
+    state.recentLogs.forEach((entry) => {
+      const tr = document.createElement('tr');
+      const when = entry.created_at ? new Date(entry.created_at).toLocaleString() : '—';
+      const statusLabel = entry.success ? 'OK' : (Number(entry.http_status) === 429 ? 'RATE LIMITED' : 'ATTENTION');
+      appendCell(tr, when);
+      appendCell(tr, safeText(entry.provider_name, 'Football provider'));
+      appendCell(tr, safeText(entry.event_type, 'Provider event'));
+      appendCell(tr, entry.http_status == null ? '—' : String(entry.http_status));
+      appendCell(tr, statusLabel, entry.success ? 'fr-primary-cell' : '');
+      appendCell(tr, safeText(entry.message, 'No details supplied.'));
+      body.appendChild(tr);
+    });
+  }
+
   function renderAll() {
-    renderRows(); renderHealth(); renderPrimary(); renderSettings(); renderCatalogProviderOptions(); renderProviderDirectory();
+    renderRows(); renderHealth(); renderPrimary(); renderSettings(); renderCatalogProviderOptions(); renderProviderDirectory(); renderPublicProviderLogs();
     $('fr-stat-total').textContent = state.configs.length;
     $('fr-stat-enabled').textContent = state.configs.filter((x) => x.is_enabled).length;
     $('fr-stat-tested').textContent = state.configs.filter((x) => x.last_test_ok === true).length;
@@ -434,6 +449,7 @@
     const data = await callRoom('list');
     state.configs = Array.isArray(data.configs) ? data.configs : [];
     state.settings = data.settings || {};
+    state.recentLogs = Array.isArray(data.recent_logs) ? data.recent_logs : [];
     renderAll();
     setGlobalStatus('Football Automation Room connected. ' + state.configs.length + ' provider configuration(s) loaded. Newsroom Automation is separate and has not been changed.', 'ok');
   }
@@ -822,6 +838,7 @@
     $('fr-pause-public').addEventListener('click', pausePublicLivescore);
     $('fr-run-diagnostics')?.addEventListener('click', runActiveDiagnostics);
     $('fr-clear-livescore-cache')?.addEventListener('click', clearActiveCache);
+    $('fr-refresh-provider-logs')?.addEventListener('click', () => loadAll().catch((error) => setGlobalStatus(error.message, 'error')));
     $('fr-sync-competition-catalog')?.addEventListener('click', syncCompetitionCatalog);
     $('fr-api-rows').addEventListener('click', (event) => {
       const button = event.target.closest('[data-fr-action]');

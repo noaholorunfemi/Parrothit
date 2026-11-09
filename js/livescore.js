@@ -66,39 +66,13 @@
     if (typeof value === 'string') return value;
     return value?.name || value?.team_name || value?.TeamName || (side === 'home' ? 'Home team' : 'Away team');
   };
-  function imageSource(value, depth = 0) {
-    if (depth > 3 || value === null || value === undefined) return '';
-    if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
-    if (Array.isArray(value)) {
-      for (const item of value) { const found = imageSource(item, depth + 1); if (found) return found; }
-      return '';
-    }
-    if (typeof value === 'object') {
-      for (const key of ['url', 'secure_url', 'image_url', 'imageUrl', 'image_path', 'path', 'logo', 'crest', 'badge', 'team_logo', 'logo_url', 'crest_url', 'badge_url', 'image', 'icon', 'src', 'href']) {
-        const found = imageSource(value[key], depth + 1);
-        if (found) return found;
-      }
-    }
-    return '';
-  }
   const safeImage = (value) => {
-    const source = imageSource(value);
-    if (!source) return '';
-    try {
-      const url = new URL(source.startsWith('//') ? `https:${source}` : source, location.href);
-      if (url.protocol === 'http:') url.protocol = 'https:';
-      return url.protocol === 'https:' ? url.href : '';
-    } catch { return ''; }
+    try { const url = new URL(String(value || '')); return url.protocol === 'https:' ? url.href : ''; }
+    catch { return ''; }
   };
   const teamLogo = (match, side) => {
-    const team = match?.[side] ?? match?.[`${side}_team`] ?? {};
-    const candidates = [
-      team?.logo, team?.crest, team?.image, team?.image_path, team?.team_logo, team?.logo_url,
-      team?.image_url, team?.badge, team?.badge_url, match?.[`${side}_logo`], match?.[`${side}_logo_url`],
-      match?.[`${side}_team_logo`], match?.[`${side}_crest`], match?.[`${side}_image`]
-    ];
-    for (const candidate of candidates) { const url = safeImage(candidate); if (url) return url; }
-    return '';
+    const value = match?.[side];
+    return safeImage((typeof value === 'object' && value ? value.logo : '') || match?.[`${side}_logo`]);
   };
   const scoreValue = (match, side) => match?.[`${side}_score`] ?? match?.score?.[side] ?? null;
   const leagueName = (match) => String(match?.league || match?.competition || match?.league_name || 'Football');
@@ -175,11 +149,6 @@
     $('plRetry')?.addEventListener('click', fetchMatches);
   }
   function statusText(match) {
-    const clock = window.PARROTHIT_LIVESCORE_CLOCK;
-    if (clock) {
-      const label = clock.format(match, false);
-      if (label && (isLive(match) || /^(HT|FT|AET|PEN|ET BREAK|SUSPENDED|INTERRUPTED|POSTPONED|CANCELLED|ABANDONED)$/i.test(label))) return label;
-    }
     if (isLive(match)) return match.minute !== null && match.minute !== undefined && match.minute !== '' ? `${esc(match.minute)}′` : 'LIVE';
     if (isFinished(match)) return 'FT';
     return formatTime(match.kickoff || match.date || match.match_time);
@@ -189,7 +158,7 @@
     const logo = teamLogo(match, side);
     const initial = esc(name.trim().charAt(0).toUpperCase() || '•');
     const emblem = logo
-      ? `<img src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" onerror="this.onerror=null;this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='grid'"><span class="pl-team-fallback" style="display:none">${initial}</span>`
+      ? `<img src="${esc(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-team-fallback" style="display:none">${initial}</span>`
       : `<span class="pl-team-fallback">${initial}</span>`;
     return `<span class="pl-team-block ${side === 'away' ? 'is-away' : ''}">${emblem}<span class="pl-team-name">${esc(name)}</span></span>`;
   }
@@ -207,14 +176,9 @@
     const saved = favourites().has(id);
     const title = `${teamName(match, 'home')} v ${teamName(match, 'away')}`;
     const live = isLive(match);
-    const clockKey = live && window.PARROTHIT_LIVESCORE_CLOCK ? window.PARROTHIT_LIVESCORE_CLOCK.register(match) : '';
-    const clockLabel = statusText(match);
-    const liveClockMarkup = live && clockKey
-      ? `<i></i><span data-pl-live-clock="${esc(clockKey)}">${esc(clockLabel)}</span>`
-      : (live ? `<i></i>${esc(clockLabel)}` : esc(clockLabel));
     return `<article class="pl-match-card ${live ? 'is-live' : ''}" data-match-key="${esc(id)}">
       <a class="pl-match-main" href="${href}" ${hasProviderId ? '' : 'aria-disabled="true" tabindex="-1"'} data-match-id="${hasProviderId ? esc(providerId) : ''}" aria-label="${esc(title)} match details">
-        <span class="pl-match-time ${live ? 'pl-match-live' : ''}">${liveClockMarkup}</span>
+        <span class="pl-match-time ${live ? 'pl-match-live' : ''}">${live ? `<i></i>${statusText(match)}` : statusText(match)}</span>
         <span class="pl-match-teams">${teamMarkup(match, 'home')}${teamMarkup(match, 'away')}</span>
         <span class="pl-match-score">${score}</span>
       </a>
@@ -279,8 +243,7 @@
     compSelect.value = values.includes(selectedBefore) ? selectedBefore : 'all';
     const count = $('plCompetitionCount');
     if (count) {
-      const source = catalogLoaded ? (catalogProvider ? `from ${catalogProvider}` : 'from provider catalogue') : 'from current match feed';
-      count.textContent = needle ? `${filtered.length.toLocaleString()} matching of ${all.length.toLocaleString()} competitions · ${source}` : `${all.length.toLocaleString()} competitions available · ${source}`;
+      count.textContent = needle ? `${filtered.length.toLocaleString()} matching of ${all.length.toLocaleString()} competitions` : `${all.length.toLocaleString()} competitions available`;
     }
   }
   function competitionAllowed(match) {
@@ -318,7 +281,7 @@
       if (error?.name === 'AbortError') return;
       catalogLoaded = false;
       competitionOptions(currentMatches);
-      if ($('plCompetitionCount')) $('plCompetitionCount').textContent = `Competition catalogue unavailable · ${error?.message || 'using match feed'}`;
+      if ($('plCompetitionCount')) $('plCompetitionCount').textContent = 'Competition list temporarily unavailable';
     } finally {
       if (catalogRequest === controller) catalogRequest = null;
     }
@@ -328,7 +291,7 @@
     const id = String(match?.competition_id ?? entry?.external_competition_id ?? '');
     const providerCode = String(match?.provider_code || '').toLowerCase().replace(/[\s_]+/g, '-');
     const providerLogo = (providerCode === 'api-football' && /^\d+$/.test(id)) ? `https://media.api-sports.io/football/leagues/${id}.png` : '';
-    return safeImage(match?.competition_logo || match?.league_logo || match?.competition_logo_url || match?.league_logo_url || match?.competition?.logo || match?.competition?.emblem || entry?.competition_logo_url || providerLogo);
+    return safeImage(match?.competition_logo || match?.league_logo || entry?.competition_logo_url || providerLogo);
   }
   function filterMatches() {
     const search = String(searchInput?.value || '').trim().toLowerCase();
@@ -437,14 +400,14 @@
     activeRequest = controller;
 
     if (!endpoint || !anonKey || /YOUR_PROJECT|YOUR_SUPABASE/i.test(`${supabaseUrl} ${anonKey}`)) {
-      setProviderMessage('Public Supabase configuration is missing.', 'error');
-      showState('Football data unavailable', 'PARROTHIT LiveScore cannot connect because the public Supabase configuration is missing.', 'error');
+      setProviderMessage('Football data temporarily unavailable', 'notice');
+      showState('Football data temporarily unavailable', 'Please try again shortly.', 'error');
       renderPagination(0);
       activeRequest = null;
       return;
     }
 
-    setProviderMessage('Loading matches from all active football APIs…');
+    setProviderMessage('Updating football scores and fixtures…');
     try {
       const response = await fetch(endpoint, {
         method: 'POST', cache: 'no-store', signal: controller.signal,
@@ -460,23 +423,25 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (sequence !== requestSequence) return;
-      if (!response.ok || payload.ok === false) throw new Error(payload.error || `Football provider returned HTTP ${response.status}.`);
-      if (!Array.isArray(payload.matches)) throw new Error('The public football service responded without a matches array.');
+      if (!response.ok || payload.ok === false) throw new Error('Football data is temporarily unavailable.');
+      if (!Array.isArray(payload.matches)) throw new Error('Football data is temporarily unavailable.');
 
       currentMatches = payload.matches;
       activeProviderRows = Array.isArray(payload.providers) ? payload.providers : [];
       updateProviderAttribution(activeProviderRows);
       currentPage = 1;
-      currentProvider = payload.provider || (Number(payload.provider_count || 0) + ' active football APIs') || 'Active football provider';
+      currentProvider = 'Football data';
       lastSuccessfulLoad = Date.now();
       competitionOptions(currentMatches);
-      const diagnostics = payload.diagnostics || {};
-      const diagnosticsNote = `${Number(diagnostics.successful_providers || payload.successful_provider_count || 0)} provider(s) responding · ${Number(diagnostics.duplicates_removed || 0)} duplicate(s) merged`;
-      const emptyMessage = !currentMatches.length ? `No matches for ${selectedView} on ${safeDate(dateInput.value)} · ${Number(diagnostics.raw_records || 0)} raw / ${Number(diagnostics.normalized_records || 0)} usable records across ${Number(payload.successful_provider_count || payload.provider_count || 0)} provider(s).` : '';
-      const message = payload.message || (emptyMessage || `Connected · ${currentProvider} · ${diagnosticsNote}`);
-      setProviderMessage(message, payload.sync_pending ? 'notice' : (!currentMatches.length ? 'notice' : 'success'));
-      $('plUpdated').textContent = `Updated ${new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: LAGOS }).format(new Date())}${payload.cached ? ' · cached' : ''}`;
-      renderMatches();
+      if (payload.data_state === 'unavailable') {
+        setProviderMessage('Football data temporarily unavailable', 'notice');
+        showState('Football data temporarily unavailable', 'Please try refreshing in a little while.', 'error');
+        renderPagination(0);
+      } else {
+        setProviderMessage('Football scores and fixtures', 'success');
+        renderMatches();
+      }
+      $('plUpdated').textContent = `Updated ${new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: LAGOS }).format(new Date())}`;
       // Continue date-only providers in small batches. Range-capable and season feeds are already
       // fetched in one request; the browser only polls again while at least one provider has days left.
       if (payload.sync_pending === true && windowSyncPasses < 15 && selectedView !== 'live') {
@@ -484,7 +449,7 @@
         windowSyncTimer = setTimeout(() => {
           windowSyncTimer = null;
           fetchMatches(true);
-        }, 850);
+        }, 15000);
       } else if (payload.sync_pending !== true) {
         windowSyncPasses = 0;
       }
@@ -496,8 +461,8 @@
       if (windowSyncTimer) clearTimeout(windowSyncTimer);
       windowSyncTimer = null;
       updateProviderAttribution(activeProviderRows);
-      setProviderMessage('Football provider request failed.', 'error');
-      showState('Football data unavailable', error?.message || 'The active provider could not return match data. Please try again.', 'error');
+      setProviderMessage('Football data temporarily unavailable', 'notice');
+      showState('Football data temporarily unavailable', 'Please try again shortly.', 'error');
       currentPage = 1;
       renderPagination(0);
     } finally {
@@ -594,11 +559,6 @@
   }
   competitionOptions([]);
   loadCompetitionCatalog();
-  if (window.PARROTHIT_LIVESCORE_CLOCK) {
-    window.setInterval(() => {
-      if (!document.hidden) window.PARROTHIT_LIVESCORE_CLOCK.updateVisible(matchRoot);
-    }, 15000);
-  }
   fetchMatches();
   restartTimer();
 })();
