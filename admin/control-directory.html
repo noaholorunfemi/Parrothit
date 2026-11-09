@@ -89,6 +89,7 @@
 <a class="item" href="scrolling-effects.html"><strong>↕ Scrolling effects</strong><span>Choose public-page scroll animation and reading progress style</span></a>
 <a class="item" href="social-links.html"><strong>Social links</strong><span>Manage social destinations</span></a>
 <a class="item" href="notifications.html"><strong>Notifications</strong><span>Notification preferences</span></a>
+<a class="item" id="phEmploymentDirectory" href="employment-applications.html"><strong>💼 Work with PARROTHIT — Employment applications</strong><span>Owner-only recruitment inbox: review applications, private documents, accept/reject, and send custom offers.</span></a>
 <a class="item" href="dashboard.html#tab-admins"><strong>🔐 Admin 1 — Manage administrators</strong><span>Owner-only: add, delete, suspend or reactivate admin accounts</span></a>
 <a class="item" href="admin-accounts.html"><strong>Admin accounts</strong><span>Administrator access</span></a>
 <a class="item" href="backup-settings.html"><strong>Backup and settings</strong><span>Backup, import/export and system options</span></a>
@@ -124,4 +125,7 @@
 })();
 </script>
 <script src="../js/admin-commit-warning-fallback.js"></script><script src="../js/parrothit-advertise-banner.js" defer></script>
+<script id="ph-employment-directory-owner-only">
+(async function(){try{var c=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();if(!c)return;var r=await c.rpc('get_my_admin_profile');if(!r.data||String(r.data.role||'').toLowerCase()!=='owner'){var el=document.getElementById('phEmploymentDirectory');if(el){el.style.display='none';el.setAttribute('aria-hidden','true')}}}catch(e){var el=document.getElementById('phEmploymentDirectory');if(el){el.style.display='none'}}})();
+</script>
 </body></html>
