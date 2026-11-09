@@ -91,21 +91,45 @@
     return payload;
   }
 
+  let signedUploadClient = null;
+  function getSignedUploadClient() {
+    if (signedUploadClient) return signedUploadClient;
+    if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+      throw new Error('The secure upload library did not load. Refresh the page and try again.');
+    }
+    // This client has no persisted applicant session. The short-lived signed token
+    // is the only authority to write the single generated object path.
+    signedUploadClient = window.supabase.createClient(window.PARROTHIT_SUPABASE_URL, anon, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    return signedUploadClient;
+  }
+
+  async function uploadSignedStandard(descriptor, file, label) {
+    const client = getSignedUploadClient();
+    const { error } = await client.storage.from('employment-private').uploadToSignedUrl(
+      descriptor.path,
+      descriptor.token,
+      file,
+      { contentType: file.type, cacheControl: '3600' }
+    );
+    if (error) throw new Error(`${label} upload failed: ${error.message || 'Secure storage rejected the signed upload.'}`);
+  }
+
   function uploadSignedTus(descriptor, file, label) {
     return new Promise((resolve, reject) => {
       const tus = window.tus;
       if (!tus || typeof tus.Upload !== 'function' || !tus.isSupported) {
-        reject(new Error('Your browser could not start a secure resumable upload. Please use an updated browser and try again.'));
+        reject(new Error('Your browser could not start a resumable upload. Refresh the page and try again.'));
         return;
       }
       const projectUrl = new URL(window.PARROTHIT_SUPABASE_URL);
       const storageHost = projectUrl.hostname.endsWith('.supabase.co')
         ? projectUrl.hostname.replace(/\.supabase\.co$/i, '.storage.supabase.co')
         : projectUrl.hostname;
-      // This is a signed upload URL minted server-side with the service-role client.
-      // Do NOT send Authorization: Bearer <anon key> here: that forces the request
-      // through the ordinary anonymous RLS identity instead of the signed-upload flow.
-      // Supabase's TUS signed-upload contract uses the token in x-signature.
+      // Use the per-object signed token only; do not add an anonymous Bearer
+      // header here, because that can force this signed upload into the ordinary
+      // anonymous RLS path. No service-role key reaches the browser.
       const headers = { apikey: anon, 'x-signature': descriptor.token };
       const upload = new tus.Upload(file, {
         endpoint: `${projectUrl.protocol}//${storageHost}/storage/v1/upload/resumable`,
@@ -121,10 +145,15 @@
         uploadDataDuringCreation: true,
         removeFingerprintOnSuccess: true,
         onError(error) {
-          const detail = String(error?.message || 'Please try again.');
+          let status = 0, body = '';
+          try { status = Number(error?.originalResponse?.getStatus?.() || 0); } catch (_) {}
+          try { body = String(error?.originalResponse?.getBody?.() || ''); } catch (_) {}
+          const detail = `${body} ${String(error?.message || '')}`.trim().slice(0, 500);
           if (/row-level security|violates row-level security/i.test(detail)) {
-            reject(new Error(`${label} upload was not accepted by secure storage. Please refresh the application page and start a new submission. If this continues, contact PARROTHIT support so the signed-upload function can be checked. The document bucket must remain private; do not enable public uploads.`));
-          } else reject(new Error(`${label} upload failed: ${detail}`));
+            reject(new Error(`${label} upload was rejected by a storage access policy${status ? ` (HTTP ${status})` : ''}. The bucket is still private. Apply supabase/employment-storage-private-fix.sql and redeploy the parrothit-employment function; do not make the bucket public.`));
+          } else {
+            reject(new Error(`${label} upload failed${status ? ` (HTTP ${status})` : ''}: ${detail || 'Please try again.'}`));
+          }
         },
         onProgress(bytesUploaded, bytesTotal) {
           const percent = bytesTotal ? Math.min(100, Math.round((bytesUploaded / bytesTotal) * 100)) : 0;
@@ -134,6 +163,23 @@
       });
       upload.start();
     });
+  }
+
+  async function uploadSignedResumableWithFallback(descriptor, file, label) {
+    try {
+      await uploadSignedTus(descriptor, file, label);
+    } catch (tusError) {
+      const detail = String(tusError?.message || tusError || '');
+      // If this Storage gateway rejects the TUS authorization contract, retry once
+      // through the official signed-upload SDK endpoint using the same one-file token.
+      if (!/row-level security|HTTP 401|HTTP 403|authorization|access policy/i.test(detail)) throw tusError;
+      try {
+        submit.textContent = `${label}: retrying secure signed upload…`;
+        await uploadSignedStandard(descriptor, file, label);
+      } catch (fallbackError) {
+        throw new Error(`${detail} The signed-upload fallback also failed: ${fallbackError?.message || fallbackError}`);
+      }
+    }
   }
 
   function setOptions(select, items, placeholder) {
@@ -567,16 +613,15 @@
     try {
       const passport = validFile('passport_image', 10 * 1024 * 1024, 'passport photograph');
       const resume = validFile('resume_image', 50 * 1024 * 1024, 'resume image');
-      if (!window.tus || typeof window.tus.Upload !== 'function') throw new Error('Secure resumable upload is unavailable. Refresh the page or contact PARROTHIT support.');
       submit.disabled = true;
       submit.textContent = 'Preparing secure application…';
       const prepared = await call(formPayload(passport, resume));
       draft = { application_id: prepared.application_id, draft_token: prepared.draft_token };
       if (!prepared.passport_upload?.token || !prepared.resume_upload?.token) throw new Error('The secure upload session was incomplete. Please try again.');
-      submit.textContent = 'Uploading passport photograph…';
-      await uploadSignedTus(prepared.passport_upload, passport, 'Passport photograph');
-      submit.textContent = 'Uploading resume image…';
-      await uploadSignedTus(prepared.resume_upload, resume, 'Resume image');
+      submit.textContent = 'Uploading passport photograph securely…';
+      await uploadSignedStandard(prepared.passport_upload, passport, 'Passport photograph');
+      submit.textContent = 'Uploading resume image securely…';
+      await uploadSignedResumableWithFallback(prepared.resume_upload, resume, 'Resume image');
       submit.textContent = 'Verifying documents & submitting…';
       const completed = await call({ action: 'complete_uploads', ...draft });
       show(`${completed.message || 'Your application was submitted successfully.'} Your application reference is ${completed.application_id || draft.application_id}.`, 'ok');
