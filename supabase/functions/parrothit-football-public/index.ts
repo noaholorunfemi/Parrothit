@@ -70,6 +70,39 @@ function firstPath(value: unknown, candidates: string[]): unknown {
   return undefined;
 }
 
+// Football providers use different names and shapes for club crests. Normalize both
+// plain URLs and nested image objects before the public response reaches the browser.
+function imageUrlValue(value: unknown, depth = 0): string {
+  if (depth > 3 || value === null || value === undefined) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = imageUrlValue(item, depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+  const object = plainObject(value);
+  for (const key of ["url", "secure_url", "image_url", "imageUrl", "image_path", "path", "logo", "crest", "badge", "team_logo", "logo_url", "crest_url", "badge_url", "src", "href"]) {
+    const found = imageUrlValue(object[key], depth + 1);
+    if (found) return found;
+  }
+  return "";
+}
+
+function safePublicImageUrl(value: unknown): string | null {
+  const raw = imageUrlValue(value);
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.startsWith("//") ? `https:${raw}` : raw);
+    // Upgrade provider-hosted HTTP images because the PARROTHIT visitor page is HTTPS.
+    if (url.protocol === "http:") url.protocol = "https:";
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function expandTemplate(value: string, date: string, view: string, competition: string, dateFrom = date, dateTo = date): string {
   return value
     .replaceAll("{date}", date)
@@ -178,8 +211,8 @@ function builtInRangeEndpoints(providerCode: string): Record<string, string> {
     results: "/v1/matches?date_from={from}&date_to={to}&per_page=1000",
   };
   if (providerCode === "bzzoiro") return {
-    upcoming: "/events/?date_from={from}&date_to={to}&limit=200",
-    results: "/events/?date_from={from}&date_to={to}&limit=200",
+    upcoming: "/events/?date_from={from}&date_to={to}&status=upcoming&limit=200",
+    results: "/events/?date_from={from}&date_to={to}&status=finished&limit=200",
   };
   return {};
 }
@@ -192,7 +225,8 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
       home_logo: "teams.home.logo", away_logo: "teams.away.logo", competition_logo: "league.logo", country: "league.country",
       country_code: "league.country_code", country_flag: "league.flag",
       home_score: "goals.home", away_score: "goals.away", status: "fixture.status.short",
-      kickoff: "fixture.date", minute: "fixture.status.elapsed",
+      kickoff: "fixture.date", minute: "fixture.status.elapsed", minute_extra: "fixture.status.extra",
+      status_detail: "fixture.status.long", status_code: "fixture.status.short",
       venue_id: "fixture.venue.id", venue_name: "fixture.venue.name", venue_city: "fixture.venue.city",
       venue_image: "fixture.venue.image", referee: "fixture.referee",
       live_status_values: ["1H", "2H", "HT", "ET", "BT", "P", "LIVE", "IN_PLAY", "PAUSED", "SUSP", "INT"],
@@ -218,14 +252,24 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
     country_code: "venue.country", live_status_values: ["in_progress"], finished_status_values: ["final"], upcoming_status_values: ["scheduled"],
   };
   if (providerCode === "bzzoiro") return {
-    matches_path: "results", id: "id", competition: "competition.name", home_team: "home_team",
-    away_team: "away_team", home_score: "home_score", away_score: "away_score", status: "status",
-    kickoff: "starting_at", minute: "minute",
+    matches_path: "results", id: "id", competition: "league.name", competition_id: "league_id",
+    competition_type: "league.type", country: "league.country", country_code: "league.country_code",
+    home_team: "home_team", away_team: "away_team", home_score: "home_score", away_score: "away_score",
+    status: "status", kickoff: "event_date", minute: "current_minute", season: "season_id",
+    home_logo: "home_team.logo", away_logo: "away_team.logo", competition_logo: "league.logo",
+    live_status_values: ["live", "in_play", "1h", "2h", "half_time", "ht", "extra_time", "penalties"],
+    finished_status_values: ["finished", "ft", "aet", "pen"], upcoming_status_values: ["upcoming", "scheduled", "postponed", "cancelled"],
   };
   if (providerCode === "sportapi-ai") return {
     matches_path: "fixtures", id: "id", competition: "league_name", competition_id: "league_id",
+    competition_logo: "league_logo", competition_type: "league_type", country: "league_zone", country_code: "league_geo",
     home_team: "home_team", away_team: "away_team", home_score: "home_score", away_score: "away_score",
-    status: "status", kickoff: "kickoff_utc",
+    home_logo: "home_logo", away_logo: "away_logo", home_team_id: "home_id", away_team_id: "away_id",
+    status: "status", status_detail: "status_detail", kickoff: "kickoff_utc", minute: "minute",
+    venue_name: "venue_name", venue_city: "city_name", referee: "referee_name", season: "season",
+    events: "events", statistics: "statistics", lineups: "lineups", standings: "standings", head_to_head: "head_to_head",
+    live_status_values: ["LIVE", "IN_PLAY"], finished_status_values: ["FT", "AET", "PENS"],
+    upcoming_status_values: ["Scheduled", "Postponed", "Cancelled"],
   };
   if (providerCode === "footballdata-io") {
     return {
@@ -237,8 +281,15 @@ function builtInMapping(providerCode: string): Record<string, unknown> {
     };
   }
   if (providerCode === "sportscore") return {
-    matches_path: "matches", id: "id", competition: "competition.name", home_team: "home_team",
-    away_team: "away_team", home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff",
+    matches_path: "matches", id: "slug", match_slug: "slug",
+    competition: "competition.name", competition_id: "competition.id", competition_slug: "competition.slug",
+    competition_logo: "competition.logo", country: "competition.country",
+    home_team: "home", away_team: "away", home_slug: "home_slug", away_slug: "away_slug",
+    home_score: "home_score", away_score: "away_score", home_logo: "home_logo", away_logo: "away_logo",
+    status: "status", status_detail: "status_text", kickoff: "time",
+    events: "timeline", statistics: "statistics", lineups: "lineups", standings: "standings",
+    live_status_values: ["LIVE", "IN_PLAY", "live"], finished_status_values: ["FT", "FINISHED", "finished"],
+    upcoming_status_values: ["NS", "SCHEDULED", "UPCOMING", "upcoming"],
   };
   return {};
 }
@@ -251,20 +302,24 @@ function normalizeOpenLiga(rows: any[]): { matches: Record<string, unknown>[]; n
     const lastResult = results.length ? results[results.length - 1] : {};
     const kickoff = item?.MatchDate || null;
     const finished = item?.MatchIsFinished === true || String(item?.MatchIsFinished).toLowerCase() === "true";
+    const location = item?.MatchLocation || item?.Location || item?.venue || {};
     return {
       match_id: item?.MatchID ?? null,
       league: item?.LeagueName || item?.League?.LeagueName || "Football",
       league_code: item?.LeagueShortcut || item?.League?.LeagueShortcut || "",
       competition_id: item?.LeagueID ?? item?.LeagueId ?? item?.League?.LeagueID ?? item?.League?.LeagueId ?? null,
-      competition_logo: item?.LeagueLogo || item?.League?.LeagueLogo || item?.League?.Logo || null,
+      competition_logo: safePublicImageUrl(item?.LeagueLogo || item?.League?.LeagueLogo || item?.League?.Logo || item?.League?.Image || item?.League?.ImageUrl),
       country: item?.LeagueCountry || item?.League?.Country || "",
-      home: { name: home?.TeamName || "Home team" },
-      away: { name: away?.TeamName || "Away team" },
+      home: { name: home?.TeamName || "Home team", ...(safePublicImageUrl(home?.TeamIconUrl || home?.TeamIcon || home?.teamIconUrl || home?.logo || home?.image) ? { logo: safePublicImageUrl(home?.TeamIconUrl || home?.TeamIcon || home?.teamIconUrl || home?.logo || home?.image) } : {}) },
+      away: { name: away?.TeamName || "Away team", ...(safePublicImageUrl(away?.TeamIconUrl || away?.TeamIcon || away?.teamIconUrl || away?.logo || away?.image) ? { logo: safePublicImageUrl(away?.TeamIconUrl || away?.TeamIcon || away?.teamIconUrl || away?.logo || away?.image) } : {}) },
       home_score: lastResult?.PointsTeam1 ?? null,
       away_score: lastResult?.PointsTeam2 ?? null,
       // OpenLigaDB match records do not reliably provide a live event clock; never invent a live state from kickoff time.
       status: finished ? "FT" : "Scheduled",
+      status_code: finished ? "FT" : "NS",
       kickoff,
+      venue: location?.LocationStadium || location?.stadium || location?.name || "",
+      venue_city: location?.LocationCity || location?.city || "",
     };
   });
   return { matches, notice: "OpenLigaDB is a free, community-maintained feed. This configured route covers one competition only; it does not provide worldwide coverage or dependable live status." };
@@ -276,8 +331,12 @@ function normalizeFootballApiOrg(raw: unknown): Record<string, unknown>[] {
   return rows.map((item: any) => {
     const homeRaw = item?.home_club_name ?? item?.home ?? item?.home_team ?? "";
     const awayRaw = item?.away_club_name ?? item?.away ?? item?.away_team ?? "";
-    const home = typeof homeRaw === "string" ? { name: homeRaw } : { name: homeRaw?.name || homeRaw?.club_name || "Home team", ...(homeRaw?.logo || homeRaw?.crest ? { logo: homeRaw.logo || homeRaw.crest } : {}) };
-    const away = typeof awayRaw === "string" ? { name: awayRaw } : { name: awayRaw?.name || awayRaw?.club_name || "Away team", ...(awayRaw?.logo || awayRaw?.crest ? { logo: awayRaw.logo || awayRaw.crest } : {}) };
+    const homeLogo = safePublicImageUrl(homeRaw) || safePublicImageUrl(item?.home_club_logo || item?.home_logo || item?.home_logo_url || item?.home_team_logo || item?.home_club_badge_url)
+      || safePublicImageUrl(item?.home_team || item?.home_club || item?.homeTeam);
+    const awayLogo = safePublicImageUrl(awayRaw) || safePublicImageUrl(item?.away_club_logo || item?.away_logo || item?.away_logo_url || item?.away_team_logo || item?.away_club_badge_url)
+      || safePublicImageUrl(item?.away_team || item?.away_club || item?.awayTeam);
+    const home = { name: typeof homeRaw === "string" ? homeRaw : homeRaw?.name || homeRaw?.club_name || "Home team", ...(homeLogo ? { logo: homeLogo } : {}) };
+    const away = { name: typeof awayRaw === "string" ? awayRaw : awayRaw?.name || awayRaw?.club_name || "Away team", ...(awayLogo ? { logo: awayLogo } : {}) };
     const score = item?.score || {};
     const homeScore = item?.home_goals ?? item?.home_score ?? score?.home ?? null;
     const awayScore = item?.away_goals ?? item?.away_score ?? score?.away ?? null;
@@ -291,17 +350,30 @@ function normalizeFootballApiOrg(raw: unknown): Record<string, unknown>[] {
       match_id: item?.match_id == null ? null : String(item.match_id),
       league: item?.competition_name || item?.competition || item?.league_name || "Football",
       league_code: item?.competition || item?.competition_code || "",
-      competition_id: item?.competition_id || item?.competition || null,
-      country: item?.country_name || item?.country || "",
+      competition_id: item?.competition_id || item?.league_id || item?.competition || null,
+      competition_logo: safePublicImageUrl(item?.competition_logo || item?.competition_logo_url || item?.league_logo || item?.league_logo_url || item?.competition?.logo || item?.league?.logo),
+      league_logo: safePublicImageUrl(item?.competition_logo || item?.competition_logo_url || item?.league_logo || item?.league_logo_url || item?.competition?.logo || item?.league?.logo),
+      competition_type: item?.competition_type || item?.league_type || item?.competition?.type || "",
+      country: item?.country_name || item?.country || item?.competition?.country || item?.league?.country || "",
       home, away,
       home_score: homeScore == null ? null : Number(homeScore),
       away_score: awayScore == null ? null : Number(awayScore),
       status,
+      status_code: item?.status_code || item?.match_status || item?.status || "",
+      status_detail: item?.status_text || item?.status_description || item?.match_status_text || "",
       kickoff: kickoff == null ? null : String(kickoff),
       minute: item?.elapsed_minutes == null ? null : String(item.elapsed_minutes),
-      venue: item?.ground_name || item?.ground || "",
-      venue_city: item?.city_name || item?.city || "",
-      referee: item?.referee_name || item?.referee || "",
+      minute_extra: item?.elapsed_extra == null ? null : String(item.elapsed_extra),
+      started_at: item?.actual_start || item?.started_at || item?.match_started_at || null,
+      venue: item?.ground_name || item?.ground?.name || item?.ground || item?.venue?.name || item?.venue || "",
+      venue_city: item?.city_name || item?.city || item?.ground?.city || item?.venue?.city || "",
+      referee: item?.referee_name || item?.referee?.name || item?.referee || "",
+      events: safePublicDetail(item?.events || item?.incidents || item?.timeline),
+      statistics: safePublicDetail(item?.statistics || item?.stats || item?.match_statistics),
+      lineups: safePublicDetail(item?.lineups || item?.team_lineups || item?.formations),
+      standings: safePublicDetail(item?.standings || item?.table),
+      head_to_head: safePublicDetail(item?.head_to_head || item?.h2h || item?.previous_matches),
+      round: item?.round || item?.matchday || "",
     };
   }).filter((match: any) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
@@ -326,10 +398,12 @@ function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
     const stateText = String(state?.short_name || state?.name || state?.state || "").trim();
     const stateKey = stateText.toLowerCase();
     let status = "Scheduled";
-    if (/live|in.?play|1st half|first half|2nd half|second half|half time|half-time|extra time|penalt|break/.test(stateKey)) status = "LIVE";
-    else if (/finished|full time|full-time|after extra time|after penalties|ended/.test(stateKey)) status = "FT";
+    if (/finished|full time|full-time|after extra time|after penalties|ended/.test(stateKey)) status = "FT";
+    else if (/live|in.?play|1st half|first half|2nd half|second half|half time|half-time|extra time|penalt|break/.test(stateKey)) status = "LIVE";
     const league = fixture?.league || {};
     const venue = fixture?.venue || {};
+    const periods = Array.isArray(fixture?.periods) ? fixture.periods : [];
+    const activePeriod = periods.find((period: any) => period?.is_current === true || period?.is_current_period === true || period?.is_live === true) || periods[periods.length - 1] || {};
     const kickoff = fixture?.starting_at || fixture?.starting_at_timestamp || null;
     return {
       match_id: fixture?.id == null ? null : String(fixture.id),
@@ -337,23 +411,33 @@ function normalizeSportmonks(raw: unknown): Record<string, unknown>[] {
       league_code: league?.short_code || league?.short_name || "",
       competition_id: fixture?.league_id == null ? null : String(fixture.league_id),
       competition_type: league?.type || "League",
-      competition_logo: league?.image_path || null,
-      league_logo: league?.image_path || null,
+      competition_logo: safePublicImageUrl(league?.image_path || league?.logo || league?.image || league?.logo_url),
+      league_logo: safePublicImageUrl(league?.image_path || league?.logo || league?.image || league?.logo_url),
       country: league?.country?.name || league?.country_name || "",
       country_code: league?.country?.iso2 || league?.country?.code || "",
-      home: { name: home?.name || "Home team", ...(home?.image_path ? { logo: home.image_path } : {}) },
-      away: { name: away?.name || "Away team", ...(away?.image_path ? { logo: away.image_path } : {}) },
+      home: { name: home?.name || "Home team", ...(safePublicImageUrl(home?.image_path || home?.logo || home?.image) ? { logo: safePublicImageUrl(home?.image_path || home?.logo || home?.image) } : {}) },
+      away: { name: away?.name || "Away team", ...(safePublicImageUrl(away?.image_path || away?.logo || away?.image) ? { logo: safePublicImageUrl(away?.image_path || away?.logo || away?.image) } : {}) },
       home_score: homeScore,
       away_score: awayScore,
       status,
+      status_code: state?.short_name || state?.state || stateText,
+      status_detail: state?.name || stateText,
       kickoff: kickoff == null ? null : String(kickoff),
-      minute: fixture?.periods?.[0]?.minutes == null ? null : String(fixture.periods[0].minutes),
+      minute: activePeriod?.minutes ?? fixture?.clock?.minute ?? fixture?.time?.minute ?? null,
+      minute_extra: activePeriod?.minutes_extra ?? fixture?.clock?.extra ?? fixture?.time?.extra ?? null,
+      started_at: fixture?.actual_start || fixture?.started_at || fixture?.starting_at_actual || null,
       venue_id: fixture?.venue_id == null ? null : String(fixture.venue_id),
-      venue: venue?.name || "",
-      venue_city: venue?.city_name || venue?.city || "",
+      venue: venue?.name || fixture?.ground?.name || "",
+      venue_city: venue?.city_name || venue?.city?.name || venue?.city || fixture?.ground?.city?.name || fixture?.ground?.city || "",
       venue_image: venue?.image_path || null,
       match_image: venue?.image_path || null,
-      referee: fixture?.referee?.name || "",
+      referee: fixture?.referee?.name || fixture?.referee_name || "",
+      events: safePublicDetail(fixture?.events || fixture?.incidents || fixture?.timeline),
+      statistics: safePublicDetail(fixture?.statistics || fixture?.stats),
+      lineups: safePublicDetail(fixture?.lineups || fixture?.formations),
+      standings: safePublicDetail(fixture?.standings || fixture?.league?.standings),
+      head_to_head: safePublicDetail(fixture?.head_to_head || fixture?.h2h || fixture?.previous_matches),
+      round: fixture?.round || fixture?.stage?.name || "",
     };
   }).filter((match: Record<string, any>) => Boolean(match.home?.name && match.away?.name && match.kickoff && Number.isFinite(Date.parse(String(match.kickoff)))));
 }
@@ -372,6 +456,202 @@ function canonicalMatchStatus(value: unknown, liveValues: Set<string>, finishedV
   if (finishedValues.has(key) || /^(FT|AET|PEN|FINISHED|FULL_TIME|FULLTIME|ENDED|COMPLETE|COMPLETED|AFTER_EXTRA_TIME|AFTER_PENALTIES|AWARDED|WO)$/.test(key) || /(FINISHED|FULL_TIME|COMPLETED|ENDED)$/.test(key)) return "FT";
   if (upcomingValues.has(key) || /^(NS|NOT_STARTED|SCHEDULED|TIMED|UPCOMING|POSTPONED|PST|TBD|DELAYED)$/.test(key)) return "Scheduled";
   return raw || "Unknown";
+}
+
+function safePublicDetail(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") return value.slice(0, 400);
+  if (typeof value === "number" || typeof value === "boolean") return value;
+  if (depth >= 5) return null;
+  if (Array.isArray(value)) return value.slice(0, 120).map((item) => safePublicDetail(item, depth + 1));
+  if (typeof value === "object") {
+    const source = value as Record<string, unknown>;
+    const output: Record<string, unknown> = {};
+    const blocked = /^(api_?key|token|authorization|headers?|secret|password|email|phone)$/i;
+    Object.entries(source).slice(0, 50).forEach(([key, item]) => {
+      if (!blocked.test(key) && item !== undefined) output[key] = safePublicDetail(item, depth + 1);
+    });
+    return output;
+  }
+  return null;
+}
+
+function builtInMatchDetailEndpoints(providerCode: string): Record<string, string> {
+  // API-Football exposes dedicated, fixture-scoped endpoints. Other providers can
+  // declare their own optional detail routes in Football Automation Room.
+  if (providerCode === "api-football") return {
+    events: "/fixtures/events?fixture={match_id}",
+    statistics: "/fixtures/statistics?fixture={match_id}",
+    lineups: "/fixtures/lineups?fixture={match_id}",
+    standings: "/standings?league={competition_id}&season={season}",
+    head_to_head: "/fixtures/headtohead?h2h={home_id}-{away_id}&last=10",
+  };
+  if (providerCode === "bzzoiro") return {
+    events: "/events/{match_id}/incidents/", statistics: "/events/{match_id}/stats/",
+    lineups: "/events/{match_id}/lineups/", standings: "/leagues/{competition_id}/standings/?season_id={season}",
+    head_to_head: "/events/{match_id}/h2h/",
+  };
+  if (providerCode === "sportapi-ai") return {
+    events: "/fixtures/{match_id}/events", statistics: "/fixtures/{match_id}/stats",
+    lineups: "/fixtures/{match_id}/lineups", standings: "/standings/{competition_id}",
+    head_to_head: "/fixtures/h2h/{home_id}/{away_id}",
+  };
+  if (providerCode === "sportscore") return {
+    match_details: "/api/widget/match/?sport=football&slug={match_slug}",
+    standings: "/api/widget/standings/?sport=football&slug={competition_slug}",
+  };
+  if (providerCode === "football-data-org") return { standings: "/v4/competitions/{competition_id}/standings" };
+  return {};
+}
+
+function detailRouteFor(provider: Record<string, any>, key: string): string {
+  const endpoints = plainObject(provider.endpoints);
+  const aliases: Record<string, string[]> = {
+    events: ["events", "match_events"],
+    statistics: ["statistics", "match_statistics", "stats"],
+    lineups: ["lineups", "match_lineups"],
+    standings: ["standings", "table", "competition_table"],
+    head_to_head: ["head_to_head", "h2h", "previous_meetings"],
+  };
+  for (const name of aliases[key] || [key]) {
+    const value = endpoints[name];
+    if (typeof value === "string" && value.trim()) return validateProviderRoute(value.trim());
+  }
+  const builtIns = builtInMatchDetailEndpoints(String(provider.provider_code || ""));
+  return builtIns[key] ? validateProviderRoute(builtIns[key]) : "";
+}
+
+function expandMatchDetailRoute(route: string, match: Record<string, any>): string {
+  const kickoff = safeString(match.kickoff || match.date);
+  const season = safeString(match.season || (kickoff ? kickoff.slice(0, 4) : ""));
+  const values: Record<string, unknown> = {
+    match_id: match.match_id || match.id,
+    fixture_id: match.match_id || match.id,
+    id: match.match_id || match.id,
+    competition_id: match.competition_id || match.league_id,
+    league_id: match.competition_id || match.league_id,
+    season,
+    home_id: match.home_team_id || match.home?.id || match.home?.team_id,
+    away_id: match.away_team_id || match.away?.id || match.away?.team_id,
+    home_team_id: match.home_team_id || match.home?.id || match.home?.team_id,
+    away_team_id: match.away_team_id || match.away?.id || match.away?.team_id,
+    match_slug: match.match_slug || match.slug,
+    competition_slug: match.competition_slug || match.league_slug || match.competition?.slug,
+    home_slug: match.home_team_slug || match.home_slug || match.home?.slug,
+    away_slug: match.away_team_slug || match.away_slug || match.away?.slug,
+    date: kickoff ? kickoff.slice(0, 10) : "",
+    competition: match.league || match.competition || "",
+  };
+  return route.replace(/\{([a-z_]+)\}/gi, (token, key) => {
+    const value = values[String(key).toLowerCase()];
+    return value === null || value === undefined || value === "" ? token : encodeURIComponent(String(value));
+  });
+}
+
+function unifiedDetailPayload(raw: unknown, mapping: Record<string, unknown>, key: string): unknown {
+  const configuredPath = safeString(mapping[`${key}_path`] || mapping[`${key}_response_path`]);
+  if (configuredPath) {
+    const configured = objectPath(raw, configuredPath);
+    if (configured !== undefined && configured !== null) return configured;
+  }
+  const names: Record<string, string[]> = {
+    events: ["events", "incidents", "timeline", "match_events"],
+    statistics: ["statistics", "stats", "match_statistics", "match_stats"],
+    lineups: ["lineups", "formations", "team_lineups", "starting_lineups"],
+    standings: ["standings", "table", "league_table", "competition_table"],
+    head_to_head: ["head_to_head", "h2h", "head2head", "previous_matches", "previous_meetings"],
+  };
+  const roots = ["", "data.", "response.", "result.", "match.", "fixture.", "data.response.", "response.data."];
+  for (const root of roots) {
+    for (const name of names[key] || [key]) {
+      const value = objectPath(raw, `${root}${name}`);
+      if (value !== undefined && value !== null) return value;
+    }
+  }
+  return undefined;
+}
+
+function detailPayload(raw: unknown, mapping: Record<string, unknown>, key: string): unknown {
+  const configuredPath = safeString(mapping[`${key}_path`] || mapping[`${key}_response_path`]);
+  if (configuredPath) {
+    const configured = objectPath(raw, configuredPath);
+    if (configured !== undefined && configured !== null) return configured;
+  }
+  const candidates: Record<string, string[]> = {
+    events: ["response", "data.events", "events", "incidents", "timeline", "data", "results"],
+    statistics: ["response", "data.statistics", "statistics", "stats", "data", "results"],
+    lineups: ["response", "data.lineups", "lineups", "formations", "data", "results"],
+    standings: ["response", "data.standings", "standings", "league.standings", "data", "results"],
+    head_to_head: ["response", "data.matches", "matches", "head_to_head", "h2h", "data", "results"],
+  };
+  for (const path of candidates[key] || ["data", "response"]) {
+    const value = objectPath(raw, path);
+    if (value !== undefined && value !== null) return value;
+  }
+  return raw;
+}
+
+async function fetchConfiguredMatchDetails(
+  provider: Record<string, any>, match: Record<string, any>, date: string, section = "",
+): Promise<{ details: Record<string, unknown>; errors: string[] }> {
+  const mapping = plainObject(provider.response_mapping);
+  const allKeys = ["events", "statistics", "lineups", "standings", "head_to_head"];
+  const keys = allKeys.includes(section) ? [section] : allKeys;
+  const endpoints = plainObject(provider.endpoints);
+  const details: Record<string, unknown> = {};
+  const errors: string[] = [];
+  const requestedDate = date || (match.kickoff ? safeString(match.kickoff).slice(0, 10) : todayInLagos());
+
+  // Some APIs provide one combined detail endpoint. Read it first, then use
+  // individual routes only for detail sections that were not included.
+  const providerCode = String(provider.provider_code || "").toLowerCase();
+  const unifiedRoute = typeof endpoints.match_details === "string" && endpoints.match_details.trim()
+    ? endpoints.match_details.trim()
+    : (builtInMatchDetailEndpoints(providerCode).match_details || "");
+  if (unifiedRoute) {
+    try {
+      const expanded = expandMatchDetailRoute(unifiedRoute, match);
+      if (/\{(?:match_id|fixture_id|competition_id|home_id|away_id|season|match_slug|competition_slug|home_slug|away_slug)\}/i.test(expanded)) {
+        errors.push("match details: required match identifiers were not supplied by this provider.");
+      } else {
+        const result = await providerRequest(provider, "today", requestedDate, safeString(match.league || "all"), requestedDate, requestedDate, validateProviderRoute(expanded), 1, 5000);
+        for (const key of allKeys) {
+          const value = unifiedDetailPayload(result.raw, mapping, key);
+          if (value !== undefined && value !== null) details[key] = safePublicDetail(value);
+        }
+      }
+    } catch (error) {
+      errors.push(`match details: ${error instanceof Error ? error.message : "Could not load combined details."}`);
+    }
+  }
+
+  const routes = keys.map((key) => ({ key, route: detailRouteFor(provider, key) }))
+    .filter((item) => item.route && details[item.key] === undefined);
+  const results = await Promise.all(routes.map(async ({ key, route }) => {
+    try {
+      const expanded = expandMatchDetailRoute(route, match);
+      if (/\{(?:match_id|fixture_id|competition_id|home_id|away_id|season|match_slug|competition_slug|home_slug|away_slug)\}/i.test(expanded)) {
+        return { key, error: `Required match identifiers for ${key} were not supplied by this provider.` };
+      }
+      const safeRoute = validateProviderRoute(expanded);
+      const result = await providerRequest(provider, "today", requestedDate, safeString(match.league || "all"), requestedDate, requestedDate, safeRoute, 1, 5000);
+      const value = detailPayload(result.raw, mapping, key);
+      if (value !== null && value !== undefined) return { key, value: safePublicDetail(value) };
+      return { key, error: `Provider returned no ${key} data.` };
+    } catch (error) {
+      return { key, error: error instanceof Error ? error.message : `Could not load ${key}.` };
+    }
+  }));
+  for (const result of results) {
+    if ("value" in result && result.value !== null && result.value !== undefined) details[result.key] = result.value;
+    else if (result.error) errors.push(`${result.key}: ${result.error}`);
+  }
+  for (const key of keys) {
+    if (details[key] === undefined && !routes.some((route) => route.key === key) && !unifiedRoute) {
+      errors.push(`${key}: no detail endpoint is configured for this provider.`);
+    }
+  }
+  return { details, errors };
 }
 
 function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, providerCode = ""): Record<string, unknown>[] {
@@ -400,8 +680,17 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       "state.short", "state.name", "state", "match_status", "fixture.status.short",
     ].filter(Boolean));
     const status = canonicalMatchStatus(rawStatus, liveValues, finishedValues, upcomingValues);
+    const rawStatusObject = plainObject(rawStatus);
+    const statusCode = firstPath(row, [
+      typeof mapping.status_code === "string" ? mapping.status_code : "",
+      "fixture.status.short", "status.short", "status.code", "state.short_name", "state.code", "status_code",
+    ].filter(Boolean)) ?? rawStatusObject.short ?? rawStatusObject.code ?? (typeof rawStatus === "string" ? rawStatus : "");
+    const statusDetail = firstPath(row, [
+      typeof mapping.status_detail === "string" ? mapping.status_detail : "",
+      "fixture.status.long", "status.long", "status.description", "status.name", "state.name", "status_text", "match_status_text",
+    ].filter(Boolean)) ?? rawStatusObject.long ?? rawStatusObject.name ?? "";
     const competitionRaw = firstPath(row, [
-      typeof mapping.competition === "string" ? mapping.competition : "", "league.name", "competition.name", "league_name", "competition_name", "tournament.name",
+      typeof mapping.competition === "string" ? mapping.competition : "", "league.name", "competition.name", "league_name", "competition_name", "tournament.name", "championship.name", "league", "competition", "tournament",
     ].filter(Boolean));
     const competition = teamDisplayName(competitionRaw, "Football") || "Football";
     const homeRaw = firstPath(row, [
@@ -425,16 +714,50 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       awayScore = awayScore == null || awayScore === "" || !Number.isFinite(Number(awayScore)) ? null : Number(awayScore);
     }
     const matchId = firstPath(row, [typeof mapping.id === "string" ? mapping.id : "", "id", "fixture.id", "event_id", "match_id"].filter(Boolean));
-    const homeLogo = firstPath(row, [typeof mapping.home_logo === "string" ? mapping.home_logo : "", "teams.home.logo", "homeTeam.crest", "home.logo", "homeTeam.logo", "home_team.logo"].filter(Boolean));
-    const awayLogo = firstPath(row, [typeof mapping.away_logo === "string" ? mapping.away_logo : "", "teams.away.logo", "awayTeam.crest", "away.logo", "awayTeam.logo", "away_team.logo"].filter(Boolean));
-    const rawCompetitionLogo = firstPath(row, [typeof mapping.competition_logo === "string" ? mapping.competition_logo : "", "league.logo", "competition.emblem", "competition.logo", "league_logo", "competition_logo"].filter(Boolean));
+    const matchSlug = firstPath(row, [typeof mapping.match_slug === "string" ? mapping.match_slug : "", "slug", "match_slug"].filter(Boolean));
+    const homeSlug = firstPath(row, [typeof mapping.home_slug === "string" ? mapping.home_slug : "", "home.slug", "home_team.slug", "home_slug"].filter(Boolean));
+    const awaySlug = firstPath(row, [typeof mapping.away_slug === "string" ? mapping.away_slug : "", "away.slug", "away_team.slug", "away_slug"].filter(Boolean));
+    const competitionSlug = firstPath(row, [typeof mapping.competition_slug === "string" ? mapping.competition_slug : "", "competition.slug", "league.slug", "competition_slug", "league_slug"].filter(Boolean));
+    const homeTeamId = firstPath(row, ["teams.home.id", "homeTeam.id", "home_team.id", "home.id", "home_team_id", "home_id"]);
+    const awayTeamId = firstPath(row, ["teams.away.id", "awayTeam.id", "away_team.id", "away.id", "away_team_id", "away_id"]);
+    const rawHomeLogo = firstPath(row, [
+      typeof mapping.home_logo === "string" ? mapping.home_logo : "",
+      "teams.home.logo", "teams.home.image", "teams.home.crest", "teams.home.logo_url", "teams.home.image_path",
+      "homeTeam.crest", "homeTeam.logo", "homeTeam.logo_url", "homeTeam.image", "homeTeam.image_path", "homeTeam.badge", "homeTeam.badge_url",
+      "home.logo", "home.crest", "home.image", "home.logo_url", "home.image_url", "home.badge", "home.badge_url", "home.crest_url",
+      "home_team.logo", "home_team.crest", "home_team.image", "home_team.image_path", "home_team.team_logo", "home_team.logo_url", "home_team.image_url", "home_team.badge", "home_team.badge_url", "home_team.crest_url",
+      "home_team_logo", "home_logo_url", "home_crest", "home_badge_url", "home_club_logo", "home_club_badge_url"
+    ].filter(Boolean));
+    const rawAwayLogo = firstPath(row, [
+      typeof mapping.away_logo === "string" ? mapping.away_logo : "",
+      "teams.away.logo", "teams.away.image", "teams.away.crest", "teams.away.logo_url", "teams.away.image_path",
+      "awayTeam.crest", "awayTeam.logo", "awayTeam.logo_url", "awayTeam.image", "awayTeam.image_path", "awayTeam.badge", "awayTeam.badge_url",
+      "away.logo", "away.crest", "away.image", "away.logo_url", "away.image_url", "away.badge", "away.badge_url", "away.crest_url",
+      "away_team.logo", "away_team.crest", "away_team.image", "away_team.image_path", "away_team.team_logo", "away_team.logo_url", "away_team.image_url", "away_team.badge", "away_team.badge_url", "away_team.crest_url",
+      "away_team_logo", "away_logo_url", "away_crest", "away_badge_url", "away_club_logo", "away_club_badge_url"
+    ].filter(Boolean));
+    const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
+    const homeLogo = safePublicImageUrl(rawHomeLogo) || safePublicImageUrl(homeRaw)
+      || (normalizedProviderCode === "api-football" && homeTeamId != null && /^\d+$/.test(String(homeTeamId)) ? `https://media.api-sports.io/football/teams/${homeTeamId}.png` : null)
+      || (normalizedProviderCode === "bzzoiro" && homeTeamId != null && /^\d+$/.test(String(homeTeamId)) ? `https://sports.bzzoiro.com/img/team/${homeTeamId}/` : null);
+    const awayLogo = safePublicImageUrl(rawAwayLogo) || safePublicImageUrl(awayRaw)
+      || (normalizedProviderCode === "api-football" && awayTeamId != null && /^\d+$/.test(String(awayTeamId)) ? `https://media.api-sports.io/football/teams/${awayTeamId}.png` : null)
+      || (normalizedProviderCode === "bzzoiro" && awayTeamId != null && /^\d+$/.test(String(awayTeamId)) ? `https://sports.bzzoiro.com/img/team/${awayTeamId}/` : null);
+    const rawCompetitionLogo = firstPath(row, [
+      typeof mapping.competition_logo === "string" ? mapping.competition_logo : "",
+      "league.logo", "league.logo_url", "league.image", "league.image_path", "league.crest", "league.badge",
+      "competition.emblem", "competition.logo", "competition.logo_url", "competition.image", "competition.image_url",
+      "tournament.logo", "tournament.image", "tournament.image_url", "league_logo", "league_logo_url", "competition_logo", "competition_logo_url",
+      "league.imageUrl", "league.logoUrl", "league.logo.uri", "competition.imageUrl", "competition.logoUrl", "competition.crest", "competition.emblem", "tournament.crest", "tournament.logo_url", "tournament.image_url", "cup.logo", "championship.logo", "images.league", "images.competition", "league.badge_url", "competition.badge_url", "competition_logo_image", "league_image_url"
+    ].filter(Boolean));
     const rawCompetitionId = firstPath(row, [typeof mapping.competition_id === "string" ? mapping.competition_id : "", "league.id", "competition.id", "competition_id", "league_id"].filter(Boolean));
     const competitionId = rawCompetitionId == null ? "" : safeString(rawCompetitionId).trim();
     const competitionType = firstPath(row, [typeof mapping.competition_type === "string" ? mapping.competition_type : "", "league.type", "competition.type", "competition_type", "league_type"].filter(Boolean));
-    const normalizedProviderCode = providerCode.toLowerCase().replace(/[\s_]+/g, "-");
     const numericCompetitionId = /^\d+$/.test(competitionId) ? competitionId : "";
-    const competitionLogo = rawCompetitionLogo || (normalizedProviderCode === "api-football" && numericCompetitionId ? `https://media.api-sports.io/football/leagues/${numericCompetitionId}.png` : null);
-    const country = firstPath(row, [typeof mapping.country === "string" ? mapping.country : "", "league.country", "area.name", "country.name", "country"].filter(Boolean));
+    const competitionLogo = safePublicImageUrl(rawCompetitionLogo)
+      || (normalizedProviderCode === "api-football" && numericCompetitionId ? `https://media.api-sports.io/football/leagues/${numericCompetitionId}.png` : null)
+      || (normalizedProviderCode === "bzzoiro" && numericCompetitionId ? `https://sports.bzzoiro.com/img/league/${numericCompetitionId}/` : null);
+    const country = firstPath(row, [typeof mapping.country === "string" ? mapping.country : "", "league.country", "league.country_name", "competition.country.name", "competition.country", "tournament.country.name", "area.name", "country.name", "country_name", "league_country", "country"].filter(Boolean));
     const countryCode = firstPath(row, [typeof mapping.country_code === "string" ? mapping.country_code : "", "league.country_code", "area.code", "country.code", "country_code"].filter(Boolean));
     const countryFlag = firstPath(row, [typeof mapping.country_flag === "string" ? mapping.country_flag : "", "league.flag", "area.flag", "country.flag", "country_flag"].filter(Boolean));
     const kickoff = firstPath(row, [
@@ -442,24 +765,43 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       "kickoff_utc", "datetime", "start_time", "scheduled_at", "match_date", "match_time", "date_time", "date", "time",
     ].filter(Boolean)) ?? firstPath(raw, ["date", "requested_date", "fixture_date"]);
     if (!homeTeam || !awayTeam || kickoff == null || !Number.isFinite(Date.parse(String(kickoff)))) return null;
-    let minute = firstPath(row, [typeof mapping.minute === "string" ? mapping.minute : "", "minute", "elapsed", "time.elapsed", "fixture.status.elapsed", "period.minute"].filter(Boolean));
+    let minute = firstPath(row, [typeof mapping.minute === "string" ? mapping.minute : "", "minute", "elapsed", "time.elapsed", "fixture.status.elapsed", "period.minute", "clock.minute"].filter(Boolean));
+    if (minute && typeof minute === "object") minute = firstPath(minute, ["elapsed", "minute", "value"]);
     if (providerCode.toLowerCase() === "api-ninjas" && minute != null && !/^\s*\d{1,3}'?(?:\+\d{1,2}')?\s*$/.test(String(minute))) minute = null;
-    const venueId = firstPath(row, [typeof mapping.venue_id === "string" ? mapping.venue_id : "", "fixture.venue.id", "venue.id", "venue_id"].filter(Boolean));
-    const venueName = firstPath(row, [typeof mapping.venue_name === "string" ? mapping.venue_name : "", "fixture.venue.name", "venue.name", "venue_name"].filter(Boolean));
-    const venueCity = firstPath(row, [typeof mapping.venue_city === "string" ? mapping.venue_city : "", "fixture.venue.city", "venue.city", "venue_city"].filter(Boolean));
-    const venueImage = firstPath(row, [typeof mapping.match_image === "string" ? mapping.match_image : "", typeof mapping.venue_image === "string" ? mapping.venue_image : "", "fixture.venue.image", "venue.image", "match_image", "venue_image", "image_url"].filter(Boolean));
+    const minuteExtra = firstPath(row, [typeof mapping.minute_extra === "string" ? mapping.minute_extra : "", "minute_extra", "elapsed_extra", "fixture.status.extra", "time.extra", "period.minute_extra"].filter(Boolean));
+    const startedAt = firstPath(row, [typeof mapping.started_at === "string" ? mapping.started_at : "", "actual_start", "started_at", "match_started_at", "start_time_actual", "fixture.actual_start"].filter(Boolean));
+    const venueId = firstPath(row, [typeof mapping.venue_id === "string" ? mapping.venue_id : "", "fixture.venue.id", "venue.id", "venue_id", "stadium.id"].filter(Boolean));
+    const venueNameRaw = firstPath(row, [typeof mapping.venue_name === "string" ? mapping.venue_name : "", "fixture.venue.name", "venue.name", "venue_name", "stadium.name", "ground.name", "venue", "stadium", "ground"].filter(Boolean));
+    const venueName = teamDisplayName(venueNameRaw);
+    const venueCityRaw = firstPath(row, [typeof mapping.venue_city === "string" ? mapping.venue_city : "", "fixture.venue.city", "venue.city", "venue.location.city", "venue_city", "stadium.city", "ground.city", "location.city", "city_name", "city"].filter(Boolean));
+    const venueCity = teamDisplayName(venueCityRaw);
+    const venueImage = firstPath(row, [typeof mapping.match_image === "string" ? mapping.match_image : "", typeof mapping.venue_image === "string" ? mapping.venue_image : "", "fixture.venue.image", "venue.image", "stadium.image", "match_image", "venue_image", "image_url"].filter(Boolean));
     const numericVenueId = venueId != null && /^\d+$/.test(String(venueId)) ? String(venueId) : "";
-    const explicitVenueImage = venueImage == null ? "" : safeString(venueImage).trim();
-    const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football" ? `https://media.api-sports.io/football/venues/${numericVenueId}.png` : (explicitVenueImage || null);
-    const referee = firstPath(row, [typeof mapping.referee === "string" ? mapping.referee : "", "fixture.referee", "referee"].filter(Boolean));
+    const explicitVenueImage = safePublicImageUrl(venueImage);
+    const providerVenueImage = !explicitVenueImage && numericVenueId && normalizedProviderCode === "api-football" ? `https://media.api-sports.io/football/venues/${numericVenueId}.png` : explicitVenueImage;
+    const refereeRaw = firstPath(row, [typeof mapping.referee === "string" ? mapping.referee : "", "fixture.referee", "referee.name", "referee", "official.name", "officials[0].name", "referees[0].name", "referee_name"].filter(Boolean));
+    const referee = teamDisplayName(refereeRaw);
+    const events = firstPath(row, [typeof mapping.events === "string" ? mapping.events : "", "events", "incidents", "timeline", "event_list", "goals", "fixture.events", "match_events"].filter(Boolean));
+    const statistics = firstPath(row, [typeof mapping.statistics === "string" ? mapping.statistics : "", "statistics", "stats", "match_statistics", "fixture.statistics", "match_stats"].filter(Boolean));
+    const lineups = firstPath(row, [typeof mapping.lineups === "string" ? mapping.lineups : "", "lineups", "team_lineups", "formations", "starting_lineups", "fixture.lineups"].filter(Boolean));
+    const standings = firstPath(row, [typeof mapping.standings === "string" ? mapping.standings : "", "standings", "league.standings", "competition.standings", "league_table", "table", "competition_table"].filter(Boolean));
+    const headToHead = firstPath(row, [typeof mapping.head_to_head === "string" ? mapping.head_to_head : "", "head_to_head", "h2h", "head2head", "previous_matches", "previous_meetings", "head_to_head.matches"].filter(Boolean));
+    const round = firstPath(row, ["league.round", "competition.round", "round", "matchday", "week"]);
     return {
       match_id: matchId == null ? null : String(matchId),
+      match_slug: matchSlug == null ? null : safeString(matchSlug),
+      competition_slug: competitionSlug == null ? null : safeString(competitionSlug),
+      home_team_slug: homeSlug == null ? null : safeString(homeSlug),
+      away_team_slug: awaySlug == null ? null : safeString(awaySlug),
       league: competition,
       league_code: safeString(firstPath(row, [typeof mapping.competition_code === "string" ? mapping.competition_code : "", "league.code", "competition.code", "league_code"].filter(Boolean)), ""),
       competition_id: competitionId || null,
       competition_type: competitionType == null ? "" : safeString(competitionType),
-      home: { name: homeTeam, ...(homeLogo ? { logo: safeString(homeLogo) } : {}) },
-      away: { name: awayTeam, ...(awayLogo ? { logo: safeString(awayLogo) } : {}) },
+      home_team_id: homeTeamId == null ? null : safeString(homeTeamId),
+      away_team_id: awayTeamId == null ? null : safeString(awayTeamId),
+      season: safeString(firstPath(row, [typeof mapping.season === "string" ? mapping.season : "", "season.year", "season", "league.season", "competition.season", "season_year"].filter(Boolean))),
+      home: { name: homeTeam, ...(homeLogo ? { logo: homeLogo } : {}) },
+      away: { name: awayTeam, ...(awayLogo ? { logo: awayLogo } : {}) },
       competition_logo: competitionLogo ? safeString(competitionLogo) : null,
       league_logo: competitionLogo ? safeString(competitionLogo) : null,
       country: country ? teamDisplayName(country) : "",
@@ -468,14 +810,24 @@ function normalizeMapped(raw: unknown, mapping: Record<string, unknown>, provide
       home_score: homeScore == null ? null : homeScore,
       away_score: awayScore == null ? null : awayScore,
       status,
+      status_code: statusCode == null ? "" : safeString(statusCode),
+      status_detail: statusDetail == null ? "" : safeString(statusDetail),
       kickoff: safeString(kickoff),
       minute: minute == null ? null : safeString(minute),
+      minute_extra: minuteExtra == null ? null : safeString(minuteExtra),
+      started_at: startedAt == null ? null : safeString(startedAt),
       venue_id: venueId == null ? null : safeString(venueId),
       venue: venueName == null ? "" : safeString(venueName),
       venue_city: venueCity == null ? "" : safeString(venueCity),
       venue_image: providerVenueImage == null ? null : safeString(providerVenueImage),
       match_image: providerVenueImage == null ? null : safeString(providerVenueImage),
       referee: referee == null ? "" : safeString(referee),
+      events: safePublicDetail(events),
+      statistics: safePublicDetail(statistics),
+      lineups: safePublicDetail(lineups),
+      standings: safePublicDetail(standings),
+      head_to_head: safePublicDetail(headToHead),
+      round: round == null ? "" : safeString(round),
     };
   }).filter((match: Record<string, unknown> | null): match is Record<string, unknown> => Boolean(match));
 }
@@ -594,91 +946,6 @@ function safeProviderRequestUrl(target: URL): string {
   return `${safe.pathname}${safe.search}`;
 }
 
-class ProviderHttpError extends Error {
-  status: number;
-  retryAfterSeconds: number;
-  constructor(message: string, status: number, retryAfterSeconds = 0) {
-    super(message);
-    this.name = "ProviderHttpError";
-    this.status = status;
-    this.retryAfterSeconds = retryAfterSeconds;
-  }
-}
-
-function retryAfterSeconds(response: Response): number {
-  const raw = String(response.headers.get("retry-after") || "").trim();
-  let seconds = 0;
-  if (/^\d+(?:\.\d+)?$/.test(raw)) seconds = Number(raw);
-  else if (raw) {
-    const timestamp = Date.parse(raw);
-    if (Number.isFinite(timestamp)) seconds = Math.ceil((timestamp - Date.now()) / 1000);
-  }
-  // Return zero when the header is absent so the caller can apply escalating fallback delays.
-  return seconds > 0 ? Math.max(30, Math.min(21600, seconds)) : 0;
-}
-
-function redactAdminDiagnostic(value: unknown): string {
-  return String(value || "")
-    .replace(/(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|secret)(\s*[=:]\s*)[^\s,;]+/gi, "$1$2[redacted]")
-    .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+/gi, "Bearer [redacted]")
-    .replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").slice(0, 900);
-}
-
-async function logPublicProviderEvent(
-  db: ReturnType<typeof createClient>, provider: Record<string, any>, eventType: string,
-  success: boolean, httpStatus: number | null, message: string,
-): Promise<void> {
-  const providerId = String(provider.id || "unknown");
-  const now = new Date();
-  const throttleKey = `livescore:v1:public-log-throttle:${providerId}:${eventType}`;
-  try {
-    const { data: throttle } = await db.from("football_public_cache")
-      .select("expires_at").eq("cache_key", throttleKey).maybeSingle();
-    if (throttle && new Date(throttle.expires_at) > now) return;
-    await db.from("football_automation_logs").insert({
-      event_type: eventType,
-      config_id: provider.id || null,
-      success,
-      http_status: httpStatus,
-      duration_ms: null,
-      message: redactAdminDiagnostic(message),
-      actor_user_id: null,
-    });
-    await db.from("football_public_cache").upsert({
-      cache_key: throttleKey,
-      payload: { recorded_at: now.toISOString() },
-      provider_name: String(provider.provider_name || "Football provider"),
-      fetched_at: now.toISOString(),
-      expires_at: new Date(now.getTime() + 10 * 60 * 1000).toISOString(),
-    });
-  } catch (_error) {
-    // Public score delivery must never fail because an administrator log could not be written.
-  }
-}
-
-async function getProviderBackoff(db: ReturnType<typeof createClient>, providerId: string): Promise<Record<string, any> | null> {
-  try {
-    const { data } = await db.from("football_public_cache")
-      .select("payload,expires_at").eq("cache_key", `livescore:v1:provider-backoff:${providerId}`).maybeSingle();
-    return data ? { ...plainObject(data.payload), expires_at: data.expires_at } : null;
-  } catch (_error) { return null; }
-}
-
-async function saveProviderBackoff(
-  db: ReturnType<typeof createClient>, provider: Record<string, any>, seconds: number, status: number, message: string, failureCount: number,
-): Promise<void> {
-  const now = new Date();
-  const until = new Date(now.getTime() + seconds * 1000);
-  try {
-    await db.from("football_public_cache").upsert({
-      cache_key: `livescore:v1:provider-backoff:${provider.id}`,
-      payload: { status, message: redactAdminDiagnostic(message), failure_count: failureCount, backoff_until: until.toISOString(), last_error_at: now.toISOString(), retry_after_seconds: seconds },
-      provider_name: String(provider.provider_name || "Football provider"),
-      fetched_at: now.toISOString(), expires_at: until.toISOString(),
-    });
-  } catch (_error) { /* Rate-limit protection is best-effort if the cache table is unavailable. */ }
-}
-
 function summarizeProviderErrorBody(bodyText: string): string {
   const text = String(bodyText || "").trim();
   if (!text) return "";
@@ -698,7 +965,7 @@ function summarizeProviderErrorBody(bodyText: string): string {
 
 async function providerRequest(
   provider: Record<string, any>, view: string, date: string, competition: string,
-  dateFrom = date, dateTo = date, routeOverride = "", page = 1,
+  dateFrom = date, dateTo = date, routeOverride = "", page = 1, timeoutMs = 10000,
 ): Promise<{ raw: unknown; response: Response }> {
   const base = validateBaseUrl(String(provider.api_base_url || ""));
   const route = expandProviderRoute(provider, view, date, competition, dateFrom, dateTo, routeOverride);
@@ -733,15 +1000,14 @@ async function providerRequest(
     }
   }
 
-  const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(10000), redirect: "error" });
+  const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
   if (response.status === 204) return { raw: [], response };
   if (!response.ok) {
     const errorText = (await response.text().catch(() => "")).slice(0, 4096);
     const detail = summarizeProviderErrorBody(errorText);
     const requestPath = safeProviderRequestUrl(target);
     const requestId = response.headers.get("x-request-id") || response.headers.get("x-correlation-id") || "";
-    const message = `Provider ${provider.provider_name} returned HTTP ${response.status} ${response.statusText || "error"}${detail ? `: ${detail}` : ". No error body was returned."} Request: ${requestPath}${requestId ? ` · Request ID: ${requestId}` : ""}`;
-    throw new ProviderHttpError(message, response.status, response.status === 429 ? retryAfterSeconds(response) : 0);
+    throw new Error(`Provider ${provider.provider_name} returned HTTP ${response.status} ${response.statusText || "error"}${detail ? `: ${detail}` : ". No error body was returned."} Request: ${requestPath}${requestId ? ` · Request ID: ${requestId}` : ""}`);
   }
   const responseText = await response.text();
   if (!responseText.trim()) return { raw: [], response };
@@ -939,7 +1205,7 @@ function mergeDuplicateMatch(existing: Record<string, any>, incoming: Record<str
     const otherSide = plainObject(other[side]);
     merged[side] = { ...otherSide, ...primarySide, logo: primarySide.logo || otherSide.logo || undefined };
   }
-  for (const key of ["home_score", "away_score", "minute", "competition_logo", "league_logo", "country_flag", "country_code", "venue", "venue_city", "venue_image", "match_image", "referee"]) {
+  for (const key of ["home_score", "away_score", "minute", "minute_extra", "status_code", "status_detail", "started_at", "competition_logo", "league_logo", "country_flag", "country_code", "venue", "venue_city", "venue_image", "match_image", "venue_id", "referee", "events", "statistics", "lineups", "standings", "head_to_head", "round"]) {
     if (merged[key] === null || merged[key] === undefined || merged[key] === "") merged[key] = other[key] ?? preferred[key] ?? merged[key];
   }
   const sources = [...new Set([...(Array.isArray(existing.source_providers) ? existing.source_providers : [existing.provider_name].filter(Boolean)), ...(Array.isArray(incoming.source_providers) ? incoming.source_providers : [incoming.provider_name].filter(Boolean))].map(String))];
@@ -1044,7 +1310,7 @@ async function fetchOneProvider(
     };
   }
   const code = String(provider.provider_code || "");
-  const cacheKey = cacheKeyOverride || `livescore:v4:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cacheKey = cacheKeyOverride || `livescore:v7:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const now = new Date();
   const { data: cached } = await db.from("football_public_cache")
     .select("payload,expires_at,provider_name").eq("cache_key", cacheKey).maybeSingle();
@@ -1059,51 +1325,6 @@ async function fetchOneProvider(
       pagination_pending: false, http_status: null,
     };
   }
-
-  const priorBackoff = await getProviderBackoff(db, String(provider.id));
-  const backoffUntil = Date.parse(String(priorBackoff?.backoff_until || priorBackoff?.expires_at || ""));
-  if (Number.isFinite(backoffUntil) && backoffUntil > now.getTime()) {
-    if (cached && Array.isArray(cached.payload?.matches) && (now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000)) {
-      return { ok: true, cached: true, stale: true, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: 429, rate_limited: true, pagination_pending: cachedIncomplete, pagination_progress: cachedIncomplete ? cachedPagination : null };
-    }
-    return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {}, http_status: 429, rate_limited: true, error: `HTTP 429 rate limit cooldown until ${new Date(backoffUntil).toISOString()}.` };
-  }
-
-  // A unique cache-key lease prevents concurrent visitor requests from firing the same provider
-  // endpoint at once. Other visitors use the last usable cache entry while the first request runs.
-  const lockKey = `livescore:v1:fetch-lock:${cacheKey}`;
-  const lockOwner = crypto.randomUUID();
-  let ownsLock = false;
-  const lockNow = new Date();
-  const lockExpires = new Date(lockNow.getTime() + 150000).toISOString();
-  const { error: lockInsertError } = await db.from("football_public_cache").insert({
-    cache_key: lockKey, payload: { owner: lockOwner }, provider_name: String(provider.provider_name || "Football provider"),
-    fetched_at: lockNow.toISOString(), expires_at: lockExpires,
-  });
-  if (!lockInsertError) ownsLock = true;
-  else {
-    const { data: existingLock } = await db.from("football_public_cache").select("expires_at").eq("cache_key", lockKey).maybeSingle();
-    if (existingLock && new Date(existingLock.expires_at) > lockNow) {
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 350));
-        const { data: refreshedCache } = await db.from("football_public_cache").select("payload,expires_at").eq("cache_key", cacheKey).maybeSingle();
-        if (refreshedCache && new Date(refreshedCache.expires_at) > new Date() && Array.isArray(refreshedCache.payload?.matches)) {
-          return { ok: true, cached: true, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: refreshedCache.payload.matches, diagnostics: refreshedCache.payload.diagnostics || {}, http_status: null };
-        }
-      }
-      if (cached && Array.isArray(cached.payload?.matches) && now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000) {
-        return { ok: true, cached: true, stale: true, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {}, http_status: null, sync_in_progress: true };
-      }
-      return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {}, http_status: null, sync_in_progress: true, error: "Provider request is already in progress; duplicate request suppressed." };
-    }
-    const { error: lockRefreshError } = await db.from("football_public_cache").upsert({
-      cache_key: lockKey, payload: { owner: lockOwner }, provider_name: String(provider.provider_name || "Football provider"),
-      fetched_at: lockNow.toISOString(), expires_at: lockExpires,
-    });
-    ownsLock = !lockRefreshError;
-    if (!ownsLock) return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {}, http_status: null, sync_in_progress: true, error: "Provider request is already in progress." };
-  }
-  const wasCoolingDown = Boolean(priorBackoff);
 
   try {
     const priorMatches = cachedIncomplete && Array.isArray(cachedPayload.matches) ? cachedPayload.matches : [];
@@ -1137,13 +1358,6 @@ async function fetchOneProvider(
         nextPage = page + 1;
       } catch (pageError) {
         pageFailure = pageError instanceof Error ? pageError.message : "page request failed";
-        if (pageError instanceof ProviderHttpError && pageError.status === 429) {
-          const previous = await getProviderBackoff(db, String(provider.id));
-          const failureCount = Number(previous?.failure_count || 0) + 1;
-          const cooldown = pageError.retryAfterSeconds || Math.min(1800, 300 * Math.pow(2, Math.max(0, failureCount - 1)));
-          await saveProviderBackoff(db, provider, cooldown, 429, pageFailure, failureCount);
-          await logPublicProviderEvent(db, provider, "public_provider_rate_limited", false, 429, `HTTP 429 during pagination. Automatic retry paused for ${cooldown} seconds. ${pageFailure}`);
-        }
         nextPage = page;
         break;
       }
@@ -1162,7 +1376,12 @@ async function fetchOneProvider(
     } else if (provider.provider_code === "footballapi-org") {
       normalized = normalizeFootballApiOrg(raw) as Record<string, any>[];
     } else {
-      const mapping = { ...builtInMapping(code), ...plainObject(provider.response_mapping) };
+      const savedMapping = plainObject(provider.response_mapping);
+      const mapping = { ...builtInMapping(code), ...savedMapping };
+      // Correct legacy SportScore presets created with the earlier mismatched widget field names.
+      if (code === "sportscore" && (savedMapping.id === "id" || savedMapping.home_team === "home_team" || savedMapping.kickoff === "kickoff")) {
+        Object.assign(mapping, builtInMapping(code));
+      }
       if (!Object.keys(mapping).length) throw new Error("No response mapping is configured for this API. Add its JSON field paths in Football Automation Room.");
       normalized = normalizeMapped(raw, mapping, code) as Record<string, any>[];
     }
@@ -1218,11 +1437,6 @@ async function fetchOneProvider(
     const cacheTtl = paginationComplete ? ttl : 15 * 60;
     const expiresAt = new Date(now.getTime() + cacheTtl * 1000).toISOString();
     await db.from("football_public_cache").upsert({ cache_key: cacheKey, payload, provider_name: provider.provider_name, fetched_at: now.toISOString(), expires_at: expiresAt });
-    if (wasCoolingDown) {
-      await db.from("football_public_cache").delete().eq("cache_key", `livescore:v1:provider-backoff:${provider.id}`);
-      await logPublicProviderEvent(db, provider, "public_provider_recovered", true, response?.status || 200, "Provider recovered after its request cooldown; fresh football data was retrieved.");
-    }
-    await logPublicProviderEvent(db, provider, "public_provider_sync", true, response?.status || 200, `Public feed sync completed: ${rawRecordCount} raw records, ${normalizedRecordCount} normalized records, ${combinedMatches.length} returned.`);
     return {
       ok: true, cached: false, stale: false, provider: provider.provider_name,
       provider_id: provider.id, provider_code: provider.provider_code,
@@ -1233,38 +1447,22 @@ async function fetchOneProvider(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Provider request failed.";
-    const status = error instanceof ProviderHttpError ? error.status : (Number((error as any)?.status) || (message.match(/HTTP (\d{3})/) ? Number(message.match(/HTTP (\d{3})/)![1]) : null));
-    if (status === 429) {
-      const retrySeconds = error instanceof ProviderHttpError ? error.retryAfterSeconds : 300;
-      const failureCount = Number(priorBackoff?.failure_count || 0) + 1;
-      const exponentialFallback = Math.min(1800, 300 * Math.pow(2, Math.max(0, failureCount - 1)));
-      const cooldownSeconds = error instanceof ProviderHttpError && error.retryAfterSeconds ? retrySeconds : exponentialFallback;
-      await saveProviderBackoff(db, provider, cooldownSeconds, 429, message, failureCount);
-      await logPublicProviderEvent(db, provider, "public_provider_rate_limited", false, 429, `HTTP 429 rate limited. Automatic retry paused for ${cooldownSeconds} seconds. ${message}`);
-    } else {
-      await logPublicProviderEvent(db, provider, "public_provider_fetch_failed", false, status, message);
-    }
-    if (cached && Array.isArray(cached.payload?.matches) && (now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000)) {
+    if (cached && Array.isArray(cached.payload?.matches) && (cachedIncomplete || now.getTime() - Date.parse(String(cached.expires_at)) <= 30 * 60 * 1000)) {
       return {
         ok: true, cached: true, stale: true, provider: provider.provider_name,
         provider_id: provider.id, provider_code: provider.provider_code,
         matches: cached.payload.matches, diagnostics: cached.payload.diagnostics || {},
-        http_status: status, rate_limited: status === 429,
+        http_status: null, error: message,
         pagination_pending: cachedIncomplete,
         pagination_progress: cachedIncomplete ? cachedPagination : null,
       };
     }
-    return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {}, http_status: status, rate_limited: status === 429, error: message };
-  } finally {
-    if (ownsLock) {
-      try { await db.from("football_public_cache").delete().eq("cache_key", lockKey).filter("payload->>owner", "eq", lockOwner); }
-      catch (_error) { /* The 150-second lease expires automatically if cleanup fails. */ }
-    }
+    return { ok: false, cached: false, stale: false, provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {}, http_status: null, error: message };
   }
 }
 
 const DAILY_WINDOW_BATCH_DAYS = 7;
-const DAILY_WINDOW_CONCURRENCY = 1;
+const DAILY_WINDOW_CONCURRENCY = 2;
 const DAILY_WINDOW_CACHE_TTL_SECONDS = 24 * 60 * 60;
 
 async function readWindowCursor(db: ReturnType<typeof createClient>, cacheKey: string, firstDate: string): Promise<{ nextDate: string; complete: boolean }> {
@@ -1318,7 +1516,7 @@ async function fetchFootballDataOrgWindowInBatches(
   rangeRoute: string,
 ): Promise<Record<string, any>> {
   const code = String(provider.provider_code || "football-data-org");
-  const cursorKey = `livescore:v4-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v7-fdo-range-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, dateFrom);
   let nextDate = cursor.nextDate;
   let chunkResult: Record<string, any> | null = null;
@@ -1338,7 +1536,7 @@ async function fetchFootballDataOrgWindowInBatches(
       .replaceAll("{date_to}", apiDateToExclusive)
       .replaceAll("{start_date}", chunkFrom)
       .replaceAll("{end_date}", apiDateToExclusive);
-    const chunkKey = `livescore:v4-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
+    const chunkKey = `livescore:v7-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:${chunkFrom}:${chunkThrough}`;
     chunkResult = await fetchOneProvider(
       db, provider, view, chunkFrom, competition, Math.max(DAILY_WINDOW_CACHE_TTL_SECONDS, ttl),
       chunkFrom, chunkThrough, chunkKey, chunkRoute, true, view === "today",
@@ -1351,7 +1549,7 @@ async function fetchFootballDataOrgWindowInBatches(
     );
   }
 
-  const cachePrefix = `livescore:v4-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
+  const cachePrefix = `livescore:v7-fdo-range-chunk:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}:`;
   const cachedWindow = await loadWindowDayCache(db, cachePrefix);
   let matches = cachedWindow.matches;
   try {
@@ -1413,13 +1611,13 @@ async function fetchProviderWindow(
     return fetchFootballDataOrgWindowInBatches(db, provider, view, selectedDate, competition, ttl, dateFrom, dateTo, rangeRoute);
   }
   if (rangeRoute) {
-    const cacheKey = `livescore:v4range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v7range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, rangeRoute, false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
 
   if (providerHasFullWindowFeed(provider, view)) {
-    const cacheKey = `livescore:v4season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    const cacheKey = `livescore:v7season:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, "", false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
@@ -1427,10 +1625,10 @@ async function fetchProviderWindow(
   // Date-only services are synchronized progressively. Every response handles the current day plus
   // a seven-day continuation batch, and the next visitor request resumes from the saved cursor.
   const primaryDay = dateFrom;
-  const primaryKey = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
+  const primaryKey = `livescore:v7day:${provider.id}:${view}:${dateFrom}:${dateTo}:${primaryDay}:${competition}`;
   const primary = await fetchOneProvider(db, provider, view, primaryDay, competition, ttl, primaryDay, primaryDay, primaryKey, "", true);
 
-  const cursorKey = `livescore:v4window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+  const cursorKey = `livescore:v7window-cursor:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
   const cursor = await readWindowCursor(db, cursorKey, shiftIsoDay(dateFrom, 1));
   let nextDate = cursor.nextDate;
   const batchResults: Record<string, any>[] = [];
@@ -1442,7 +1640,7 @@ async function fetchProviderWindow(
       nextDate = shiftIsoDay(nextDate, 1);
     }
     batchResults.push(...await runWithConcurrency(days, DAILY_WINDOW_CONCURRENCY, (day) => {
-      const key = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
+      const key = `livescore:v7day:${provider.id}:${view}:${dateFrom}:${dateTo}:${day}:${competition}`;
       return fetchOneProvider(db, provider, view, day, competition, DAILY_WINDOW_CACHE_TTL_SECONDS, day, day, key, "", true);
     }));
     const firstIncompleteIndex = batchResults.findIndex((item) => item.ok !== true || item.pagination_pending === true);
@@ -1453,7 +1651,7 @@ async function fetchProviderWindow(
     syncPending = !complete;
   }
 
-  const prefix = `livescore:v4day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
+  const prefix = `livescore:v7day:${provider.id}:${view}:${dateFrom}:${dateTo}:`;
   const cachedWindow = await loadWindowDayCache(db, prefix);
   let matches = cachedWindow.matches;
   try {
@@ -1544,64 +1742,185 @@ Deno.serve(async (request: Request) => {
       .eq("id", true).single();
     if (settingsError) throw settingsError;
 
+    // Match Centre reads one selected fixture from the server-side feed cache.
+    // The first response must be fast: optional stats/events/line-ups are loaded
+    // in a second request after the visible match card has rendered.
+    if (action === "match" || action === "match_details") {
+      if (settings?.public_livescore_enabled !== true) return reply(503, { ok: false, error: "Public LiveScore is paused by the administrator.", match: null });
+      const requestedKey = safeString(body.match_key || body.public_match_key || body.id).trim().slice(0, 500);
+      if (!requestedKey) return reply(400, { ok: false, error: "A match key is required.", match: null });
+      const providerPrefix = requestedKey.includes(":") ? requestedKey.split(":", 1)[0] : "";
+      const pattern = providerPrefix ? `livescore:v%:${providerPrefix}:%` : "livescore:v%";
+      const { data: cacheRows, error: cacheError } = await db.from("football_public_cache")
+        .select("cache_key,payload,expires_at,fetched_at,provider_name")
+        .like("cache_key", pattern)
+        .order("fetched_at", { ascending: false }).limit(500);
+      if (cacheError) throw cacheError;
+      let found: Record<string, any> | null = null;
+      let foundCache: Record<string, any> | null = null;
+      for (const cacheRow of cacheRows || []) {
+        const cachedPayload = plainObject(cacheRow.payload);
+        const rows = Array.isArray(cachedPayload.matches) ? cachedPayload.matches : [];
+        const candidate = rows.find((item: any) => {
+          const key = safeString(item?.public_match_key).trim();
+          if (key && key === requestedKey) return true;
+          const sourceIds = Array.isArray(item?.source_match_ids) ? item.source_match_ids.map(String) : [];
+          return sourceIds.includes(requestedKey) || safeString(item?.match_id || item?.id) === requestedKey;
+        });
+        if (candidate) { found = candidate; foundCache = cacheRow; break; }
+      }
+      if (!found) return reply(404, { ok: false, error: "This match was not found in the server-side LiveScore cache. Return to the scores page, refresh the fixtures, then open the match again.", match: null });
+
+      const expiresAt = foundCache?.expires_at ? Date.parse(String(foundCache.expires_at)) : NaN;
+      if (action === "match") {
+        return reply(200, {
+          ok: true, match: found,
+          provider: Array.isArray(found.source_providers) ? found.source_providers.join(" + ") : (foundCache?.provider_name || "Football provider"),
+          cached_at: foundCache?.fetched_at || null,
+          stale: Number.isFinite(expiresAt) ? expiresAt <= Date.now() : false,
+          details_pending: true,
+          message: "Match information loaded from the server-side public football cache. Optional detail sections are loading separately.",
+        });
+      }
+
+      const activeProviders = await loadActiveProviderConfigs(db, settings || {});
+      const providerIds = Array.isArray(found.source_provider_ids) ? found.source_provider_ids.map(String) : [];
+      const selectedProviderId = String(found.provider_config_id || providerPrefix);
+      const provider = activeProviders.find((item) => String(item.id) === selectedProviderId)
+        || activeProviders.find((item) => providerIds.includes(String(item.id)));
+      if (!provider) return reply(200, { ok: true, details: {}, detail_errors: ["The source provider is no longer active or its configuration is unavailable."], message: "Showing cached match information; optional provider details are unavailable." });
+      const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : safeString(found.kickoff).slice(0, 10);
+      const requestedSection = safeString(body.section).toLowerCase();
+      const detailResult = await fetchConfiguredMatchDetails(provider, found, requestedDate, requestedSection);
+      return reply(200, {
+        ok: true, details: detailResult.details, detail_errors: detailResult.errors,
+        provider: provider.provider_name || "Football provider",
+        message: detailResult.errors.length ? `Some optional match-centre endpoints were unavailable: ${detailResult.errors.slice(0, 3).join("; ")}` : "Available match details loaded.",
+      });
+    }
+
     const activeProviders = await loadActiveProviderConfigs(db, settings || {});
     if (action === "catalog") {
-      if (!activeProviders.length) return reply(200, { ok: true, competitions: [], competition_count: 0, provider_count: 0 });
+      if (!activeProviders.length) return reply(200, { ok: true, competitions: [], competition_count: 0, provider: "", provider_count: 0, message: "No public football APIs are active yet. Add verified providers in Football Automation Room to populate the competition catalogue." });
       const competitions = await loadCombinedCompetitionCatalog(db, activeProviders);
+      const providerLabel = `${activeProviders.length} active football API${activeProviders.length === 1 ? "" : "s"}`;
       return reply(200, {
         ok: true,
         competitions,
         competition_count: competitions.length,
+        provider: providerLabel,
         provider_count: activeProviders.length,
+        providers: activeProviders.map((item) => ({ id: item.id, name: item.provider_name, code: item.provider_code })),
+        message: competitions.length
+          ? `${competitions.length.toLocaleString("en-US")} unique competitions synchronized across ${providerLabel}.`
+          : `The active provider catalogue${activeProviders.length === 1 ? " has" : "s have"} not been synchronized yet. Sync each provider's competition catalogue in Football Automation Room.`,
       });
     }
 
-    if (settings?.public_livescore_enabled !== true || !activeProviders.length) return reply(200, { ok: true, matches: [], view, date, data_state: "empty", provider_count: 0 });
+    if (settings?.public_livescore_enabled !== true) return reply(200, { ok: true, matches: [], view, date, provider_count: 0, message: "Public LiveScore is paused by the administrator." });
+    if (!activeProviders.length) return reply(200, { ok: true, matches: [], view, date, provider_count: 0, message: "No football API providers have been activated. Add one or more verified providers in Football Automation Room." });
 
     const ttl = Math.max(15, Math.min(3600, Number(settings.cache_seconds || settings.public_livescore_cache_seconds || 60)));
     // All active providers are included. Requests are batched at a small concurrency level to avoid
     // sudden rate-limit spikes while still using every activated service in the same visitor response.
-    const providerResults = await runWithConcurrency(activeProviders, 3, async (provider) => {
+    const providerResults = await runWithConcurrency(activeProviders, 6, async (provider) => {
       try {
         return await fetchProviderWindow(db, provider, view, date, competition, ttl, dateFrom, dateTo);
       } catch (providerError) {
-        const detail = providerError instanceof Error ? providerError.message : "Provider window synchronization failed.";
-        await logPublicProviderEvent(db, provider, "public_provider_window_failed", false, null, detail);
         return {
           ok: false, cached: false, stale: false,
           provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code,
           matches: [], diagnostics: {}, http_status: null,
-          error: detail,
+          error: providerError instanceof Error ? providerError.message : "Provider window synchronization failed.",
         };
       }
     });
     const successfulProviders = providerResults.filter((result) => result.ok === true);
+    const failedProviders = providerResults.filter((result) => result.ok !== true);
     const providerMatches = providerResults.flatMap((result) => Array.isArray(result.matches) ? result.matches : []);
     const combined = deduplicateMatches(providerMatches, String(settings.selected_api_config_id || ""));
-    const providers = successfulProviders.filter((result) => Array.isArray(result.matches) && result.matches.length > 0).map((result) => ({
-      code: String(result.provider_code || "").toLowerCase(),
-      ok: true,
-      matches: result.matches.length,
+    const counts = providerResults.reduce((acc, result) => {
+      acc.raw_records += Number(result.diagnostics?.raw_records || 0);
+      acc.normalized_records += Number(result.diagnostics?.normalized_records || 0);
+      acc.cached_providers += result.cached ? 1 : 0;
+      acc.stale_providers += result.stale ? 1 : 0;
+      return acc;
+    }, { raw_records: 0, normalized_records: 0, cached_providers: 0, stale_providers: 0 });
+    const providers = providerResults.map((result) => ({
+      id: result.provider_id,
+      name: result.provider,
+      code: result.provider_code || "",
+      ok: result.ok,
+      cached: result.cached,
+      stale: result.stale,
+      matches: Array.isArray(result.matches) ? result.matches.length : 0,
+      sync_pending: result.sync_pending === true,
+      sync_progress: result.sync_progress || null,
+      pagination_pending: result.pagination_pending === true,
+      pagination_progress: result.pagination_progress || null,
+      ...(result.message ? { message: result.message } : {}),
+      http_status: result.http_status,
+      ...(result.error ? { error: result.error } : {}),
     }));
     if (!successfulProviders.length) {
-      // Diagnostics and provider failure details stay in football_automation_logs for admins only.
-      return reply(200, { ok: true, matches: [], view, date, data_state: "unavailable", providers: [], provider_count: activeProviders.length });
+      return reply(502, {
+        ok: false,
+        error: `All ${activeProviders.length} active football API provider(s) failed. ${failedProviders.slice(0, 3).map((item) => `${item.provider}: ${item.error}`).join("; ")}`,
+        matches: [],
+        provider_count: activeProviders.length,
+        providers,
+        diagnostics: { ...counts, duplicates_removed: 0, successful_providers: 0, failed_providers: failedProviders.length },
+      });
     }
 
+    const providerLabel = `${successfulProviders.length}/${activeProviders.length} football API${activeProviders.length === 1 ? "" : "s"}`;
+    const failureDetails = failedProviders.slice(0, 3).map((item) => `${item.provider}: ${String(item.error || "request failed").slice(0, 160)}`).join("; ");
+    const failuresNote = failedProviders.length
+      ? ` ${failedProviders.length} provider(s) failed (${failureDetails}${failedProviders.length > 3 ? "; more failures omitted" : ""}); successful feeds are still displayed.`
+      : "";
+    const staleNote = counts.stale_providers ? ` ${counts.stale_providers} provider cache(s) are temporarily stale.` : "";
     const pendingProviders = providerResults.filter((result) => result.sync_pending === true || result.pagination_pending === true);
+    const datePending = providerResults.filter((result) => result.sync_pending === true).length;
+    const pagePending = providerResults.filter((result) => result.pagination_pending === true).length;
+    const scannedDays = providerResults.reduce((max, result) => Math.max(max, Number(result.sync_progress?.scanned_days || 0)), 0);
+    const syncNote = pendingProviders.length
+      ? ` Sync in progress: ${datePending} provider(s) have date batches remaining (${scannedDays}/${windowDays} dates scanned); ${pagePending} provider(s) have more result pages.`
+      : ` Date window checked: ${dateFrom} to ${dateTo}.`;
+    const message = combined.matches.length
+      ? `${combined.matches.length.toLocaleString("en-US")} unique match(es) combined from ${providerLabel}; ${combined.duplicates_removed} duplicate(s) merged.${syncNote}${failuresNote}${staleNote}`
+      : `Connected to ${providerLabel}, but no matches matched the ${view} feed in ${dateFrom} to ${dateTo}. Raw records: ${counts.raw_records}; usable records: ${counts.normalized_records}.${syncNote}${failuresNote}${staleNote}`;
     return reply(200, {
       ok: true,
       matches: combined.matches,
       view,
       date,
+      date_from: dateFrom,
+      date_to: dateTo,
+      date_window_days: windowDays,
       sync_pending: pendingProviders.length > 0,
+      sync_pending_provider_count: pendingProviders.length,
       total_returned: combined.matches.length,
+      provider: providerLabel,
+      provider_count: activeProviders.length,
+      successful_provider_count: successfulProviders.length,
+      failed_provider_count: failedProviders.length,
       providers,
-      data_state: combined.matches.length ? "available" : "empty",
+      diagnostics: {
+        ...counts,
+        returned_records: combined.matches.length,
+        duplicates_removed: combined.duplicates_removed,
+        successful_providers: successfulProviders.length,
+        failed_providers: failedProviders.length,
+        window_days: windowDays,
+        window_sync_pending_providers: pendingProviders.length,
+        window_scanned_days: scannedDays,
+        fetched_at: new Date().toISOString(),
+      },
+      message,
       cached: providerResults.every((result) => result.cached === true),
     });
-  } catch (_error) {
-    // Do not return internal configuration, provider endpoint or Supabase errors to visitors.
-    return reply(200, { ok: true, matches: [], data_state: "unavailable" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Football data unavailable.";
+    return reply(502, { ok: false, error: message, matches: [] });
   }
 });
