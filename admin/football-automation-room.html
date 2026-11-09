@@ -6,13 +6,13 @@
   <meta name="description" content="PARROTHIT dedicated football API and LiveScore automation administration room.">
   <title>Football Automation Room | PARROTHIT</title>
   <link rel="stylesheet" href="../css/style.css">
-  <link rel="stylesheet" href="../css/football-automation-room.css?v=33-admin-provider-diagnostics-20261108">
+  <link rel="stylesheet" href="../css/football-automation-room.css?v=35-first-six-ready-presets-20261109">
   <script>document.documentElement.classList.add('football-room-auth-pending');</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
-  <script src="../js/football-api-directory.js?v=32-date-window-sync-20261108"></script>
-  <script src="../js/football-automation-room.js?v=33-admin-provider-diagnostics-20261108" defer></script>
+  <script src="../js/football-api-directory.js?v=35-first-six-ready-presets-20261109"></script>
+  <script src="../js/football-automation-room.js?v=35-first-six-ready-presets-20261109" defer></script>
 </head>
 <body class="football-room-page">
   <main class="fr-shell">
@@ -83,10 +83,10 @@
       </div>
       <div class="fr-notice"><strong>Security:</strong> API keys are encrypted by the server before storage. They are never returned to this page or written to browser storage. When editing a provider, leave the API key field blank to keep the previously saved key.</div>
       <article class="fr-panel fr-directory-panel" aria-labelledby="fr-directory-heading">
-        <div class="fr-panel-heading"><div><h3 id="fr-directory-heading">30 FREE-ACCESS FOOTBALL API & DATA SOURCES</h3><p>The first 30 entries are free plans or public open datasets. Every source has its own key/access page. Add unlimited independent configurations; live, delayed and historical sources are clearly labelled.</p></div><span class="fr-pill fr-pill-free">30 FREE SOURCES + MORE PROVIDERS</span></div>
+        <div class="fr-panel-heading"><div><h3 id="fr-directory-heading">FOOTBALL API PROVIDER DIRECTORY</h3><p>72 curated provider profiles are listed. The first six have reviewed configuration presets: endpoints, authentication, test routes and response mappings are prefilled. For key-based services, the admin only needs to add the provider-issued key. No-key services are labelled clearly.</p></div><span class="fr-pill fr-pill-free">6 PREFILLED STARTER SERVICES</span></div>
         <div class="fr-directory-tools"><label class="fr-field">Search football API services<input id="fr-directory-search" type="search" placeholder="Search provider, feature or category..."></label><span id="fr-directory-count" class="fr-directory-count">Loading free and partner sources…</span></div>
         <div id="fr-provider-directory-list" class="fr-provider-directory-list"><div class="fr-empty">Loading football API directory…</div></div>
-        <p class="fr-note">Important: the first 30 entries are no-cost API plans or open datasets, not 30 guaranteed real-time score APIs. Some return delayed results, historical data or highlights only. Live APIs have their own limits and attribution/licensing conditions. All configured providers remain independent; only enabled, tested providers explicitly added to the public feed are fetched. API keys are encrypted server-side.</p>
+        <p class="fr-note">Important: a directory profile is not a guarantee of live-score access. Coverage, quotas, freshness, commercial use and attribution depend on each provider plan. The first six presets use documented or existing provider routes; no-key providers do not issue API keys. Other profiles may need a custom adapter or vendor approval. Only enabled, tested providers explicitly added to the public feed are fetched. API keys are encrypted server-side.</p>
       </article>
       <div class="fr-grid-2 fr-api-layout">
         <form id="fr-api-form" class="fr-panel fr-form-panel" autocomplete="off">
@@ -96,8 +96,11 @@
             <label class="fr-field">Provider preset
               <select id="fr-provider-code">
                 <option value="custom">Custom provider</option>
-                <option value="openligadb">OpenLigaDB</option>
+                <option value="bzzoiro">Bzzoiro Sports Data</option>
+                <option value="sportapi-ai">SportAPI.ai</option>
+                <option value="sportscore">SportScore</option>
                 <option value="api-football">API-Football / API-Sports</option>
+                <option value="openligadb">OpenLigaDB</option>
                 <option value="football-data-org">football-data.org</option>
                 <option value="sportmonks">Sportmonks Football API v3</option>
                 <option value="footballapi-org">FootballAPI.org</option>
@@ -136,10 +139,16 @@
               <input id="fr-auth-query-param" type="text" maxlength="80" placeholder="api_key">
               <small>For query authentication only.</small>
             </label>
-            <label class="fr-field">API key / token
+            <div class="fr-field">
+              <label for="fr-api-key">API key / token</label>
               <input id="fr-api-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Enter key only when adding or replacing">
               <small id="fr-key-help">Never place a service-role key here. This is the third-party sports API key.</small>
-            </label>
+              <div id="fr-provider-resource-links" class="fr-provider-resource-links" hidden>
+                <a id="fr-form-key-link" href="#" target="_blank" rel="noopener noreferrer">Get API key ↗</a>
+                <a id="fr-form-docs-link" href="#" target="_blank" rel="noopener noreferrer">API documentation ↗</a>
+                <small id="fr-form-setup-note"></small>
+              </div>
+            </div>
             <label class="fr-field fr-field-wide">Custom request headers (JSON)
               <textarea id="fr-custom-headers" rows="3" spellcheck="false">{}</textarea>
               <small>Optional non-secret headers. Store credentials in the encrypted API key field, not here.</small>
@@ -150,11 +159,11 @@
             </label>
             <label class="fr-field fr-field-wide">Match endpoints (JSON)
               <textarea id="fr-endpoints" rows="5" spellcheck="false">{}</textarea>
-              <small>Define routes per view. Date-range APIs can use today_range, upcoming_range and results_range (or {from}/{to} placeholders in a standard route; for example, /fixtures?from={from}&amp;to={to}). Date-only APIs may use {date}; PARROTHIT syncs those dates in resumable 7-day batches. Also supported: {date_from}, {date_to}, {start_date}, {end_date}, {season}, {view}, {competition}.</small>
+              <small>Define routes per feed view. Optional Match Centre routes: match_details (one combined response), events, statistics, lineups, standings and head_to_head (aliases: h2h, table, match_events, match_statistics, match_lineups, competition_table, previous_meetings). Use placeholders such as {match_id}, {fixture_id}, {competition_id}, {home_id}, {away_id}, {season} and {date}. Date-range feeds may use {from}/{to}; date-only feeds sync in resumable 7-day batches. Add only routes documented by your API provider.</small>
             </label>
             <label class="fr-field fr-field-wide">Response mapping (JSON)
               <textarea id="fr-response-mapping" rows="7" spellcheck="false">{}</textarea>
-              <small>Map provider JSON paths into PARROTHIT fields. Example: {"matches_path":"response","id":"fixture.id","competition":"league.name","home_team":"teams.home.name","away_team":"teams.away.name","home_score":"goals.home","away_score":"goals.away","status":"fixture.status.short","kickoff":"fixture.date","minute":"fixture.status.elapsed"}. Empty mapping uses a known built-in adapter where available.</small>
+              <small>Map provider JSON paths into PARROTHIT fields. Competition/team fields include competition, competition_id, competition_type, competition_logo, country, home_team, away_team, home_logo and away_logo. Match fields include status, kickoff, minute, venue_name, venue_city and referee. Optional detail paths: events, statistics, lineups, standings and head_to_head. For endpoint responses you can also map events_path, statistics_path, lineups_path, standings_path and head_to_head_path. Competition catalogue mappings: competitions_path, catalog_id, catalog_name, catalog_logo, catalog_country, catalog_type, catalog_country_code and catalog_country_flag. Example: {"matches_path":"response","id":"fixture.id","competition":"league.name","competition_logo":"league.logo","country":"league.country","home_team":"teams.home.name","away_team":"teams.away.name","status":"fixture.status.short","kickoff":"fixture.date"}. Empty mapping uses a known built-in adapter where available. PARROTHIT never fabricates details that a provider does not return.</small>
             </label>
             <label class="fr-field">Priority
               <input id="fr-priority" type="number" min="1" max="999999" step="1" value="100" required>
@@ -169,11 +178,12 @@
           <article class="fr-panel">
             <h3>Quick provider presets</h3>
             <p class="fr-panel-desc">Select a provider to prefill its common connection settings. You still control the endpoint, plan and API key.</p>
-            <button type="button" class="fr-preset-row" data-fr-preset="openligadb"><span class="fr-preset-icon">OL</span><span><strong>OpenLigaDB</strong><small>Free · competition-specific (not worldwide) · no API key</small></span><b>＋</b></button>
-            <button type="button" class="fr-preset-row" data-fr-preset="api-football"><span class="fr-preset-icon">AF</span><span><strong>API-Football / API-Sports</strong><small>API key header: x-apisports-key</small></span><b>＋</b></button>
-            <button type="button" class="fr-preset-row" data-fr-preset="football-data-org"><span class="fr-preset-icon">FD</span><span><strong>football-data.org</strong><small>API key header: X-Auth-Token</small></span><b>＋</b></button>
-            <button type="button" class="fr-preset-row" data-fr-preset="sportmonks"><span class="fr-preset-icon">SM</span><span><strong>Sportmonks Football API v3</strong><small>API token · native football adapter</small></span><b>＋</b></button>
-            <button type="button" class="fr-preset-row" data-fr-preset="footballapi-org"><span class="fr-preset-icon">FA</span><span><strong>FootballAPI.org</strong><small>X-API-Key · native adapter · plan limits apply</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="bzzoiro"><span class="fr-preset-icon">BZ</span><span><strong>Bzzoiro Sports Data</strong><small>Token header · 30+ leagues · add provider key</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="sportapi-ai"><span class="fr-preset-icon">SA</span><span><strong>SportAPI.ai</strong><small>X-Api-Key · fixtures, events, stats, line-ups, table & H2H</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="sportscore"><span class="fr-preset-icon">SS</span><span><strong>SportScore</strong><small>No key required · attribution and monetization approval conditions</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="api-football"><span class="fr-preset-icon">AF</span><span><strong>API-Football / API-Sports</strong><small>x-apisports-key · 100 requests/day on free tier</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="openligadb"><span class="fr-preset-icon">OL</span><span><strong>OpenLigaDB</strong><small>No key · competition/season routes · strongest selected German leagues</small></span><b>＋</b></button>
+            <button type="button" class="fr-preset-row" data-fr-preset="football-data-org"><span class="fr-preset-icon">FD</span><span><strong>football-data.org</strong><small>X-Auth-Token · 10 requests/minute on documented free plan</small></span><b>＋</b></button>
           </article>
           <article class="fr-panel fr-provider-rules">
             <h3>Provider rules</h3>
@@ -205,13 +215,6 @@
         <p id="fr-diagnostics-summary" class="fr-form-feedback" role="status" aria-live="polite">Select or activate a provider, then run diagnostics to inspect real endpoint responses.</p>
         <div id="fr-diagnostics-results" class="fr-diagnostics-results"></div>
       </article>
-
-      <article class="fr-panel fr-public-health-panel">
-        <div class="fr-panel-heading"><div><h3>Public LiveScore Provider Health &amp; Error Log</h3><p>Administrator-only operational history from the public football feed. Visitor pages never receive these diagnostic messages.</p></div><button type="button" class="fr-button fr-button-quiet fr-button-small" id="fr-refresh-provider-logs">↻ Refresh diagnostics</button></div>
-        <div class="fr-table-scroll"><table class="fr-table fr-public-log-table"><thead><tr><th>Time</th><th>Provider</th><th>Event</th><th>HTTP</th><th>Status</th><th>Diagnostic details</th></tr></thead><tbody id="fr-public-provider-log-rows"><tr><td colspan="6" class="fr-empty">No public feed diagnostics recorded yet.</td></tr></tbody></table></div>
-        <p class="fr-note">Rate limits, provider errors, recovery events and successful sync summaries are recorded here. Credentials and authorization headers are redacted.</p>
-      </article>
-
       <article class="fr-panel fr-catalog-panel">
         <div class="fr-panel-heading"><div><h3>Worldwide competition catalogue</h3><p>Synchronize leagues and cups separately from match results so the visitor dropdown can list competitions even when they have no fixtures on the selected date.</p></div><span class="fr-pill fr-pill-stage">GLOBAL CATALOGUE</span></div>
         <div class="fr-catalog-controls">
@@ -221,7 +224,7 @@
         <p id="fr-catalog-feedback" class="fr-form-feedback" role="status" aria-live="polite">No competition catalogue synchronized in this session yet.</p>
         <p class="fr-note">Competition logos are stored with the catalogue and reused on visitor results and match-centre pages. Missing provider images receive a branded text fallback instead of a broken-image icon.</p>
       </article>
-      <article class="fr-panel"><div class="fr-panel-heading"><div><h3>LiveScore integration status</h3><p>Current implementation boundary.</p></div><span class="fr-pill fr-pill-stage">MULTI-PROVIDER</span></div><div class="fr-integration-line"><span class="fr-integration-dot"></span><div><strong>Provider-driven match feed</strong><small>Key-ready built-in adapters are available for OpenLigaDB, API-Football, football-data.org, Sportmonks and FootballAPI.org. The directory also includes custom, partner, historical and community services that must pass diagnostics before they can serve results. OpenLigaDB's preset is competition-specific and is not a global/worldwide source.</small></div><em id="fr-adapter-state">Ready to configure</em></div></article>
+      <article class="fr-panel"><div class="fr-panel-heading"><div><h3>LiveScore integration status</h3><p>Current implementation boundary.</p></div><span class="fr-pill fr-pill-stage">MULTI-PROVIDER</span></div><div class="fr-integration-line"><span class="fr-integration-dot"></span><div><strong>Provider-driven match feed</strong><small>The first six starter services are prefilled: Bzzoiro, SportAPI.ai, SportScore, API-Football, OpenLigaDB and football-data.org. Bzzoiro, SportAPI.ai, API-Football and football-data.org require provider keys; SportScore and OpenLigaDB do not. Coverage, quotas and details vary by service. OpenLigaDB is competition-specific, not a worldwide source.</small></div><em id="fr-adapter-state">Ready to configure</em></div></article>
     </section>
 
     <section class="fr-view" id="fr-view-settings" aria-labelledby="fr-settings-title">
