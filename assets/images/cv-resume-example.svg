@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="1040" viewBox="0 0 760 1040" role="img" aria-labelledby="title desc">
+  <title id="title">Example of a professional one-page CV</title>
+  <desc id="desc">An illustrative CV layout with a professional summary, contact information, work experience, education, skills and references.</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#101010" flood-opacity=".16"/></filter>
+  </defs>
+  <rect width="760" height="1040" fill="#f1f2f4"/>
+  <rect x="54" y="35" width="652" height="970" rx="10" fill="#fff" filter="url(#shadow)"/>
+  <rect x="54" y="35" width="652" height="14" rx="7" fill="#d71920"/>
+  <rect x="54" y="49" width="205" height="956" fill="#17191d"/>
+  <circle cx="156" cy="153" r="62" fill="#343943" stroke="#d71920" stroke-width="5"/>
+  <circle cx="156" cy="135" r="21" fill="#f2c8a8"/>
+  <path d="M112 206c6-35 26-51 44-51s39 16 45 51" fill="#f2c8a8"/>
+  <path d="M108 203c6-32 25-53 48-53s43 20 49 53" fill="#262a31"/>
+  <text x="91" y="262" fill="#fff" font-family="Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="2">CONTACT</text>
+  <rect x="91" y="278" width="132" height="3" fill="#d71920"/>
+  <text x="91" y="316" fill="#f0f0f0" font-family="Arial, sans-serif" font-size="14">candidate@example.com</text>
+  <text x="91" y="345" fill="#f0f0f0" font-family="Arial, sans-serif" font-size="14">+234 800 000 0000</text>
+  <text x="91" y="374" fill="#f0f0f0" font-family="Arial, sans-serif" font-size="14">Lagos, Nigeria</text>
+  <text x="91" y="403" fill="#f0f0f0" font-family="Arial, sans-serif" font-size="14">linkedin.com/in/example</text>
+  <text x="91" y="468" fill="#fff" font-family="Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="2">CORE SKILLS</text>
+  <rect x="91" y="484" width="132" height="3" fill="#d71920"/>
+  <g fill="#e7e7e7" font-family="Arial, sans-serif" font-size="15">
+    <text x="91" y="520">• Digital publishing</text><text x="91" y="552">• News writing</text><text x="91" y="584">• Research &amp; fact-checking</text><text x="91" y="616">• Social media</text><text x="91" y="648">• Team collaboration</text><text x="91" y="680">• Time management</text>
+  </g>
+  <text x="91" y="752" fill="#fff" font-family="Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="2">LANGUAGES</text>
+  <rect x="91" y="768" width="132" height="3" fill="#d71920"/>
+  <g fill="#e7e7e7" font-family="Arial, sans-serif" font-size="15"><text x="91" y="806">English — Fluent</text><text x="91" y="838">Yoruba — Fluent</text></g>
+  <text x="294" y="119" fill="#d71920" font-family="Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="3">SAMPLE CV · ILLUSTRATIVE ONLY</text>
+  <text x="294" y="174" fill="#17191d" font-family="Arial, sans-serif" font-size="40" font-weight="800">JORDAN ADAMS</text>
+  <text x="294" y="211" fill="#626872" font-family="Arial, sans-serif" font-size="20" font-weight="600">DIGITAL CONTENT SPECIALIST</text>
+  <rect x="294" y="239" width="365" height="4" fill="#d71920"/>
+  <text x="294" y="294" fill="#17191d" font-family="Arial, sans-serif" font-size="21" font-weight="800" letter-spacing="1">PROFESSIONAL PROFILE</text>
+  <g fill="#4d535c" font-family="Arial, sans-serif" font-size="15">
+    <text x="294" y="327">Digital publishing professional with experience in</text><text x="294" y="351">research, writing, content coordination and audience</text><text x="294" y="375">engagement. Committed to accurate, clear and useful</text><text x="294" y="399">reporting, strong teamwork and continuous learning.</text>
+  </g>
+  <text x="294" y="462" fill="#17191d" font-family="Arial, sans-serif" font-size="21" font-weight="800" letter-spacing="1">WORK EXPERIENCE</text>
+  <text x="294" y="500" fill="#17191d" font-family="Arial, sans-serif" font-size="17" font-weight="700">Content Assistant · Example Media Group</text>
+  <text x="294" y="525" fill="#d71920" font-family="Arial, sans-serif" font-size="14" font-weight="700">2023 – 2025</text>
+  <g fill="#4d535c" font-family="Arial, sans-serif" font-size="14">
+    <text x="294" y="557">• Researched and prepared digital content for review.</text><text x="294" y="582">• Checked names, dates and facts before publication.</text><text x="294" y="607">• Worked with editors to meet daily deadlines.</text>
+  </g>
+  <text x="294" y="668" fill="#17191d" font-family="Arial, sans-serif" font-size="21" font-weight="800" letter-spacing="1">EDUCATION</text>
+  <text x="294" y="706" fill="#17191d" font-family="Arial, sans-serif" font-size="17" font-weight="700">B.A. · Mass Communication</text>
+  <text x="294" y="731" fill="#d71920" font-family="Arial, sans-serif" font-size="14" font-weight="700">Example University · 2022</text>
+  <text x="294" y="792" fill="#17191d" font-family="Arial, sans-serif" font-size="21" font-weight="800" letter-spacing="1">TRAINING &amp; CERTIFICATIONS</text>
+  <g fill="#4d535c" font-family="Arial, sans-serif" font-size="14">
+    <text x="294" y="830">• Digital journalism fundamentals</text><text x="294" y="855">• Media ethics and fact-checking</text>
+  </g>
+  <text x="294" y="916" fill="#17191d" font-family="Arial, sans-serif" font-size="21" font-weight="800" letter-spacing="1">REFERENCES</text>
+  <text x="294" y="948" fill="#4d535c" font-family="Arial, sans-serif" font-size="14">Available on request · with permission</text>
+  <text x="380" y="984" text-anchor="middle" fill="#7a7f87" font-family="Arial, sans-serif" font-size="12">Replace every sample detail with your own accurate information.</text>
+</svg>
