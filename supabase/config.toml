@@ -19,7 +19,7 @@ verify_jwt = false
 [functions.parrothit-football-public]
 verify_jwt = false
 
-# Public job application submissions are validated and stored server-side. Owner actions
-# are authorized inside the function (Admin 1 only), not by browser table policies.
+# Public applicant submission is allowed without a visitor JWT. The Edge Function
+# independently verifies Admin 1 and the active device session for all inbox actions.
 [functions.parrothit-employment]
 verify_jwt = false
