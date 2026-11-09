@@ -30,3 +30,6 @@ body.football-room-page{margin:0;background:var(--fr-bg);color:var(--fr-ink);fon
 
 /* Free-source directory access labels */
 .fr-directory-badge.access-tag{white-space:normal;line-height:1.25}.fr-directory-badge.access-tag.mode-native{background:#dcfce7;color:#166534}.fr-directory-badge.access-tag.mode-historical{background:#f1eafe;color:#5b338d}.fr-directory-badge.access-tag.mode-custom,.fr-directory-badge.access-tag.mode-community{background:#e8f1ff;color:#164a81}.fr-directory-key-link{font-weight:950!important;text-decoration:underline!important;text-underline-offset:2px}.fr-directory-card-foot{align-items:flex-start}.fr-directory-card-foot small{line-height:1.35}
+
+/* Public feed operational diagnostics table (administrator-only). */
+.fr-public-health-panel .fr-public-log-table{min-width:980px}.fr-public-health-panel .fr-public-log-table td:last-child{min-width:300px;max-width:560px;white-space:normal;overflow-wrap:anywhere}.fr-public-health-panel .fr-public-log-table td:nth-child(3){font-weight:800;color:#344b3a}.fr-public-health-panel .fr-public-log-table td:nth-child(5){font-weight:900}
