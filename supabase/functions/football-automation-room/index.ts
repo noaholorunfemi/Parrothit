@@ -107,7 +107,7 @@ function cleanEndpoints(value: unknown): Record<string, string> {
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Match endpoints must be a JSON object.");
   const output: Record<string, string> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (!["live", "today", "upcoming", "results", "competitions"].includes(key)) throw new Error("Endpoint keys must be live, today, upcoming, results or competitions.");
+    if (!["live", "today", "upcoming", "results", "competitions", "match_details", "events", "statistics", "lineups", "standings", "table", "head_to_head", "h2h", "match_events", "match_statistics", "match_lineups", "competition_table", "previous_meetings"].includes(key)) throw new Error("Endpoint keys must be feed views, competitions, or supported match-centre detail routes (events, statistics, lineups, standings, head_to_head or match_details).");
     const route = cleanText(raw, 700);
     if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
       throw new Error(`The ${key} endpoint must be a relative path beginning with one slash.`);
@@ -126,7 +126,7 @@ function cleanResponseMapping(value: unknown): Record<string, unknown> {
   if (value == null) return {};
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Response mapping must be a JSON object.");
   const entries = Object.entries(value as Record<string, unknown>);
-  if (entries.length > 30) throw new Error("Response mapping cannot contain more than 30 entries.");
+  if (entries.length > 50) throw new Error("Response mapping cannot contain more than 50 entries.");
   const output: Record<string, unknown> = {};
   for (const [key, raw] of entries) {
     if (["live_status_values", "finished_status_values", "upcoming_status_values"].includes(key)) {
@@ -157,7 +157,7 @@ function defaultEndpoints(providerCode: string): Record<string, string> {
   if (providerCode === "openligadb") {
     // OpenLigaDB documents match lookup by league shortcut + season, not a global date query.
     // This preset intentionally targets one sample competition and must not be mistaken for worldwide coverage.
-    return { live: "/getmatchdata/bl1/{season}", today: "/getmatchdata/bl1/{season}", upcoming: "/getmatchdata/bl1/{season}", results: "/getmatchdata/bl1/{season}" };
+    return { live: "/getmatchdata/bl1/{season}", today: "/getmatchdata/bl1/{season}", upcoming: "/getmatchdata/bl1/{season}", results: "/getmatchdata/bl1/{season}", competitions: "/getavailableleagues/{season}" };
   }
   if (providerCode === "api-football") {
     return {
@@ -202,13 +202,21 @@ function defaultEndpoints(providerCode: string): Record<string, string> {
     live: "/events/live/?limit=200", today: "/events/?date_from={date}&date_to={date}&limit=200",
     upcoming: "/events/?date_from={date}&date_to={date}&status=upcoming&limit=200",
     results: "/events/?date_from={date}&date_to={date}&status=finished&limit=200",
+    competitions: "/leagues/",
   };
-  if (providerCode === "sportapi-ai") return { live: "/fixtures/date/{date}", today: "/fixtures/date/{date}", upcoming: "/fixtures/date/{date}", results: "/fixtures/date/{date}" };
+  if (providerCode === "sportapi-ai") return {
+    live: "/fixtures/date/{date}", today: "/fixtures/date/{date}", upcoming: "/fixtures/date/{date}", results: "/fixtures/date/{date}",
+    competitions: "/leagues", match_details: "/fixtures/{match_id}", events: "/fixtures/{match_id}/events",
+    statistics: "/fixtures/{match_id}/stats", lineups: "/fixtures/{match_id}/lineups",
+    standings: "/standings/{competition_id}", head_to_head: "/fixtures/h2h/{home_id}/{away_id}",
+  };
   if (providerCode === "sportscore") return {
     live: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
     today: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
     upcoming: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
     results: "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
+    match_details: "/api/widget/match/?sport=football&slug={match_slug}",
+    standings: "/api/widget/standings/?sport=football&slug={competition_slug}",
   };
   return {};
 }
@@ -258,12 +266,25 @@ function builtInMappingFor(providerCode: string): Record<string, unknown> {
     home_team: "homeTeam.name", away_team: "awayTeam.name", status: "status", kickoff: "utcDate",
   };
   if (providerCode === "bzzoiro") return {
-    matches_path: "results", id: "id", competition: "competition.name", home_team: "home_team", away_team: "away_team",
-    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "starting_at",
+    matches_path: "results", id: "id", competition: "league.name", competition_id: "league_id",
+    competition_type: "league.type", country: "league.country", country_code: "league.country_code",
+    home_team: "home_team", away_team: "away_team", home_score: "home_score", away_score: "away_score",
+    status: "status", kickoff: "event_date", minute: "current_minute", season: "season_id",
+    home_logo: "home_team.logo", away_logo: "away_team.logo", competition_logo: "league.logo",
+    competitions_path: "results", catalog_id: "id", catalog_name: "name", catalog_country: "country", catalog_type: "type", catalog_logo: "logo",
+    live_status_values: ["live", "in_play", "1h", "2h", "half_time", "ht", "extra_time", "penalties"],
+    finished_status_values: ["finished", "ft", "aet", "pen"], upcoming_status_values: ["upcoming", "scheduled", "postponed", "cancelled"],
   };
   if (providerCode === "sportapi-ai") return {
-    matches_path: "fixtures", id: "id", competition: "league_name", home_team: "home_team", away_team: "away_team",
-    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff_utc",
+    matches_path: "fixtures", id: "id", competition: "league_name", competition_id: "league_id",
+    competition_logo: "league_logo", competition_type: "league_type", country: "league_zone", country_code: "league_geo",
+    home_team: "home_team", away_team: "away_team", home_score: "home_score", away_score: "away_score",
+    home_logo: "home_logo", away_logo: "away_logo", home_team_id: "home_id", away_team_id: "away_id",
+    status: "status", status_detail: "status_detail", kickoff: "kickoff_utc", minute: "minute",
+    venue_name: "venue_name", venue_city: "city_name", referee: "referee_name", season: "season",
+    competitions_path: "leagues", catalog_id: "id", catalog_name: "name", catalog_country: "country", catalog_type: "type", catalog_logo: "logo",
+    live_status_values: ["LIVE", "IN_PLAY"], finished_status_values: ["FT", "AET", "PENS"],
+    upcoming_status_values: ["Scheduled", "Postponed", "Cancelled"],
   };
   if (providerCode === "footballdata-io") return {
     matches_path: "", id: "match_id", competition: "league.competition_name", competition_id: "league.league_id",
@@ -273,8 +294,15 @@ function builtInMappingFor(providerCode: string): Record<string, unknown> {
     upcoming_status_values: ["NS", "SCHEDULED", "TIMED", "UPCOMING", "POSTPONED"],
   };
   if (providerCode === "sportscore") return {
-    matches_path: "matches", id: "id", competition: "competition.name", home_team: "home_team", away_team: "away_team",
-    home_score: "home_score", away_score: "away_score", status: "status", kickoff: "kickoff",
+    matches_path: "matches", id: "slug", match_slug: "slug",
+    competition: "competition.name", competition_id: "competition.id", competition_slug: "competition.slug",
+    competition_logo: "competition.logo", country: "competition.country",
+    home_team: "home", away_team: "away", home_slug: "home_slug", away_slug: "away_slug",
+    home_score: "home_score", away_score: "away_score", home_logo: "home_logo", away_logo: "away_logo",
+    status: "status", status_detail: "status_text", kickoff: "time",
+    events: "timeline", statistics: "statistics", lineups: "lineups", standings: "standings",
+    live_status_values: ["LIVE", "IN_PLAY", "live"], finished_status_values: ["FT", "FINISHED", "finished"],
+    upcoming_status_values: ["NS", "SCHEDULED", "UPCOMING", "upcoming"],
   };
   return {};
 }
@@ -392,8 +420,15 @@ async function providerFetch(config: Record<string, any>, view: string, date: st
   let raw: unknown;
   try { raw = JSON.parse(bodyText); } catch { return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "Provider response was not valid JSON.", endpoint: safeEndpoint }; }
   if (hasProviderApiErrors(bodyText)) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "Provider returned an API-level error.", endpoint: safeEndpoint };
-  const mapping = Object.keys(plainObject(config.response_mapping)).length ? plainObject(config.response_mapping) : builtInMappingFor(String(config.provider_code || ""));
-  const rows = providerRows(raw, String(config.provider_code || ""), mapping);
+  const providerCode = String(config.provider_code || "").toLowerCase();
+  const savedMapping = plainObject(config.response_mapping);
+  const mapping = { ...builtInMappingFor(providerCode), ...savedMapping };
+  // Replace the earlier incorrect SportScore example map (id/home_team/kickoff)
+  // with the documented widget field names while preserving unrelated custom entries.
+  if (providerCode === "sportscore" && (savedMapping.id === "id" || savedMapping.home_team === "home_team" || savedMapping.kickoff === "kickoff")) {
+    Object.assign(mapping, builtInMappingFor(providerCode));
+  }
+  const rows = providerRows(raw, providerCode, mapping);
   if (!rows) return { http_status: response.status, raw_count: 0, usable_count: 0, list_found: false, duration_ms: duration, message: "JSON received, but no match list was found. Check matches_path in Response mapping.", endpoint: safeEndpoint };
   const normalizedForDiagnostics = String(config.provider_code || "").toLowerCase() === "sportapi-ai"
     ? rows.map((row: any) => ({ ...row, kickoff: row?.kickoff_utc ?? row?.datetime ?? row?.kickoff ?? row?.date ?? (raw as any)?.date, date: row?.date ?? (raw as any)?.date }))
@@ -657,10 +692,25 @@ function extractQuota(response: Response, bodyText: string) {
 
 
 function cleanImageUrl(value: unknown): string | null {
-  const text = cleanText(value, 1000);
+  const imageText = (value: unknown, depth = 0): string => {
+    if (depth > 3 || value === null || value === undefined) return "";
+    if (typeof value === "string" || typeof value === "number") return String(value).trim();
+    if (Array.isArray(value)) {
+      for (const item of value) { const candidate = imageText(item, depth + 1); if (candidate) return candidate; }
+    } else if (typeof value === "object") {
+      const object = value as Record<string, unknown>;
+      for (const key of ["url", "secure_url", "image_url", "imageUrl", "image_path", "path", "logo", "crest", "badge", "icon", "src"]) {
+        const candidate = imageText(object[key], depth + 1);
+        if (candidate) return candidate;
+      }
+    }
+    return "";
+  };
+  const text = cleanText(imageText(value), 1000);
   if (!text) return null;
   try {
-    const url = new URL(text);
+    const url = new URL(text.startsWith("//") ? `https:${text}` : text);
+    if (url.protocol === "http:") url.protocol = "https:";
     return url.protocol === "https:" ? url.href : null;
   } catch (_error) {
     return null;
@@ -692,7 +742,17 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
   else if (providerCode === "football-data-org") sourceRows = getPath(raw, "competitions");
   else if (providerCode === "sportmonks" || providerCode === "footballapi-org") sourceRows = getPath(raw, "data");
   else if (providerCode === "openligadb") sourceRows = Array.isArray(raw) ? raw : getPath(raw, "data");
-  else {
+  else if (providerCode === "bzzoiro") {
+    const candidates = ["results", "leagues", "data.results", "data.leagues", "data"];
+    sourceRows = Array.isArray(raw) ? raw : candidates.map((path) => getPath(raw, path)).find((value) => Array.isArray(value));
+  }
+  else if (providerCode === "sportapi-ai") {
+    const groups = getPath(raw, "data");
+    sourceRows = Array.isArray(groups) ? groups.flatMap((group: any) =>
+      (Array.isArray(group?.leagues) ? group.leagues : []).map((league: any) => ({
+        ...league, country: league?.country || group?.country || "International", geo: league?.geo || group?.geo || "",
+      }))) : [];
+  } else {
     const path = typeof mapping.competitions_path === "string" ? mapping.competitions_path : "";
     sourceRows = path ? getPath(raw, path) : firstCatalogPath(raw, ["response", "competitions", "leagues", "data", "results"]);
   }
@@ -745,13 +805,13 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
       : providerCode === "sportmonks" ? (row as any)?.image_path
       : providerCode === "footballapi-org" ? firstCatalogPath(row, ["image_url", "logo_url", "emblem"])
       : providerCode === "openligadb" ? firstCatalogPath(row, ["league_logo", "leagueLogo", "logo"])
-      : catalogPath(row, mapping, "catalog_logo", ["league.logo", "competition.logo", "emblem", "logo", "image"]);
+      : catalogPath(row, mapping, "catalog_logo", ["league.logo", "league.logo_url", "league.logoUrl", "league.image", "league.image_path", "league.crest", "league.badge", "competition.logo", "competition.logo_url", "competition.image", "competition.image_url", "competition.imageUrl", "competition.emblem", "competition.crest", "tournament.logo", "tournament.logo_url", "tournament.image", "tournament.image_url", "cup.logo", "championship.logo", "league_logo", "league_logo_url", "competition_logo", "competition_logo_url", "emblem", "crest", "badge", "logo", "image_url", "image_path", "image"]);
     const countryCode = providerCode === "api-football" ? country.code
       : providerCode === "football-data-org" ? area.code
       : providerCode === "sportmonks" ? firstCatalogPath(row, ["country.iso2", "country.code", "country_code"])
       : providerCode === "footballapi-org" ? firstCatalogPath(row, ["country_code", "country.code"])
       : providerCode === "openligadb" ? firstCatalogPath(row, ["countryCode", "country_code"])
-      : catalogPath(row, mapping, "catalog_country_code", ["country.code", "area.code", "country_code"]);
+      : catalogPath(row, mapping, "catalog_country_code", ["country.code", "area.code", "country_code", "geo"]);
     const countryFlag = providerCode === "api-football" ? country.flag
       : providerCode === "football-data-org" ? (area as any)?.flag
       : catalogPath(row, mapping, "catalog_country_flag", ["country.flag", "area.flag", "country_flag", "flag"]);
@@ -769,7 +829,9 @@ function normalizeCatalogRows(raw: unknown, config: Record<string, any>): Record
       : Number(years.length ? Math.max(...years) : 0);
     const current = providerCode === "api-football" ? currentSeason?.current === true : Boolean((row as any)?.currentSeason);
     const numericId = /^\d+$/.test(id) ? id : "";
-    const logo = cleanImageUrl(rawLogo) || (providerCode === "api-football" && numericId ? `https://media.api-sports.io/football/leagues/${numericId}.png` : null);
+    const logo = cleanImageUrl(rawLogo)
+      || (providerCode === "api-football" && numericId ? `https://media.api-sports.io/football/leagues/${numericId}.png` : null)
+      || (providerCode === "bzzoiro" && numericId ? `https://sports.bzzoiro.com/img/league/${numericId}/` : null);
     const flag = cleanImageUrl(countryFlag);
     byId.set(id, {
       provider_code: providerCode,
@@ -802,6 +864,8 @@ async function fetchCompetitionCatalog(config: Record<string, any>): Promise<Rec
     : providerCode === "sportmonks" ? "/leagues?include=country;seasons"
     : providerCode === "footballapi-org" ? "/v1/competitions"
     : providerCode === "openligadb" ? `/getavailableleagues/${new Date().getFullYear()}`
+    : providerCode === "bzzoiro" ? "/leagues/"
+    : providerCode === "sportapi-ai" ? "/leagues"
     : "";
   const route = typeof endpoints.competitions === "string" && String(endpoints.competitions).trim()
     ? String(endpoints.competitions).trim()
@@ -894,15 +958,7 @@ Deno.serve(async (request: Request) => {
         if (!page || page.length < pageSize) break;
       }
       const settings = await getSettings(admin);
-      const { data: logRows } = await admin.from("football_automation_logs")
-        .select("id,event_type,config_id,success,http_status,duration_ms,message,created_at")
-        .order("created_at", { ascending: false }).limit(75);
-      const providerNames = new Map(configs.map((item) => [String(item.id), String(item.provider_name || item.provider_code || "Football provider")]));
-      const recentLogs = (logRows || []).map((row: Record<string, any>) => ({
-        ...row,
-        provider_name: providerNames.get(String(row.config_id || "")) || "Deleted / unknown provider",
-      }));
-      return json(200, { ok: true, configs, settings, recent_logs: recentLogs });
+      return json(200, { ok: true, configs, settings });
     }
 
     if (action === "save") {
