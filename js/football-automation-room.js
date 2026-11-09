@@ -4,31 +4,76 @@
   window.__PARROTHIT_FOOTBALL_ROOM__ = true;
 
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, configs: [], settings: null, recentLogs: [], toastTimer: null };
+  const state = { client: null, configs: [], settings: null, toastTimer: null };
   function lagosToday() { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const get = (k) => parts.find((p) => p.type === k)?.value || ''; return `${get('year')}-${get('month')}-${get('day')}`; }
   const presets = {
     openligadb: {
       provider_code: 'openligadb', provider_name: 'OpenLigaDB (Free)', sport: 'football', plan_type: 'free',
       api_base_url: 'https://api.openligadb.de', test_path: '/getavailableleagues/{season}',
       auth_type: 'none', auth_header_name: '', auth_prefix: '', auth_query_param: '', needs_key: false,
-      endpoints: { live: '/getmatchdata/bl1/{season}', today: '/getmatchdata/bl1/{season}', upcoming: '/getmatchdata/bl1/{season}', results: '/getmatchdata/bl1/{season}' },
-      default_query_params: {}, custom_headers: {}, response_mapping: {}
+      endpoints: {
+        live: '/getmatchdata/bl1/{season}', today: '/getmatchdata/bl1/{season}',
+        upcoming: '/getmatchdata/bl1/{season}', results: '/getmatchdata/bl1/{season}',
+        competitions: '/getavailableleagues/{season}'
+      },
+      default_query_params: {}, custom_headers: {},
+      // The public function has a dedicated OpenLigaDB normalizer. Keep this map empty so
+      // its Team1/Team2/MatchResults schema is handled by that adapter instead of a generic map.
+      response_mapping: {}
     },
     'api-football': {
       provider_code: 'api-football', provider_name: 'API-Football / API-Sports', sport: 'football', plan_type: 'free',
       api_base_url: 'https://v3.football.api-sports.io', test_path: '/status',
       auth_type: 'header', auth_header_name: 'x-apisports-key', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/fixtures?live=all&timezone=Africa/Lagos', today: '/fixtures?date={date}&timezone=Africa/Lagos', upcoming: '/fixtures?date={date}&timezone=Africa/Lagos', results: '/fixtures?date={date}&timezone=Africa/Lagos', upcoming_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos', results_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos' },
+      endpoints: {
+        live: '/fixtures?live=all&timezone=Africa/Lagos',
+        today: '/fixtures?date={date}&timezone=Africa/Lagos',
+        upcoming: '/fixtures?date={date}&timezone=Africa/Lagos',
+        results: '/fixtures?date={date}&timezone=Africa/Lagos',
+        upcoming_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos',
+        results_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos',
+        competitions: '/leagues',
+        events: '/fixtures/events?fixture={match_id}',
+        statistics: '/fixtures/statistics?fixture={match_id}',
+        lineups: '/fixtures/lineups?fixture={match_id}',
+        standings: '/standings?league={competition_id}&season={season}',
+        head_to_head: '/fixtures/headtohead?h2h={home_id}-{away_id}&last=10'
+      },
       default_query_params: {}, custom_headers: {},
-      response_mapping: { matches_path: 'response', id: 'fixture.id', competition: 'league.name', home_team: 'teams.home.name', away_team: 'teams.away.name', home_score: 'goals.home', away_score: 'goals.away', status: 'fixture.status.short', kickoff: 'fixture.date', minute: 'fixture.status.elapsed', live_status_values: ['1H','2H','HT','ET','BT','P','LIVE','IN_PLAY'], finished_status_values: ['FT','AET','PEN'], upcoming_status_values: ['NS','TBD'] }
+      response_mapping: {
+        matches_path: 'response', id: 'fixture.id', competition: 'league.name', competition_id: 'league.id',
+        competition_type: 'league.type', competition_logo: 'league.logo', country: 'league.country',
+        country_code: 'league.country_code', country_flag: 'league.flag',
+        home_team: 'teams.home.name', home_logo: 'teams.home.logo', away_team: 'teams.away.name', away_logo: 'teams.away.logo',
+        home_score: 'goals.home', away_score: 'goals.away', status: 'fixture.status.short', status_detail: 'fixture.status.long',
+        kickoff: 'fixture.date', minute: 'fixture.status.elapsed', minute_extra: 'fixture.status.extra',
+        venue_id: 'fixture.venue.id', venue_name: 'fixture.venue.name', venue_city: 'fixture.venue.city', referee: 'fixture.referee',
+        live_status_values: ['1H','2H','HT','ET','BT','P','LIVE','IN_PLAY','PAUSED','SUSP','INT'],
+        finished_status_values: ['FT','AET','PEN','AWD','WO'], upcoming_status_values: ['NS','TBD','PST']
+      }
     },
     'football-data-org': {
       provider_code: 'football-data-org', provider_name: 'football-data.org', sport: 'football', plan_type: 'free',
       api_base_url: 'https://api.football-data.org', test_path: '/v4/competitions/PL',
       auth_type: 'header', auth_header_name: 'X-Auth-Token', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/v4/matches?status=LIVE', today: '/v4/matches?dateFrom={date}&dateTo={date}', upcoming: '/v4/matches?dateFrom={date}&dateTo={date}', results: '/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED', upcoming_range: '/v4/matches?dateFrom={from}&dateTo={to}', results_range: '/v4/matches?dateFrom={from}&dateTo={to}' },
+      endpoints: {
+        live: '/v4/matches?status=LIVE', today: '/v4/matches?dateFrom={date}&dateTo={date}',
+        upcoming: '/v4/matches?dateFrom={date}&dateTo={date}',
+        results: '/v4/matches?dateFrom={date}&dateTo={date}&status=FINISHED',
+        upcoming_range: '/v4/matches?dateFrom={from}&dateTo={to}', results_range: '/v4/matches?dateFrom={from}&dateTo={to}',
+        competitions: '/v4/competitions', match_details: '/v4/matches/{match_id}',
+        standings: '/v4/competitions/{competition_id}/standings'
+      },
       default_query_params: {}, custom_headers: {},
-      response_mapping: { matches_path: 'matches', id: 'id', competition: 'competition.name', home_team: 'homeTeam.name', away_team: 'awayTeam.name', home_score: 'score.fullTime.home', away_score: 'score.fullTime.away', status: 'status', kickoff: 'utcDate', live_status_values: ['IN_PLAY','PAUSED'], finished_status_values: ['FINISHED'], upcoming_status_values: ['SCHEDULED','TIMED','POSTPONED'] }
+      response_mapping: {
+        matches_path: 'matches', id: 'id', competition: 'competition.name', competition_id: 'competition.id',
+        competition_type: 'competition.type', competition_logo: 'competition.emblem', country: 'area.name',
+        country_code: 'area.code', country_flag: 'area.flag', home_team: 'homeTeam.name', home_logo: 'homeTeam.crest',
+        away_team: 'awayTeam.name', away_logo: 'awayTeam.crest', home_score: 'score.fullTime.home', away_score: 'score.fullTime.away',
+        status: 'status', kickoff: 'utcDate', venue_name: 'venue', minute: 'minute',
+        live_status_values: ['IN_PLAY','PAUSED','LIVE'], finished_status_values: ['FINISHED'],
+        upcoming_status_values: ['SCHEDULED','TIMED','POSTPONED']
+      }
     },
     sportmonks: {
       provider_code: 'sportmonks', provider_name: 'Sportmonks Football API v3', sport: 'football', plan_type: 'paid',
@@ -72,22 +117,80 @@
       provider_code: 'bzzoiro', provider_name: 'Bzzoiro Sports Data Football API', sport: 'football', plan_type: 'free',
       api_base_url: 'https://sports.bzzoiro.com/api/v2', test_path: '/events/live/?limit=5',
       auth_type: 'header', auth_header_name: 'Authorization', auth_prefix: 'Token', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/events/live/?limit=200', today: '/events/?date_from={date}&date_to={date}&limit=200', upcoming: '/events/?date_from={date}&date_to={date}&status=upcoming&limit=200', results: '/events/?date_from={date}&date_to={date}&status=finished&limit=200', upcoming_range: '/events/?date_from={from}&date_to={to}&limit=200', results_range: '/events/?date_from={from}&date_to={to}&limit=200' },
-      default_query_params: {}, custom_headers: {}, response_mapping: {}
+      endpoints: {
+        live: '/events/live/?limit=200', today: '/events/?date_from={date}&date_to={date}&limit=200',
+        upcoming: '/events/?date_from={date}&date_to={date}&status=upcoming&limit=200',
+        results: '/events/?date_from={date}&date_to={date}&status=finished&limit=200',
+        upcoming_range: '/events/?date_from={from}&date_to={to}&status=upcoming&limit=200',
+        results_range: '/events/?date_from={from}&date_to={to}&status=finished&limit=200',
+        competitions: '/leagues/', match_details: '/events/{match_id}/',
+        statistics: '/events/{match_id}/stats/', lineups: '/events/{match_id}/lineups/',
+        events: '/events/{match_id}/incidents/', standings: '/leagues/{competition_id}/standings/?season_id={season}',
+        head_to_head: '/events/{match_id}/h2h/'
+      },
+      default_query_params: {}, custom_headers: {},
+      response_mapping: {
+        matches_path: 'results', id: 'id', competition: 'league.name', competition_id: 'league_id',
+        competition_type: 'league.type', country: 'league.country', country_code: 'league.country_code',
+        competitions_path: 'results', catalog_id: 'id', catalog_name: 'name', catalog_country: 'country', catalog_type: 'type', catalog_logo: 'logo',
+        home_team: 'home_team', away_team: 'away_team', home_score: 'home_score', away_score: 'away_score',
+        status: 'status', kickoff: 'event_date', minute: 'current_minute', season: 'season_id',
+        home_logo: 'home_team.logo', away_logo: 'away_team.logo', competition_logo: 'league.logo',
+        events_path: 'incidents', statistics_path: 'stats', lineups_path: 'lineups',
+        standings_path: 'standings', head_to_head_path: 'fixtures',
+        live_status_values: ['live','in_play','1h','2h','half_time','ht','extra_time','penalties'],
+        finished_status_values: ['finished','ft','aet','pen'], upcoming_status_values: ['upcoming','scheduled','postponed','cancelled']
+      }
     },
     'sportapi-ai': {
       provider_code: 'sportapi-ai', provider_name: 'SportAPI.ai Football API', sport: 'football', plan_type: 'free',
       api_base_url: 'https://sportapi.ai/api', test_path: '/fixtures/date/{date}',
       auth_type: 'header', auth_header_name: 'X-Api-Key', auth_prefix: '', auth_query_param: '', needs_key: true,
-      endpoints: { live: '/fixtures/date/{date}', today: '/fixtures/date/{date}', upcoming: '/fixtures/date/{date}', results: '/fixtures/date/{date}' },
-      default_query_params: {}, custom_headers: {}, response_mapping: {}
+      endpoints: {
+        live: '/fixtures/date/{date}', today: '/fixtures/date/{date}',
+        upcoming: '/fixtures/date/{date}', results: '/fixtures/date/{date}',
+        competitions: '/leagues', match_details: '/fixtures/{match_id}',
+        events: '/fixtures/{match_id}/events', statistics: '/fixtures/{match_id}/stats',
+        lineups: '/fixtures/{match_id}/lineups', standings: '/standings/{competition_id}',
+        head_to_head: '/fixtures/h2h/{home_id}/{away_id}'
+      },
+      default_query_params: {}, custom_headers: {}, response_mapping: {
+        matches_path: 'fixtures', id: 'id', competition: 'league_name', competition_id: 'league_id',
+        competitions_path: 'data', catalog_id: 'id', catalog_name: 'name', catalog_country: 'country', catalog_type: 'type', catalog_logo: 'logo',
+        competition_logo: 'league_logo', competition_type: 'league_type', country: 'league_zone', country_code: 'league_geo',
+        home_team: 'home_team', away_team: 'away_team', home_logo: 'home_logo', away_logo: 'away_logo',
+        home_team_id: 'home_id', away_team_id: 'away_id', venue_id: 'venue_id', home_score: 'home_score', away_score: 'away_score',
+        status: 'status', status_detail: 'status_detail', kickoff: 'kickoff_utc', minute: 'minute',
+        venue_name: 'venue_name', venue_city: 'city_name', referee: 'referee_name', season: 'season',
+        events_path: 'events', statistics_path: 'data', lineups_path: 'data', standings_path: 'data', head_to_head_path: 'fixtures',
+        live_status_values: ['LIVE','IN_PLAY'], finished_status_values: ['FT','AET','PENS'],
+        upcoming_status_values: ['Scheduled','Postponed','Cancelled']
+      }
     },
     'sportscore': {
       provider_code: 'sportscore', provider_name: 'SportScore Public Football API', sport: 'football', plan_type: 'free',
       api_base_url: 'https://sportscore.com', test_path: '/api/widget/matches/?sport=football&limit=5&src=parrothit.com',
       auth_type: 'none', auth_header_name: '', auth_prefix: '', auth_query_param: '', needs_key: false,
-      endpoints: { live: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com', today: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com', upcoming: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com', results: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com' },
-      default_query_params: {}, custom_headers: {}, response_mapping: {}
+      endpoints: {
+        live: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com',
+        today: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com',
+        upcoming: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com',
+        results: '/api/widget/matches/?sport=football&limit=50&src=parrothit.com',
+        match_details: '/api/widget/match/?sport=football&slug={match_slug}',
+        standings: '/api/widget/standings/?sport=football&slug={competition_slug}'
+      },
+      default_query_params: {}, custom_headers: {},
+      response_mapping: {
+        matches_path: 'matches', id: 'slug', match_slug: 'slug', competition: 'competition.name',
+        competition_id: 'competition.id', competition_slug: 'competition.slug',
+        competition_logo: 'competition.logo', country: 'competition.country',
+        home_team: 'home', away_team: 'away', home_slug: 'home_slug', away_slug: 'away_slug',
+        home_score: 'home_score', away_score: 'away_score', status: 'status', status_detail: 'status_text', kickoff: 'time',
+        home_logo: 'home_logo', away_logo: 'away_logo', events: 'timeline', statistics: 'statistics', lineups: 'lineups',
+        standings: 'standings',
+        live_status_values: ['LIVE','IN_PLAY','live'], finished_status_values: ['FT','FINISHED','finished'],
+        upcoming_status_values: ['NS','SCHEDULED','UPCOMING','upcoming']
+      }
     }
   };
   const providerDirectory = Array.isArray(window.PARROTHIT_FOOTBALL_API_DIRECTORY) ? window.PARROTHIT_FOOTBALL_API_DIRECTORY : [];
@@ -101,6 +204,27 @@
 
   function populateProviderCodeOptions() {
     providerDirectory.forEach((item) => ensureProviderCodeOption(item.code, item.name));
+  }
+
+  function setProviderResourceLinks(code) {
+    const wrap = $('fr-provider-resource-links');
+    const keyLink = $('fr-form-key-link');
+    const docsLink = $('fr-form-docs-link');
+    const note = $('fr-form-setup-note');
+    if (!wrap || !keyLink || !docsLink || !note) return;
+    const item = providerDirectory.find((entry) => entry.code === code);
+    if (!item) { wrap.hidden = true; keyLink.removeAttribute('href'); docsLink.removeAttribute('href'); return; }
+    const keyUrl = item.keyPage || item.site || item.docs;
+    const docsUrl = item.docs || item.site || item.keyPage;
+    if (keyUrl) { keyLink.href = keyUrl; keyLink.hidden = false; keyLink.textContent = item.keyLabel || (item.noKey ? 'Open access / API page ↗' : 'Get API key ↗'); }
+    else { keyLink.hidden = true; keyLink.removeAttribute('href'); }
+    if (docsUrl) { docsLink.href = docsUrl; docsLink.hidden = false; docsLink.textContent = 'API documentation ↗'; }
+    else { docsLink.hidden = true; docsLink.removeAttribute('href'); }
+    const activationNote = String(item.activationNote || '').trim();
+    note.textContent = item.noKey
+      ? [item.optionalKey ? 'A key is optional. This preset uses the anonymous no-key feed; a registered key may increase the provider request limit.' : 'No key is issued for this service. Save the prefilled no-key configuration and test its public endpoint.', activationNote].filter(Boolean).join(' ')
+      : [presets[code] ? 'Preset fields are filled in. Add only the API key/token issued by this provider; credentials are encrypted server-side.' : 'This profile is a directory reference, not a fully verified adapter. Confirm endpoint and mapping details before activation.', activationNote].filter(Boolean).join(' ');
+    wrap.hidden = false;
   }
 
   function renderProviderDirectory() {
@@ -125,15 +249,16 @@
       const keyPage = item.keyPage || item.site || item.docs;
       if (keyPage) { const key = document.createElement('a'); key.href = keyPage; key.target = '_blank'; key.rel = 'noopener noreferrer'; key.textContent = item.keyLabel || (item.noKey ? 'Free access / no key ↗' : 'Get API key / access ↗'); key.className = 'fr-directory-key-link'; links.appendChild(key); }
       const saved = state.configs.filter((config) => config.provider_code === item.code).length;
-      const action = document.createElement('button'); action.type = 'button'; action.className = 'fr-button fr-button-small ' + (item.mode === 'native' ? 'fr-button-primary' : 'fr-button-quiet');
-      action.textContent = saved ? '＋ Add another' : (item.mode === 'native' ? 'Add API key' : 'Set up adapter'); action.setAttribute('data-fr-directory-config', item.code);
+      const hasPreset = Boolean(presets[item.code]);
+      const action = document.createElement('button'); action.type = 'button'; action.className = 'fr-button fr-button-small ' + (hasPreset ? 'fr-button-primary' : 'fr-button-quiet');
+      action.textContent = saved ? '＋ Add another' : (hasPreset ? (item.activationNote ? 'Configure · review terms' : (item.noKey ? 'Configure · no key' : 'Add API key')) : 'Set up adapter'); action.setAttribute('data-fr-directory-config', item.code);
       const foot = document.createElement('div'); foot.className = 'fr-directory-card-foot';
-      const count = document.createElement('small'); count.textContent = saved ? `${saved} configuration${saved === 1 ? '' : 's'} saved` : 'Not configured yet';
+      const count = document.createElement('small'); count.textContent = saved ? `${saved} configuration${saved === 1 ? '' : 's'} saved` : (hasPreset ? (item.activationNote ? 'Preset ready · review provider terms' : (item.noKey ? 'Preset ready · no key needed' : 'Preset ready · key only')) : 'Custom adapter required');
       foot.append(count, action);
       card.append(top, desc, links, foot); host.appendChild(card);
     });
     const count = $('fr-directory-count');
-    if (count) count.textContent = `Showing ${filtered.length} of ${providerDirectory.length} service profiles · first 30 are free/open access · ${providerDirectory.filter((item) => item.mode === 'native').length} built-in adapters`;
+    if (count) count.textContent = `Showing ${filtered.length} of ${providerDirectory.length} profiles · 6 prefilled starter services · ${Object.keys(presets).length} built-in adapter presets`; 
   }
 
   function applyDirectoryEntry(code) {
@@ -144,6 +269,7 @@
     ensureProviderCodeOption(item.code, item.name);
     $('fr-provider-code').value = item.code;
     $('fr-provider-name').value = item.name;
+    setProviderResourceLinks(code);
     $('fr-sport').value = 'football';
     $('fr-plan').value = item.accessLabel && /FREE/i.test(item.accessLabel) ? 'free' : (item.mode === 'partner' ? 'paid' : 'custom');
     $('fr-api-base').value = item.base || '';
@@ -154,7 +280,7 @@
     $('fr-auth-query-param').value = item.queryParam || '';
     $('fr-endpoints').value = JSON.stringify(item.endpoints || {}, null, 2);
     $('fr-response-mapping').value = JSON.stringify(item.mapping || {}, null, 2);
-    $('fr-key-help').textContent = item.noKey ? 'This is a no-key public dataset or endpoint. Configure an HTTPS feed importer and JSON mapping if the source is compatible; historical datasets are not real-time score APIs.' : 'The API key will be encrypted server-side. Use the provider API documentation linked above for the exact auth header/prefix, HTTPS base URL, endpoints and response mapping.';
+    $('fr-key-help').textContent = item.noKey ? 'No API key is required for this source.' : 'This directory profile may need additional adapter work. Provider credentials are encrypted server-side.';
     view('apis');
     feedback('fr-api-feedback', item.desc + (presets[code] ? ' The built-in adapter fills its supported endpoints automatically.' : ' Fill the provider-specific connection and response mapping fields, then run diagnostics.')); 
     $('fr-provider-name').focus();
@@ -414,31 +540,8 @@
     $('fr-public-refresh').value = String(settings.public_refresh_seconds || 60);
   }
 
-  function renderPublicProviderLogs() {
-    const body = $('fr-public-provider-log-rows');
-    if (!body) return;
-    body.replaceChildren();
-    if (!state.recentLogs.length) {
-      const tr = document.createElement('tr');
-      const td = appendCell(tr, 'No public-feed errors or sync events have been recorded yet.', 'fr-empty');
-      td.colSpan = 6; body.appendChild(tr); return;
-    }
-    state.recentLogs.forEach((entry) => {
-      const tr = document.createElement('tr');
-      const when = entry.created_at ? new Date(entry.created_at).toLocaleString() : '—';
-      const statusLabel = entry.success ? 'OK' : (Number(entry.http_status) === 429 ? 'RATE LIMITED' : 'ATTENTION');
-      appendCell(tr, when);
-      appendCell(tr, safeText(entry.provider_name, 'Football provider'));
-      appendCell(tr, safeText(entry.event_type, 'Provider event'));
-      appendCell(tr, entry.http_status == null ? '—' : String(entry.http_status));
-      appendCell(tr, statusLabel, entry.success ? 'fr-primary-cell' : '');
-      appendCell(tr, safeText(entry.message, 'No details supplied.'));
-      body.appendChild(tr);
-    });
-  }
-
   function renderAll() {
-    renderRows(); renderHealth(); renderPrimary(); renderSettings(); renderCatalogProviderOptions(); renderProviderDirectory(); renderPublicProviderLogs();
+    renderRows(); renderHealth(); renderPrimary(); renderSettings(); renderCatalogProviderOptions(); renderProviderDirectory();
     $('fr-stat-total').textContent = state.configs.length;
     $('fr-stat-enabled').textContent = state.configs.filter((x) => x.is_enabled).length;
     $('fr-stat-tested').textContent = state.configs.filter((x) => x.last_test_ok === true).length;
@@ -449,7 +552,6 @@
     const data = await callRoom('list');
     state.configs = Array.isArray(data.configs) ? data.configs : [];
     state.settings = data.settings || {};
-    state.recentLogs = Array.isArray(data.recent_logs) ? data.recent_logs : [];
     renderAll();
     setGlobalStatus('Football Automation Room connected. ' + state.configs.length + ' provider configuration(s) loaded. Newsroom Automation is separate and has not been changed.', 'ok');
   }
@@ -472,6 +574,7 @@
     $('fr-endpoints').value = '{}';
     $('fr-response-mapping').value = '{}';
     $('fr-api-key').value = '';
+    setProviderResourceLinks('custom');
     $('fr-priority').value = '100';
     $('fr-enabled').checked = true;
     $('fr-api-form-title').textContent = 'Add a provider';
@@ -491,6 +594,7 @@
     }
     clearForm();
     $('fr-provider-code').value = preset.provider_code;
+    setProviderResourceLinks(code);
     $('fr-provider-name').value = preset.provider_name;
     $('fr-sport').value = preset.sport;
     $('fr-plan').value = preset.plan_type;
@@ -505,11 +609,22 @@
     $('fr-endpoints').value = JSON.stringify(preset.endpoints || {}, null, 2);
     $('fr-response-mapping').value = JSON.stringify(preset.response_mapping || {}, null, 2);
     $('fr-priority').value = code === 'openligadb' ? '10' : '100';
-    $('fr-key-help').textContent = preset.needs_key ? 'Enter the API key/token from this provider account. It will be encrypted server-side.' : (code === 'sportscore' ? 'No API key is required. SportScore requires its visible dofollow attribution link on pages using its data.' : 'This provider preset does not require an API key.');
+    $('fr-key-help').textContent = preset.needs_key
+      ? 'Only add the API key/token issued by this provider. It will be encrypted server-side.'
+      : (code === 'sportscore'
+        ? 'No API key is required. Free-tier monetization is permitted with a visible dofollow Powered by SportScore link on every surface using its data. Contact the provider for higher-volume or attribution-free white-label use.'
+        : (code === 'openligadb'
+          ? 'No API key is required. The built-in OpenLigaDB adapter handles its Team1/Team2, MatchResults, competition and season fields; the response-map box is intentionally not needed.'
+          : 'No API key is required for this provider.'));
     view('apis');
+    const directoryItem = providerDirectory.find((item) => item.code === code);
+    const extraNote = directoryItem && directoryItem.activationNote ? ' ' + directoryItem.activationNote : '';
+    const presetMessage = code === 'openligadb'
+      ? 'OpenLigaDB preset loaded. Its native adapter handles the provider response; the sample competition route uses BL1 (Bundesliga 1) for the selected season. Check available leagues before changing the shortcut.'
+      : (preset.needs_key ? 'Preset loaded. All connection fields are prefilled. Add only your provider API key, save, then test.' : 'Preset loaded. No key is required; save it and test the connection.');
     feedback('fr-api-feedback', code === 'api-ninjas'
       ? 'API Ninjas preset loaded with LaLiga by default. Add your X-Api-Key and save, then test. Free is for private development/testing only; public cached feeds require an actual Business, Professional or Enterprise subscription. For more leagues, create one provider configuration per league.'
-      : (preset.needs_key ? 'Preset loaded. Add your provider API key, save, then run diagnostics.' : 'Free no-key preset loaded. Save it, then test the connection.'));
+      : presetMessage + extraNote);
     $('fr-provider-name').focus();
   }
 
@@ -518,6 +633,7 @@
     if (!config) return;
     $('fr-config-id').value = config.id;
     $('fr-provider-code').value = config.provider_code || 'custom';
+    setProviderResourceLinks(config.provider_code || 'custom');
     if (!$('fr-provider-code').querySelector('option[value="' + CSS.escape(config.provider_code || 'custom') + '"]')) $('fr-provider-code').value = 'custom';
     $('fr-provider-name').value = config.provider_name || '';
     $('fr-sport').value = ['football', 'multi-sport', 'other'].includes(config.sport) ? config.sport : 'other';
@@ -838,7 +954,6 @@
     $('fr-pause-public').addEventListener('click', pausePublicLivescore);
     $('fr-run-diagnostics')?.addEventListener('click', runActiveDiagnostics);
     $('fr-clear-livescore-cache')?.addEventListener('click', clearActiveCache);
-    $('fr-refresh-provider-logs')?.addEventListener('click', () => loadAll().catch((error) => setGlobalStatus(error.message, 'error')));
     $('fr-sync-competition-catalog')?.addEventListener('click', syncCompetitionCatalog);
     $('fr-api-rows').addEventListener('click', (event) => {
       const button = event.target.closest('[data-fr-action]');
@@ -846,7 +961,7 @@
     });
     $('fr-provider-code').addEventListener('change', () => {
       const code = $('fr-provider-code').value;
-      if (presets[code]) applyPreset(code); else if (providerDirectory.some((item) => item.code === code)) applyDirectoryEntry(code);
+      if (presets[code]) applyPreset(code); else if (providerDirectory.some((item) => item.code === code)) applyDirectoryEntry(code); else setProviderResourceLinks('custom');
     });
   }
 

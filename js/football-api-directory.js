@@ -24,7 +24,8 @@
       "upcoming": "/events/?date_from={date}&date_to={date}&status=upcoming&limit=200",
       "results": "/events/?date_from={date}&date_to={date}&status=finished&limit=200"
     },
-    "accessLabel": "FREE · API KEY",
+    "accessLabel": "FREE · API KEY · PREFILLED",
+    "setupStatus": "prefilled-key",
     "dataScope": "Live scores + fixtures/results · 30+ leagues",
     "desc": "Free football REST API. Uses Authorization: Token YOUR_API_KEY. Supports live events, date-window fixtures/results and pagination. WebSocket live add-on is separate; REST scores remain available."
   },
@@ -35,10 +36,11 @@
     "mode": "native",
     "site": "https://sportapi.ai/",
     "docs": "https://sportapi.ai/docs",
-    "keyPage": "https://sportapi.ai/",
+    "keyPage": "https://sportapi.ai/authorize",
     "keyLabel": "Create free account / get key ↗",
     "auth": "header",
     "header": "X-Api-Key",
+    "authPrefix": "",
     "base": "https://sportapi.ai/api",
     "test": "/fixtures/date/{date}",
     "endpoints": {
@@ -47,9 +49,10 @@
       "upcoming": "/fixtures/date/{date}",
       "results": "/fixtures/date/{date}"
     },
-    "accessLabel": "FREE · API KEY",
+    "accessLabel": "FREE · API KEY · PREFILLED",
+    "setupStatus": "prefilled-key",
     "dataScope": "Fixtures, scores, results · free quota applies",
-    "desc": "Free plan advertises 2,000 requests/day and 14,000/month. Current quickstart uses the X-Api-Key header. Date fixtures include scores/status; live freshness is about one minute. Free quota is limited to 2,000 requests/day and 14,000/month."
+    "desc": "The API quickstart specifies X-Api-Key for football data endpoints. The Free plan currently lists 2,000 requests/day; check the provider dashboard for any plan changes. Fixtures, events, stats, line-ups, standings and H2H are documented."
   },
   {
     "code": "sportscore",
@@ -58,8 +61,9 @@
     "mode": "native",
     "site": "https://sportscore.com/developers/",
     "docs": "https://sportscore.com/developers/api/",
-    "keyPage": "https://sportscore.com/developers/api/",
-    "keyLabel": "API access / no key required ↗",
+    "keyPage": "https://sportscore.com/developers/api/key/",
+    "keyLabel": "Optional free API key ↗",
+    "optionalKey": true,
     "noKey": true,
     "base": "https://sportscore.com",
     "test": "/api/widget/matches/?sport=football&limit=5&src=parrothit.com",
@@ -69,9 +73,11 @@
       "upcoming": "/api/widget/matches/?sport=football&limit=50&src=parrothit.com",
       "results": "/api/widget/matches/?sport=football&limit=50&src=parrothit.com"
     },
-    "accessLabel": "FREE · NO KEY",
-    "dataScope": "Live + recent scores · attribution required",
-    "desc": "Free public JSON API, approximately 10,000 requests/24h/IP. Requires a visible dofollow “Powered by SportScore” link on LiveScore pages using its data. Commercial white-label use needs separate approval."
+     "accessLabel": "NO KEY · ATTRIBUTION REQUIRED · PREFILLED",
+    "setupStatus": "prefilled-no-key",
+    "activationNote": "No key is required for the public widget API. Monetizing a site is permitted on the free tier when every page/surface using its data displays a visible crawlable dofollow ‘Powered by SportScore’ link to https://sportscore.com/. Contact SportScore for higher-volume use, an SLA, or attribution-free/white-label use.",
+    "dataScope": "Widget matches + match details + standings · attribution / permission conditions",
+    "desc": "Public widget API needs no key. Live/recent matches, match detail, standings, top scorers and player information are documented. Free-tier monetization is allowed with the visible dofollow Powered by SportScore link on every surface using its data; contact the provider for higher volume, SLA or attribution-free white-label use."
   },
   {
     "code": "api-football",
@@ -86,7 +92,8 @@
     "header": "x-apisports-key",
     "base": "https://v3.football.api-sports.io",
     "test": "/status",
-    "accessLabel": "FREE PLAN · API KEY",
+    "accessLabel": "FREE PLAN · API KEY · PREFILLED",
+    "setupStatus": "prefilled-key",
     "dataScope": "Live scores + fixtures + results · 100/day",
     "desc": "Free plan includes livescore, fixtures and results with 100 requests/day. Free seasons and request quota are limited; confirm the provider terms before production use."
   },
@@ -100,7 +107,8 @@
     "keyPage": "https://api.openligadb.de/index.html",
     "keyLabel": "Open API docs ↗",
     "noKey": true,
-    "accessLabel": "FREE · NO KEY",
+    "accessLabel": "FREE · NO KEY · PREFILLED",
+    "setupStatus": "prefilled-no-key",
     "dataScope": "Fixtures/results · supported competitions only",
     "desc": "Community-maintained football API with no API key. Coverage is strongest for selected German competitions; it is not a complete worldwide live-score source."
   },
@@ -117,7 +125,8 @@
     "header": "X-Auth-Token",
     "base": "https://api.football-data.org",
     "test": "/v4/competitions/PL",
-    "accessLabel": "FREE PLAN · API KEY",
+    "accessLabel": "FREE PLAN · API KEY · PREFILLED",
+    "setupStatus": "prefilled-key",
     "dataScope": "12 competitions · delayed scores + fixtures",
     "desc": "Free forever tier covers 12 competitions with fixtures and delayed scores (not live scores), league tables and 10 calls/minute. LiveScore subscription is separate."
   },
