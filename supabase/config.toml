@@ -18,3 +18,8 @@ verify_jwt = false
 # Public read-only LiveScore endpoint. Provider credentials stay server-side.
 [functions.parrothit-football-public]
 verify_jwt = false
+
+# Public job application submissions are validated and stored server-side. Owner actions
+# are authorized inside the function (Admin 1 only), not by browser table policies.
+[functions.parrothit-employment]
+verify_jwt = false
