@@ -50,7 +50,7 @@
     $('detailActions').innerHTML = '';
     const e = current.education || {}, x = current.experience || {}, ref = current.referee || {};
     const fields = [
-      ['Position',current.role_title],['Status',current.status],['Email',current.email],['Phone',current.phone],['Date of birth',current.date_of_birth],['Gender',current.gender],['Country',current.country],['City / State',current.city],['Address',current.address],
+      ['Position',current.role_title],['Status',current.status],['Email',current.email],['Phone',current.phone],['Date of birth',current.date_of_birth],['Gender',current.gender],['Country',current.country],['State / Province',current.state],['Local Government / District',current.local_government],['Town / City / Community',current.town || current.city],['Street / House address',current.street_address || current.address],
       ['Highest qualification',e.qualification],['Course',e.course],['Institution',e.institution],['Graduation year',e.graduation_year],['Experience',x.years],['Current employer',x.current_employer],['Previous job title',x.job_title],['Experience summary',x.summary],['Skills',current.skills],['Certifications',current.certifications],['Languages',current.languages],['Portfolio',current.portfolio_url],['LinkedIn',current.linkedin_url],['Referee',ref.name],['Referee email',ref.email],['Referee phone',ref.phone]
     ];
     $('detailBody').innerHTML = `<div class="detail-grid">${fields.map(([k,v]) => `<div class="fact"><b>${esc(k)}</b><span>${esc(v || '—')}</span></div>`).join('')}</div><h3>Application letter</h3><div class="jobbox">${esc(current.application_letter)}</div><h3>Confidential applicant documents</h3><div class="files" id="privateFiles"><span>Generating secure document links…</span></div>`;
