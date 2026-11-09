@@ -49,6 +49,23 @@ function imageKind(bytes: Uint8Array): string | null {
 }
 function safeName(name: string) { return name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-80) || "upload"; }
 
+async function sendResendTestEmail(to: string, ownerName: string) {
+  const key = Deno.env.get("RESEND_API_KEY") || "";
+  if (!key) throw new Error("Set RESEND_API_KEY in Supabase Edge Function secrets first.");
+  if (!emailOk(to)) throw new Error("Set EMPLOYMENT_TEST_RECIPIENT to the email address registered with your Resend account.");
+  // Resend's shared onboarding sender is for testing only. It does not require
+  // PARROTHIT to own a domain, but Resend restricts delivery to the account's
+  // verified/registered recipient address.
+  const from = "PARROTHIT Email Test <onboarding@resend.dev>";
+  const subject = "PARROTHIT employment email configuration test";
+  const text = `Hello ${ownerName || "Admin 1"},\\n\\nThis is a test email from the PARROTHIT employment Edge Function. It confirms that Supabase can reach Resend using the configured API key. This is only a test; no applicant was notified.\\n\\nPARROTHIT`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#17191d"><div style="background:#111820;color:#fff;padding:18px;border-bottom:5px solid #d71920"><h2 style="margin:0">PARROTHIT · Email test</h2></div><div style="padding:20px"><p>Hello ${esc(ownerName || "Admin 1")},</p><p>This test confirms that the PARROTHIT employment Edge Function can reach Resend using the configured API key.</p><p><b>This is only a test.</b> No applicant was notified and no application was changed.</p><p>When you purchase and verify your own domain, configure the verified sender for real applicant emails.</p></div></div>`;
+  const response = await fetch("https://api.resend.com/emails", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ from, to: [to], subject, html, text }), signal: AbortSignal.timeout(15000) });
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Resend test email failed (HTTP ${response.status}): ${body.slice(0, 500)}`);
+  return body;
+}
+
 async function sendEmail(to: string, subject: string, html: string, text: string, replyTo?: string) {
   const key = Deno.env.get("RESEND_API_KEY") || "";
   const from = Deno.env.get("EMPLOYMENT_FROM_EMAIL") || Deno.env.get("RESEND_FROM_EMAIL") || "";
@@ -319,6 +336,17 @@ Deno.serve(async (req: Request) => {
     if (action === "cancel_draft") return await cancelDraft(body, service);
     const owner = await ownerFromRequest(req, service);
     if ("error" in owner) return reply(owner.status, { error: owner.error });
+    if (action === "email_test") {
+      const recipient = clean(Deno.env.get("EMPLOYMENT_TEST_RECIPIENT"), 254).toLowerCase();
+      if (!emailOk(recipient)) return reply(400, { error: "Set EMPLOYMENT_TEST_RECIPIENT in Supabase Edge Function secrets to the email address registered with your Resend account. This test does not require a PARROTHIT domain." });
+      try {
+        await sendResendTestEmail(recipient, clean(owner.profile.display_name || owner.profile.username || "Admin 1", 120));
+        await service.from("admin_audit_log").insert({ actor: owner.user.id, action: "employment_email_test_sent", target_type: "employment_email", target_id: recipient, details: { provider: "resend_test_sender" } });
+        return reply(200, { success: true, message: `Test email accepted by Resend for ${recipient}. Check that inbox and spam folder. This is a test sender; applicant delivery is not enabled.` });
+      } catch (error) {
+        return reply(502, { error: String((error as Error).message || "Resend test email failed.") });
+      }
+    }
     if (action === "list") {
       const { data, error } = await service.from("employment_applications").select("*").neq("status", "draft").order("created_at", { ascending: false }).limit(300);
       if (error) return reply(500, { error: "Could not load employment applications: " + error.message });
