@@ -1,27 +1,78 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Employment Applications | PARROTHIT Admin</title>
-<link rel="stylesheet" href="../css/style.css"><link rel="stylesheet" href="../css/admin-responsive.css"><link rel="stylesheet" href="../css/admin-responsive-fixes.css">
-<script>document.documentElement.classList.add('employment-admin-pending');</script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.js"></script><script src="../js/admin-auth-guard.js"></script>
-<style>
-:root{--er:#d71920;--eb:#101010;--et:#171717;--em:#666;--el:#e5e5e5;--ep:#fff;--eg:#f6f6f6}*{box-sizing:border-box}body{margin:0;background:#f1f2f3;color:var(--et);font-family:Arial,sans-serif}.employment-admin-pending body{visibility:hidden}.wrap{max-width:1450px;margin:auto;padding:18px}.top{background:#111;color:#fff;border-bottom:6px solid var(--er);border-radius:13px;padding:20px;display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px}.brand img{width:55px;height:55px;object-fit:contain;background:white;border-radius:10px;padding:4px}.brand h1{margin:0;font-size:clamp(1.2rem,3vw,1.8rem)}.brand p{margin:5px 0 0;color:#ccc}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:8px;padding:10px 14px;font-weight:850;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;background:var(--er);color:#fff}.btn.dark{background:#333}.btn.light{background:#fff;color:#111;border:1px solid #ccc}.btn:disabled{opacity:.55;cursor:not-allowed}.notice{background:#fff;border:1px solid #ddd;border-left:5px solid var(--er);padding:13px 15px;border-radius:9px;margin:14px 0;line-height:1.5}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:14px 0}.stat,.panel{background:white;border:1px solid var(--el);border-radius:11px;padding:15px;box-shadow:0 4px 16px #00000008}.stat small{color:var(--em);font-weight:700}.stat strong{display:block;font-size:1.8rem;margin-top:5px}.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.tools input,.tools select,.field input,.field select,.field textarea{border:1px solid #ccc;border-radius:8px;padding:10px;font:inherit;background:#fff;color:#171717;min-width:0}.tools input{flex:1;min-width:220px}.list{display:grid;gap:10px;margin-top:14px}.app-row{background:#fff;border:1px solid #ddd;border-left:5px solid #888;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.app-row.pending{border-left-color:#d38b00}.app-row.accepted{border-left-color:#16803b}.app-row.rejected{border-left-color:#b91c1c}.app-row h3{margin:0 0 6px;font-size:1rem}.app-row p{margin:3px 0;color:#555;font-size:.86rem;line-height:1.4}.pill{display:inline-block;border-radius:30px;padding:5px 9px;font-size:.74rem;font-weight:900;text-transform:uppercase;background:#eee}.pill.pending{background:#fff1c9;color:#805500}.pill.accepted{background:#e3f8e9;color:#12652d}.pill.rejected{background:#ffe7e7;color:#991b1b}.detail{margin-top:14px}.detail h2{margin-top:0}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fact{border:1px solid #e5e5e5;border-radius:8px;padding:11px;min-width:0}.fact b{display:block;color:#666;font-size:.75rem;text-transform:uppercase;margin-bottom:5px}.fact span{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}.files{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.field{display:grid;gap:6px;font-weight:750;font-size:.88rem;min-width:0}.field textarea{min-height:110px;resize:vertical}.field small{font-size:.78rem;color:#666;font-weight:400;line-height:1.4}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.full{grid-column:1/-1}.status{padding:12px;border-radius:8px;line-height:1.5;margin:10px 0;display:none;white-space:pre-wrap}.status.show{display:block}.status.ok{background:#e8f8ed;color:#14532d}.status.bad{background:#fff0f0;color:#991b1b}.hidden{display:none!important}.empty{padding:25px;text-align:center;color:#666;border:1px dashed #ccc;border-radius:10px}.jobbox{background:#fafafa;border:1px solid #e5e5e5;border-radius:9px;padding:13px;white-space:pre-wrap;line-height:1.5}.foot{color:#666;font-size:.8rem;margin:18px 0;text-align:center}@media(max-width:700px){.wrap{padding:9px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-grid,.form-grid{grid-template-columns:1fr}.full{grid-column:auto}.top{padding:14px}.app-row .actions{width:100%}.app-row .btn{flex:1}}
-</style></head>
-<body><main class="wrap">
-<header class="top"><div class="brand"><img src="../assets/images/parrothit-logo.png" alt="PARROTHIT"><div><h1>Employment Applications</h1><p>Admin 1 (Owner) · Work with PARROTHIT</p></div></div><div class="actions"><a class="btn dark" href="dashboard.html">← Control Room</a><a class="btn light" href="../work-with-parrothit.html" target="_blank" rel="noopener">View careers page ↗</a><button class="btn" id="refreshBtn" type="button">Refresh applications</button></div></header>
-<div class="notice"><b>Owner-only recruitment destination.</b> Applicant passport photographs and resumes are private. Document links expire after five minutes. Accepting an applicant creates an administrator profile, subject to the 11-account PARROTHIT limit, and emails an employment letter, job description and secure password-setup link.</div>
-<div id="pageStatus" class="status" role="status" aria-live="polite"></div>
-<section class="stats"><div class="stat"><small>Total applications</small><strong id="statTotal">—</strong></div><div class="stat"><small>Pending review</small><strong id="statPending">—</strong></div><div class="stat"><small>Accepted</small><strong id="statAccepted">—</strong></div><div class="stat"><small>Rejected</small><strong id="statRejected">—</strong></div></section>
-<section class="panel"><div class="tools"><input id="searchApps" type="search" placeholder="Search applicant name, email or role"><select id="statusFilter" aria-label="Filter by application status"><option value="all">All applications</option><option value="pending">Pending</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select><select id="roleFilter" aria-label="Filter by role"><option value="all">All roles</option></select></div><div id="applicationList" class="list"><div class="empty">Loading applications…</div></div></section>
-<section class="panel detail hidden" id="applicationDetail"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><h2 id="detailTitle">Application details</h2><button class="btn dark" type="button" id="closeDetail">Close details</button></div><div id="detailBody"></div><div id="detailActions" class="actions" style="margin-top:16px"></div></section>
-<section class="panel detail hidden" id="decisionPanel"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><h2>Prepare employment offer</h2><button class="btn dark" type="button" id="cancelDecision">Cancel</button></div><p style="color:#555;line-height:1.5">Review the terms and job description before accepting. The system will create the administrator profile and send the offer to the applicant's email address.</p><form id="offerForm" class="form-grid">
-<label class="field">Employment type<select id="offerType"><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Remote</option><option>Internship</option><option>Volunteer</option></select></label>
-<label class="field">Proposed start date<input id="offerStart" type="date"></label>
-<label class="field">Reports to<input id="offerReports" value="Admin 1 (Owner)" maxlength="120"></label>
-<label class="field">Compensation / arrangement<input id="offerCompensation" maxlength="120" placeholder="e.g. As agreed separately"></label>
-<label class="field full">Final job description<textarea id="offerDescription" maxlength="5000" required></textarea><small>You may personalise this description before sending the employment letter.</small></label>
-<label class="field full">Owner's internal decision note (optional)<textarea id="offerNote" maxlength="1500" placeholder="Internal note, not included in the employment letter"></textarea></label>
-<div class="actions full"><button class="btn" id="acceptSubmit" type="submit">Accept applicant &amp; send employment offer</button></div></form></section>
-<p class="foot">PARROTHIT · Employment records are confidential. Keep applicant documents only as long as needed for recruitment and legitimate employment administration.</p>
-</main><script src="employment-applications.js" defer></script></body></html>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Employment Applications | PARROTHIT Admin 1</title>
+  <script>document.documentElement.classList.add('admin-auth-pending');</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <script src="../js/admin-auth-guard.js"></script>
+  <style>
+    :root{--red:#d71920;--red-dark:#a90f16;--ink:#17191d;--muted:#68717d;--line:#e5e7eb;--bg:#f2f4f7;--green:#087443}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+    html.admin-auth-pending body{visibility:hidden}.wrap{max-width:1240px;margin:auto;padding:18px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:#111820;color:#fff;border-radius:16px;padding:18px 20px;border-bottom:5px solid var(--red);box-shadow:0 8px 24px #10182720}
+    .brand{display:flex;gap:12px;align-items:center}.brand img{width:54px;height:54px;object-fit:contain;border-radius:12px;background:#fff;padding:4px}.brand h1{font-size:1.2rem;line-height:1.2;margin:0}.brand p{color:#d6d9de;margin:5px 0 0;font-size:.86rem}
+    .top-actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:0;border-radius:9px;padding:10px 14px;background:var(--red);color:#fff;font:800 .9rem system-ui;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:7px}.btn:hover{background:var(--red-dark)}.btn.dark{background:#27313d}.btn.light{background:#fff;color:#242a32;border:1px solid #d2d7de}.btn:disabled{opacity:.55;cursor:wait}
+    .owner-note{margin:14px 0;padding:13px 15px;background:#fff;border:1px solid #f1c5c7;border-left:5px solid var(--red);border-radius:10px;color:#343a40}
+    .status{display:none;margin:14px 0;padding:12px 14px;border-radius:10px;font-weight:650;overflow-wrap:anywhere}.status.show{display:block}.status.ok{background:#e7f7ef;color:#075d35;border:1px solid #b7e4ca}.status.bad{background:#fff0f0;color:#8e151b;border:1px solid #f0c2c4}
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:15px 0}.stat{background:#fff;border:1px solid var(--line);border-radius:13px;padding:15px;box-shadow:0 4px 14px #17203308}.stat span{display:block;color:var(--muted);font-size:.82rem;font-weight:700}.stat strong{display:block;font-size:1.8rem;margin-top:5px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:17px;margin:14px 0;box-shadow:0 5px 18px #1720330a}.card h2,.card h3{margin-top:0}.filters{display:grid;grid-template-columns:minmax(220px,1fr) minmax(150px,220px) minmax(180px,250px) auto;gap:9px;align-items:end}.field label{display:block;font-size:.82rem;font-weight:800;margin:0 0 5px}.field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid #cbd2da;border-radius:8px;background:#fff;color:#15191f;font:inherit;min-width:0}.field textarea{min-height:130px;resize:vertical}
+    .list{display:grid;gap:10px}.app-row{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:14px;border:1px solid var(--line);border-radius:11px;background:#fff}.app-row h3{margin:0 0 4px;font-size:1rem}.app-row p{margin:3px 0;color:#5e6670;font-size:.86rem}.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pill{display:inline-flex;border-radius:999px;padding:5px 10px;font-size:.75rem;font-weight:900;text-transform:uppercase;background:#e8edf3;color:#384250}.pill.pending{background:#fff0cf;color:#855500}.pill.accepted{background:#dcf7e9;color:#06663b}.pill.rejected{background:#ffe2e3;color:#9c1b22}.empty{padding:25px;text-align:center;color:#68717d;background:#fafbfc;border:1px dashed #d4d9df;border-radius:10px}
+    #applicationDetail.hidden,#decisionPanel.hidden{display:none}.detail-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:14px}.detail-head h2{margin:0}.detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.fact{padding:10px;border:1px solid #edf0f3;border-radius:9px;background:#fafbfc;min-width:0}.fact b{display:block;color:#5d6570;font-size:.75rem;text-transform:uppercase;letter-spacing:.035em}.fact span{display:block;margin-top:3px;overflow-wrap:anywhere}.jobbox{white-space:pre-wrap;background:#fafbfc;border:1px solid var(--line);padding:13px;border-radius:9px;overflow-wrap:anywhere}.documents{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.document-card{border:1px solid var(--line);border-radius:11px;padding:11px;background:#fafbfc;min-width:0}.document-card img{display:block;width:100%;height:280px;object-fit:contain;background:#eef0f3;border-radius:8px}.document-card h4{margin:0 0 8px}.document-card .btn{margin-top:8px}
+    .decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.decision-grid .full{grid-column:1/-1}.foot{color:#707985;font-size:.8rem;text-align:center;padding:12px}
+    @media(max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.filters{grid-template-columns:1fr 1fr}.filters .search{grid-column:1/-1}.detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:520px){.wrap{padding:9px}.top{padding:14px}.stats{gap:8px}.stat{padding:11px}.stat strong{font-size:1.5rem}.filters,.detail-grid,.documents,.decision-grid{grid-template-columns:1fr}.decision-grid .full{grid-column:auto}.document-card img{height:240px}.top-actions{width:100%}.top-actions .btn{flex:1}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="brand"><img src="../assets/images/parrothit-logo.png" alt="PARROTHIT"><div><h1>Employment Applications</h1><p>PARROTHIT Recruitment Control Centre · Admin 1 (Owner)</p></div></div>
+      <div class="top-actions"><a class="btn dark" href="dashboard.html">← Control Room</a><button class="btn light" id="refreshBtn" type="button">↻ Refresh inbox</button><button class="btn" id="signOutBtn" type="button">Sign out</button></div>
+    </header>
+    <div class="owner-note"><b>Private recruitment inbox.</b> Completed applications appear here for Admin 1 (Owner). Passport photographs and CV images are loaded only through five-minute signed links from the private <code>employment-private</code> bucket.</div>
+    <div class="status" id="pageStatus" role="status" aria-live="polite"></div>
+    <section class="stats" aria-label="Application totals">
+      <div class="stat"><span>Total applications</span><strong id="statTotal">0</strong></div>
+      <div class="stat"><span>Awaiting review</span><strong id="statPending">0</strong></div>
+      <div class="stat"><span>Accepted</span><strong id="statAccepted">0</strong></div>
+      <div class="stat"><span>Rejected</span><strong id="statRejected">0</strong></div>
+    </section>
+    <section class="card">
+      <h2>Applicant inbox</h2>
+      <div class="filters">
+        <div class="field search"><label for="searchApps">Search applicants</label><input id="searchApps" type="search" placeholder="Name, email, phone or position"></div>
+        <div class="field"><label for="statusFilter">Application status</label><select id="statusFilter"><option value="all">All statuses</option><option value="pending">Awaiting review</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option></select></div>
+        <div class="field"><label for="roleFilter">Position</label><select id="roleFilter"><option value="all">All positions</option></select></div>
+        <button class="btn dark" id="clearFilters" type="button">Clear filters</button>
+      </div>
+      <div class="list" id="applicationList" style="margin-top:14px"><div class="empty">Loading applications…</div></div>
+    </section>
+    <section class="card hidden" id="applicationDetail">
+      <div class="detail-head"><h2 id="detailTitle">Applicant details</h2><button class="btn light" id="closeDetail" type="button">Close details</button></div>
+      <div id="detailBody"></div>
+      <div class="actions" id="detailActions" style="margin-top:16px"></div>
+    </section>
+    <section class="card hidden" id="decisionPanel">
+      <h2>Prepare official employment offer</h2>
+      <p class="muted">Review the role description and offer details. On acceptance, the system sends the employment letter and job description to the applicant's registered email.</p>
+      <form id="offerForm">
+        <div class="decision-grid">
+          <div class="field"><label for="offerType">Employment type</label><select id="offerType" required><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option><option>Volunteer</option></select></div>
+          <div class="field"><label for="offerStart">Proposed start date</label><input id="offerStart" type="date"></div>
+          <div class="field"><label for="offerReports">Reports to</label><input id="offerReports" value="Admin 1 (Owner)" required></div>
+          <div class="field"><label for="offerCompensation">Compensation</label><input id="offerCompensation" value="As agreed separately" required></div>
+          <div class="field full"><label for="offerDescription">Job description included in the offer</label><textarea id="offerDescription" required></textarea></div>
+          <div class="field full"><label for="offerNote">Internal decision note (optional)</label><textarea id="offerNote" style="min-height:76px"></textarea></div>
+        </div>
+        <div class="actions" style="margin-top:14px"><button class="btn" id="acceptSubmit" type="submit">Accept applicant &amp; send offer</button><button class="btn light" id="cancelDecision" type="button">Cancel</button></div>
+      </form>
+    </section>
+    <p class="foot">PARROTHIT · NEWS THAT SPEAKS! · Confidential recruitment records</p>
+  </main>
+  <script src="employment-applications.js?v=20261109-2" defer></script>
+</body>
+</html>
