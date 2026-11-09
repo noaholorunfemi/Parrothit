@@ -188,7 +188,7 @@ async function verifyStoredImage(service: any, appId: string, path: string, expe
 async function completeDraft(body: any, service: any) {
   const id = clean(body.application_id || body.id, 80), token = clean(body.draft_token, 200);
   if (!id || !token) return reply(400, { error: "The secure application upload session is incomplete. Please submit the form again." });
-  const { data: app, error } = await service.from("employment_applications").select("id,status,draft_token_hash,created_at,passport_path,resume_path,passport_mime,resume_mime").eq("id", id).eq("status", "draft").maybeSingle();
+  const { data: app, error } = await service.from("employment_applications").select("id,status,draft_token_hash,created_at,passport_path,resume_path,passport_mime,resume_mime,email,first_name,last_name,role_title").eq("id", id).eq("status", "draft").maybeSingle();
   if (error || !app || !app.draft_token_hash || await sha256(token) !== app.draft_token_hash) return reply(403, { error: "This application upload session is invalid or has expired. Please submit the form again." });
   if (Date.now() - new Date(app.created_at).getTime() > 27 * 60 * 60 * 1000) return reply(410, { error: "The secure upload session has expired. Please submit the application again." });
   try {
@@ -196,6 +196,19 @@ async function completeDraft(body: any, service: any) {
     const resumeSize = await verifyStoredImage(service, id, app.resume_path, app.resume_mime, 50 * 1024 * 1024, "resume image");
     const { error: updateError } = await service.from("employment_applications").update({ status: "pending", passport_size: passportSize, resume_size: resumeSize, draft_token_hash: null }).eq("id", id).eq("status", "draft").eq("draft_token_hash", app.draft_token_hash);
     if (updateError) throw new Error("Your uploaded files could not be attached to the application. Please try again.");
+
+    // Optional owner alert: the application is already safely stored, so an email
+    // notification failure must never undo or block a candidate's submission.
+    const ownerEmail = clean(Deno.env.get("EMPLOYMENT_OWNER_EMAIL"), 254).toLowerCase();
+    const emailConfigured = !!(Deno.env.get("RESEND_API_KEY") && (Deno.env.get("EMPLOYMENT_FROM_EMAIL") || Deno.env.get("RESEND_FROM_EMAIL")));
+    if (emailOk(ownerEmail) && emailConfigured) {
+      const applicantName = `${clean(app.first_name, 80)} ${clean(app.last_name, 80)}`.trim();
+      const subject = `New PARROTHIT employment application — ${clean(app.role_title, 140)}`;
+      const html = `<div style="font-family:Arial,sans-serif;color:#17191d;max-width:650px;margin:auto;border:1px solid #e5e7eb"><div style="background:#111820;color:#fff;padding:18px;border-bottom:5px solid #d71920"><h2 style="margin:0">PARROTHIT · New employment application</h2></div><div style="padding:22px"><p>A candidate has completed an employment application. Sign in as Admin 1 (Owner) and open the Employment Applications inbox to review the full application and private documents.</p><p><b>Applicant:</b> ${esc(applicantName)}<br><b>Position:</b> ${esc(app.role_title)}<br><b>Email:</b> ${esc(app.email)}<br><b>Reference:</b> ${esc(id)}</p><p><a href="${SITE_URL}/admin/employment-applications.html" style="display:inline-block;background:#d71920;color:#fff;text-decoration:none;padding:12px 17px;border-radius:8px;font-weight:800">Open private application inbox</a></p><p style="font-size:12px;color:#626a74">This notice contains no passport or CV attachment. Candidate documents remain in the private employment bucket.</p></div></div>`;
+      const text = `A new PARROTHIT employment application has been received. Applicant: ${applicantName}. Position: ${clean(app.role_title, 140)}. Email: ${clean(app.email, 254)}. Reference: ${id}. Review securely at ${SITE_URL}/admin/employment-applications.html. No applicant documents are attached.`;
+      try { await sendEmail(ownerEmail, subject, html, text, clean(app.email, 254)); }
+      catch (notifyError) { console.error("Employment application owner notification failed", notifyError); }
+    }
     return reply(200, { success: true, application_id: id, message: "Your employment application has been submitted successfully." });
   } catch (error) {
     return reply(400, { error: String((error as Error).message || "The uploaded documents could not be verified.") });
