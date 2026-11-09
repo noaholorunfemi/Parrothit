@@ -148,6 +148,14 @@
     } catch (error) { status(error.message); }
     finally { $('acceptSubmit').disabled = false; $('acceptSubmit').textContent = 'Accept applicant & send offer'; }
   });
+  $('emailTestBtn').addEventListener('click', async () => {
+    const button = $('emailTestBtn');
+    if (!confirm('Send a test email to the Resend account recipient configured in Supabase? This does not notify applicants.')) return;
+    button.disabled = true; button.textContent = 'Sending test…';
+    try { const data = await api({ action: 'email_test' }); status(data.message, true); }
+    catch (error) { status(error.message); }
+    finally { button.disabled = false; button.textContent = '✉ Send test email'; }
+  });
   $('refreshBtn').addEventListener('click', () => load().catch(error => status(error.message)));
   $('searchApps').addEventListener('input', renderList);
   $('statusFilter').addEventListener('change', renderList);
