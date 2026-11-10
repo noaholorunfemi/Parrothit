@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#08090b">
+  <meta name="description" content="Browse public PARROTHIT news categories including Nigeria, world, politics, business, technology, education, health, entertainment and sports.">
+  <title>News Categories | PARROTHIT</title>
+  <link rel="icon" href="/assets/images/parrothit-logo.png">
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#08090b;color:#f8fafc;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif}
+    body{background:radial-gradient(circle at 12% 0%,#351014 0,transparent 34%),radial-gradient(circle at 90% 88%,#302508 0,transparent 32%),#08090b}
+    a{color:inherit;text-decoration:none}.wrap{width:min(1160px,calc(100% - 32px));margin:0 auto}
+    header{display:flex;align-items:center;gap:14px;padding:22px 0;border-bottom:1px solid #ffffff24}
+    header img{width:60px;height:60px;object-fit:contain;border-radius:14px}header strong{display:block;letter-spacing:.09em;font-size:14px}header small{display:block;color:#cbd5e1;margin-top:4px}
+    .toplinks{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;justify-content:center;padding:9px 13px;border:1px solid #ffffff30;border-radius:999px;background:#15171c;font-size:12px;font-weight:800}.pill.red{border-color:#dc2626;background:#991b1b}
+    main{padding:36px 0 48px}.eyebrow{color:#fde047;text-transform:uppercase;font-size:11px;font-weight:900;letter-spacing:.16em}.hero h1{font-size:clamp(30px,5vw,48px);line-height:1.08;margin:10px 0}.hero h1 span{color:#f87171}.hero p{max-width:760px;color:#cbd5e1;line-height:1.65;margin:0}
+    .section-title{display:flex;align-items:center;gap:12px;margin:30px 0 14px}.section-title h2{font-size:18px;margin:0}.section-title:after{content:"";height:1px;background:#ffffff22;flex:1}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.card{display:block;min-height:112px;padding:17px;border:1px solid #ffffff20;border-left:3px solid #eab308;border-radius:14px;background:linear-gradient(145deg,#191c22,#101216);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}.card:hover{transform:translateY(-3px);border-color:#eab30888;box-shadow:0 10px 28px #0006}.card b{display:block;font-size:15px;margin-bottom:7px}.card span{display:block;color:#aeb5c1;font-size:12px;line-height:1.45}.card:focus-visible,.pill:focus-visible{outline:3px solid #fde047;outline-offset:3px}
+    .note{margin-top:26px;padding:17px;border:1px solid #dc262655;border-radius:14px;background:#241316;color:#d1d5db;font-size:13px;line-height:1.55}.note b{color:#fca5a5}
+    footer{border-top:1px solid #ffffff20;padding:18px 0 28px;color:#89919e;font-size:11px;text-align:center}footer a{color:#fde047}
+    @media(max-width:850px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:600px){.wrap{width:min(100% - 22px,1160px)}header{padding:15px 0}header img{width:48px;height:48px}header strong{font-size:11px}.toplinks{gap:6px}.pill{font-size:10px;padding:8px 10px}main{padding:27px 0 36px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.card{min-height:105px;padding:13px}.card b{font-size:13px}.card span{font-size:11px}}@media(prefers-reduced-motion:reduce){.card{transition:none}}
+  </style>
+  <script src="/supabase-config.js"></script>
+  <script src="/js/parrothit-ai-assistant.js?v=20261110-public-categories-white-composer" defer></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a href="/index.html" aria-label="PARROTHIT homepage"><img src="/assets/images/parrothit-mascot.jpg" alt="PARROTHIT parrot mascot"></a>
+      <span><strong>PARROTHIT · NEWS CATEGORIES</strong><small>Browse public news sections and topics</small></span>
+      <nav class="toplinks" aria-label="Main links"><a class="pill" href="/index.html">Home</a><a class="pill red" href="/chat-assistance.html?from=%2Fnews-categories.html">Chat assistance</a></nav>
+    </header>
+    <main>
+      <section class="hero"><span class="eyebrow">Explore PARROTHIT</span><h1>Find news by <span>category</span></h1><p>Choose a section to explore its latest stories, updates and coverage. These are public visitor pages. Administrative category controls remain separate inside the secured Control Room.</p></section>
+      <div class="section-title"><h2>Nigeria &amp; World</h2></div>
+      <div class="grid">
+        <a class="card" href="/nigeria.html"><b>Nigeria</b><span>News, events and developments from across Nigeria.</span></a>
+        <a class="card" href="/world.html"><b>World</b><span>International news and global affairs.</span></a>
+        <a class="card" href="/politics.html"><b>Politics</b><span>Political news, policy and public affairs.</span></a>
+        <a class="card" href="/business.html"><b>Business</b><span>Business, markets and economic coverage.</span></a>
+      </div>
+      <div class="section-title"><h2>Knowledge &amp; Society</h2></div>
+      <div class="grid">
+        <a class="card" href="/technology.html"><b>Technology</b><span>Digital innovation, gadgets and technology news.</span></a>
+        <a class="card" href="/education.html"><b>Education</b><span>Education news, schools and learning.</span></a>
+        <a class="card" href="/health.html"><b>Health</b><span>Health news and public-interest information.</span></a>
+        <a class="card" href="/religion.html"><b>Religion</b><span>Faith, religion and related community stories.</span></a>
+        <a class="card" href="/culture.html"><b>Culture</b><span>Culture, heritage and society.</span></a>
+        <a class="card" href="/wildlife.html"><b>Wildlife</b><span>Wildlife, conservation and nature.</span></a>
+      </div>
+      <div class="section-title"><h2>Entertainment</h2></div>
+      <div class="grid">
+        <a class="card" href="/entertainment.html"><b>Entertainment</b><span>Entertainment, events and popular culture.</span></a>
+        <a class="card" href="/nollywood.html"><b>Nollywood</b><span>Film, television and Nollywood coverage.</span></a>
+        <a class="card" href="/celebrity-news.html"><b>Celebrity News</b><span>Celebrity stories and updates.</span></a>
+        <a class="card" href="/nigerian-celebrity.html"><b>Nigerian Celebrities</b><span>News and features about Nigerian public figures.</span></a>
+      </div>
+      <div class="section-title"><h2>Sports</h2></div>
+      <div class="grid">
+        <a class="card" href="/sports.html"><b>Sports</b><span>Sports headlines, competitions and results.</span></a>
+        <a class="card" href="/football.html"><b>Football</b><span>Football news and coverage.</span></a>
+        <a class="card" href="/sports-athletics.html"><b>Athletics</b><span>Athletics events, news and results.</span></a>
+        <a class="card" href="/sports-basketball.html"><b>Basketball</b><span>Basketball news and competitions.</span></a>
+        <a class="card" href="/sports-tennis.html"><b>Tennis</b><span>Tennis news and coverage.</span></a>
+        <a class="card" href="/sports-table-tennis.html"><b>Table Tennis</b><span>Table-tennis news and events.</span></a>
+        <a class="card" href="/livescore.html"><b>Football LiveScore</b><span>Find fixtures, live matches and results.</span></a>
+      </div>
+      <section class="note"><b>Need help finding something?</b> Open PARROTHIT Chat Assistance from the round chat icon or visit the <a href="/chat-assistance.html?from=%2Fnews-categories.html" style="color:#fde047;font-weight:800">full-page chat</a>. Please never share passwords, OTPs, PINs or bank details in chat.</section>
+    </main>
+    <footer>PARROTHIT · News That Speaks! · <a href="/about.html">About</a> · <a href="/contact.html">Contact</a></footer>
+  </div>
+</body>
+</html>
