@@ -19,6 +19,21 @@ In Supabase Dashboard → SQL Editor, run:
 
 The migration removes the old `admin_limit_trigger`/`enforce_admin_limit()` database cap and installs the Owner-protection trigger. It expects exactly one active `admin_profiles` row with `role = 'owner'`. It will stop and roll back if the current owner role is missing or duplicated; do not promote a different account just to bypass that check.
 
+
+## 1A. Repair legacy appeal statuses and install single-device sessions
+
+If a previous `schema.sql` run failed with `admin_appeals_status_check`, run:
+
+`supabase/admin-appeals-status-compatibility-fix.sql`
+
+This keeps the old `approved` status and every distinct status already stored, while also allowing the current `accepted` and `reactivated` statuses. It preserves the old `admin_user_id` / `appeal_reason` columns used by the deployed appeals Edge Function and adds the newer compatibility columns. Do not manually delete appeal rows.
+
+Then run:
+
+`supabase/admin-session-security.sql`
+
+This creates the `admin_active_sessions`, `admin_session_audit`, and `admin_security_settings` tables plus the atomic `parrothit_claim_admin_session` RPC used by the session Edge Function. It restricts direct access to `service_role`.
+
 ## 2. Configure email and the password-setup redirect
 
 Set these Supabase Edge Function secrets:
@@ -44,6 +59,7 @@ If your live website uses another Cloudflare custom domain or Workers hostname, 
 ## 3. Deploy the Edge Functions
 
 ```bash
+supabase functions deploy parrothit-admin-session
 supabase functions deploy parrothit-admin-create
 supabase functions deploy parrothit-employment
 ```
@@ -72,3 +88,8 @@ Overwrite the matching website files from this patch and purge Cloudflare cache 
 ## Email sender note
 
 Resend must allow delivery to the recipient. In production, use a sender address on a domain verified in Resend. The function returns an explicit error and rolls back the new account if email delivery fails.
+
+
+## Session function deployment
+
+The patch restores `supabase/functions/parrothit-admin-session/index.ts`. Deploy it with `supabase functions deploy parrothit-admin-session`. The matching config entry intentionally sets `verify_jwt = false` because the function records privacy-preserving failed-login telemetry before a user is signed in. Every session claim, validation, heartbeat, release, listing, revocation and timeout-setting action independently requires a valid Supabase bearer token and an active admin profile inside the function. Never remove those checks.

@@ -1,0 +1,44 @@
+PARROTHIT — UNLIMITED ADMIN INVITATION PATCH
+Build date: 2026-11-10
+
+WHAT THIS PATCH CHANGES
+- Fixed the admin_appeals status constraint so legacy `approved` rows are preserved; the repair migration dynamically retains all existing status values and adds the current values.
+- Added compatibility columns for the older admin_appeals Edge Function fields (`admin_user_id`, `appeal_reason`) and newer appeal UI fields.
+- Restored the missing `supabase/functions/parrothit-admin-session/index.ts` Edge Function.
+- Added `supabase/admin-session-security.sql` with the active-session, audit and global timeout tables plus atomic claim RPC.
+- Added the explicit function config; gateway JWT verification is disabled only so failed-login telemetry can run before authentication, while privileged actions remain JWT-checked inside the function.
+- Admin 1 (Owner) can create an unlimited number of additional admin accounts.
+- Removed the previous 11-profile database trigger and all matching UI/function caps.
+- Admin lists now page through the full admin_profiles table instead of stopping at the default first page.
+- New admin accounts are always created with role=admin. The invite function does not accept a browser-supplied role.
+- The new admin receives their login email, username and a one-time password-setup link at their registered email address.
+- No permanent passwords are sent by email.
+- Admin 1 remains the only Owner; a database trigger blocks Owner demotion, suspension, reassignment and deletion.
+- The employment applicant provisioning function uses the uncapped admin profile path too.
+
+INSTALLATION
+1. Extract these files into the existing PARROTHIT project root and overwrite matching files.
+2. In Supabase SQL Editor, if the old schema failed at `admin_appeals_status_check`, first run `supabase/admin-appeals-status-compatibility-fix.sql`; run `supabase/admin-session-security.sql`; then run `supabase/admin-unlimited-admins-and-owner-guard.sql`.
+   The migration requires exactly one existing, active admin_profiles row with role='owner'. It will stop rather than promote another account.
+3. Configure Supabase Edge Function secrets:
+   RESEND_API_KEY
+   ADMIN_FROM_EMAIL (or RESEND_FROM_EMAIL; EMPLOYMENT_FROM_EMAIL is also accepted as a fallback)
+   PARROTHIT_SITE_URL (the exact public website origin)
+4. In Supabase Auth URL Configuration, allow the exact redirect:
+   https://YOUR-PUBLIC-HOST/admin/reset-password.html
+5. Deploy:
+   supabase functions deploy parrothit-admin-session
+   supabase functions deploy parrothit-admin-create
+   supabase functions deploy parrothit-admin-delete
+   supabase functions deploy parrothit-admin-suspend
+   supabase functions deploy parrothit-employment
+6. Purge Cloudflare cache for the admin account/dashboard pages listed in ADMIN-UNLIMITED-ADMINS-SETUP.md.
+
+SECURITY NOTES
+- Keep the Supabase service-role key only in Supabase Edge Function secrets.
+- Use a verified Resend sender address.
+- Protect Admin 1 with MFA and keep recovery access to the owner email.
+- Additional admins cannot invite, promote, suspend or delete other admins.
+- The Admin 1 role is protected by the database, not just hidden UI controls.
+
+See ADMIN-UNLIMITED-ADMINS-SETUP.md and SETUP-SUPABASE.txt for the detailed steps.

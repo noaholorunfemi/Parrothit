@@ -59,7 +59,7 @@
 
 - Only a pending application can be accepted or rejected.
 - The signed-in owner must have the currently active PARROTHIT admin device session. Other admins cannot open the recruitment inbox or make decisions.
-- Before acceptance, the function checks the existing maximum of 11 administrator profiles.
+- Administrator profiles are not subject to a fixed count cap; the permanent Admin 1 (Owner) role remains protected.
 - On acceptance, it creates or reuses the applicant's Supabase Auth user, creates an `admin_profiles` row with role `admin` and the selected job title, generates a secure password-setup link, and sends a customised PARROTHIT employment letter and final job description to the candidate's application email.
 - The owner account's registered email is used as the reply-to address where available.
 - The offer form lets Admin 1 set employment type, start date, reporting line, compensation/arrangement, internal note and the final job description.
