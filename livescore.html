@@ -7,7 +7,6 @@
   <meta name="description" content="Live football scores, fixtures and results from PARROTHIT LiveScore.">
   <title>PARROTHIT LiveScore — Football Scores</title>
   <link rel="stylesheet" href="css/livescore.css?v=match-centre-fix-20261108">
-<script src="js/work-with-parrothit-footer.js" defer></script>
 </head>
 <body class="pl-body">
   <div class="pl-app">
@@ -52,9 +51,9 @@
       </section>
 
       <nav class="pl-view-tabs" aria-label="Match status">
-        <button class="active" data-view="today" type="button" aria-pressed="true">All matches</button>
+        <button data-view="today" type="button" aria-pressed="false">All matches</button>
         <button data-view="live" type="button" aria-pressed="false">Live <span class="pl-tab-count" id="plLiveCount">0</span></button>
-        <button data-view="upcoming" type="button" aria-pressed="false">Upcoming</button>
+        <button class="active" data-view="upcoming" type="button" aria-pressed="true">Upcoming</button>
         <button data-view="results" type="button" aria-pressed="false">Results</button>
       </nav>
 
