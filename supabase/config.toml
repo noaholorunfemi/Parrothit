@@ -23,8 +23,8 @@ verify_jwt = false
 # independently verifies Admin 1 and the active device session for all inbox actions.
 [functions.parrothit-employment]
 verify_jwt = false
+# Admin-account creation requires a valid signed-in user JWT. The Edge Function
+# additionally checks that the caller is the active Admin 1 (Owner) session.
+[functions.parrothit-admin-create]
+verify_jwt = true
 
-# Visitors send support messages without signing in. The Edge Function performs
-# its own authorization for admin-only actions; keep public chat actions reachable.
-[functions.parrothit-support-chatbot]
-verify_jwt = false
