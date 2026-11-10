@@ -316,7 +316,7 @@ function usableMatchCount(rows: unknown[], providerCode: string, mapping: Record
 function safeProviderEndpoint(target: URL): string {
   const safe = new URL(target.toString());
   for (const key of [...safe.searchParams.keys()]) {
-    if (/^(?:key|api[_-]?key|apikey|token|access[_-]?token|auth[_-]?token|secret)$/i.test(key)) {
+    if (/(?:api[_-]?key|apikey|token|access|auth|secret|credential)/i.test(key)) {
       safe.searchParams.set(key, "[redacted]");
     }
   }
@@ -578,6 +578,32 @@ async function writeLog(admin: ReturnType<typeof createClient>, row: Record<stri
     await admin.from("football_automation_logs").insert(row);
   } catch (_error) {
     // A diagnostic log must never reveal or block a provider operation.
+  }
+}
+
+async function readProviderLogs(
+  admin: ReturnType<typeof createClient>, configIds: string[], perProviderLimit = 50,
+): Promise<{ logs: Record<string, any>[]; available: boolean }> {
+  const ids = [...new Set(configIds.filter(Boolean).map(String))];
+  const logs: Record<string, any>[] = [];
+  try {
+    // Query each provider independently. A high-volume provider therefore cannot
+    // crowd another activated provider's recent success/error history out of view.
+    for (let offset = 0; offset < ids.length; offset += 8) {
+      const batch = ids.slice(offset, offset + 8);
+      const providerRows = await Promise.all(batch.map(async (configId) => {
+        const { data, error } = await admin.from("football_automation_logs")
+          .select("id,event_type,config_id,success,http_status,duration_ms,message,created_at")
+          .eq("config_id", configId).order("created_at", { ascending: false }).limit(perProviderLimit);
+        if (error) throw error;
+        return data || [];
+      }));
+      providerRows.forEach((rows) => logs.push(...rows));
+    }
+    logs.sort((a, b) => Date.parse(String(b.created_at || "")) - Date.parse(String(a.created_at || "")));
+    return { logs, available: true };
+  } catch (_error) {
+    return { logs: [], available: false };
   }
 }
 
@@ -893,14 +919,22 @@ Deno.serve(async (request: Request) => {
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
+  const requestStartedAt = Date.now();
+  let requestedAction = "";
+  let requestedProviderId = "";
+  let requestingActorId: string | null = null;
   try {
     const actor = await requireAdmin(request, admin);
+    requestingActorId = actor.id;
     const body = await request.json().catch(() => ({}));
     const action = cleanText(body.action, 40).toLowerCase();
+    requestedAction = action;
+    requestedProviderId = cleanText(body.id, 80);
 
     if (action === "sync_competitions") {
       const settings = await getSettings(admin);
       const id = cleanText(body.id || settings.active_api_config_id || settings.selected_api_config_id, 80);
+      requestedProviderId = id;
       if (!id) throw new Error("Select or activate a football API provider before synchronizing its competition catalogue.");
       const config = await getConfig(admin, id);
       if (!config.is_enabled) throw new Error("Enable the selected provider before synchronizing its competition catalogue.");
@@ -920,6 +954,21 @@ Deno.serve(async (request: Request) => {
       return json(200, { ok: true, provider_name: config.provider_name, provider_code: config.provider_code, competition_count: saved, synced_at: syncedAt, message: `${saved.toLocaleString("en-US")} competitions synchronized from ${config.provider_name}. The visitor dropdown will now show the provider's available leagues and cups.` });
     }
 
+    if (action === "logs") {
+      const configuredProviders: Record<string, any>[] = [];
+      const pageSize = 1000;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data: page, error: providerReadError } = await admin.from("football_api_configs")
+          .select("id,sport").range(offset, offset + pageSize - 1);
+        if (providerReadError) throw providerReadError;
+        configuredProviders.push(...(page || []));
+        if (!page || page.length < pageSize) break;
+      }
+      const footballIds = configuredProviders.filter((item) => ["football", "multi-sport"].includes(String(item.sport || "football").toLowerCase())).map((item) => String(item.id));
+      const logResult = await readProviderLogs(admin, footballIds, 50);
+      return json(200, { ok: true, recent_logs: logResult.logs, logs_available: logResult.available });
+    }
+
     if (action === "list") {
       const configs: Record<string, any>[] = [];
       const pageSize = 1000;
@@ -935,7 +984,13 @@ Deno.serve(async (request: Request) => {
         if (!page || page.length < pageSize) break;
       }
       const settings = await getSettings(admin);
-      return json(200, { ok: true, configs, settings });
+      const footballLogConfigs = configs.filter((item) => ["football", "multi-sport"].includes(String(item.sport || "football").toLowerCase()));
+      const logResult = await readProviderLogs(admin, footballLogConfigs.map((item) => String(item.id)), 50);
+      return json(200, {
+        ok: true, configs, settings,
+        recent_logs: logResult.logs,
+        logs_available: logResult.available,
+      });
     }
 
     if (action === "save") {
@@ -1186,6 +1241,19 @@ Deno.serve(async (request: Request) => {
       const diagnostics = await runProviderDiagnostics(config, sampleDate);
 
       if (action === "diagnostics") {
+        const diagnosticOk = diagnostics.all_feeds_responded === true && diagnostics.match_data_verified === true;
+        const failedEndpoints = diagnostics.diagnostics.filter((item: any) => item.ok !== true);
+        const failureDetails = failedEndpoints.map((item: any) => `${cleanText(item.label || item.view || item.endpoint || "Endpoint", 80)}: ${cleanText(item.message || `HTTP ${item.http_status ?? "no response"}`, 240)}`).join(" | ");
+        const diagnosticMessage = `${diagnostics.raw_match_count || 0} raw record(s), ${diagnostics.usable_match_count || 0} usable match record(s). ${failedEndpoints.length} endpoint check(s) failed.${failureDetails ? ` Details: ${failureDetails}` : " All checked endpoints responded."}`.slice(0, 1200);
+        await writeLog(admin, {
+          event_type: "football_provider_endpoint_diagnostics",
+          config_id: id,
+          success: diagnosticOk,
+          http_status: diagnostics.diagnostics.find((item: any) => item.http_status != null)?.http_status ?? null,
+          duration_ms: diagnostics.diagnostics.reduce((sum: number, item: any) => sum + Number(item.duration_ms || 0), 0),
+          message: diagnosticMessage,
+          actor_user_id: actor.id,
+        });
         return json(200, { ok: true, provider_name: config.provider_name, provider_code: config.provider_code, date: sampleDate, ...diagnostics });
       }
 
@@ -1232,6 +1300,8 @@ Deno.serve(async (request: Request) => {
       const testedAt = new Date().toISOString();
       const endpointJson = { date: sampleDate, connection: { ok: connectionOk, http_status: connectionStatus, message: connectionMessage }, feeds: diagnostics.diagnostics, raw_match_count: diagnostics.raw_match_count, usable_match_count: diagnostics.usable_match_count, match_data_verified: diagnostics.match_data_verified };
       const isApiNinjas = String(config.provider_code || "").toLowerCase() === "api-ninjas";
+      const failedFeeds = diagnostics.diagnostics.filter((item: any) => item.ok !== true);
+      const feedFailureDetails = failedFeeds.map((item: any) => `${cleanText(item.label || item.view || item.endpoint || "Endpoint", 80)}: ${cleanText(item.message || `HTTP ${item.http_status ?? "no response"}`, 200)}`).join(" | ");
       const message = testOk
         ? isApiNinjas
           ? `API Ninjas connection and match data verified: ${diagnostics.usable_match_count} usable match record(s) from its shared match endpoint.`
@@ -1239,7 +1309,7 @@ Deno.serve(async (request: Request) => {
         : !connectionOk
           ? `Provider connection check failed: ${connectionMessage}`
           : !diagnostics.all_feeds_responded
-            ? "Provider connection succeeded, but one or more match endpoints or response lists failed. Review the endpoint diagnostics."
+            ? `Provider connection succeeded, but ${failedFeeds.length} match endpoint(s) failed.${feedFailureDetails ? ` ${feedFailureDetails}` : " Review endpoint diagnostics."}`.slice(0, 1200)
             : `Endpoints responded, but no usable match record was found for ${sampleDate}. Choose a date with scheduled or completed fixtures and test again.`;
       const { error: updateError } = await admin.from("football_api_configs").update({
         last_tested_at: testedAt,
@@ -1282,6 +1352,17 @@ Deno.serve(async (request: Request) => {
     return json(400, { ok: false, error: "Unknown Football Automation Room action." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The request could not be completed.";
+    if (requestedProviderId && ["sync_competitions", "test", "diagnostics"].includes(requestedAction)) {
+      await writeLog(admin, {
+        event_type: `football_provider_${requestedAction}_failure`,
+        config_id: requestedProviderId,
+        success: false,
+        http_status: null,
+        duration_ms: Math.max(0, Date.now() - requestStartedAt),
+        message: message.slice(0, 1200),
+        actor_user_id: requestingActorId,
+      });
+    }
     return json(400, { ok: false, error: message });
   }
 });
