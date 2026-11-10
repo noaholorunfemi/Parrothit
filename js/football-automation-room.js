@@ -28,9 +28,9 @@
       endpoints: {
         live: '/fixtures?live=all&timezone=Africa/Lagos',
         today: '/fixtures?date={date}&timezone=Africa/Lagos',
-        upcoming: '/fixtures?date={date}&timezone=Africa/Lagos',
+        upcoming: '/fixtures?date={date}&status=NS-TBD-PST&timezone=Africa/Lagos',
         results: '/fixtures?date={date}&timezone=Africa/Lagos',
-        upcoming_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos',
+        upcoming_range: '/fixtures?from={from}&to={to}&status=NS-TBD-PST&timezone=Africa/Lagos',
         results_range: '/fixtures?from={from}&to={to}&timezone=Africa/Lagos',
         competitions: '/leagues',
         events: '/fixtures/events?fixture={match_id}',
