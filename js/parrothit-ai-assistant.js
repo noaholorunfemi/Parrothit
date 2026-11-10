@@ -25,12 +25,13 @@
     {title:'Football',path:'/football.html',description:'Football news and coverage.',tags:['football','sports']},
     {title:'Sports',path:'/sports.html',description:'PARROTHIT sports coverage and categories.',tags:['sports']},
     {title:'Football match centre',path:'/livescore-match.html',description:'Match details and available match information.',tags:['football','livescore']},
-    {title:'Work with PARROTHIT',path:'/work-with-parrothit.html',description:'Employment and career application information.',tags:['careers','employment']},
+    {title:'Work with PARROTHIT',path:'/work-with-parrothit.html',description:'Public careers portal: browse live advertised roles, complete the four-step employment form, provide contact/location, education and work history, upload a passport photo and CV/resume image, write a 20–250-word application letter, and submit for Admin 1 (Owner) review.',tags:['careers','employment','jobs','apply']},
     {title:'Community',path:'/interaction.html',description:'Community features and member interaction.',tags:['community','social']},
     {title:'Parrots Interaction',path:'/parrots-interaction.html',description:'PARROTHIT community interaction area.',tags:['community','social']},
     {title:'Community rooms',path:'/parrot-rooms-chat.html',description:'Community rooms and member discussions.',tags:['community','social']},
     {title:'Private chat',path:'/private-chat.html',description:'Private community conversations.',tags:['community','social']},
     {title:'News categories',path:'/news-categories.html',description:'Browse PARROTHIT news and topic categories.',tags:['news','general']},
+    {title:'Category News',path:'/category.html',description:'Public category feed showing the latest headlines for the selected news topic.',tags:['news','categories','article']},
     {title:'Nigeria',path:'/nigeria.html',description:'News and stories about Nigeria.',tags:['news','nigeria']},
     {title:'World',path:'/world.html',description:'International news and world affairs.',tags:['news','world']},
     {title:'Politics',path:'/politics.html',description:'Political news and public affairs.',tags:['news','politics']},
@@ -167,7 +168,7 @@
     const tags = tagsFor(path);
     if (tags.includes('advertising')) return ['What advertising packages are available?','How do I submit a video or GIF advert?','How can I check my campaign status?'];
     if (tags.includes('football')) return ['How do I find a football match?','Where can I see fixtures and results?','What should I do if match information is missing?'];
-    if (tags.includes('careers')) return ['How do I apply for a job?','Where can I find application information?','How do I contact the PARROTHIT team?'];
+    if (tags.includes('careers')) return ['How do I apply for a job with PARROTHIT?','What documents do I need for my job application?','How do I check my employment application?'];
     if (tags.includes('community')) return ['How do I use the community rooms?','How can I get help with my account?','How do I contact support?'];
     if (tags.includes('basketball')) return ['Where can I find basketball coverage?','How do I browse sports categories?','How do I contact PARROTHIT support?'];
     if (tags.includes('tennis')) return ['Where can I find tennis coverage?','How do I browse sports categories?','How do I contact PARROTHIT support?'];
@@ -190,7 +191,7 @@
       const html = await response.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
       sourceTitle = (doc.querySelector('title')?.textContent || sourceTitle).trim().slice(0, 180);
-      doc.querySelectorAll('script,style,noscript,nav,header,footer,form,button,input,select,textarea').forEach(n => n.remove());
+      doc.querySelectorAll('script,style,noscript,nav,header,footer,button,input,select,textarea').forEach(n => n.remove());
       const main = doc.querySelector('main,article,[role="main"]') || doc.body;
       sourceContext = String(main?.innerText || main?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 9000);
     } catch (_) { /* Context is best-effort; the route catalogue remains available. */ }
@@ -485,6 +486,28 @@
     document.addEventListener('keydown', unlockSpeechFromGesture, { once: true });
   }
 
+  function appendMessageText(container, text) {
+    // Render only catalogue-approved same-site routes as links; all other content stays text.
+    const pattern = /\/([A-Za-z0-9_./-]+\.html(?:#[A-Za-z0-9_-]+)?)/g;
+    let cursor = 0, match;
+    while ((match = pattern.exec(text))) {
+      const fullPath = '/' + match[1];
+      const basePath = fullPath.split('#')[0];
+      const allowed = LINK_BY_PATH.has(basePath.toLowerCase()) && !/^\/admin\//i.test(basePath);
+      if (!allowed) continue;
+      if (match.index > cursor) container.appendChild(document.createTextNode(text.slice(cursor, match.index)));
+      const link = document.createElement('a');
+      link.href = fullPath;
+      link.textContent = fullPath;
+      link.style.color = '#fde047';
+      link.style.textDecoration = 'underline';
+      link.rel = 'noopener';
+      container.appendChild(link);
+      cursor = match.index + match[0].length;
+    }
+    if (cursor < text.length) container.appendChild(document.createTextNode(text.slice(cursor)));
+  }
+
   function bubble(text, who = 'bot', label = '') {
     const thread = $('ph-messages');
     if (!thread) return;
@@ -496,7 +519,7 @@
     const content = document.createElement('div');
     const body = document.createElement('div'); body.className = 'ph-bubble';
     if (label) { const strong = document.createElement('strong'); strong.textContent = label + '\n'; strong.style.color = '#fde047'; body.appendChild(strong); }
-    body.appendChild(document.createTextNode(String(text || '')));
+    appendMessageText(body, String(text || ''));
     content.appendChild(body);
     if (who !== 'user') {
       const tools = document.createElement('div'); tools.className = 'ph-msg-tools';
