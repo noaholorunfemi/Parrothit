@@ -7,7 +7,6 @@
   <meta name="description" content="PARROTHIT football match centre: live score, match information, events, statistics, line-ups, standings and head-to-head. ">
   <title>Match Centre | PARROTHIT LiveScore</title>
   <link rel="stylesheet" href="css/livescore.css?v=match-centre-fix-20261108">
-<script src="js/work-with-parrothit-footer.js" defer></script>
 </head>
 <body class="pl-body">
   <div class="pl-app">
@@ -32,7 +31,7 @@
 
     <main class="pl-main pl-match-centre">
       <a class="pl-back-link" href="livescore.html">‹ Back to all scores</a>
-      <div id="plMatchLoading" class="pl-state-card"><span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Retrieving verified match information from the active football providers.</p></div>
+      <div id="plMatchLoading" class="pl-state-card"><span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Retrieving the latest match information.</p></div>
       <section id="plMatchContent" class="pl-match-view" hidden>
         <div class="pl-match-competition-bar">
           <div class="pl-match-competition" id="plMatchCompetition">
@@ -50,7 +49,7 @@
           </div>
           <div class="pl-detail-team" id="plAwayTeam"></div>
         </section>
-        <div class="pl-match-meta"><span id="plProviderName">Data from active football providers</span><span id="plMatchDataUpdated" aria-live="polite"></span></div>
+        <div class="pl-match-meta"><span id="plMatchInfoLabel">Match information</span><span id="plMatchDataUpdated" aria-live="polite"></span></div>
 
         <nav class="pl-detail-tabs" aria-label="Match details" role="tablist">
           <button class="active" id="plTabInfo" data-detail-tab="info" role="tab" aria-selected="true" aria-controls="plPanelInfo" type="button">Info</button>
@@ -64,7 +63,7 @@
         <section class="pl-detail-panel active" id="plPanelInfo" data-detail-panel="info" role="tabpanel" aria-labelledby="plTabInfo">
           <h2>Match information</h2>
           <div class="pl-info-grid" id="plInfoGrid"></div>
-          <p class="pl-provider-limits" id="plEventsNote">Match information is shown when supplied by the selected football provider.</p>
+          <p class="pl-provider-limits" id="plEventsNote">Available match information is shown in each section.</p>
         </section>
         <section class="pl-detail-panel" id="plPanelSummary" data-detail-panel="summary" role="tabpanel" aria-labelledby="plTabSummary" hidden>
           <h2>Match summary</h2><div id="plSummaryContent"></div>
@@ -82,7 +81,7 @@
           <h2>Head-to-head</h2><div id="plH2HContent"></div>
         </section>
       </section>
-      <div class="pl-footer-note">PARROTHIT displays provider-supplied match facts only. Events, statistics, line-ups, standings and previous meetings appear when the active provider supplies them.</div>
+      <div class="pl-footer-note">PARROTHIT displays available match information. Events, statistics, line-ups, standings and previous meetings appear when data is available.</div>
     </main>
     <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
       <div><h3>PARROTHIT</h3><p>News that speaks! A Nigeria-first news platform with a global outlook.</p></div>
@@ -94,6 +93,6 @@
   <script src="js/livescore-config.js?v=match-centre-fix-20261108"></script>
   <script src="js/livescore-clock.js?v=match-centre-fix-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
-  <script src="js/livescore-match.js?v=match-centre-fix-20261108" defer></script>
+  <script src="js/livescore-match.js?v=visitor-provider-privacy-20261110" defer></script>
 </body>
 </html>

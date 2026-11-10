@@ -51,9 +51,9 @@
       </section>
 
       <nav class="pl-view-tabs" aria-label="Match status">
-        <button data-view="today" type="button" aria-pressed="false">All matches</button>
+        <button class="active" data-view="today" type="button" aria-pressed="true">All matches</button>
         <button data-view="live" type="button" aria-pressed="false">Live <span class="pl-tab-count" id="plLiveCount">0</span></button>
-        <button class="active" data-view="upcoming" type="button" aria-pressed="true">Upcoming</button>
+        <button data-view="upcoming" type="button" aria-pressed="false">Upcoming</button>
         <button data-view="results" type="button" aria-pressed="false">Results</button>
       </nav>
 
@@ -75,12 +75,12 @@
         <button class="pl-refresh" id="plRefresh" type="button">↻ <span>Refresh</span></button>
       </section>
 
-      <div class="pl-status-row"><span id="plProviderStatus" role="status" aria-live="polite">Connecting to the active football provider…</span><span id="plUpdated"></span></div>
+      <div class="pl-status-row"><span id="plFeedStatus" role="status" aria-live="polite">Football scores and fixtures</span><span id="plUpdated"></span></div>
       <section id="plMatches" class="pl-matches" aria-live="polite">
-        <div class="pl-state-card"><span class="pl-spinner"></span><strong>Loading football matches…</strong><p>Connecting to PARROTHIT's active football data provider.</p></div>
+        <div class="pl-state-card"><span class="pl-spinner"></span><strong>Loading football matches…</strong><p>Fetching the latest football matches.</p></div>
       </section>
       <nav id="plPagination" class="pl-pagination" aria-label="Match result pages" aria-live="polite"></nav>
-      <div class="pl-footer-note">Scores and fixtures are aggregated from every verified provider activated in the Football Automation Room. An empty schedule means the active services returned no matches for this selection; provider failures are reported separately.</div><div id="plProviderAttribution" class="pl-provider-attribution" aria-label="Sports data attribution"></div>
+      <div class="pl-footer-note">Follow live football scores, upcoming fixtures and completed results from competitions around the world.</div><div id="plDataAttribution" class="pl-provider-attribution" aria-label="Sports data attribution"></div>
     </main>
 
     <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
@@ -104,6 +104,6 @@
   <script src="js/livescore-config.js?v=match-centre-fix-20261108"></script>
   <script src="js/livescore-clock.js?v=match-centre-clock-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
-  <script src="js/livescore.js?v=match-centre-fix-20261108" defer></script>
+  <script src="js/livescore.js?v=visitor-provider-privacy-20261110" defer></script>
 </body>
 </html>
