@@ -917,6 +917,10 @@ function routeFor(providerCode: string, endpoints: Record<string, unknown>, view
 }
 
 function rangeRouteFor(providerCode: string, endpoints: Record<string, unknown>, view: string): string {
+  // API-Football only supports reliable worldwide date feeds with date=YYYY-MM-DD.
+  // Its from/to range filters are scoped by league and season; a global request must
+  // therefore be synchronized as date-only requests in the rolling daily window below.
+  if (String(providerCode || "").toLowerCase() === "api-football") return "";
   const nestedRange = plainObject(endpoints.range);
   const configured = endpoints[`${view}_range`] ?? endpoints[`${view}Range`] ?? nestedRange[view];
   if (typeof configured === "string" && configured.trim()) return validateProviderRoute(configured);
@@ -940,12 +944,21 @@ function expandProviderRoute(provider: Record<string, any>, view: string, date: 
     route = "/v4/matches?status=LIVE";
   }
   let expanded = expandTemplate(route, date, view, competition, dateFrom, dateTo);
-  // API-Football's general fixtures endpoint includes completed and scheduled rows.
-  // Keep the Upcoming view strictly to not-started / TBD / postponed fixtures,
-  // including for provider configurations that were saved before this patch.
-  if (String(provider.provider_code || "").toLowerCase() === "api-football" && view === "upcoming") {
+  // Ignore legacy saved API-Football range presets (and combined status strings).
+  // Worldwide public feeds use one date-scoped query at a time; the server classifies
+  // Upcoming / Results after normalization, so no provider status filter is necessary.
+  if (String(provider.provider_code || "").toLowerCase() === "api-football") {
     const target = new URL(expanded, "https://parrothit.invalid");
-    target.searchParams.delete("status");
+    if (view === "live") {
+      target.pathname = "/fixtures";
+      target.search = "";
+      target.searchParams.set("live", "all");
+    } else {
+      target.pathname = "/fixtures";
+      target.search = "";
+      target.searchParams.set("date", date);
+    }
+    target.searchParams.set("timezone", "Africa/Lagos");
     expanded = `${target.pathname}${target.search}`;
   }
   return expanded;
@@ -993,25 +1006,20 @@ async function providerRequest(
     if (value.trim() !== "") target.searchParams.set(key, value.trim());
     else target.searchParams.delete(key);
   }
-  if (String(provider.provider_code || "").toLowerCase() === "api-football") {
-    // API-Football requires values for any supplied date-window/timezone fields.
-    // Always use the caller's actual date window and Lagos timezone; omit status
-    // unless it has a valid single provider status code.
-    if (target.pathname.endsWith("/fixtures")) {
-      if (!target.searchParams.has("date") && !target.searchParams.has("season") && !target.searchParams.has("league")) {
-        target.searchParams.set("from", dateFrom || date);
-        target.searchParams.set("to", dateTo || dateFrom || date);
-      }
-      const from = target.searchParams.get("from");
-      const to = target.searchParams.get("to");
-      if (from === null || !from.trim()) target.searchParams.set("from", dateFrom || date);
-      if (to === null || !to.trim()) target.searchParams.set("to", dateTo || dateFrom || date);
-      if (!target.searchParams.get("timezone")?.trim()) target.searchParams.set("timezone", "Africa/Lagos");
-      const status = target.searchParams.get("status");
-      if (status && !/^(NS|1H|HT|2H|ET|P|FT|AET|PEN|BT|SUSP|INT|PST|CANC|ABD|AWD|WO)$/.test(status.trim().toUpperCase())) {
-        target.searchParams.delete("status");
-      }
+  if (String(provider.provider_code || "").toLowerCase() === "api-football" && target.pathname.endsWith("/fixtures")) {
+    // Do not mix from/to/status with global worldwide requests. API-Football's
+    // date-range filters are league/season-scoped; the public global feed uses date.
+    target.searchParams.delete("from");
+    target.searchParams.delete("to");
+    target.searchParams.delete("status");
+    if (view === "live") {
+      target.searchParams.delete("date");
+      target.searchParams.set("live", "all");
+    } else {
+      target.searchParams.delete("live");
+      target.searchParams.set("date", date || dateFrom || dateTo);
     }
+    target.searchParams.set("timezone", "Africa/Lagos");
   }
   if (page > 1) target.searchParams.set("page", String(page));
 
@@ -1543,6 +1551,9 @@ async function loadWindowDayCache(db: ReturnType<typeof createClient>, cachePref
 }
 
 function providerHasFullWindowFeed(provider: Record<string, any>, view: string): boolean {
+  // API-Football global fixtures must be collected day-by-day, regardless of any
+  // legacy saved endpoint route that looks like a full-window feed.
+  if (String(provider.provider_code || "").toLowerCase() === "api-football") return false;
   const route = routeFor(String(provider.provider_code || "custom"), plainObject(provider.endpoints), view);
   return !route.includes("{date}") && !route.includes("{from}") && !route.includes("{to}")
     && !route.includes("{date_from}") && !route.includes("{date_to}");
