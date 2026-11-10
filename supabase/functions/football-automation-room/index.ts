@@ -397,6 +397,13 @@ async function providerFetch(config: Record<string, any>, view: string, date: st
     if (authType === "header") headers.set(String(config.auth_header_name), config.auth_prefix ? `${config.auth_prefix} ${clearKey}` : clearKey);
     else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
     else throw new Error("Unsupported provider authentication method.");
+  } else if (String(config.provider_code || "").toLowerCase() === "api-football") {
+    // Backward compatibility for API-Football configs created before the
+    // authentication mode/header were explicitly saved.
+    if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) {
+      throw new Error("API-Football requires an API key. Save the key with the x-apisports-key header, then test again.");
+    }
+    headers.set("x-apisports-key", await decryptSecret(config.api_key_ciphertext, config.api_key_iv));
   }
   const safeEndpoint = safeProviderEndpoint(target);
   const started = Date.now();
@@ -609,6 +616,14 @@ async function readProviderLogs(
 
 function buildTestUrl(config: Record<string, any>, date = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())): URL {
   const base = validateHttpsUrl(String(config.api_base_url || ""));
+  const providerCode = String(config.provider_code || "").toLowerCase();
+  // API-Football has a dedicated account/status endpoint. Do not reuse a saved
+  // fixtures test path here: old configurations may still contain invalid or
+  // incomplete from/to/status/timezone query parameters. Fixture requests are
+  // checked separately by providerFetch() using the corrected date-only routes.
+  if (providerCode === "api-football") {
+    return new URL("status", base.toString().replace(/\/$/, "") + "/");
+  }
   const path = expandTemplate(cleanTestPath(config.test_path), date, "today");
   const target = new URL(path.replace(/^\//, ""), base.toString().replace(/\/$/, "") + "/");
   const params = cleanJsonObject(config.default_query_params, "Default query parameters");
@@ -1283,13 +1298,24 @@ Deno.serve(async (request: Request) => {
           if (authType === "header") headers.set(String(config.auth_header_name), value);
           else if (authType === "query") target.searchParams.set(String(config.auth_query_param), clearKey);
           else throw new Error("Unsupported provider authentication method.");
+        } else if (String(config.provider_code || "").toLowerCase() === "api-football") {
+          if (!config.has_api_key || !config.api_key_ciphertext || !config.api_key_iv) {
+            throw new Error("API-Football requires an API key. Save the key with the x-apisports-key header, then test again.");
+          }
+          headers.set("x-apisports-key", await decryptSecret(config.api_key_ciphertext, config.api_key_iv));
         }
         const response = await fetch(target.toString(), { method: "GET", headers, signal: AbortSignal.timeout(12000), redirect: "error" });
         connectionStatus = response.status;
         const bodyText = await readSmallResponseBody(response);
         connectionQuota = extractQuota(response, bodyText);
-        connectionOk = response.ok && !hasProviderApiErrors(bodyText);
-        if (!connectionOk) connectionMessage = `Provider check returned HTTP ${response.status} or an API-level error.`;
+        const apiLevelError = hasProviderApiErrors(bodyText);
+        connectionOk = response.ok && !apiLevelError;
+        if (!response.ok) {
+          connectionMessage = `Provider status endpoint returned HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}.`;
+        } else if (apiLevelError) {
+          const detail = summarizeProviderErrorBody(bodyText);
+          connectionMessage = `Provider returned HTTP ${response.status} with an API-level error${detail ? `: ${detail}` : "."}`.slice(0, 900);
+        }
         }
       } catch (error) {
         connectionOk = false;
