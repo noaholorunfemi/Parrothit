@@ -1,0 +1,11 @@
+PARROTHIT CHAT ASSISTANCE — INPUT / DRAG / VOICE PATCH
+Date: 2026-11-10
+
+Core files:
+- js/parrothit-ai-assistant.js
+- supabase/functions/parrothit-support-chatbot/index.ts
+- chat-assistance.html
+
+Also includes versioned script URL updates in the existing HTML pages that already load the shared chatbot script, so visitor browsers fetch the new draggable launcher code.
+
+Install: extract to website root, deploy `parrothit-support-chatbot`, then purge Cloudflare cache. No SQL migration.
