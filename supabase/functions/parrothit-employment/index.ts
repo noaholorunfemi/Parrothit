@@ -242,9 +242,7 @@ async function cancelDraft(body: any, service: any) {
 }
 
 async function provisionAdmin(service: any, application: any, owner: any, decision: any) {
-  const { count, error: countError } = await service.from("admin_profiles").select("user_id", { count: "exact", head: true });
-  if (countError) throw new Error("Could not verify administrator capacity: " + countError.message);
-  if ((count || 0) >= 11) throw new Error("PARROTHIT already has 11 administrator accounts. Remove or free an administrator seat before accepting another employee.");
+  // Administrator profiles have no fixed count cap; Admin 1 remains the protected Owner.
   const { data: found, error: listError } = await service.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (listError) throw new Error("Could not check the applicant's account: " + listError.message);
   let authUser = (found.users || []).find((u: any) => String(u.email || "").toLowerCase() === application.email.toLowerCase());
