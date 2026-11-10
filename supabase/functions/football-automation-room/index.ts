@@ -106,8 +106,22 @@ function cleanEndpoints(value: unknown): Record<string, string> {
   if (value == null) return {};
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Match endpoints must be a JSON object.");
   const output: Record<string, string> = {};
+  // The admin presets already include date-window routes for APIs such as
+  // API-Football and football-data.org. Keep these optional *_range keys in
+  // the server allow-list so valid preset saves are not rejected before the
+  // encrypted API key can be stored.
+  const allowedKeys = new Set([
+    "live", "today", "upcoming", "results",
+    "live_range", "today_range", "upcoming_range", "results_range",
+    "liveRange", "todayRange", "upcomingRange", "resultsRange",
+    "competitions", "match_details", "events", "statistics", "lineups",
+    "standings", "table", "head_to_head", "h2h", "match_events",
+    "match_statistics", "match_lineups", "competition_table", "previous_meetings",
+  ]);
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (!["live", "today", "upcoming", "results", "competitions", "match_details", "events", "statistics", "lineups", "standings", "table", "head_to_head", "h2h", "match_events", "match_statistics", "match_lineups", "competition_table", "previous_meetings"].includes(key)) throw new Error("Endpoint keys must be feed views, competitions, or supported match-centre detail routes (events, statistics, lineups, standings, head_to_head or match_details).");
+    if (!allowedKeys.has(key)) {
+      throw new Error("Endpoint keys must be feed views (live, today, upcoming, results and optional *_range routes), competitions, or supported match-centre detail routes (events, statistics, lineups, standings, head_to_head or match_details).");
+    }
     const route = cleanText(raw, 700);
     if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
       throw new Error(`The ${key} endpoint must be a relative path beginning with one slash.`);
