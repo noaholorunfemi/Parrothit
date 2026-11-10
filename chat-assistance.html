@@ -30,8 +30,8 @@
     @media(max-width:600px){#ph-support-page{padding:14px}.ph-loading-panel{padding:18px}.ph-loading-brand img{width:54px;height:54px}}
     @media(prefers-reduced-motion:reduce){.ph-loading-brand img{animation:none}}
   </style>
-  <script src="/supabase-config.js?v=20261110-instant-chat" defer></script>
-  <script src="/js/parrothit-ai-assistant.js?v=20261110-send-button-fix" defer></script>
+  <script src="/supabase-config.js?v=20261110-chat-diagnostics" defer></script>
+  <script src="/js/parrothit-ai-assistant.js?v=20261110-chat-diagnostics" defer></script>
 </head>
 <body>
   <main id="ph-support-page">
@@ -47,11 +47,170 @@
         <nav class="ph-loading-links" aria-label="Helpful PARROTHIT links">
           <a href="/index.html">Home and latest news</a><a href="/news-categories.html">News categories</a><a href="/livescore.html">Football LiveScore</a><a href="/advertise.html">Advertising</a><a href="/work-with-parrothit.html">Careers</a><a href="/interaction.html">Community</a><a href="/contact.html">Contact support</a>
         </nav>
-        <form class="ph-first-compose" id="ph-first-compose" onsubmit="event.preventDefault();var s=document.getElementById('ph-first-status');if(s)s.textContent='The chat is starting. Please refresh this page or use Contact support if this message remains.';"><label for="ph-first-input">Your message</label><textarea id="ph-first-input" rows="3" maxlength="4000" autocomplete="off" placeholder="Type your message here…" aria-label="Type your message"></textarea><button type="submit">Send</button><p id="ph-first-status" class="ph-loading-note">You can start typing right away.</p></form>
+        <form class="ph-first-compose" id="ph-first-compose"><label for="ph-first-input">Your message</label><textarea id="ph-first-input" rows="3" maxlength="4000" autocomplete="off" placeholder="Type your message here…" aria-label="Type your message"></textarea><button type="submit">Send</button><p id="ph-first-status" class="ph-loading-note">You can start typing right away.</p></form>
         <p class="ph-loading-note">For account or payment safety, never share passwords, advertiser PINs, OTPs or bank details in chat.</p>
         <noscript><p style="color:#fca5a5">JavaScript is disabled. Please use the links above or contact PARROTHIT support.</p></noscript>
       </section>
     </div>
   </main>
+
+  <script>
+  /* Independent emergency sender. It is active only while the initial/fallback
+     composer remains on screen; the full assistant replaces that shell on success. */
+  (function () {
+    'use strict';
+    function bindEmergencyChat() {
+      var form = document.getElementById('ph-first-compose') || document.getElementById('ph-fallback-compose');
+      if (!form || form.dataset.phEmergencyBound === '1') return;
+      form.dataset.phEmergencyBound = '1';
+      form.removeAttribute('onsubmit');
+      var input = document.getElementById('ph-first-input') || document.getElementById('ph-fallback-input');
+      var button = form.querySelector('button[type="submit"],button');
+      var status = document.getElementById('ph-first-status') || document.getElementById('ph-fallback-status');
+      var host = form.parentElement;
+      var thread = document.getElementById('ph-emergency-messages');
+      if (!thread) {
+        thread = document.createElement('div');
+        thread.id = 'ph-emergency-messages';
+        thread.setAttribute('aria-live', 'polite');
+        thread.style.cssText = 'display:grid;gap:10px;margin:14px 0;color:#fff;';
+        host.insertBefore(thread, form);
+      }
+      var config = function () {
+        return {
+          url: String(window.PARROTHIT_SUPABASE_URL || '').replace(/\/$/, ''),
+          key: String(window.PARROTHIT_SUPABASE_ANON_KEY || '')
+        };
+      };
+      var safeGet = function (store, key) { try { return store.getItem(key) || ''; } catch (_) { return ''; } };
+      var safeSet = function (store, key, value) { try { store.setItem(key, value); } catch (_) {} };
+      var randomKey = function () {
+        try {
+          if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID() + window.crypto.randomUUID();
+          var bytes = new Uint8Array(32);
+          if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+          else for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+          return Array.prototype.map.call(bytes, function (x) { return x.toString(16).padStart(2, '0'); }).join('');
+        } catch (_) { return String(Date.now()) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2); }
+      };
+      var localStore = null, sessionStore = null;
+      try { localStore = window.localStorage; } catch (_) {}
+      try { sessionStore = window.sessionStorage; } catch (_) {}
+      var visitorKey = safeGet(localStore, 'ph_support_visitor_key_v1');
+      if (visitorKey.length < 20) { visitorKey = randomKey(); safeSet(localStore, 'ph_support_visitor_key_v1', visitorKey); }
+      var conversation = safeGet(sessionStore, 'ph_support_conversation_id');
+      var busy = false;
+      var currentPath = '/index.html';
+      try {
+        var from = new URLSearchParams(location.search).get('from');
+        if (from && from.charAt(0) === '/' && from.indexOf('//') !== 0) currentPath = from.split(/[?#]/)[0];
+        else if (document.referrer) {
+          var ref = new URL(document.referrer);
+          if (ref.origin === location.origin && !/chat-assistance\.html/i.test(ref.pathname)) currentPath = ref.pathname;
+        }
+      } catch (_) {}
+      function setMessage(text) { if (status) status.textContent = text; }
+      function appendMessage(text, who) {
+        var item = document.createElement('div');
+        item.style.cssText = 'max-width:96%;justify-self:' + (who === 'visitor' ? 'end' : 'start') + ';padding:11px 13px;border:1px solid #ffffff24;border-radius:13px;background:' + (who === 'visitor' ? '#8f171d' : '#1c2028') + ';color:#fff;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;';
+        item.textContent = String(text || '');
+        thread.appendChild(item);
+        thread.scrollTop = thread.scrollHeight;
+      }
+      function explainError(error) {
+        var code = Number(error && error.status || 0);
+        var text = String(error && error.message || 'The support service could not be reached.');
+        if (error && error.checks) { var missing = Object.keys(error.checks).filter(function (name) { return error.checks[name] !== true; }); if (error.checks.settings_row === false) missing.push('chatbot settings row'); if (missing.length) return 'Chat database check failed for: ' + missing.join(', ') + '. Run the chatbot SQL setup/diagnostic script in Supabase.'; }
+        if (code === 404) return 'The PARROTHIT chatbot Edge Function was not found. Deploy parrothit-support-chatbot and try again.';
+        if (code === 401 || code === 403) return 'Supabase rejected the public chat request. Check that parrothit-support-chatbot is deployed with verify_jwt = false and that the publishable key in supabase-config.js is current.';
+        if (/Run supabase\/parrothit-ai-support-chatbot\.sql|does not exist|schema cache|relation .* does not exist/i.test(text)) return 'The chatbot database tables are missing or incomplete. Run supabase/parrothit-ai-support-chatbot.sql in the Supabase SQL Editor, then test again.';
+        if (error && error.name === 'AbortError') return 'The support service timed out. Your message was not confirmed as sent; please try again.';
+        if (/Failed to fetch|NetworkError|Load failed/i.test(text)) return 'Your browser could not reach the chatbot service. Check the Edge Function deployment and its CORS response, then try again.';
+        return text + ' Your message was not confirmed as sent. Please try again or use Contact PARROTHIT support.';
+      }
+      async function request(action, extra) {
+        var cfg = config();
+        if (!cfg.url || !cfg.key) throw new Error('PARROTHIT Supabase URL or publishable key is missing from supabase-config.js.');
+        var controller = new AbortController();
+        var timeout = setTimeout(function () { controller.abort(); }, action === 'health' ? 12000 : 40000);
+        var response;
+        try {
+          response = await fetch(cfg.url + '/functions/v1/parrothit-support-chatbot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': cfg.key },
+            body: JSON.stringify(Object.assign({ action: action, channel: /advertis|video-gif|advertiser|campaign/i.test(currentPath) ? 'advertiser' : 'website', visitor_key: visitorKey, page_path: currentPath, page_title: document.title }, extra || {})),
+            signal: controller.signal
+          });
+        } finally { clearTimeout(timeout); }
+        var data = await response.json().catch(function () { return {}; });
+        if (!response.ok || data.ok === false) {
+          var err = new Error(data.error || ('Chat service returned HTTP ' + response.status + '.'));
+          err.status = response.status;
+          if (data.checks) err.checks = data.checks;
+          if (data.settings_row === false) { err.checks = err.checks || {}; err.checks.settings_row = false; }
+          throw err;
+        }
+        return data;
+      }
+      async function checkHealth() {
+        try {
+          var health = await request('health');
+          if (health.ready) {
+            var channel = /advertis|video-gif|advertiser|campaign/i.test(currentPath) ? 'advertiser' : 'website';
+            var enabled = health.chat_enabled && (channel === 'advertiser' ? health.advertiser_enabled : health.sitewide_enabled);
+            setMessage(enabled ? 'Connected · PARROTHIT support is ready. You can send a message.' : 'Database connected · Chat is currently disabled in the PARROTHIT Chatbot Control Centre.');
+          } else setMessage(health.error || 'The chat database is not ready. Please contact support.');
+        } catch (error) {
+          setMessage('Chat service check: ' + explainError(error));
+        }
+      }
+      async function sendMessage(event) {
+        if (event) event.preventDefault();
+        if (busy) return;
+        var message = String(input && input.value || '').trim();
+        if (!message) { setMessage('Please type your message before pressing Send.'); if (input) input.focus(); return; }
+        busy = true;
+        var originalText = button ? button.textContent : 'Send';
+        if (button) { button.disabled = true; button.textContent = 'Sending…'; }
+        if (input) input.value = '';
+        appendMessage(message, 'visitor');
+        setMessage('Sending your message securely…');
+        try {
+          var data;
+          try {
+            data = await request('chat', { conversation_id: conversation || null, message: message });
+          } catch (error) {
+            if (conversation && (error.status === 404 || /conversation.*(?:expired|not found)/i.test(error.message || ''))) {
+              conversation = '';
+              try { if (sessionStore) sessionStore.removeItem('ph_support_conversation_id'); } catch (_) {}
+              data = await request('chat', { conversation_id: null, message: message });
+            } else throw error;
+          }
+          if (data.disabled) throw new Error('Chat support is turned off in the PARROTHIT Chatbot Control Centre.');
+          if (data.conversation_id) { conversation = data.conversation_id; safeSet(sessionStore, 'ph_support_conversation_id', conversation); }
+          appendMessage(data.answer || 'Thank you. PARROTHIT has received your message.', 'assistant');
+          setMessage(data.status === 'human' ? 'Message sent · A support agent will respond here.' : 'Message sent · PARROTHIT Customer Assistance has replied.');
+        } catch (error) {
+          if (input && !input.value) input.value = message;
+          setMessage('Not sent · ' + explainError(error));
+        } finally {
+          busy = false;
+          if (button) { button.disabled = false; button.textContent = originalText || 'Send'; }
+          if (input) input.focus();
+        }
+      }
+      if (button) button.addEventListener('click', sendMessage);
+      form.addEventListener('submit', sendMessage);
+      if (input) input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); sendMessage(event); }
+      });
+      setMessage('Ready · You can type your message now.');
+      void checkHealth();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(bindEmergencyChat, 0); }, { once: true });
+    else setTimeout(bindEmergencyChat, 0);
+  })();
+  </script>
+
 </body>
 </html>
