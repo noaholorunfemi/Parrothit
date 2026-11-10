@@ -55,6 +55,11 @@ grant select, insert, update, delete on table public.admin_active_sessions to se
 grant select, insert, update, delete on table public.admin_session_audit to service_role;
 grant usage on schema public to service_role;
 
+-- Existing deployments may have a different OUT/table return type. PostgreSQL
+-- cannot change OUT parameter row types with CREATE OR REPLACE, so drop the exact
+-- signature before recreating it. This affects only the RPC definition, not session rows.
+drop function if exists public.parrothit_claim_admin_session(uuid,uuid,text,text,text,text);
+
 -- Atomic single-device claim. The function serializes claims per user, enforces
 -- the configured inactivity window, and never replaces another live device session.
 create or replace function public.parrothit_claim_admin_session(
