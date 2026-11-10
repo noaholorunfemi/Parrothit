@@ -205,7 +205,7 @@
       ...extra
     };
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), action === 'hello' || action === 'poll' ? 10000 : 20000);
+    const timeout = setTimeout(() => controller.abort(), action === 'hello' || action === 'poll' ? 10000 : 35000);
     let response;
     try {
       response = await fetch(endpoint, {
@@ -216,7 +216,11 @@
       });
     } finally { clearTimeout(timeout); }
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.error || 'Support is temporarily unavailable.');
+    if (!response.ok || data.ok === false) {
+      const error = new Error(data.error || `Support is temporarily unavailable (HTTP ${response.status}).`);
+      error.status = response.status;
+      throw error;
+    }
     return data;
   }
   function setStatus(text) { if ($('ph-status')) $('ph-status').textContent = text || ''; }
@@ -449,13 +453,27 @@
       messageBox.setAttribute('aria-disabled', 'false');
       messageBox.tabIndex = 0;
     }
-    if ($('ph-send')) $('ph-send').disabled = false;
-    $('ph-compose-form').addEventListener('submit', event => { event.preventDefault(); unlockSpeechFromGesture(); send(messageBox ? messageBox.value : ''); });
+    const composeForm = $('ph-compose-form');
+    const sendButton = $('ph-send');
+    const submitVisitorMessage = event => {
+      if (event) event.preventDefault();
+      unlockSpeechFromGesture();
+      void send(messageBox ? messageBox.value : '');
+    };
+    if (sendButton) {
+      // Use a direct click handler instead of depending only on native form submission.
+      // This is more reliable with mobile keyboards and other page-wide form listeners.
+      sendButton.type = 'button';
+      sendButton.disabled = false;
+      sendButton.setAttribute('aria-label', 'Send message to PARROTHIT');
+      sendButton.addEventListener('click', submitVisitorMessage);
+    }
+    if (composeForm) composeForm.addEventListener('submit', submitVisitorMessage);
     if (messageBox) {
       messageBox.addEventListener('keydown', event => {
         if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
           event.preventDefault();
-          $('ph-compose-form').requestSubmit();
+          submitVisitorMessage(event);
         }
       });
       messageBox.addEventListener('input', () => {
@@ -490,28 +508,95 @@
 
   async function send(text) {
     const message = String(text || '').trim();
-    if (state.busy || !message) { if (!message && $('ph-input')) $('ph-input').focus(); return; }
+    const input = $('ph-input');
+    const button = $('ph-send');
+    if (!message) {
+      setStatus('Please type a message before pressing Send.');
+      if (input) input.focus();
+      return;
+    }
+    if (state.busy) {
+      setStatus('I’m still sending your previous message. Please wait for my reply.');
+      return;
+    }
+
     state.busy = true;
-    if ($('ph-send')) $('ph-send').disabled = true;
+    const originalButtonText = button ? button.textContent : 'Send';
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Sending…';
+      button.setAttribute('aria-busy', 'true');
+    }
     bubble(message, 'user');
-    $('ph-input').value = '';
-    setStatus('The PARROTHIT parrot is preparing a reply…');
+    if (input) input.value = '';
+    setStatus('Sending your message securely…');
+
+    let delivered = false;
     try {
-      const data = await call('chat', { conversation_id: state.conversation || null, message });
-      state.conversation = data.conversation_id || state.conversation;
-      try { sessionStorage.setItem('ph_support_conversation_id', state.conversation); } catch (_) {}
+      let data;
+      try {
+        data = await call('chat', { conversation_id: state.conversation || null, message });
+      } catch (error) {
+        // If a saved conversation ID expired, transparently start a fresh conversation
+        // once. This prevents an old browser session from blocking every future message.
+        const expiredConversation = !!state.conversation && (
+          error.status === 404 || /conversation (?:has )?expired|conversation not found|session has expired/i.test(String(error.message || ''))
+        );
+        if (!expiredConversation) throw error;
+        state.conversation = '';
+        state.lastAt = '';
+        try {
+          sessionStorage.removeItem('ph_support_conversation_id');
+          sessionStorage.removeItem('ph_support_last_at');
+        } catch (_) {}
+        data = await call('chat', { conversation_id: null, message });
+      }
+
+      if (data.disabled) {
+        bubble('Chat support is temporarily unavailable. Your message has not been sent. Please try again later or use the Contact PARROTHIT page.');
+        setStatus('Not sent · Support is temporarily unavailable.');
+        return;
+      }
+
+      if (data.conversation_id) {
+        state.conversation = data.conversation_id;
+        try { sessionStorage.setItem('ph_support_conversation_id', state.conversation); } catch (_) {}
+      }
       state.status = data.status || state.status;
-      if (data.last_message_at) { state.lastAt = data.last_message_at; try { sessionStorage.setItem('ph_support_last_at', state.lastAt); } catch (_) {} }
-      if (data.disabled) { bubble('Customer assistance is temporarily unavailable. Please use the Contact PARROTHIT page.'); setStatus('Support is unavailable'); return; }
-      if (data.answer) { bubble(data.answer, 'bot', state.status === 'human' ? 'PARROTHIT SUPPORT' : 'PARROTHIT AI'); speak(data.answer); }
-      setStatus(state.status === 'human' ? 'A PARROTHIT support agent is handling this conversation.' : state.status === 'closed' ? 'Conversation closed.' : 'Online · PARROTHIT Customer Assistance');
+      if (data.last_message_at) {
+        state.lastAt = data.last_message_at;
+        try { sessionStorage.setItem('ph_support_last_at', state.lastAt); } catch (_) {}
+      }
+
+      const answer = String(data.answer || 'Thank you for your message. Your message has been received by PARROTHIT Customer Assistance.');
+      bubble(answer, 'bot', state.status === 'human' ? 'PARROTHIT SUPPORT' : 'PARROTHIT AI');
+      speak(answer);
+      delivered = true;
+      setStatus(state.status === 'human'
+        ? 'Your message was sent · A PARROTHIT support agent is handling this conversation.'
+        : state.status === 'closed'
+          ? 'Conversation closed.'
+          : 'Message sent · PARROTHIT Customer Assistance is online.');
       if (state.status !== 'closed') startPolling();
     } catch (error) {
-      bubble(error.message || 'Your message could not be sent. Please try again.'); setStatus('Message not sent');
+      const reason = error && error.name === 'AbortError'
+        ? 'The support service took too long to respond.'
+        : (error && error.message) || 'The support service could not receive your message.';
+      bubble(`${reason} Your message has not been confirmed as sent. Please try again or use the Contact PARROTHIT page.`);
+      setStatus('Not sent · Please try again.');
     } finally {
-      state.busy = false; if ($('ph-send')) $('ph-send').disabled = false; if ($('ph-input')) $('ph-input').focus();
+      // Restore text after failure so customers do not lose what they typed.
+      if (!delivered && input && !input.value) input.value = message;
+      state.busy = false;
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalButtonText || 'Send';
+        button.removeAttribute('aria-busy');
+      }
+      if (input) input.focus();
     }
   }
+
   async function poll() {
     if (!state.conversation) return;
     try {
