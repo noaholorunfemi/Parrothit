@@ -93,10 +93,27 @@ create policy "admins view audit log" on public.admin_audit_log for select to au
 drop policy if exists "admins insert audit log" on public.admin_audit_log;
 create policy "admins insert audit log" on public.admin_audit_log for insert to authenticated with check (public.is_parrothit_admin());
 
--- Hard cap: Admin 1 (Owner) plus no more than ten additional admin profiles (11 total). The advisory lock prevents concurrent inserts exceeding the cap.
-create or replace function public.enforce_admin_limit() returns trigger language plpgsql security definer set search_path=public as $$ begin perform pg_advisory_xact_lock(20261017); if (select count(*) from public.admin_profiles) >= 11 then raise exception 'PARROTHIT supports a maximum of 11 administrators including the owner'; end if; return new; end; $$;
+-- Unlimited additional administrator profiles. Admin 1 (Owner) remains the single protected Owner account.
 drop trigger if exists admin_limit_trigger on public.admin_profiles;
-create trigger admin_limit_trigger before insert on public.admin_profiles for each row execute function public.enforce_admin_limit();
+drop function if exists public.enforce_admin_limit();
+create or replace function public.protect_parrothit_owner_profile() returns trigger language plpgsql security definer set search_path=public as $$
+begin
+  if tg_op = 'DELETE' then
+    if old.role = 'owner' then raise exception 'Admin 1 (Owner) is protected and cannot be deleted.' using errcode='42501'; end if;
+    return old;
+  end if;
+  if old.role = 'owner' then
+    if new.user_id is distinct from old.user_id or new.role is distinct from 'owner' or new.is_suspended is distinct from false then
+      raise exception 'Admin 1 (Owner) must remain the original active Owner account.' using errcode='42501';
+    end if;
+  elsif new.role = 'owner' then
+    raise exception 'A new Owner role cannot be assigned through an administrator profile update.' using errcode='42501';
+  end if;
+  return new;
+end; $$;
+revoke all on function public.protect_parrothit_owner_profile() from public, anon, authenticated;
+drop trigger if exists protect_parrothit_owner_profile_trigger on public.admin_profiles;
+create trigger protect_parrothit_owner_profile_trigger before update or delete on public.admin_profiles for each row execute function public.protect_parrothit_owner_profile();
 
 -- Username login resolution: only returns email for a matching username. Configure carefully before enabling client use.
 create or replace function public.resolve_admin_email(p_username text) returns text language sql stable security definer set search_path=public as $$ select u.email from public.admin_profiles p join auth.users u on u.id=p.user_id where lower(p.username)=lower(trim(p_username)) limit 1; $$;
@@ -112,7 +129,7 @@ drop policy if exists "public reads public display settings" on public.site_sett
 create policy "public reads public display settings" on public.site_settings for select using (key in ('homepage_slides','home_video','category_images','ads','moving_text','home_tickler','news_cards','advertisement_cards','category_cards','news_ads_appearance','sports_streams','homepage_cards'));
 
 -- Shared image uploads. The bucket is public for viewing; uploads/changes require an authenticated PARROTHIT admin.
-insert into storage.buckets (id, name, public, file_size_limit) values ('parrothit-media','parrothit-media',true,52428800), ('parrot-media','parrot-media',true,52428800) on conflict (id) do update set name=excluded.name, public=true, file_size_limit=excluded.file_size_limit;
+insert into storage.buckets (id, name, public, file_size_limit) values ('parrothit-media','parrothit-media',true,104857600), ('parrot-media','parrot-media',true,104857600) on conflict (id) do update set name=excluded.name, public=true, file_size_limit=excluded.file_size_limit;
 drop policy if exists "public reads PARROTHIT media" on storage.objects;
 create policy "public reads PARROTHIT media" on storage.objects for select using (bucket_id='parrothit-media');
 drop policy if exists "admins upload PARROTHIT media" on storage.objects;
