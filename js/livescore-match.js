@@ -1,4 +1,4 @@
-/* PARROTHIT LiveScore match centre. Provider-fed details only; empty panels never invent data. */
+/* PARROTHIT LiveScore match centre. Available match information only; empty panels never invent data. */
 (() => {
   'use strict';
 
@@ -14,7 +14,6 @@
   const endpoint = baseUrl ? `${baseUrl}/functions/v1/parrothit-football-public` : '';
   const LAGOS = 'Africa/Lagos';
   let currentMatch = null;
-  let providerName = 'Active football providers';
   let refreshTimer = null;
   let clockTickerTimer = null;
   let busy = false;
@@ -182,7 +181,7 @@
     ];
     $('plInfoGrid').innerHTML = fields.map(([label, value]) => `<div><small>${esc(label)}</small><b>${esc(value)}</b></div>`).join('');
   }
-  function emptyState(title, detail = 'This information is not supplied by the active provider for this match.') {
+  function emptyState(title, detail = 'This match information is not available right now.') {
     return `<div class="pl-detail-empty"><strong>${esc(title)}</strong><p>${esc(detail)}</p></div>`;
   }
   function flattenList(value) {
@@ -215,7 +214,7 @@
     if (match?.round) notes.push(`Round: ${textValue(match.round)}`);
     if (match?.referee || match?.referee_name) notes.push(`Referee: ${textValue(match.referee || match.referee_name)}`);
     if (!events.length) {
-      $('plSummaryContent').innerHTML = `${emptyState('No event timeline available', 'Goals, cards and substitutions will appear here when the selected provider supplies match events.')}<div class="pl-summary-score"><span>${esc(teamName(match, 'home'))}</span><b>${esc(match?.home_score ?? '–')} – ${esc(match?.away_score ?? '–')}</b><span>${esc(teamName(match, 'away'))}</span></div>`;
+      $('plSummaryContent').innerHTML = `${emptyState('No event timeline available', 'Goals, cards and substitutions will appear here when match events are available.')}<div class="pl-summary-score"><span>${esc(teamName(match, 'home'))}</span><b>${esc(match?.home_score ?? '–')} – ${esc(match?.away_score ?? '–')}</b><span>${esc(teamName(match, 'away'))}</span></div>`;
       return;
     }
     const iconFor = (type) => /goal|score/i.test(type) ? '⚽' : /yellow/i.test(type) ? '🟨' : /red|dismiss/i.test(type) ? '🟥' : /sub/i.test(type) ? '↕' : '•';
@@ -274,7 +273,7 @@
   }
   function renderStats(match) {
     const rows = statRows(match);
-    if (!rows.length) { $('plStatsContent').innerHTML = emptyState('Statistics not available', 'Possession, shots, shots on target, corners and other statistics will appear here when supplied by the provider.'); return; }
+    if (!rows.length) { $('plStatsContent').innerHTML = emptyState('Statistics not available', 'Possession, shots, shots on target, corners and other statistics will appear here when available.'); return; }
     $('plStatsContent').innerHTML = `<div class="pl-stats-head"><span>${esc(teamName(match, 'home'))}</span><span>STATISTICS</span><span>${esc(teamName(match, 'away'))}</span></div><div class="pl-stats-list">${rows.map((row) => `<div class="pl-stat-row"><b>${esc(valueLabel(row.home))}</b><span>${esc(row.label)}</span><b>${esc(valueLabel(row.away))}</b></div>`).join('')}</div>`;
   }
   function lineupTeams(raw, match) {
@@ -332,7 +331,7 @@
   function renderLineups(match) {
     const raw = match?.lineups ?? match?.formations ?? match?.team_lineups ?? null;
     const teams = lineupTeams(raw, match);
-    if (!teams.length) { $('plLineupsContent').innerHTML = emptyState('Line-ups not available', 'Starting XI, substitutes, player positions and formations will appear here when the provider supplies confirmed line-ups.'); return; }
+    if (!teams.length) { $('plLineupsContent').innerHTML = emptyState('Line-ups not available', 'Starting XI, substitutes, player positions and formations will appear here when match information is available.'); return; }
     const hasStarters = teams.some((team) => team.starters.length);
     const pitch = hasStarters ? `<div class="pl-formation-pitch" aria-label="Starting formations"><span class="pl-pitch-center" aria-hidden="true"></span><div class="pl-pitch-team-label pl-pitch-home"><b>${esc(teams[0]?.team || teamName(match, 'home'))}</b><small>${esc(teams[0]?.formation || '')}</small></div><div class="pl-pitch-team-label pl-pitch-away"><b>${esc(teams[1]?.team || teamName(match, 'away'))}</b><small>${esc(teams[1]?.formation || '')}</small></div>${teams[0] ? pitchMarkers(teams[0], 'home') : ''}${teams[1] ? pitchMarkers(teams[1], 'away') : ''}</div>` : '';
     $('plLineupsContent').innerHTML = `${pitch}<div class="pl-lineup-grid">${teams.map((team) => `<article class="pl-lineup-team"><header><b>${esc(team.team)}</b><span>${esc(team.formation || 'Formation not supplied')}</span></header>${team.coach ? `<p>Coach: ${esc(team.coach)}</p>` : ''}${team.substitutes.length ? `<h3>Substitutes</h3><ol>${team.substitutes.map(playerMarkup).join('')}</ol>` : (team.starters.length ? `<h3>Starting XI</h3><ol>${team.starters.map(playerMarkup).join('')}</ol>` : '')}</article>`).join('')}</div>`;
@@ -352,13 +351,13 @@
   }
   function renderStandings(match) {
     const rows = flattenStandings(match?.standings ?? match?.table ?? match?.league_table ?? null);
-    if (!rows.length) { $('plStandingsContent').innerHTML = emptyState('Standings not available', 'The active match feed does not include this competition table. Standings will appear here when a provider supplies a league-table feed.'); return; }
+    if (!rows.length) { $('plStandingsContent').innerHTML = emptyState('Standings not available', 'Competition standings are not available for this match yet. Please check again later.'); return; }
     const mode = ['all', 'home', 'away', 'form'].includes(standingsFilter) ? standingsFilter : 'all';
     const scopeFor = (row) => mode === 'all' ? asObject(row.all || row.overall || row.games || row) : mode === 'form' ? asObject(row) : asObject(row[mode] || row[`${mode}_stats`] || row[`${mode}_team`]);
     const scopedRows = mode === 'home' || mode === 'away' ? rows.filter((row) => Object.keys(scopeFor(row)).length) : rows;
     const filterMarkup = `<nav class="pl-table-filters" aria-label="Standings view">${[['all','All'],['home','Home'],['away','Away'],['form','Form']].map(([key,label]) => `<button type="button" data-standings-filter="${key}" class="${mode === key ? 'active' : ''}" aria-pressed="${mode === key}">${label}</button>`).join('')}</nav>`;
     if (!scopedRows.length) {
-      $('plStandingsContent').innerHTML = `${filterMarkup}${emptyState(`${mode === 'home' ? 'Home' : 'Away'} standings unavailable`, `The provider returned overall standings but did not include the ${mode}-only table.`)}`;
+      $('plStandingsContent').innerHTML = `${filterMarkup}${emptyState(`${mode === 'home' ? 'Home' : 'Away'} standings unavailable`, `The ${mode}-only standings are not available for this match.`)}`;
     } else if (mode === 'form') {
       $('plStandingsContent').innerHTML = `${filterMarkup}<div class="pl-table-wrap"><table class="pl-standings pl-form-table"><thead><tr><th>#</th><th>Team</th><th>Recent form</th><th>PTS</th></tr></thead><tbody>${scopedRows.map((row, index) => {
         const teamValue = row.team || row.participant || row.name || 'Team';
@@ -394,7 +393,7 @@
   }
   function renderH2H(match) {
     const rows = h2hRows(match);
-    if (!rows.length) { $('plH2HContent').innerHTML = emptyState('Head-to-head data not available', 'Previous meetings between these teams will appear here when the selected provider supplies H2H results.'); return; }
+    if (!rows.length) { $('plH2HContent').innerHTML = emptyState('Head-to-head data not available', 'Previous meetings will appear here when head-to-head information is available.'); return; }
     $('plH2HContent').innerHTML = `<div class="pl-h2h-list">${rows.map((row) => {
       const home = textValue(row.home || row.home_team || row.localteam || row.teams?.home || row.homeTeam, 'Home');
       const away = textValue(row.away || row.away_team || row.visitorteam || row.teams?.away || row.awayTeam, 'Away');
@@ -445,17 +444,16 @@
     });
     if (currentMatch && tab !== 'info') void loadMatchDetails(matchId, tab);
   }
-  function show(match, provider) {
+  function show(match) {
     currentMatch = match;
     if (window.PARROTHIT_LIVESCORE_CLOCK) window.PARROTHIT_LIVESCORE_CLOCK.register(match);
-    providerName = provider || providerName;
     $('plMatchLoading').hidden = true;
     $('plMatchContent').hidden = false;
     renderCompetition(match);
     renderTeam('plHomeTeam', match, 'home');
     renderTeam('plAwayTeam', match, 'away');
     renderScoreboard(match);
-    $('plProviderName').textContent = providerName;
+    $('plMatchInfoLabel').textContent = 'Match information';
     $('plMatchDataUpdated').textContent = `Updated ${new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: LAGOS }).format(new Date())}`;
     renderDataPanels(match);
     updateFavourite();
@@ -484,11 +482,11 @@
   async function load() {
     if (busy) return;
     if (!endpoint || !anonKey || /YOUR_PROJECT|YOUR_SUPABASE/i.test(`${baseUrl} ${anonKey}`)) {
-      if (!currentMatch) showError('Public Supabase configuration is missing.');
-      else $('plEventsNote').textContent = 'Showing the saved match information. Public Supabase configuration is missing, so live updates are unavailable.';
+      if (!currentMatch) showError('Match information is temporarily unavailable. Please try again shortly.');
+      else $('plEventsNote').textContent = 'Showing the saved match information. Live updates are temporarily unavailable.';
       return;
     }
-    if (!matchId) { showError('This match link is missing its match ID.'); return; }
+    if (!matchId) { showError('Match information is temporarily unavailable. Please return to LiveScore.'); return; }
 
     // A visitor arrives from the scores list with the selected match already saved in
     // sessionStorage. Render it immediately; never make the whole public fixture feed
@@ -497,8 +495,8 @@
       try {
         const cached = JSON.parse(sessionStorage.getItem(`parrothit_ls_match_${matchId}`) || 'null');
         if (cached && String(cached.public_match_key ?? cached.match_id ?? cached.id ?? '') === String(matchId)) {
-          show(cached, Array.isArray(cached.source_providers) ? cached.source_providers.join(' + ') : 'Recently loaded provider data');
-          $('plEventsNote').textContent = 'Showing the match selected from the LiveScore feed. Checking the latest server-side match cache…';
+          show(cached);
+          $('plEventsNote').textContent = 'Showing the match selected from LiveScore. Checking for the latest match information…';
         }
       } catch { /* cached navigation data is optional */ }
     }
@@ -511,22 +509,18 @@
         body: JSON.stringify({ action: 'match', match_key: matchId, date: requestedDate })
       }, 12000);
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload.ok === false) throw new Error(payload.error || `Match lookup returned HTTP ${response.status}.`);
+      if (!response.ok || payload.ok === false) throw new Error('Match information is temporarily unavailable.');
       const fresh = payload.match;
-      if (!fresh || typeof fresh !== 'object') throw new Error('This match is not present in the latest server-side LiveScore cache. Return to the scores page and open the fixture again after the feed loads.');
+      if (!fresh || typeof fresh !== 'object') throw new Error('Match information is temporarily unavailable. Return to LiveScore and try again shortly.');
       const identity = String(fresh.public_match_key ?? fresh.match_id ?? fresh.id ?? '');
-      if (identity !== String(matchId)) throw new Error('The server returned a different match record. Please reopen this match from the scores list.');
-      show(fresh, Array.isArray(fresh.source_providers) && fresh.source_providers.length ? fresh.source_providers.join(' + ') : (payload.provider || 'Active football APIs'));
-      $('plEventsNote').textContent = payload.cached_at
-        ? `Match information loaded from the football feed cache (${new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: LAGOS }).format(new Date(payload.cached_at))}). Optional match details are loading separately.`
-        : 'Match information loaded from the football feed cache. Optional match details are loading separately.';
+      if (identity !== String(matchId)) throw new Error('Match information is temporarily unavailable. Please reopen this match from LiveScore.');
+      show(fresh);
+      $('plEventsNote').textContent = 'Match information is ready. Additional match sections load when opened.';
       // Optional detail sections are loaded only when a visitor opens their tab.
       // This keeps the score, competition and Info panel independent of slower routes.
     } catch (error) {
-      const message = error?.name === 'AbortError'
-        ? 'The match lookup timed out. Your saved match information remains available; try refreshing or reopening it from LiveScore.'
-        : (error.message || 'Could not retrieve match data.');
-      if (currentMatch) $('plEventsNote').textContent = `Showing saved match information. Latest cache check: ${message}`;
+      const message = 'Match information is temporarily unavailable. Please try again shortly.';
+      if (currentMatch) $('plEventsNote').textContent = `Showing saved match information. ${message}`;
       else showError(message);
     } finally { busy = false; }
   }
@@ -542,7 +536,7 @@
     if (currentMatch && hasUsefulDetail(currentMatch[detailField])) { loadedDetailSections.add(tab); return; }
     loadingDetailSections.add(tab);
     const targetId = ({ summary: 'plSummaryContent', stats: 'plStatsContent', lineups: 'plLineupsContent', table: 'plStandingsContent', h2h: 'plH2HContent' })[tab];
-    if (targetId && $(targetId)) $(targetId).innerHTML = '<div class="pl-detail-empty"><span class="pl-spinner"></span><strong>Loading this match section…</strong><p>Checking the selected provider for this information.</p></div>';
+    if (targetId && $(targetId)) $(targetId).innerHTML = '<div class="pl-detail-empty"><span class="pl-spinner"></span><strong>Loading this match section…</strong><p>Checking for the latest match information.</p></div>';
     try {
       const response = await fetchWithTimeout(endpoint, {
         method: 'POST', cache: 'no-store',
@@ -550,7 +544,7 @@
         body: JSON.stringify({ action: 'match_details', match_key: key, section: detailField, date: requestedDate })
       }, 8000);
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok || payload.ok === false) throw new Error(payload.error || `Match details returned HTTP ${response.status}.`);
+      if (!response.ok || payload.ok === false) throw new Error('Match details are temporarily unavailable.');
       if (!currentMatch || String(currentMatch.public_match_key ?? currentMatch.match_id ?? currentMatch.id ?? '') !== String(key)) return;
       const details = asObject(payload.details);
       const tabForField = { events: 'summary', statistics: 'stats', lineups: 'lineups', standings: 'table', head_to_head: 'h2h' };
@@ -562,20 +556,16 @@
       }
       loadedDetailSections.add(tab);
       renderDataPanels(currentMatch);
-      const errors = Array.isArray(payload.detail_errors) ? payload.detail_errors : [];
-      if (errors.length && !hasUsefulDetail(currentMatch[detailField])) {
-        const message = errors.map((item) => String(item).replace(/^\w+:\s*/, '')).slice(0, 2).join(' ');
+      if (!hasUsefulDetail(currentMatch[detailField])) {
         const target = targetId && $(targetId);
-        if (target) target.innerHTML = emptyState('Information not supplied', message || 'This provider does not expose this match section.');
+        if (target) target.innerHTML = emptyState('Information not available yet', 'This match section is not available right now. Please check again later.');
       }
-      $('plEventsNote').textContent = errors.length
-        ? `Match information is displayed. ${errors.slice(0, 2).join('; ')}`
-        : 'This section has been checked against the selected provider. Other match sections load when opened.';
-    } catch (error) {
-      const message = error?.name === 'AbortError' ? 'The provider detail request timed out.' : (error.message || 'The provider did not return this information.');
+      $('plEventsNote').textContent = 'Match information is displayed. Other match sections load when opened.';
+    } catch (_error) {
+      const message = 'This match section is temporarily unavailable. Please try again shortly.';
       if (currentMatch && String(currentMatch.public_match_key ?? currentMatch.match_id ?? currentMatch.id ?? '') === String(key)) {
-        if (targetId && $(targetId)) $(targetId).innerHTML = emptyState('Could not load this section', `${message} You can try again by reopening the tab.`);
-        $('plEventsNote').textContent = `The main match information is available. ${message}`;
+        if (targetId && $(targetId)) $(targetId).innerHTML = emptyState('Could not load this section', message);
+        $('plEventsNote').textContent = 'The main match information is available. ' + message;
       }
     } finally { loadingDetailSections.delete(tab); }
   }
