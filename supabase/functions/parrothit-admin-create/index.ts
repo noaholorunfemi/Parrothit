@@ -128,9 +128,16 @@ Deno.serve(async (req: Request) => {
   try { username = await chooseUsername(admin, requestedUsername, email); }
   catch (error) { return reply(500, { error: (error as Error).message || "Could not allocate a username." }); }
 
-  // The owner never chooses or emails a permanent password. A strong random
-  // one-time password is replaced when the recipient follows the recovery link.
-  const randomPassword = `${crypto.randomUUID()}-${crypto.randomUUID()}!aA9`;
+  // Supabase Auth uses bcrypt, which only accepts up to 72 password bytes.
+  // Generate 32 cryptographically-random bytes (43 base64url chars), then add
+  // a short complexity suffix. Total length is 47 ASCII bytes, safely below 72.
+  // This password is temporary and is never emailed; the recipient sets their
+  // own permanent password through the one-time recovery link below.
+  const passwordBytes = new Uint8Array(32);
+  crypto.getRandomValues(passwordBytes);
+  let passwordBinary = "";
+  for (const byte of passwordBytes) passwordBinary += String.fromCharCode(byte);
+  const randomPassword = btoa(passwordBinary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") + "Aa1!";
   let createdUserId = "";
   let profileCreated = false;
   try {
