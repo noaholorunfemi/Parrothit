@@ -30,7 +30,7 @@
     {title:'Parrots Interaction',path:'/parrots-interaction.html',description:'PARROTHIT community interaction area.',tags:['community','social']},
     {title:'Community rooms',path:'/parrot-rooms-chat.html',description:'Community rooms and member discussions.',tags:['community','social']},
     {title:'Private chat',path:'/private-chat.html',description:'Private community conversations.',tags:['community','social']},
-    {title:'News categories',path:'/news-categories.html',description:'Browse public PARROTHIT news sections and topic categories.',tags:['news','general','categories']},
+    {title:'News categories',path:'/news-categories.html',description:'Browse PARROTHIT news and topic categories.',tags:['news','general']},
     {title:'Nigeria',path:'/nigeria.html',description:'News and stories about Nigeria.',tags:['news','nigeria']},
     {title:'World',path:'/world.html',description:'International news and world affairs.',tags:['news','world']},
     {title:'Politics',path:'/politics.html',description:'Political news and public affairs.',tags:['news','politics']},
@@ -63,7 +63,8 @@
     {title:'PARROTHIT Comments and Reactions',path:'/comments-likes.html',description:'Information about comments, likes and story interactions.',tags:['community','news','social']},
     {title:'Notifications',path:'/notifications.html',description:'View available PARROTHIT notifications.',tags:['community','account']},
     {title:'Article Page',path:'/article.html',description:'Open and read PARROTHIT article pages.',tags:['news','article']},
-        {title:'Advertiser Payment Return',path:'/advertise-payment-return.html',description:'Return page for advertiser payment processing.',tags:['advertising','payment']},
+    {title:'Categories',path:'/news-categories.html',description:'Browse all available news and content categories.',tags:['news','categories']},
+    {title:'Advertiser Payment Return',path:'/advertise-payment-return.html',description:'Return page for advertiser payment processing.',tags:['advertising','payment']},
     {title:'General Community Room',path:'/rooms/general.html',description:'General community discussions and member conversations.',tags:['community','social']},
     {title:'Education Community Room',path:'/rooms/education.html',description:'Community discussions about education and learning.',tags:['community','social','education']},
     {title:'Technology Community Room',path:'/rooms/technology.html',description:'Community discussions about technology and digital topics.',tags:['community','social','technology']},
@@ -80,26 +81,23 @@
     {title:'Business Community Room',path:'/rooms/business.html',description:'Community discussions about business and enterprise.',tags:['community','social','business']},
     {title:'Politics Community Room',path:'/rooms/politics.html',description:'Community discussions about politics and public affairs.',tags:['community','social','politics']}
   ];
-  const LINK_BY_PATH = new Map(SITE_MAP.map(item => [item.path.toLowerCase(), item]));
-  const isSafePublicPath = value => {
-    const path = String(value || '').split(/[?#]/)[0];
-    return /^\/(?:[a-z0-9-]+\.html|rooms\/[a-z0-9-]+\.html)$/i.test(path) && !/^\/categories\.html$/i.test(path) && !/^\/admin(?:\/|$)/i.test(path) && !/^\/(?:login|signup|forgot-password|reset-password|root-login|community-auth|community-reset-password)\.html$/i.test(path);
+  // Public-chat navigation is allow-listed. Never render admin/control-room destinations.
+  const safePublicPath = path => {
+    const value = String(path || '').trim();
+    if (!value.startsWith('/') || value.startsWith('//')) return '/news-categories.html';
+    if (/^\/(?:categories\.html|admin(?:\/|$)|dashboard\.html|admin-[^/]*\.html)/i.test(value)) return '/news-categories.html';
+    return value;
   };
+  const LINK_BY_PATH = new Map(SITE_MAP.map(item => [safePublicPath(item.path).toLowerCase(), { ...item, path: safePublicPath(item.path) }]));
   const getSourcePath = () => {
     if (!isAssistantPage) return currentPath;
     const raw = new URLSearchParams(location.search).get('from') || '';
-    const candidate = raw.split(/[?#]/)[0];
-    if (isSafePublicPath(candidate) && !/chat-assistance\.html/i.test(candidate)) return candidate;
+    if (raw.startsWith('/') && !raw.startsWith('//') && !/chat-assistance\.html/i.test(raw)) return safePublicPath(raw.split(/[?#]/)[0]);
     try {
       const ref = new URL(document.referrer);
-      if (ref.origin === location.origin && isSafePublicPath(ref.pathname) && !/chat-assistance\.html/i.test(ref.pathname)) return ref.pathname;
+      if (ref.origin === location.origin && !/chat-assistance\.html/i.test(ref.pathname)) return safePublicPath(ref.pathname);
     } catch (_) {}
     return '/index.html';
-  };
-  const safePublicHref = value => {
-    const path = String(value || '').split(/[?#]/)[0];
-    if (!isSafePublicPath(path)) return '';
-    return path;
   };
   const sourcePath = getSourcePath();
   let sourceTitle = (LINK_BY_PATH.get(sourcePath.toLowerCase()) || {}).title || 'PARROTHIT Website';
@@ -151,9 +149,10 @@
   }
   function getRelatedLinks(path) {
     const tags = tagsFor(path);
-    const ranked = SITE_MAP.filter(item => safePublicHref(item.path)).map((item, index) => {
-      const score = item.tags.reduce((n, tag) => n + (tags.includes(tag) ? 3 : 0), 0) + (item.path.toLowerCase() === String(path).toLowerCase() ? 2 : 0);
-      return { ...item, score, index };
+    const ranked = SITE_MAP.map((item, index) => {
+      const publicPath = safePublicPath(item.path);
+      const score = item.tags.reduce((n, tag) => n + (tags.includes(tag) ? 3 : 0), 0) + (publicPath.toLowerCase() === String(path).toLowerCase() ? 2 : 0);
+      return { ...item, path: publicPath, score, index };
     }).filter(item => item.score > 0 && item.path.toLowerCase() !== String(path).toLowerCase());
     ranked.sort((a,b) => b.score - a.score || a.index - b.index);
     const chosen = ranked.slice(0, 6);
@@ -181,7 +180,12 @@
   async function loadSourceContext() {
     if (!isAssistantPage || !sourcePath || !cfg.url || !cfg.key) return;
     try {
-      const response = await fetch(new URL(sourcePath, location.origin).href, { credentials: 'same-origin', headers: { 'X-PARROTHIT-Assistant-Context': '1' } });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      let response;
+      try {
+        response = await fetch(new URL(sourcePath, location.origin).href, { credentials: 'same-origin', headers: { 'X-PARROTHIT-Assistant-Context': '1' }, signal: controller.signal });
+      } finally { clearTimeout(timeout); }
       if (!response.ok) return;
       const html = await response.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -197,14 +201,20 @@
     const payload = {
       action, channel: /advertis|video-gif-ads|advertiser|campaign/i.test(sourcePath) ? 'advertiser' : 'website',
       visitor_key: visitorKey, page_path: sourcePath, page_title: sourceTitle,
-      page_context: sourceContext, page_catalog: SITE_MAP.filter(item => safePublicHref(item.path)).map(({title,path,description}) => ({title,path:safePublicHref(path),description})),
+      page_context: sourceContext, page_catalog: SITE_MAP.map(({title,path,description}) => ({title,path:safePublicPath(path),description})),
       ...extra
     };
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': cfg.key },
-      body: JSON.stringify(payload)
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), action === 'hello' || action === 'poll' ? 10000 : 20000);
+    let response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': cfg.key },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    } finally { clearTimeout(timeout); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data.ok === false) throw new Error(data.error || 'Support is temporarily unavailable.');
     return data;
@@ -374,7 +384,13 @@
     const related = getRelatedLinks(sourcePath);
     const prompts = pagePrompts(sourcePath);
     const pageCss = `
-      *{box-sizing:border-box}html,body.ph-assistant-document{margin:0;min-height:100%;background:#08090b!important;color:#f8fafc!important;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif}body.ph-assistant-document{min-height:100vh}#ph-support-page{min-height:100dvh;background:radial-gradient(circle at 12% 0%,#351014 0,transparent 34%),radial-gradient(circle at 90% 88%,#302508 0,transparent 32%),#08090b;color:#f8fafc;padding:0 22px 24px}#ph-support-page a{color:#fde047;text-decoration:none}#ph-support-page a:hover{text-decoration:underline}#ph-support-page button{font:inherit;cursor:pointer}.ph-page-inner{max-width:1320px;margin:0 auto}.ph-topbar{height:86px;display:flex;align-items:center;gap:15px;border-bottom:1px solid #ffffff20}.ph-brand{display:flex;align-items:center;gap:12px;min-width:0}.ph-brand-img{width:62px;height:62px;object-fit:contain;border-radius:16px;animation:phMascotFloat 3.6s ease-in-out infinite;filter:drop-shadow(0 6px 12px #0009) drop-shadow(0 0 7px #dc262633)}.ph-brand-title{font-weight:900;letter-spacing:.08em;font-size:14px}.ph-brand-sub{display:block;color:#cbd5e1;font-size:12px;letter-spacing:0;margin-top:3px}.ph-top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}.ph-pill{border:1px solid #ffffff30;background:#15171c;color:#fff;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:800}.ph-pill.red{border-color:#dc2626;background:#991b1b}.ph-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;padding-top:22px;align-items:start}.ph-chat-panel,.ph-resource-panel{background:#111318;border:1px solid #ffffff1c;border-radius:20px;overflow:hidden;box-shadow:0 18px 55px #0005}.ph-chat-panel{display:flex;flex-direction:column;min-width:0}.ph-chat-intro{padding:20px 22px;display:flex;align-items:center;gap:17px;border-bottom:1px solid #ffffff18;background:linear-gradient(110deg,#201115,#141519 60%,#211b0c)}.ph-intro-mascot{width:84px;height:84px;object-fit:contain;flex:0 0 auto;animation:phMascotFloat 3.4s ease-in-out infinite;filter:drop-shadow(0 0 9px #dc262655)}.ph-chat-intro h1{font-size:clamp(22px,3vw,32px);line-height:1.12;margin:0 0 8px;font-weight:900}.ph-chat-intro p{margin:0;color:#d1d5db;line-height:1.5;font-size:14px}.ph-red{color:#f87171}.ph-yellow{color:#fde047}.ph-context{padding:12px 20px;background:#17191e;border-bottom:1px solid #ffffff16;color:#cbd5e1;font-size:12px}.ph-context b{color:#fde047}.ph-prompts{display:flex;gap:8px;flex-wrap:wrap;padding:13px 18px;border-bottom:1px solid #ffffff18}.ph-prompt{border:1px solid #ca8a044a;background:#251f10;color:#fde68a;border-radius:999px;padding:8px 12px;font-size:12px}.ph-thread{height:min(48vh,540px);min-height:320px;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:15px;scroll-behavior:smooth;background:linear-gradient(#0e1014,#0b0c0f)}.ph-msg{display:flex;gap:10px;max-width:min(86%,760px);align-items:flex-end}.ph-msg.user{align-self:flex-end;flex-direction:row-reverse}.ph-msg .ph-avatar{width:35px;height:35px;object-fit:contain;flex:0 0 35px;border-radius:50%;background:#202127;border:1px solid #dc262677;animation:phMascotFloat 3.5s ease-in-out infinite;filter:drop-shadow(0 0 6px #dc262655)}.ph-msg.user .ph-avatar{display:none}.ph-bubble{border-radius:16px;padding:12px 14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.ph-msg.bot .ph-bubble{background:#1c2028;color:#f8fafc;border:1px solid #ffffff18;border-bottom-left-radius:4px}.ph-msg.user .ph-bubble{background:#991b1b;color:white;border:1px solid #ef4444;border-bottom-right-radius:4px}.ph-msg-tools{display:flex;gap:10px;margin-top:7px}.ph-read{border:0;background:transparent;color:#fde047;padding:0;font-size:11px}.ph-compose{display:block!important;visibility:visible!important;opacity:1!important;position:relative;z-index:20;flex:0 0 auto;padding:15px 17px;border-top:1px solid #ffffff20;background:#111318}.ph-compose form{display:grid!important;visibility:visible!important;opacity:1!important;grid-template-columns:minmax(0,1fr) 96px;gap:10px;align-items:stretch}.ph-compose form textarea{display:block!important;visibility:visible!important;opacity:1!important}#ph-support-page #ph-compose-form #ph-input.ph-input{display:block!important;visibility:visible!important;opacity:1!important;position:relative!important;grid-column:1;align-self:stretch;min-width:0;width:100%!important;height:auto!important;min-height:106px!important;max-height:240px;resize:vertical!important;appearance:none;-webkit-appearance:none;border:2px solid #ffffff70!important;background:#050609!important;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;border-radius:13px;padding:15px 16px;font:15px/1.5 Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif!important;outline:none!important;box-shadow:inset 0 0 0 1px #ffffff10!important;caret-color:#fde047!important}#ph-support-page #ph-compose-form #ph-input.ph-input::placeholder{color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;opacity:1!important}#ph-support-page #ph-compose-form #ph-input.ph-input::-webkit-input-placeholder{color:#ffffff!important;opacity:1!important}#ph-support-page #ph-compose-form #ph-input.ph-input::-moz-placeholder{color:#ffffff!important;opacity:1!important}#ph-support-page #ph-compose-form #ph-input.ph-input:focus{border-color:#fde047!important;box-shadow:0 0 0 3px #eab30833!important}.ph-input:focus{border-color:#eab308!important;box-shadow:0 0 0 3px #eab30822!important}.ph-send{display:block!important;visibility:visible!important;min-width:86px;border:0;border-radius:13px;background:linear-gradient(135deg,#dc2626,#991b1b);color:white;padding:0 22px;font-weight:900}.ph-send:disabled{opacity:.55;cursor:wait}.ph-compose-note{font-size:11px;color:#9ca3af;line-height:1.45;margin:10px 2px 0}.ph-status{min-height:16px;font-size:11px;color:#fde047;margin:0 0 8px 2px}.ph-resource-panel{padding:17px}.ph-resource-panel h2{margin:0 0 5px;font-size:17px}.ph-resource-panel>p{margin:0 0 14px;color:#aeb5c1;font-size:12px;line-height:1.5}.ph-link-list{display:grid;gap:9px}.ph-link-card{display:block;padding:12px;border:1px solid #ffffff1c;border-left:3px solid #eab308;background:#191c22;border-radius:12px}.ph-link-card strong{display:block;font-size:13px;color:#fff;margin-bottom:4px}.ph-link-card span{display:block;color:#aeb5c1;font-size:11px;line-height:1.4}.ph-help-card{margin-top:16px;padding:14px;border-radius:14px;background:#241316;border:1px solid #dc262655}.ph-help-card strong{color:#fca5a5;font-size:13px}.ph-help-card p{font-size:12px;color:#d1d5db;line-height:1.45;margin:7px 0 11px}.ph-help-card a{font-size:12px;font-weight:800}.ph-bottom{max-width:1320px;margin:16px auto 0;color:#89919e;text-align:center;font-size:11px;line-height:1.5}.ph-bottom a{color:#fde047}@keyframes phMascotFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-5px) rotate(1deg)}}@media(max-width:900px){.ph-layout{grid-template-columns:1fr}.ph-resource-panel{order:2}.ph-thread{height:48vh}}@media(max-width:580px){#ph-support-page{padding:0 10px 18px}.ph-topbar{height:74px}.ph-brand-img{width:50px;height:50px}.ph-brand-title{font-size:11px}.ph-brand-sub{font-size:10px}.ph-top-actions{gap:6px}.ph-pill{padding:8px 10px;font-size:11px}.ph-layout{padding-top:12px;gap:12px}.ph-chat-panel,.ph-resource-panel{border-radius:15px}.ph-chat-intro{padding:15px 13px;gap:10px}.ph-intro-mascot{width:60px;height:60px}.ph-chat-intro p{font-size:12px}.ph-context{padding:10px 13px}.ph-prompts{padding:11px 12px}.ph-prompt{font-size:11px;padding:7px 9px}.ph-thread{min-height:330px;height:50vh;padding:13px 10px}.ph-msg{max-width:94%}.ph-bubble{font-size:13px;padding:10px 11px}.ph-compose{padding:12px 10px}.ph-compose form{grid-template-columns:minmax(0,1fr) 76px!important;gap:8px}#ph-support-page #ph-compose-form #ph-input.ph-input{padding:13px;font-size:14px;min-height:96px!important}.ph-compose form{grid-template-columns:minmax(0,1fr) 78px!important}.ph-send{padding:0 12px;min-width:0}.ph-resource-panel{padding:14px}}@media(prefers-reduced-motion:reduce){.ph-brand-img,.ph-intro-mascot,.ph-msg .ph-avatar{animation:none!important}}`;
+      *{box-sizing:border-box}html,body.ph-assistant-document{margin:0;min-height:100%;background:#08090b!important;color:#f8fafc!important;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif}body.ph-assistant-document{min-height:100vh}#ph-support-page{min-height:100dvh;background:radial-gradient(circle at 12% 0%,#351014 0,transparent 34%),radial-gradient(circle at 90% 88%,#302508 0,transparent 32%),#08090b;color:#f8fafc;padding:0 22px 24px}#ph-support-page a{color:#fde047;text-decoration:none}#ph-support-page a:hover{text-decoration:underline}#ph-support-page button{font:inherit;cursor:pointer}.ph-page-inner{max-width:1320px;margin:0 auto}.ph-topbar{height:86px;display:flex;align-items:center;gap:15px;border-bottom:1px solid #ffffff20}.ph-brand{display:flex;align-items:center;gap:12px;min-width:0}.ph-brand-img{width:62px;height:62px;object-fit:contain;border-radius:16px;animation:phMascotFloat 3.6s ease-in-out infinite;filter:drop-shadow(0 6px 12px #0009) drop-shadow(0 0 7px #dc262633)}.ph-brand-title{font-weight:900;letter-spacing:.08em;font-size:14px}.ph-brand-sub{display:block;color:#cbd5e1;font-size:12px;letter-spacing:0;margin-top:3px}.ph-top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}.ph-pill{border:1px solid #ffffff30;background:#15171c;color:#fff;border-radius:999px;padding:9px 14px;font-size:12px;font-weight:800}.ph-pill.red{border-color:#dc2626;background:#991b1b}.ph-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;padding-top:22px;align-items:start}.ph-chat-panel,.ph-resource-panel{background:#111318;border:1px solid #ffffff1c;border-radius:20px;overflow:hidden;box-shadow:0 18px 55px #0005}.ph-chat-panel{display:flex;flex-direction:column;min-width:0}.ph-chat-intro{padding:20px 22px;display:flex;align-items:center;gap:17px;border-bottom:1px solid #ffffff18;background:linear-gradient(110deg,#201115,#141519 60%,#211b0c)}.ph-intro-mascot{width:84px;height:84px;object-fit:contain;flex:0 0 auto;animation:phMascotFloat 3.4s ease-in-out infinite;filter:drop-shadow(0 0 9px #dc262655)}.ph-chat-intro h1{font-size:clamp(22px,3vw,32px);line-height:1.12;margin:0 0 8px;font-weight:900}.ph-chat-intro p{margin:0;color:#d1d5db;line-height:1.5;font-size:14px}.ph-red{color:#f87171}.ph-yellow{color:#fde047}.ph-context{padding:12px 20px;background:#17191e;border-bottom:1px solid #ffffff16;color:#cbd5e1;font-size:12px}.ph-context b{color:#fde047}.ph-prompts{display:flex;gap:8px;flex-wrap:wrap;padding:13px 18px;border-bottom:1px solid #ffffff18}.ph-prompt{border:1px solid #ca8a044a;background:#251f10;color:#fde68a;border-radius:999px;padding:8px 12px;font-size:12px}.ph-thread{height:min(48vh,540px);min-height:320px;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:15px;scroll-behavior:smooth;background:linear-gradient(#0e1014,#0b0c0f)}.ph-msg{display:flex;gap:10px;max-width:min(86%,760px);align-items:flex-end}.ph-msg.user{align-self:flex-end;flex-direction:row-reverse}.ph-msg .ph-avatar{width:35px;height:35px;object-fit:contain;flex:0 0 35px;border-radius:50%;background:#202127;border:1px solid #dc262677;animation:phMascotFloat 3.5s ease-in-out infinite;filter:drop-shadow(0 0 6px #dc262655)}.ph-msg.user .ph-avatar{display:none}.ph-bubble{border-radius:16px;padding:12px 14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}.ph-msg.bot .ph-bubble{background:#1c2028;color:#f8fafc;border:1px solid #ffffff18;border-bottom-left-radius:4px}.ph-msg.user .ph-bubble{background:#991b1b;color:white;border:1px solid #ef4444;border-bottom-right-radius:4px}.ph-msg-tools{display:flex;gap:10px;margin-top:7px}.ph-read{border:0;background:transparent;color:#fde047;padding:0;font-size:11px}.ph-compose{display:block!important;visibility:visible!important;position:relative;z-index:2;flex:0 0 auto;padding:15px 17px;border-top:1px solid #ffffff20;background:#111318}.ph-compose form{display:grid!important;visibility:visible!important;opacity:1!important;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:stretch}.ph-input{display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;user-select:text!important;-webkit-user-select:text!important;touch-action:manipulation!important;caret-color:#fff!important;position:relative!important;flex:1;min-width:0;width:100%!important;min-height:82px!important;max-height:220px;resize:vertical!important;border:1px solid #ffffff55!important;background:#090a0d!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-radius:13px;padding:14px 15px;font:15px/1.45 Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif!important;outline:none!important;box-shadow:none!important}.ph-input::placeholder{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1}.ph-input:focus{border-color:#eab308!important;box-shadow:0 0 0 3px #eab30822!important}.ph-send{display:block!important;visibility:visible!important;min-width:86px;border:0;border-radius:13px;background:linear-gradient(135deg,#dc2626,#991b1b);color:white;padding:0 22px;font-weight:900}.ph-send:disabled{opacity:.55;cursor:wait}.ph-compose-note{font-size:11px;color:#9ca3af;line-height:1.45;margin:10px 2px 0}.ph-status{min-height:16px;font-size:11px;color:#fde047;margin:0 0 8px 2px}.ph-resource-panel{padding:17px}.ph-resource-panel h2{margin:0 0 5px;font-size:17px}.ph-resource-panel>p{margin:0 0 14px;color:#aeb5c1;font-size:12px;line-height:1.5}.ph-link-list{display:grid;gap:9px}.ph-link-card{display:block;padding:12px;border:1px solid #ffffff1c;border-left:3px solid #eab308;background:#191c22;border-radius:12px}.ph-link-card strong{display:block;font-size:13px;color:#fff;margin-bottom:4px}.ph-link-card span{display:block;color:#aeb5c1;font-size:11px;line-height:1.4}.ph-help-card{margin-top:16px;padding:14px;border-radius:14px;background:#241316;border:1px solid #dc262655}.ph-help-card strong{color:#fca5a5;font-size:13px}.ph-help-card p{font-size:12px;color:#d1d5db;line-height:1.45;margin:7px 0 11px}.ph-help-card a{font-size:12px;font-weight:800}.ph-bottom{max-width:1320px;margin:16px auto 0;color:#89919e;text-align:center;font-size:11px;line-height:1.5}.ph-bottom a{color:#fde047}@keyframes phMascotFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-5px) rotate(1deg)}}@media(max-width:900px){.ph-layout{grid-template-columns:1fr}.ph-resource-panel{order:2}.ph-thread{height:48vh}}@media(max-width:580px){#ph-support-page{padding:0 10px 18px}.ph-topbar{height:74px}.ph-brand-img{width:50px;height:50px}.ph-brand-title{font-size:11px}.ph-brand-sub{font-size:10px}.ph-top-actions{gap:6px}.ph-pill{padding:8px 10px;font-size:11px}.ph-layout{padding-top:12px;gap:12px}.ph-chat-panel,.ph-resource-panel{border-radius:15px}.ph-chat-intro{padding:15px 13px;gap:10px}.ph-intro-mascot{width:60px;height:60px}.ph-chat-intro p{font-size:12px}.ph-context{padding:10px 13px}.ph-prompts{padding:11px 12px}.ph-prompt{font-size:11px;padding:7px 9px}.ph-thread{min-height:330px;height:50vh;padding:13px 10px}.ph-msg{max-width:94%}.ph-bubble{font-size:13px;padding:10px 11px}.ph-compose{padding:12px 10px}.ph-compose form{grid-template-columns:minmax(0,1fr) 76px!important;gap:8px}.ph-input{padding:12px;font-size:14px;min-height:76px!important}.ph-send{padding:0 12px;min-width:0}.ph-resource-panel{padding:14px}}@media(prefers-reduced-motion:reduce){.ph-brand-img,.ph-intro-mascot,.ph-msg .ph-avatar{animation:none!important}}
+      #ph-chat-composer{display:block!important;visibility:visible!important;opacity:1!important;position:relative!important;z-index:20!important;min-height:150px!important;flex:0 0 auto!important;}
+      #ph-chat-composer form{display:grid!important;visibility:visible!important;opacity:1!important;grid-template-columns:minmax(0,1fr) auto!important;}
+      #ph-chat-composer textarea#ph-input{display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;min-height:82px!important;background:#090a0d!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border:2px solid #fff!important;}
+      #ph-chat-composer textarea#ph-input::placeholder{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;}
+      @media(max-width:580px){#ph-chat-composer form{grid-template-columns:minmax(0,1fr) 76px!important}#ph-chat-composer textarea#ph-input{min-height:76px!important;padding:12px!important}}
+    `;
     const style = document.createElement('style'); style.id = 'ph-assistant-page-styles'; style.textContent = pageCss; document.head.appendChild(style);
     host.innerHTML = `
       <div class="ph-page-inner">
@@ -388,9 +404,9 @@
             <div class="ph-context">You came from: <b id="ph-source-title">${esc(sourceTitle)}</b> · Recommendations below are based on this page.</div>
             <div class="ph-prompts" id="ph-prompts">${prompts.map((p,i)=>`<button class="ph-prompt" type="button" data-prompt="${esc(p)}">${esc(p)}</button>`).join('')}</div>
             <div id="ph-messages" class="ph-thread" aria-live="polite" aria-label="Conversation"></div>
-            <div class="ph-compose"><p id="ph-status" class="ph-status">Connecting to PARROTHIT Support…</p><form id="ph-compose-form"><textarea id="ph-input" class="ph-input" rows="2" maxlength="4000" autocomplete="off" placeholder="Type your message to PARROTHIT here… (Enter to send · Shift+Enter for a new line)" aria-label="Type your message"></textarea><button id="ph-send" class="ph-send" type="submit">Send</button></form><p class="ph-compose-note">For your protection, never send passwords, advertiser PINs, OTPs, card details or bank credentials. Voice is optional and device/browser permissions may apply. Use the Listen button under any reply to hear it again.</p></div>
+            <div class="ph-compose" id="ph-chat-composer" role="group" aria-label="Message PARROTHIT customer assistance" style="display:block!important;visibility:visible!important;opacity:1!important;position:relative!important;min-height:150px!important;flex:0 0 auto!important;padding:15px 17px!important;background:#111318!important"><p id="ph-status" class="ph-status" aria-live="polite">Welcome! You can type your message now.</p><form id="ph-compose-form" autocomplete="off" style="display:grid!important;visibility:visible!important;opacity:1!important;grid-template-columns:minmax(0,1fr) auto!important;gap:10px!important;align-items:stretch!important"><textarea id="ph-input" class="ph-input" rows="2" maxlength="4000" autocomplete="off" placeholder="Type your message here…" aria-label="Type your message" aria-disabled="false" style="display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;user-select:text!important;-webkit-user-select:text!important;touch-action:manipulation!important;caret-color:#fff!important;position:relative!important;width:100%!important;min-width:0!important;min-height:82px!important;max-height:220px!important;resize:vertical!important;overflow:auto!important;border:2px solid #ffffff!important;border-radius:13px!important;background:#090a0d!important;color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;padding:14px 15px!important;font:15px/1.45 Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif!important"></textarea><button id="ph-send" class="ph-send" type="submit" style="display:block!important;visibility:visible!important;opacity:1!important">Send</button></form><p class="ph-compose-note">For your protection, never send passwords, advertiser PINs, OTPs, card details or bank credentials. Voice is optional and device/browser permissions may apply. Use the Listen button under any reply to hear it again.</p></div>
           </section>
-          <aside class="ph-resource-panel" aria-label="Suggested PARROTHIT pages"><h2>Useful <span class="ph-yellow">PARROTHIT links</span></h2><p>Explore pages related to the section you were viewing.</p><div class="ph-link-list" id="ph-related-links">${related.map(item=>`<a class="ph-link-card" href="${esc(safePublicHref(item.path))}"><strong>${esc(item.title)} ↗</strong><span>${esc(item.description)}</span></a>`).join('')}</div><div class="ph-help-card"><strong>Need a human support agent?</strong><p>Tell me that you want a support agent, or contact the PARROTHIT team directly.</p><a href="/contact.html">Contact PARROTHIT support →</a></div></aside>
+          <aside class="ph-resource-panel" aria-label="Suggested PARROTHIT pages"><h2>Useful <span class="ph-yellow">PARROTHIT links</span></h2><p>Explore pages related to the section you were viewing.</p><div class="ph-link-list" id="ph-related-links">${related.map(item=>`<a class="ph-link-card" href="${esc(item.path)}"><strong>${esc(item.title)} ↗</strong><span>${esc(item.description)}</span></a>`).join('')}</div><div class="ph-help-card"><strong>Need a human support agent?</strong><p>Tell me that you want a support agent, or contact the PARROTHIT team directly.</p><a href="/contact.html">Contact PARROTHIT support →</a></div></aside>
         </div>
         <footer class="ph-bottom">PARROTHIT Customer Assistance · Answers and voice replies are AI-generated, not a human agent, and may be imperfect. Official account, payment and campaign decisions remain with PARROTHIT’s authorized systems and support team. <a href="/about.html">About PARROTHIT</a></footer>
       </div>`;
@@ -425,17 +441,28 @@
       if (button) send(button.getAttribute('data-prompt') || '');
     });
     const messageBox = $('ph-input');
-    $('ph-compose-form').addEventListener('submit', event => { event.preventDefault(); unlockSpeechFromGesture(); send(messageBox.value); });
-    messageBox.addEventListener('keydown', event => {
-      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-        event.preventDefault();
-        $('ph-compose-form').requestSubmit();
-      }
-    });
-    messageBox.addEventListener('input', () => {
-      messageBox.style.height = 'auto';
-      messageBox.style.height = Math.min(220, Math.max(82, messageBox.scrollHeight)) + 'px';
-    });
+    if (messageBox) {
+      messageBox.disabled = false;
+      messageBox.readOnly = false;
+      messageBox.removeAttribute('disabled');
+      messageBox.removeAttribute('readonly');
+      messageBox.setAttribute('aria-disabled', 'false');
+      messageBox.tabIndex = 0;
+    }
+    if ($('ph-send')) $('ph-send').disabled = false;
+    $('ph-compose-form').addEventListener('submit', event => { event.preventDefault(); unlockSpeechFromGesture(); send(messageBox ? messageBox.value : ''); });
+    if (messageBox) {
+      messageBox.addEventListener('keydown', event => {
+        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+          event.preventDefault();
+          $('ph-compose-form').requestSubmit();
+        }
+      });
+      messageBox.addEventListener('input', () => {
+        messageBox.style.height = 'auto';
+        messageBox.style.height = Math.min(220, Math.max(82, messageBox.scrollHeight)) + 'px';
+      });
+    }
     document.addEventListener('pointerdown', unlockSpeechFromGesture, { passive: true, once: true });
     document.addEventListener('keydown', unlockSpeechFromGesture, { once: true });
   }
@@ -498,30 +525,50 @@
   }
   function startPolling() { if (!state.timer) state.timer = setInterval(poll, 5000); }
 
-  async function initializeAssistantPage() {
+  function initializeAssistantPage() {
+    // Paint the complete visitor interface synchronously. Neither source-page context
+    // retrieval nor the Supabase hello check is allowed to gate the greeting or composer.
     renderFullPage();
-    await loadSourceContext();
+    const greeting = "Hello! Welcome to PARROTHIT. I'm your friendly website assistant. Ask me about news, sports, LiveScore, advertising, careers, community or finding any page. How may I help you today?";
+    bubble(greeting);
+    setStatus('Ready · You can type your message now.');
     if ($('ph-source-title')) $('ph-source-title').textContent = sourceTitle;
-    if (!cfg.url || !cfg.key) { bubble('Welcome to PARROTHIT. The support connection is not configured on this page yet. You can still use the suggested links on the right.'); setStatus('Support connection not configured'); return; }
-    try {
-      const data = await call('hello');
-      if (data.disabled) { bubble('PARROTHIT customer assistance is currently unavailable. Please use the Contact PARROTHIT link for help.'); setStatus('Support temporarily unavailable'); return; }
-      const greeting = data.welcome_message || 'Hello! Welcome to PARROTHIT. Ask me anything about the website, its pages or services, and I will guide you.';
-      bubble(greeting); speak(greeting);
+
+    // Load page context independently; this is helpful for answers but never required to chat.
+    void loadSourceContext().then(() => {
+      if ($('ph-source-title')) $('ph-source-title').textContent = sourceTitle;
+    }).catch(() => {});
+
+    // The backend health/welcome check is a background status update only.
+    if (!cfg.url || !cfg.key) {
+      setStatus('Ready to type · Live replies are not connected on this page yet. Use Contact support for assistance.');
+      return;
+    }
+    call('hello').then(data => {
+      if (data.disabled) {
+        setStatus('Chat is temporarily offline · You can still browse the suggested links or contact support.');
+        return;
+      }
       setStatus('Online · PARROTHIT Customer Assistance');
       if (state.conversation) startPolling();
-    } catch (error) {
-      bubble('Hello! Welcome to PARROTHIT. You can explore the suggested links while our support connection is being restored.');
-      setStatus(error.message || 'Support connection unavailable');
-    }
+    }).catch(error => {
+      const message = error && error.name === 'AbortError'
+        ? 'The support connection is taking longer than usual · You can still type and try sending.'
+        : 'Ready to chat · Live support is reconnecting in the background.';
+      setStatus(message);
+    });
   }
 
   if (isAssistantPage) {
-    Promise.resolve().then(initializeAssistantPage).catch(error => {
+    try {
+      initializeAssistantPage();
+    } catch (error) {
       console.error('PARROTHIT chat assistant failed to initialise:', error);
       const host = $('ph-support-page') || document.body;
-      host.innerHTML = `<main style="min-height:100vh;background:#08090b;color:#fff;padding:28px 18px;font:16px/1.6 system-ui,Arial,sans-serif"><div style="max-width:820px;margin:auto"><img src="/assets/images/parrothit-mascot.jpg" alt="PARROTHIT" style="width:88px;height:88px;object-fit:contain;animation:phFallbackFloat 3s ease-in-out infinite"><h1 style="color:#fff">PARROTHIT <span style="color:#facc15">Chat Assistance</span></h1><p>Our chat window could not finish loading. You can still browse these helpful PARROTHIT pages or contact the support team.</p><p><a style="color:#facc15" href="/contact.html">Contact PARROTHIT support</a> · <a style="color:#facc15" href="/index.html">Return home</a></p></div><style>@keyframes phFallbackFloat{50%{transform:translateY(-5px) rotate(2deg)}}</style></main>`;
-    });
+      host.innerHTML = `<main style="min-height:100vh;background:#08090b;color:#fff;padding:22px 14px;font:16px/1.6 system-ui,Arial,sans-serif"><div style="max-width:820px;margin:auto"><img src="/assets/images/parrothit-mascot.jpg" alt="PARROTHIT" style="width:88px;height:88px;object-fit:contain"><h1 style="color:#fff">PARROTHIT <span style="color:#facc15">Chat Assistance</span></h1><p>Hello! Welcome to PARROTHIT. You can type your question below. If live replies are unavailable, please contact our support team.</p><form id="ph-fallback-compose" style="display:block!important;visibility:visible!important;margin:18px 0;padding:14px;background:#15171c;border:1px solid #ffffff55;border-radius:14px"><label for="ph-fallback-input" style="display:block;color:#fff;margin-bottom:8px;font-weight:700">Your message</label><textarea id="ph-fallback-input" rows="3" placeholder="Type your message here…" style="display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;min-height:90px!important;box-sizing:border-box!important;background:#08090b!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border:2px solid #fff!important;border-radius:10px!important;padding:12px!important;font:15px/1.5 system-ui,Arial,sans-serif!important"></textarea><p id="ph-fallback-status" style="color:#fde047;font-size:13px">Your message box is ready.</p><button type="submit" style="background:#b91c1c;color:#fff;border:0;border-radius:9px;padding:11px 18px;font-weight:800">Send</button></form><p><a style="color:#facc15" href="/news-categories.html">Browse news categories</a> · <a style="color:#facc15" href="/contact.html">Contact PARROTHIT support</a> · <a style="color:#facc15" href="/index.html">Return home</a></p></div><style>#ph-fallback-compose textarea::placeholder{color:#fff!important;opacity:1!important}</style></main>`;
+      const fallbackForm = $('ph-fallback-compose');
+      if (fallbackForm) fallbackForm.addEventListener('submit', event => { event.preventDefault(); const status = $('ph-fallback-status'); if (status) status.textContent = 'The chat service did not finish starting, so this message has not been sent. Please use Contact PARROTHIT support.'; });
+    }
   } else if (!isPrivateOrAdmin) {
     makeLauncher();
   }
