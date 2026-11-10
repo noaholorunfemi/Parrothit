@@ -945,7 +945,7 @@ function expandProviderRoute(provider: Record<string, any>, view: string, date: 
   // including for provider configurations that were saved before this patch.
   if (String(provider.provider_code || "").toLowerCase() === "api-football" && view === "upcoming") {
     const target = new URL(expanded, "https://parrothit.invalid");
-    target.searchParams.set("status", "NS-TBD-PST");
+    target.searchParams.delete("status");
     expanded = `${target.pathname}${target.search}`;
   }
   return expanded;
@@ -988,7 +988,30 @@ async function providerRequest(
   const params = plainObject(provider.default_query_params);
   for (const [key, rawValue] of Object.entries(params)) {
     const value = typeof rawValue === "string" ? expandTemplate(rawValue, date, view, competition, dateFrom, dateTo) : String(rawValue);
-    target.searchParams.set(key, value);
+    // Admin forms can persist blank optional fields. Do not send empty query
+    // parameters: API-Football rejects empty from/to/status/timezone values.
+    if (value.trim() !== "") target.searchParams.set(key, value.trim());
+    else target.searchParams.delete(key);
+  }
+  if (String(provider.provider_code || "").toLowerCase() === "api-football") {
+    // API-Football requires values for any supplied date-window/timezone fields.
+    // Always use the caller's actual date window and Lagos timezone; omit status
+    // unless it has a valid single provider status code.
+    if (target.pathname.endsWith("/fixtures")) {
+      if (!target.searchParams.has("date") && !target.searchParams.has("season") && !target.searchParams.has("league")) {
+        target.searchParams.set("from", dateFrom || date);
+        target.searchParams.set("to", dateTo || dateFrom || date);
+      }
+      const from = target.searchParams.get("from");
+      const to = target.searchParams.get("to");
+      if (from === null || !from.trim()) target.searchParams.set("from", dateFrom || date);
+      if (to === null || !to.trim()) target.searchParams.set("to", dateTo || dateFrom || date);
+      if (!target.searchParams.get("timezone")?.trim()) target.searchParams.set("timezone", "Africa/Lagos");
+      const status = target.searchParams.get("status");
+      if (status && !/^(NS|1H|HT|2H|ET|P|FT|AET|PEN|BT|SUSP|INT|PST|CANC|ABD|AWD|WO)$/.test(status.trim().toUpperCase())) {
+        target.searchParams.delete("status");
+      }
+    }
   }
   if (page > 1) target.searchParams.set("page", String(page));
 
