@@ -127,7 +127,7 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
     return {
       live: "/fixtures?live=all&timezone=Africa/Lagos",
       today: "/fixtures?date={date}&timezone=Africa/Lagos",
-      upcoming: "/fixtures?date={date}&timezone=Africa/Lagos",
+      upcoming: "/fixtures?date={date}&status=NS-TBD-PST&timezone=Africa/Lagos",
       results: "/fixtures?date={date}&timezone=Africa/Lagos",
     };
   }
@@ -195,6 +195,9 @@ function builtInEndpoints(providerCode: string): Record<string, string> {
 function builtInRangeEndpoints(providerCode: string): Record<string, string> {
   // Use one range request where the provider natively supports date windows.
   if (providerCode === "api-football") return {
+    // This shared range fallback also serves the All matches/Today view, so leave it
+    // unfiltered here. expandProviderRoute adds the scheduled-status filter only
+    // when the requested view is Upcoming.
     upcoming: "/fixtures?from={from}&to={to}&timezone=Africa/Lagos",
     results: "/fixtures?from={from}&to={to}&timezone=Africa/Lagos",
   };
@@ -890,7 +893,10 @@ function classify(matches: Record<string, any>[], view: string, date: string, da
     if (view === "live") return live;
     if (view === "window") return inWindow;
     if (view === "results") return finished && inWindow;
-    if (view === "upcoming") return !finished && !live && inWindow && timestamp > now;
+    if (view === "upcoming") {
+      const scheduled = ["SCHEDULED", "NS", "NOT_STARTED", "TIMED", "TBD", "UPCOMING", "POSTPONED", "PST"].includes(status);
+      return scheduled && !finished && !live && inWindow && timestamp > now;
+    }
     if (view === "today") return validDate && day === date;
     return false;
   });
@@ -933,7 +939,16 @@ function expandProviderRoute(provider: Record<string, any>, view: string, date: 
   if (String(provider.provider_code || "").toLowerCase() === "football-data-org" && view === "live" && route === "/v4/matches?status=IN_PLAY,PAUSED") {
     route = "/v4/matches?status=LIVE";
   }
-  return expandTemplate(route, date, view, competition, dateFrom, dateTo);
+  let expanded = expandTemplate(route, date, view, competition, dateFrom, dateTo);
+  // API-Football's general fixtures endpoint includes completed and scheduled rows.
+  // Keep the Upcoming view strictly to not-started / TBD / postponed fixtures,
+  // including for provider configurations that were saved before this patch.
+  if (String(provider.provider_code || "").toLowerCase() === "api-football" && view === "upcoming") {
+    const target = new URL(expanded, "https://parrothit.invalid");
+    target.searchParams.set("status", "NS-TBD-PST");
+    expanded = `${target.pathname}${target.search}`;
+  }
+  return expanded;
 }
 
 function safeProviderRequestUrl(target: URL): string {
@@ -1611,7 +1626,10 @@ async function fetchProviderWindow(
     return fetchFootballDataOrgWindowInBatches(db, provider, view, selectedDate, competition, ttl, dateFrom, dateTo, rangeRoute);
   }
   if (rangeRoute) {
-    const cacheKey = `livescore:v7range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
+    // Version the API-Football Upcoming cache so previously cached all-status feeds
+    // cannot keep showing finished games after the scheduled-status filter is applied.
+    const rangeCacheVersion = code === "api-football" && view === "upcoming" ? "v8" : "v7";
+    const cacheKey = `livescore:${rangeCacheVersion}range:${provider.id}:${view}:${dateFrom}:${dateTo}:${competition}`;
     const result = await fetchOneProvider(db, provider, view, dateFrom, competition, Math.max(ttl, 300), dateFrom, dateTo, cacheKey, rangeRoute, false, view === "today");
     return view === "today" ? { ...result, matches: (result.matches || []).filter((match: any) => dateInLagos(String(match.kickoff || "")) === selectedDate) } : result;
   }
