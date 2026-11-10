@@ -470,7 +470,7 @@ function safePublicDetail(value: unknown, depth = 0): unknown {
   if (typeof value === "object") {
     const source = value as Record<string, unknown>;
     const output: Record<string, unknown> = {};
-    const blocked = /^(api_?key|token|authorization|headers?|secret|password|email|phone)$/i;
+    const blocked = /^(api_?key|token|authorization|headers?|secret|password|email|phone|provider|provider_name|provider_code|provider_id|provider_config_id|provider_names|provider_metadata|provider_count|source_priority|source_provider|source_providers|source_provider_ids|source_provider_codes|source_match_id|source_match_ids|api_provider)$/i;
     Object.entries(source).slice(0, 50).forEach(([key, item]) => {
       if (!blocked.test(key) && item !== undefined) output[key] = safePublicDetail(item, depth + 1);
     });
@@ -967,7 +967,7 @@ function expandProviderRoute(provider: Record<string, any>, view: string, date: 
 function safeProviderRequestUrl(target: URL): string {
   const safe = new URL(target.toString());
   for (const key of [...safe.searchParams.keys()]) {
-    if (/^(?:key|api[_-]?key|apikey|token|access[_-]?token|auth[_-]?token|secret)$/i.test(key)) {
+    if (/(?:api[_-]?key|apikey|token|access|auth|secret|credential)/i.test(key)) {
       safe.searchParams.set(key, "[redacted]");
     }
   }
@@ -1771,10 +1771,80 @@ async function loadCombinedCompetitionCatalog(
   return [...merged.values()].sort((a, b) => String(a.country_name || "").localeCompare(String(b.country_name || "")) || String(a.competition_name || "").localeCompare(String(b.competition_name || "")));
 }
 
+
+function stripPublicProviderMetadata(value: unknown, depth = 0): unknown {
+  if (value === null || value === undefined || depth > 8) return value ?? null;
+  if (Array.isArray(value)) return value.map((item) => stripPublicProviderMetadata(item, depth + 1));
+  if (typeof value !== "object") return value;
+  const source = value as Record<string, unknown>;
+  const output: Record<string, unknown> = {};
+  const blocked = /^(provider|provider_name|provider_code|provider_id|provider_config_id|provider_names|provider_metadata|provider_count|api_provider|source_priority|source_provider|source_providers|source_provider_ids|source_provider_codes|source_match_id|source_match_ids)$/i;
+  for (const [key, item] of Object.entries(source)) {
+    if (!blocked.test(key)) output[key] = stripPublicProviderMetadata(item, depth + 1);
+  }
+  return output;
+}
+
+function publicMatchRow(match: Record<string, any>): Record<string, any> {
+  return stripPublicProviderMetadata(match) as Record<string, any>;
+}
+
+function publicCompetitionRow(row: Record<string, any>): Record<string, any> {
+  return stripPublicProviderMetadata(row) as Record<string, any>;
+}
+
+function requiredPublicAttributions(results: Record<string, any>[]): Array<{ href: string; text: string }> {
+  const contributed = new Set(results
+    .filter((result) => result.ok === true && Array.isArray(result.matches) && result.matches.length > 0)
+    .map((result) => String(result.provider_code || "").toLowerCase()));
+  const links: Array<{ href: string; text: string }> = [];
+  // Keep mandatory source attribution links where the data provider's usage terms require them.
+  if (contributed.has("sportscore")) links.push({ href: "https://sportscore.com/", text: "Powered by SportScore" });
+  if (contributed.has("footballdata-io")) links.push({ href: "https://footballdata.io/", text: "Football data by Footballdata.io" });
+  return links;
+}
+
+async function logPublicProviderEvent(
+  db: ReturnType<typeof createClient>, provider: Record<string, any>, scope: string,
+  outcome: "success" | "partial" | "failure", httpStatus: number | null,
+  durationMs: number | null, message: string,
+): Promise<void> {
+  const configId = String(provider.id || "");
+  if (!configId) return;
+  const safeScope = String(scope || "feed").toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 24) || "feed";
+  const eventType = `public_provider_${safeScope}_${outcome}`.slice(0, 80);
+  const safeMessage = String(message || "").replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ")
+    .replace(/((?:api[_-]?key|token|secret|authorization)["'\s:=]+)[^,;\s}"']+/ig, "$1[redacted]").slice(0, 1200);
+  const row = {
+    event_type: eventType,
+    config_id: configId,
+    success: outcome !== "failure",
+    http_status: httpStatus == null || !Number.isFinite(Number(httpStatus)) ? null : Number(httpStatus),
+    duration_ms: durationMs == null || !Number.isFinite(Number(durationMs)) ? null : Math.max(0, Math.trunc(Number(durationMs))),
+    message: safeMessage || `${safeScope} request ${outcome}.`,
+    actor_user_id: null,
+  };
+  try {
+    // One entry per provider/scope/outcome in a 10-minute window keeps automated
+    // refreshes useful without filling the log table with identical polling events.
+    const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: recent } = await db.from("football_automation_logs")
+      .select("id").eq("config_id", configId).eq("event_type", eventType)
+      .gte("created_at", cutoff).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (recent?.id != null) {
+      await db.from("football_automation_logs").update({ ...row, created_at: new Date().toISOString() }).eq("id", recent.id);
+    } else {
+      await db.from("football_automation_logs").insert(row);
+    }
+  } catch (_error) {
+    // Diagnostic logging must never interrupt visitor match delivery.
+  }
+}
+
 Deno.serve(async (request: Request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (request.method !== "POST") return reply(405, { ok: false, error: "POST required." });
-  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return reply(500, { ok: false, error: "Supabase football service secrets are not configured." });
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return reply(200, { ok: true, matches: [], data_state: "unavailable" });
 
   try {
     const body = await request.json().catch(() => ({}));
@@ -1798,9 +1868,9 @@ Deno.serve(async (request: Request) => {
     // The first response must be fast: optional stats/events/line-ups are loaded
     // in a second request after the visible match card has rendered.
     if (action === "match" || action === "match_details") {
-      if (settings?.public_livescore_enabled !== true) return reply(503, { ok: false, error: "Public LiveScore is paused by the administrator.", match: null });
+      if (settings?.public_livescore_enabled !== true) return reply(200, { ok: true, match: null, data_state: "unavailable" });
       const requestedKey = safeString(body.match_key || body.public_match_key || body.id).trim().slice(0, 500);
-      if (!requestedKey) return reply(400, { ok: false, error: "A match key is required.", match: null });
+      if (!requestedKey) return reply(200, { ok: true, match: null, data_state: "unavailable" });
       const providerPrefix = requestedKey.includes(":") ? requestedKey.split(":", 1)[0] : "";
       const pattern = providerPrefix ? `livescore:v%:${providerPrefix}:%` : "livescore:v%";
       const { data: cacheRows, error: cacheError } = await db.from("football_public_cache")
@@ -1821,17 +1891,15 @@ Deno.serve(async (request: Request) => {
         });
         if (candidate) { found = candidate; foundCache = cacheRow; break; }
       }
-      if (!found) return reply(404, { ok: false, error: "This match was not found in the server-side LiveScore cache. Return to the scores page, refresh the fixtures, then open the match again.", match: null });
+      if (!found) return reply(404, { ok: false, error: "Match information is not available right now. Return to LiveScore and try opening it again.", match: null });
 
       const expiresAt = foundCache?.expires_at ? Date.parse(String(foundCache.expires_at)) : NaN;
       if (action === "match") {
         return reply(200, {
-          ok: true, match: found,
-          provider: Array.isArray(found.source_providers) ? found.source_providers.join(" + ") : (foundCache?.provider_name || "Football provider"),
+          ok: true, match: publicMatchRow(found),
           cached_at: foundCache?.fetched_at || null,
           stale: Number.isFinite(expiresAt) ? expiresAt <= Date.now() : false,
           details_pending: true,
-          message: "Match information loaded from the server-side public football cache. Optional detail sections are loading separately.",
         });
       }
 
@@ -1840,139 +1908,92 @@ Deno.serve(async (request: Request) => {
       const selectedProviderId = String(found.provider_config_id || providerPrefix);
       const provider = activeProviders.find((item) => String(item.id) === selectedProviderId)
         || activeProviders.find((item) => providerIds.includes(String(item.id)));
-      if (!provider) return reply(200, { ok: true, details: {}, detail_errors: ["The source provider is no longer active or its configuration is unavailable."], message: "Showing cached match information; optional provider details are unavailable." });
+      if (!provider) return reply(200, { ok: true, details: {}, available: false });
       const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : safeString(found.kickoff).slice(0, 10);
-      const requestedSection = safeString(body.section).toLowerCase();
+      const allowedSections = ["events", "statistics", "lineups", "standings", "head_to_head"];
+      const requestedSection = allowedSections.includes(safeString(body.section).toLowerCase()) ? safeString(body.section).toLowerCase() : "";
+      const detailStartedAt = Date.now();
       const detailResult = await fetchConfiguredMatchDetails(provider, found, requestedDate, requestedSection);
+      const detailOutcome = detailResult.errors.length
+        ? (Object.keys(detailResult.details).length ? "partial" : "failure")
+        : "success";
+      await logPublicProviderEvent(db, provider, `match_${requestedSection || "details"}`, detailOutcome, null,
+        Date.now() - detailStartedAt,
+        detailResult.errors.length ? detailResult.errors.slice(0, 4).join("; ") : `Match details loaded: ${Object.keys(detailResult.details).join(", ") || "no optional sections returned"}.`);
       return reply(200, {
-        ok: true, details: detailResult.details, detail_errors: detailResult.errors,
-        provider: provider.provider_name || "Football provider",
-        message: detailResult.errors.length ? `Some optional match-centre endpoints were unavailable: ${detailResult.errors.slice(0, 3).join("; ")}` : "Available match details loaded.",
+        ok: true, details: detailResult.details, available: Object.keys(detailResult.details).length > 0,
       });
     }
 
     const activeProviders = await loadActiveProviderConfigs(db, settings || {});
     if (action === "catalog") {
-      if (!activeProviders.length) return reply(200, { ok: true, competitions: [], competition_count: 0, provider: "", provider_count: 0, message: "No public football APIs are active yet. Add verified providers in Football Automation Room to populate the competition catalogue." });
+      if (!activeProviders.length) return reply(200, { ok: true, competitions: [], competition_count: 0 });
       const competitions = await loadCombinedCompetitionCatalog(db, activeProviders);
-      const providerLabel = `${activeProviders.length} active football API${activeProviders.length === 1 ? "" : "s"}`;
       return reply(200, {
         ok: true,
-        competitions,
+        competitions: competitions.map((item) => publicCompetitionRow(item)),
         competition_count: competitions.length,
-        provider: providerLabel,
-        provider_count: activeProviders.length,
-        providers: activeProviders.map((item) => ({ id: item.id, name: item.provider_name, code: item.provider_code })),
-        message: competitions.length
-          ? `${competitions.length.toLocaleString("en-US")} unique competitions synchronized across ${providerLabel}.`
-          : `The active provider catalogue${activeProviders.length === 1 ? " has" : "s have"} not been synchronized yet. Sync each provider's competition catalogue in Football Automation Room.`,
       });
     }
 
-    if (settings?.public_livescore_enabled !== true) return reply(200, { ok: true, matches: [], view, date, provider_count: 0, message: "Public LiveScore is paused by the administrator." });
-    if (!activeProviders.length) return reply(200, { ok: true, matches: [], view, date, provider_count: 0, message: "No football API providers have been activated. Add one or more verified providers in Football Automation Room." });
+    if (settings?.public_livescore_enabled !== true || !activeProviders.length) {
+      return reply(200, { ok: true, matches: [], view, date, data_state: "unavailable" });
+    }
 
     const ttl = Math.max(15, Math.min(3600, Number(settings.cache_seconds || settings.public_livescore_cache_seconds || 60)));
     // All active providers are included. Requests are batched at a small concurrency level to avoid
     // sudden rate-limit spikes while still using every activated service in the same visitor response.
     const providerResults = await runWithConcurrency(activeProviders, 6, async (provider) => {
+      const startedAt = Date.now();
       try {
-        return await fetchProviderWindow(db, provider, view, date, competition, ttl, dateFrom, dateTo);
+        return { ...(await fetchProviderWindow(db, provider, view, date, competition, ttl, dateFrom, dateTo)), duration_ms: Date.now() - startedAt };
       } catch (providerError) {
         return {
           ok: false, cached: false, stale: false,
           provider: provider.provider_name, provider_id: provider.id, provider_code: provider.provider_code,
           matches: [], diagnostics: {}, http_status: null,
+          duration_ms: Date.now() - startedAt,
           error: providerError instanceof Error ? providerError.message : "Provider window synchronization failed.",
         };
       }
     });
+    const providerById = new Map(activeProviders.map((provider) => [String(provider.id), provider]));
+    await Promise.all(providerResults.map(async (result) => {
+      const provider = providerById.get(String(result.provider_id || ""));
+      if (!provider) return;
+      const partial = Boolean(result.error) || /pagination paused|partial response/i.test(String(result.message || ""));
+      const outcome = result.ok !== true ? "failure" : partial ? "partial" : "success";
+      const matchCount = Array.isArray(result.matches) ? result.matches.length : 0;
+      const message = result.error
+        ? String(result.error)
+        : String(result.message || `${view.toUpperCase()} feed request completed. ${matchCount} normalized match(es) available${result.cached ? " from cache" : " from the latest provider response"}${result.sync_pending ? "; more date batches remain" : ""}${result.pagination_pending ? "; additional result pages remain" : ""}.`);
+      await logPublicProviderEvent(db, provider, view, outcome, result.http_status ?? null, result.duration_ms ?? null, message);
+    }));
     const successfulProviders = providerResults.filter((result) => result.ok === true);
-    const failedProviders = providerResults.filter((result) => result.ok !== true);
     const providerMatches = providerResults.flatMap((result) => Array.isArray(result.matches) ? result.matches : []);
     const combined = deduplicateMatches(providerMatches, String(settings.selected_api_config_id || ""));
-    const counts = providerResults.reduce((acc, result) => {
-      acc.raw_records += Number(result.diagnostics?.raw_records || 0);
-      acc.normalized_records += Number(result.diagnostics?.normalized_records || 0);
-      acc.cached_providers += result.cached ? 1 : 0;
-      acc.stale_providers += result.stale ? 1 : 0;
-      return acc;
-    }, { raw_records: 0, normalized_records: 0, cached_providers: 0, stale_providers: 0 });
-    const providers = providerResults.map((result) => ({
-      id: result.provider_id,
-      name: result.provider,
-      code: result.provider_code || "",
-      ok: result.ok,
-      cached: result.cached,
-      stale: result.stale,
-      matches: Array.isArray(result.matches) ? result.matches.length : 0,
-      sync_pending: result.sync_pending === true,
-      sync_progress: result.sync_progress || null,
-      pagination_pending: result.pagination_pending === true,
-      pagination_progress: result.pagination_progress || null,
-      ...(result.message ? { message: result.message } : {}),
-      http_status: result.http_status,
-      ...(result.error ? { error: result.error } : {}),
-    }));
     if (!successfulProviders.length) {
-      return reply(502, {
-        ok: false,
-        error: `All ${activeProviders.length} active football API provider(s) failed. ${failedProviders.slice(0, 3).map((item) => `${item.provider}: ${item.error}`).join("; ")}`,
-        matches: [],
-        provider_count: activeProviders.length,
-        providers,
-        diagnostics: { ...counts, duplicates_removed: 0, successful_providers: 0, failed_providers: failedProviders.length },
-      });
+      // Provider errors and success events are available only in the administrator's
+      // Football Automation Room. Visitors receive a neutral availability state.
+      return reply(200, { ok: true, matches: [], view, date, data_state: "unavailable", attributions: [] });
     }
 
-    const providerLabel = `${successfulProviders.length}/${activeProviders.length} football API${activeProviders.length === 1 ? "" : "s"}`;
-    const failureDetails = failedProviders.slice(0, 3).map((item) => `${item.provider}: ${String(item.error || "request failed").slice(0, 160)}`).join("; ");
-    const failuresNote = failedProviders.length
-      ? ` ${failedProviders.length} provider(s) failed (${failureDetails}${failedProviders.length > 3 ? "; more failures omitted" : ""}); successful feeds are still displayed.`
-      : "";
-    const staleNote = counts.stale_providers ? ` ${counts.stale_providers} provider cache(s) are temporarily stale.` : "";
+    const attributions = requiredPublicAttributions(providerResults);
     const pendingProviders = providerResults.filter((result) => result.sync_pending === true || result.pagination_pending === true);
-    const datePending = providerResults.filter((result) => result.sync_pending === true).length;
-    const pagePending = providerResults.filter((result) => result.pagination_pending === true).length;
-    const scannedDays = providerResults.reduce((max, result) => Math.max(max, Number(result.sync_progress?.scanned_days || 0)), 0);
-    const syncNote = pendingProviders.length
-      ? ` Sync in progress: ${datePending} provider(s) have date batches remaining (${scannedDays}/${windowDays} dates scanned); ${pagePending} provider(s) have more result pages.`
-      : ` Date window checked: ${dateFrom} to ${dateTo}.`;
-    const message = combined.matches.length
-      ? `${combined.matches.length.toLocaleString("en-US")} unique match(es) combined from ${providerLabel}; ${combined.duplicates_removed} duplicate(s) merged.${syncNote}${failuresNote}${staleNote}`
-      : `Connected to ${providerLabel}, but no matches matched the ${view} feed in ${dateFrom} to ${dateTo}. Raw records: ${counts.raw_records}; usable records: ${counts.normalized_records}.${syncNote}${failuresNote}${staleNote}`;
     return reply(200, {
       ok: true,
-      matches: combined.matches,
+      matches: combined.matches.map((match) => publicMatchRow(match)),
       view,
       date,
-      date_from: dateFrom,
-      date_to: dateTo,
-      date_window_days: windowDays,
       sync_pending: pendingProviders.length > 0,
-      sync_pending_provider_count: pendingProviders.length,
       total_returned: combined.matches.length,
-      provider: providerLabel,
-      provider_count: activeProviders.length,
-      successful_provider_count: successfulProviders.length,
-      failed_provider_count: failedProviders.length,
-      providers,
-      diagnostics: {
-        ...counts,
-        returned_records: combined.matches.length,
-        duplicates_removed: combined.duplicates_removed,
-        successful_providers: successfulProviders.length,
-        failed_providers: failedProviders.length,
-        window_days: windowDays,
-        window_sync_pending_providers: pendingProviders.length,
-        window_scanned_days: scannedDays,
-        fetched_at: new Date().toISOString(),
-      },
-      message,
+      data_state: combined.matches.length ? "available" : "empty",
       cached: providerResults.every((result) => result.cached === true),
+      attributions,
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Football data unavailable.";
-    return reply(502, { ok: false, error: message, matches: [] });
+  } catch (_error) {
+    // Never expose server configuration, provider names, HTTP details or raw API
+    // errors to visitors. The detailed provider outcomes are recorded separately.
+    return reply(200, { ok: true, matches: [], data_state: "unavailable" });
   }
 });
