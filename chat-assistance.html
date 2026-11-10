@@ -2,17 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#08090b">
-  <meta name="description" content="PARROTHIT AI customer assistance. Get help with every section of the PARROTHIT website.">
+  <meta name="description" content="PARROTHIT AI customer assistance. Get help with every public section of the PARROTHIT website.">
   <title>PARROTHIT Chat Assistance</title>
   <link rel="icon" href="/assets/images/parrothit-logo.png">
-  <style>html,body{margin:0;min-height:100%;background:#08090b;color:#fff}</style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html,body{margin:0;min-height:100%;background:#08090b;color:#fff;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif}
+    #ph-support-page{min-height:100vh;background:radial-gradient(circle at 12% 0%,#351014 0,transparent 34%),radial-gradient(circle at 90% 88%,#302508 0,transparent 32%),#08090b;padding:24px;box-sizing:border-box}
+    .ph-loading-shell{max-width:1100px;margin:0 auto}
+    .ph-loading-brand{display:flex;align-items:center;gap:14px;padding:8px 0 20px;border-bottom:1px solid #ffffff20}
+    .ph-loading-brand img{width:68px;height:68px;object-fit:contain;animation:phLoadingFloat 3.4s ease-in-out infinite}
+    .ph-loading-brand strong{letter-spacing:.1em;font-size:14px}
+    .ph-loading-brand small{display:block;color:#cbd5e1;margin-top:4px}
+    .ph-loading-panel{margin-top:22px;padding:24px;border:1px solid #ffffff20;border-radius:18px;background:#111318;box-shadow:0 18px 50px #0007}
+    .ph-loading-panel h1{margin:0 0 10px;font-size:clamp(24px,4vw,36px)}
+    .ph-loading-panel p{color:#cbd5e1;line-height:1.6}
+    .ph-loading-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+    .ph-loading-links a{display:inline-block;color:#fde047;text-decoration:none;border:1px solid #ca8a0455;background:#211d12;border-radius:999px;padding:9px 13px;font-size:13px}
+    .ph-loading-note{font-size:12px;color:#aeb5c1;margin-top:20px}
+    @keyframes phLoadingFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-5px) rotate(1deg)}}
+    @media(max-width:600px){#ph-support-page{padding:14px}.ph-loading-panel{padding:18px}.ph-loading-brand img{width:54px;height:54px}}
+    @media(prefers-reduced-motion:reduce){.ph-loading-brand img{animation:none}}
+  </style>
   <script src="/supabase-config.js"></script>
-  <script src="/js/parrothit-ai-assistant.js" defer></script>
+  <script src="/js/parrothit-ai-assistant.js?v=20261110-fullpage-recovery" defer></script>
 </head>
 <body>
-  <main id="ph-support-page"></main>
+  <main id="ph-support-page">
+    <!-- Visible first-paint shell: the page remains useful even if a remote script is delayed or blocked. -->
+    <div class="ph-loading-shell">
+      <header class="ph-loading-brand">
+        <img src="/assets/images/parrothit-mascot.jpg" alt="PARROTHIT parrot logo">
+        <span><strong>PARROTHIT CHAT ASSISTANCE</strong><small>Customer care · Website guide</small></span>
+      </header>
+      <section class="ph-loading-panel">
+        <h1>How can I <span style="color:#f87171">help</span> you today?</h1>
+        <p>Welcome to PARROTHIT. The chat assistant is loading. You can explore the website while it connects.</p>
+        <nav class="ph-loading-links" aria-label="Helpful PARROTHIT links">
+          <a href="/index.html">Home and latest news</a><a href="/categories.html">News categories</a><a href="/livescore.html">Football LiveScore</a><a href="/advertise.html">Advertising</a><a href="/work-with-parrothit.html">Careers</a><a href="/interaction.html">Community</a><a href="/contact.html">Contact support</a>
+        </nav>
+        <p class="ph-loading-note">For account or payment safety, never share passwords, advertiser PINs, OTPs or bank details in chat.</p>
+        <noscript><p style="color:#fca5a5">JavaScript is disabled. Please use the links above or contact PARROTHIT support.</p></noscript>
+      </section>
+    </div>
+  </main>
 </body>
 </html>
