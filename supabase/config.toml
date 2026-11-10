@@ -28,3 +28,8 @@ verify_jwt = false
 [functions.parrothit-admin-create]
 verify_jwt = true
 
+
+# The function validates bearer JWTs itself for all privileged actions. The gateway
+# must allow the privacy-preserving record_failed_login action before sign-in.
+[functions.parrothit-admin-session]
+verify_jwt = false
