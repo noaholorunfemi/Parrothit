@@ -50,5 +50,5 @@ const {error}=await client.from('advertiser_inquiries').insert(payload);if(error
 }catch(err){if(uploaded?.path){try{const client=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();await client?.storage.from(BRAND_BUCKET).remove([uploaded.path]);}catch(cleanupError){console.warn('Branding image cleanup failed:',cleanupError);}}show(err.message||'Could not send inquiry. Please try again later.',false)}finally{btn.disabled=false}});
 })();
 </script><script src="js/parrothit-advertise-banner.js" defer></script>
-<script src="/js/parrothit-ai-assistant.js" defer></script>
+<script src="/js/parrothit-ai-assistant.js?v=20261110-composer-drag-voice" defer></script>
 </body></html>
