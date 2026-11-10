@@ -31,5 +31,33 @@ body.football-room-page{margin:0;background:var(--fr-bg);color:var(--fr-ink);fon
 /* Free-source directory access labels */
 .fr-directory-badge.access-tag{white-space:normal;line-height:1.25}.fr-directory-badge.access-tag.mode-native{background:#dcfce7;color:#166534}.fr-directory-badge.access-tag.mode-historical{background:#f1eafe;color:#5b338d}.fr-directory-badge.access-tag.mode-custom,.fr-directory-badge.access-tag.mode-community{background:#e8f1ff;color:#164a81}.fr-directory-key-link{font-weight:950!important;text-decoration:underline!important;text-underline-offset:2px}.fr-directory-card-foot{align-items:flex-start}.fr-directory-card-foot small{line-height:1.35}
 
-/* Public feed operational diagnostics table (administrator-only). */
-.fr-public-health-panel .fr-public-log-table{min-width:980px}.fr-public-health-panel .fr-public-log-table td:last-child{min-width:300px;max-width:560px;white-space:normal;overflow-wrap:anywhere}.fr-public-health-panel .fr-public-log-table td:nth-child(3){font-weight:800;color:#344b3a}.fr-public-health-panel .fr-public-log-table td:nth-child(5){font-weight:900}
+/* Private provider-specific LiveScore success and failure history */
+.fr-provider-logs-panel{margin-top:18px;background:#0b2116;border:1px solid #24583b;color:#effff3}
+.fr-provider-logs-panel .fr-panel-heading p{color:#c1d9ca}
+.fr-provider-logs-panel h3{color:#fff}
+.fr-provider-log-controls{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0}
+.fr-provider-log-controls .fr-field{min-width:210px;max-width:320px;color:#e7f8ec}
+.fr-provider-log-controls .fr-field select{width:100%;min-height:42px;border:1px solid #4a7659;border-radius:8px;padding:9px 11px;background:#122d1e;color:#fff;font:inherit}
+.fr-provider-logs-panel .fr-form-feedback{color:#c1d9ca}
+.fr-provider-log-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.fr-provider-log-card{min-width:0;border:1px solid #2c6242;border-radius:11px;background:#10291c;padding:13px;color:#effff3}
+.fr-provider-log-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding-bottom:10px;border-bottom:1px solid #31583e}
+.fr-provider-log-heading>div{display:grid;gap:3px;min-width:0}
+.fr-provider-log-heading strong{font-size:.96rem;color:#fff;overflow-wrap:anywhere}
+.fr-provider-log-heading small{font-size:.72rem;color:#b9d4c2}
+.fr-provider-log-active{flex:0 0 auto;padding:4px 7px;border-radius:30px;background:#174f30;color:#a8f2bd;font-size:.62rem;font-weight:950;letter-spacing:.05em}
+.fr-provider-log-list{display:grid;gap:8px;list-style:none;margin:11px 0 0;padding:0}
+.fr-provider-log-entry{min-width:0;border:1px solid #294e36;border-radius:8px;background:#0b2116;padding:9px}
+.fr-provider-log-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.fr-provider-log-meta strong{font-size:.7rem;letter-spacing:.04em;color:#dcefe2}
+.fr-provider-log-meta time{margin-left:auto;color:#a9c3b1;font-size:.68rem}
+.fr-log-result{display:inline-flex;align-items:center;padding:3px 6px;border-radius:5px;font-size:.62rem;font-weight:950;letter-spacing:.04em}
+.fr-log-result.is-success{background:#174f30;color:#a8f2bd}
+.fr-log-result.is-failure{background:#5b1d20;color:#ffc1c1}
+.fr-log-result.is-partial{background:#604415;color:#ffe2a0}
+.fr-provider-log-entry p{margin:7px 0 4px;color:#ecf8ef;font-size:.78rem;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap}
+.fr-provider-log-entry>small{display:block;color:#a9c3b1;font-size:.67rem}
+.fr-log-empty{padding:12px;border:1px dashed #477357;border-radius:8px;color:#c1d9ca;font-size:.8rem;line-height:1.45;background:#10291c}
+@media(max-width:760px){.fr-provider-log-groups{grid-template-columns:1fr}.fr-provider-log-controls{display:grid;grid-template-columns:1fr}.fr-provider-log-controls .fr-field{max-width:none}.fr-provider-log-controls .fr-button{width:100%}.fr-provider-log-meta time{margin-left:0;width:100%}}
+
+.fr-provider-log-active.is-inactive{background:#604415;color:#ffe2a0}
