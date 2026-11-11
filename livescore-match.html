@@ -7,6 +7,58 @@
   <meta name="description" content="PARROTHIT football match centre: live score, match information, events, statistics, line-ups, standings and head-to-head. ">
   <title>Match Centre | PARROTHIT LiveScore</title>
   <link rel="stylesheet" href="css/livescore.css?v=match-centre-fix-20261108">
+
+  <style>
+    /* H2H layout follows the competition-grouped, scorecard view in the approved reference. */
+    #plPanelH2H .pl-h2h-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:4px 0 18px}
+    #plPanelH2H .pl-h2h-summary>div{min-width:0;padding:11px 8px;background:#191919;border:1px solid #292929;border-radius:12px;text-align:center}
+    #plPanelH2H .pl-h2h-summary b{display:block;font-size:21px;line-height:1.15;color:#fff}
+    #plPanelH2H .pl-h2h-summary small{display:block;margin-top:5px;color:#a9a9a9;font-size:9px;font-weight:800;letter-spacing:.035em;line-height:1.25;overflow-wrap:anywhere}
+    #plPanelH2H .pl-h2h-filterbar{display:flex;align-items:center;gap:10px;overflow-x:auto;padding:4px 0 13px;margin-bottom:6px;scrollbar-width:none}
+    #plPanelH2H .pl-h2h-filterbar::-webkit-scrollbar{display:none}
+    #plPanelH2H .pl-h2h-filter{flex:0 0 auto;min-height:44px;padding:0 19px;border:1px solid #626262;border-radius:999px;background:transparent;color:#bdbdbd;font:700 15px/1.2 sans-serif;font-family:inherit;cursor:pointer;white-space:nowrap}
+    #plPanelH2H .pl-h2h-filter.active{background:#fff;border-color:#fff;color:#111}
+    #plPanelH2H .pl-h2h-groups{display:grid;gap:23px}
+    #plPanelH2H .pl-h2h-group{min-width:0}
+    #plPanelH2H .pl-h2h-group-head{display:flex;align-items:center;gap:12px;min-height:48px;margin:10px 2px 12px}
+    #plPanelH2H .pl-h2h-competition-icon{position:relative;display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;color:#f1f1f1}
+    #plPanelH2H .pl-h2h-competition-icon img{width:34px;height:34px;object-fit:contain}
+    #plPanelH2H .pl-h2h-competition-fallback{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:#26364a;color:#fff;font-size:10px;font-weight:900}
+    #plPanelH2H .pl-h2h-group-copy{display:grid;gap:4px;min-width:0;flex:1}
+    #plPanelH2H .pl-h2h-group-copy b{color:#f4f4f4;font-size:15px;line-height:1.25;font-weight:800}
+    #plPanelH2H .pl-h2h-group-copy small{color:#a6a6a6;font-size:12px;line-height:1.25}
+    #plPanelH2H .pl-h2h-group-count{padding:4px 8px;border-radius:999px;background:#242424;color:#aaa;font-size:11px;font-weight:800}
+    #plPanelH2H .pl-h2h-match-list{display:grid;gap:10px}
+    #plPanelH2H .pl-h2h-matchcard{display:grid;grid-template-columns:76px minmax(0,1fr) 35px;align-items:center;gap:12px;min-height:91px;padding:11px 14px;background:#222;border:1px solid #292929;border-radius:13px}
+    #plPanelH2H .pl-h2h-date{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:48px;border-right:1px solid #454545;padding-right:10px;text-align:center}
+    #plPanelH2H .pl-h2h-date time{color:#aaa;font-size:11px;line-height:1.2;white-space:nowrap}
+    #plPanelH2H .pl-h2h-date b{color:#f0f0f0;font-size:14px;line-height:1.1}
+    #plPanelH2H .pl-h2h-teams{display:grid;gap:7px;min-width:0}
+    #plPanelH2H .pl-h2h-team{display:grid;grid-template-columns:27px minmax(0,1fr);align-items:center;gap:9px;min-width:0;color:#f0f0f0;font-size:14px;line-height:1.25}
+    #plPanelH2H .pl-h2h-team img,#plPanelH2H .pl-h2h-team-fallback{width:25px;height:25px;object-fit:contain;justify-self:center}
+    #plPanelH2H .pl-h2h-team-fallback{display:grid;place-items:center;border-radius:50%;background:#343434;color:#ddd;font-size:11px;font-weight:800}
+    #plPanelH2H .pl-h2h-team>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #plPanelH2H .pl-h2h-scores{display:grid;gap:7px;justify-items:end;color:#eee;font-size:18px;line-height:1.2}
+    #plPanelH2H .pl-h2h-scores b{font-weight:700}
+    #plPanelH2H .pl-h2h-scores b.is-winner{color:#fff;font-weight:900}
+    @media(max-width:520px){
+      #plPanelH2H .pl-h2h-summary{gap:5px}
+      #plPanelH2H .pl-h2h-summary>div{padding:9px 4px;border-radius:9px}
+      #plPanelH2H .pl-h2h-summary b{font-size:18px}
+      #plPanelH2H .pl-h2h-summary small{font-size:8px}
+      #plPanelH2H .pl-h2h-filter{min-height:42px;padding:0 16px;font-size:14px}
+      #plPanelH2H .pl-h2h-matchcard{grid-template-columns:64px minmax(0,1fr) 28px;gap:9px;min-height:82px;padding:10px 9px}
+      #plPanelH2H .pl-h2h-date{padding-right:7px}
+      #plPanelH2H .pl-h2h-date time{font-size:10px}
+      #plPanelH2H .pl-h2h-date b{font-size:13px}
+      #plPanelH2H .pl-h2h-team{grid-template-columns:24px minmax(0,1fr);gap:7px;font-size:13px}
+      #plPanelH2H .pl-h2h-team img,#plPanelH2H .pl-h2h-team-fallback{width:23px;height:23px}
+      #plPanelH2H .pl-h2h-scores{font-size:17px}
+      #plPanelH2H .pl-h2h-group-copy b{font-size:14px}
+      #plPanelH2H .pl-h2h-group-copy small{font-size:11px}
+    }
+  </style>
+
 </head>
 <body class="pl-body">
   <div class="pl-app">
@@ -93,6 +145,6 @@
   <script src="js/livescore-config.js?v=match-centre-fix-20261108"></script>
   <script src="js/livescore-clock.js?v=match-centre-fix-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
-  <script src="js/livescore-match.js?v=match-centre-response-timeout-20261111" defer></script>
+  <script src="js/livescore-match.js?v=match-centre-h2h-competition-layout-20261111" defer></script>
 </body>
 </html>
