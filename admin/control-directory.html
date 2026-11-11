@@ -129,4 +129,5 @@
 <script id="ph-employment-directory-owner-only">
 (async function(){try{var c=window.getParrothitSupabaseClient&&window.getParrothitSupabaseClient();if(!c)return;var r=await c.rpc('get_my_admin_profile');if(!r.data||String(r.data.role||'').toLowerCase()!=='owner'){var el=document.getElementById('phEmploymentDirectory');if(el){el.style.display='none';el.setAttribute('aria-hidden','true')}}}catch(e){var el=document.getElementById('phEmploymentDirectory');if(el){el.style.display='none'}}})();
 </script>
+<script src="/js/public-notifications.js?v=20261111-top-alert-v2"></script>
 </body></html>

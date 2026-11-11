@@ -39,4 +39,5 @@ $('saveEditsBtn').onclick=()=>act('saveEditsBtn',saveEdits);$('approveBtn').oncl
 (async()=>{try{if(await initAuth()){await loadSettings();await loadQueue();const post=new URLSearchParams(location.search).get('post');if(post){const q=queue.find(x=>x.post_id===post);if(q)await openItem(q.id)}}}catch(e){reveal();msg(e.message||String(e),true)}})();
 })();
 </script><script src="../js/parrothit-advertise-banner.js" defer></script>
+<script src="/js/public-notifications.js?v=20261111-top-alert-v2"></script>
 </body></html>
