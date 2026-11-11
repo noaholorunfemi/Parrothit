@@ -8,7 +8,7 @@
   const existing = document.querySelector('script[data-parrothit-push-loader]');
   if (existing) return;
   const script = document.createElement('script');
-  script.src = '/js/public-notifications.js?v=20261111-top-alert-v2';
+  script.src = '/js/public-notifications.js?v=20261112-read-article-only-v1';
   script.async = true;
   script.dataset.parrothitPushLoader = 'true';
   (document.head || document.documentElement).appendChild(script);

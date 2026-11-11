@@ -1,0 +1,25 @@
+PARROTHIT READ FULL ARTICLE ONLY NOTIFICATION PATCH
+
+Shared front-end files:
+- js/public-notifications.js
+- public-notifications.js
+- css/notification-actions.css (new)
+- css/style.css
+- style.css
+
+Backend:
+- supabase/functions/parrothit-push-notification/index.ts
+
+HTML cache-bust updates:
+- 290 standalone HTML pages updated from v20261111-top-alert-v2 to v20261112-read-article-only-v1.
+
+Behaviour:
+- Top article alert: one action, READ FULL ARTICLE.
+- Push action list: one action, Read full article.
+- No unsubscribe action is included in the site-generated push payload.
+- Browser subscription management remains in browser settings.
+
+Deploy:
+  supabase functions deploy parrothit-push-notification
+
+No SQL migration or webhook recreation required.
