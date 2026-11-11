@@ -387,10 +387,12 @@
       const crest = logo
         ? `<img class="pl-competition-logo" src="${esc(logo)}" alt="${esc(name)} logo" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="pl-competition-mark" style="display:none">${initial}</span>`
         : `<span class="pl-competition-mark">${initial}</span>`;
-      return `<details class="pl-competition" open><summary>${crest}<span class="pl-competition-name"><b>${esc(name)}</b><small>${esc(country || 'Football')}</small></span><span class="pl-group-count">${matches.length} ${matches.length === 1 ? 'match' : 'matches'}</span><span class="pl-chevron">›</span></summary><div class="pl-competition-matches">${matches.map(matchCard).join('')}</div></details>`;
+      const competitionHref = `livescore-competition.html?name=${encodeURIComponent(name)}&country=${encodeURIComponent(country || 'International')}`;
+      return `<details class="pl-competition" open><summary>${crest}<span class="pl-competition-name"><b>${esc(name)}</b><small>${esc(country || 'Football')}</small></span><span class="pl-group-count">${matches.length} ${matches.length === 1 ? 'match' : 'matches'}</span><a class="pl-competition-open" href="${esc(competitionHref)}" data-open-competition="true" aria-label="Open ${esc(name)} competition">View ›</a><span class="pl-chevron">›</span></summary><div class="pl-competition-matches">${matches.map(matchCard).join('')}</div></details>`;
     }).join('');
     matchRoot.innerHTML = html;
 
+    matchRoot.querySelectorAll('[data-open-competition]').forEach((link) => link.addEventListener('click', (event) => event.stopPropagation()));
     matchRoot.querySelectorAll('[data-favourite]').forEach((button) => button.addEventListener('click', (event) => {
       event.preventDefault(); event.stopPropagation();
       const saved = favourites();
