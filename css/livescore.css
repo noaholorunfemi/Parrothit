@@ -270,6 +270,15 @@ body.pl-body {
 .pl-info-grid b { color: #f5f5f5; font-size: 12px; overflow-wrap: anywhere; }
 .pl-provider-limits { margin-top: 15px; padding: 13px; border-left: 3px solid var(--pl-red); background: #151515; color: #aaa; font-size: 11px; line-height: 1.6; }
 
+
+/* Competition centre entry point from the worldwide fixture list. */
+.pl-competition-open {
+  flex: 0 0 auto; padding: 7px 10px; border: 1px solid #454545; border-radius: 18px;
+  color: #f4f4f4 !important; text-decoration: none; font-size: 10px; font-weight: 850; white-space: nowrap;
+}
+.pl-competition-open:hover, .pl-competition-open:focus-visible { border-color: #fff; background: #292929; outline: none; }
+@media (max-width: 600px) { .pl-competition-open { padding: 6px 8px; font-size: 9px; } }
+
 @media (min-width: 760px) {
   .pl-main { padding-top: 21px; }
   .pl-match-card { min-height: 82px; }
