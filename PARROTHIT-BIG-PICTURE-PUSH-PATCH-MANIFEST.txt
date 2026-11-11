@@ -1,0 +1,27 @@
+PARROTHIT BIG PICTURE PUSH PATCH
+
+New files:
+- OneSignalSDKWorker.js
+- site.webmanifest
+- assets/images/parrothit-pwa-192.png
+- assets/images/parrothit-pwa-512.png
+- assets/images/parrothit-apple-touch-icon.png
+- js/onesignal-config.js
+- supabase/parrothit-push-notifications.sql
+- supabase/functions/parrothit-push-notification/index.ts
+- PARROTHIT-BIG-PICTURE-PUSH-INSTALL.md
+- PARROTHIT-BIG-PICTURE-PUSH-PATCH-MANIFEST.txt
+
+Updated files:
+- js/public-notifications.js
+- supabase/config.toml
+- 28 public HTML pages: notification script cache version updated and PWA manifest / iOS web-app metadata added.
+
+Security:
+- OneSignal App ID is a public browser value.
+- OneSignal REST API key and webhook secret belong in Supabase Edge Function secrets only.
+- The push event table has RLS enabled and is not readable/writable by anon or authenticated visitors.
+- System notifications are only delivered to visitors who explicitly grant browser notification permission.
+
+Installation guide:
+- PARROTHIT-BIG-PICTURE-PUSH-INSTALL.md
