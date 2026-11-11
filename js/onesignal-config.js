@@ -1,5 +1,3 @@
-/* PARROTHIT Web Push configuration.
-   Paste the public OneSignal App ID from OneSignal > Settings > Keys & IDs.
-   Never place the OneSignal REST API key in this file or any browser JavaScript. */
-window.PARROTHIT_ONESIGNAL_APP_ID = 'PASTE-ONESIGNAL-APP-ID-HERE';
+/* PARROTHIT Web Push configuration */
+window.PARROTHIT_ONESIGNAL_APP_ID = '3af29fab-7ee8-4aaf-b840-6d57304af507';
 window.PARROTHIT_PUSH_PROMPT_DELAY_MS = 8000;
