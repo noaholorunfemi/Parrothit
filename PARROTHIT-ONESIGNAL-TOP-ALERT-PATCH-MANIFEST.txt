@@ -1,0 +1,23 @@
+PARROTHIT ONESIGNAL DELIVERY + TOP ALERT PATCH
+
+Changed shared files:
+- js/public-notifications.js
+- public-notifications.js
+- service-worker.js
+- css/style.css
+- style.css
+- supabase/functions/parrothit-push-notification/index.ts
+
+HTML integration:
+- 290 standalone HTML pages across the public site, rooms, and admin area now load /js/public-notifications.js?v=20261111-top-alert-v2.
+- The admin pages initialise OneSignal but do not display the visitor subscription invitation.
+- The partial admin/football-automation-room-menu-snippet.html was intentionally not changed because it is an HTML fragment, not a standalone page.
+
+New instructions:
+- PARROTHIT-ONESIGNAL-TOP-ALERT-PATCH-INSTALL.md
+
+Backend notes:
+- Deploy the updated Edge Function: supabase functions deploy parrothit-push-notification
+- Keep the existing Supabase Database Webhook and existing Edge Function secrets.
+- No SQL migration is required.
+- Do not expose ONESIGNAL_REST_API_KEY or PARROTHIT_PUSH_WEBHOOK_SECRET in browser code.

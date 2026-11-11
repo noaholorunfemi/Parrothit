@@ -1,1 +1,4 @@
-self.addEventListener('push',event=>{let data={title:'PARROTHIT News',body:'There is a new update on PARROTHIT.',url:'/'};try{data={...data,...(event.data?event.data.json():{})}}catch(_){}event.waitUntil(self.registration.showNotification(data.title,{body:data.body,icon:'/assets/images/parrothit-logo.png',badge:'/assets/images/parrothit-logo.png',data:{url:data.url||'/'},tag:'parrothit-update'}))});self.addEventListener('notificationclick',event=>{event.notification.close();const url=event.notification.data&&event.notification.data.url||'/';event.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{for(const c of list){if('focus'in c){c.navigate(url);return c.focus()}}return clients.openWindow(url)}))});
+/* Legacy service-worker URL retained for old browser registrations.
+   It now delegates to the same OneSignal v16 worker instead of competing with
+   OneSignal for the site's root service-worker scope. */
+importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');

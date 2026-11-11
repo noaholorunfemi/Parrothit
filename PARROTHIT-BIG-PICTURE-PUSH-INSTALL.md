@@ -2,6 +2,8 @@
 
 This is an incremental patch. Copy only the files in this patch into the matching locations in the current PARROTHIT project. Do not replace the whole website.
 
+For the follow-up reliability, top-of-screen article alert, and OneSignal audience repair, use `PARROTHIT-ONESIGNAL-TOP-ALERT-PATCH-INSTALL.md`. That follow-up guide supersedes the display and Edge Function targeting details below when both patches are installed.
+
 ## What this adds
 
 - A branded PARROTHIT news-alert invitation appears automatically on public pages after a short delay.
