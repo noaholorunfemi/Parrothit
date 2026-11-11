@@ -279,21 +279,53 @@
   }
   function lineupTeams(raw, match) {
     if (!raw) return [];
+    const logoFor = (item, teamRaw, side) => {
+      const candidates = [teamRaw.logo, teamRaw.crest, teamRaw.badge, teamRaw.image, teamRaw.image_url,
+        teamRaw.logo_url, teamRaw.crest_url, teamRaw.badge_url,
+        item.team_logo, item.logo, item.crest, item.badge, item.image_url, item.logo_url];
+      for (const candidate of candidates) { const logo = safeUrl(candidate); if (logo) return logo; }
+      return teamLogo(match, side);
+    };
+    const startersFor = (item) => {
+      const source = item.startXI || item.start_xi || item.starting_xi || item.starting || item.players || item.lineup;
+      return asArray(source).map(asObject).slice(0, 11);
+    };
+    const substitutesFor = (item) => asArray(item.substitutes || item.bench || item.subs).map(asObject);
     if (Array.isArray(raw) || Array.isArray(raw?.data)) {
       return asArray(raw).map((entry, index) => {
         const item = asObject(entry);
-        const team = textValue(item.team || item.team_name || item.name, index === 0 ? teamName(match, 'home') : teamName(match, 'away'));
-        return { team, formation: textValue(item.formation, ''), coach: textValue(item.coach || item.manager, ''), starters: asArray(item.startXI || item.starting_xi || item.starting || item.players).map(asObject), substitutes: asArray(item.substitutes || item.bench).map(asObject) };
-      });
+        const side = index === 0 ? 'home' : 'away';
+        const teamRaw = asObject(item.team);
+        const name = textValue(teamRaw.name || item.team_name || item.teamName || item.name || item.team, teamName(match, side));
+        return {
+          team: name,
+          logo: logoFor(item, teamRaw, side),
+          formation: textValue(item.formation || item.formations, ''),
+          coach: textValue(item.coach || item.manager || item.coach_name, ''),
+          starters: startersFor(item),
+          substitutes: substitutesFor(item),
+          confirmed: item.confirmed ?? item.lineup_confirmed ?? item.is_confirmed ?? true
+        };
+      }).filter((team) => team.starters.length || team.substitutes.length || team.formation || team.coach);
     }
     const object = asObject(raw);
     return ['home', 'away'].map((side) => {
       const item = asObject(object[side] || object[side === 'home' ? 'localteam' : 'visitorteam']);
-      return { team: teamName(match, side), formation: textValue(item.formation, ''), coach: textValue(item.coach || item.manager, ''), starters: asArray(item.startXI || item.starting_xi || item.starting || item.players).map(asObject), substitutes: asArray(item.substitutes || item.bench).map(asObject) };
+      const teamRaw = asObject(item.team);
+      return {
+        team: textValue(teamRaw.name || item.team_name || item.name, teamName(match, side)),
+        logo: logoFor(item, teamRaw, side),
+        formation: textValue(item.formation, ''),
+        coach: textValue(item.coach || item.manager || item.coach_name, ''),
+        starters: startersFor(item),
+        substitutes: substitutesFor(item),
+        confirmed: item.confirmed ?? item.lineup_confirmed ?? item.is_confirmed ?? true
+      };
     }).filter((team) => team.starters.length || team.substitutes.length || team.formation || team.coach);
   }
   function playerName(player) {
-    return textValue(player.player || player.name || player.player_name || player.full_name, 'Player');
+    const person = asObject(player.player || player);
+    return textValue(person.name || person.full_name || person.display_name || player.player || player.name || player.player_name || player.full_name, 'Player');
   }
   function playerMarkup(player) {
     const person = asObject(player.player || player);
@@ -301,41 +333,90 @@
     const position = textValue(player.pos || player.position || player.role || person.pos || person.position, '');
     return `<li><span>${esc(number || '•')}</span><b>${esc(playerName(player))}</b>${position ? `<small>${esc(position)}</small>` : ''}</li>`;
   }
+  function lineupFormationSlots(team) {
+    const parts = String(team.formation || '').match(/\d+/g)?.map(Number).filter((value) => value > 0 && value <= 6) || [];
+    const rows = [1, ...(parts.length ? parts : [4, 3, 3])];
+    return rows.slice(0, 6);
+  }
   function pitchMarkers(team, side) {
-    const players = team.starters || [];
+    const players = (team.starters || []).slice(0, 11);
+    if (!players.length) return '';
+    const formationRows = lineupFormationSlots(team);
+    const slots = [];
+    formationRows.forEach((count, index) => { for (let i = 0; i < count; i += 1) slots.push(index + 1); });
+    const hasAnyGrid = players.some((player) => {
+      const person = asObject(player.player || player);
+      return /^(\d+)\s*[:,-]\s*(\d+)$/.test(textValue(player.grid || person.grid, ''));
+    });
     const coordinates = players.map((player, index) => {
       const person = asObject(player.player || player);
       const rawGrid = textValue(player.grid || person.grid, '');
       const gridMatch = rawGrid.match(/^(\d+)\s*[:,-]\s*(\d+)$/);
       const position = textValue(player.pos || player.position || player.role || person.pos || person.position, '').toUpperCase();
-      let row = gridMatch ? Number(gridMatch[1]) : (/GK|GOALKEEP/.test(position) ? 1 : /DEF|BACK/.test(position) ? 2 : /MID/.test(position) ? 3 : /FWD|FORWARD|ATT/.test(position) ? 4 : 3);
-      let col = gridMatch ? Number(gridMatch[2]) : index + 1;
-      return { player, row: Math.min(5, Math.max(1, row)), col };
+      let row;
+      let col;
+      if (gridMatch) {
+        row = Number(gridMatch[1]);
+        col = Number(gridMatch[2]);
+      } else if (!hasAnyGrid && !position) {
+        row = slots[index] || Math.min(5, index + 1);
+        col = index + 1;
+      } else {
+        if (/^(G|GK|GOALKEEPER)$/.test(position) || /GOALKEEP/.test(position)) row = 1;
+        else if (/^(D|DEF|CB|LB|RB|LWB|RWB)$/.test(position) || /DEFEN|BACK/.test(position)) row = 2;
+        else if (/^(DM|CDM|CM|M|MID|LM|RM)$/.test(position) || /MIDFIELD/.test(position)) row = 3;
+        else if (/^(AM|CAM|LW|RW|WF)$/.test(position) || /ATTACKING MID|WINGER/.test(position)) row = Math.min(4, formationRows.length);
+        else if (/^(F|FW|ST|CF|ATT)$/.test(position) || /FORWARD|STRIKER|ATTACKER/.test(position)) row = Math.min(5, formationRows.length);
+        else row = slots[index] || 3;
+        col = index + 1;
+      }
+      return { player, row: Math.min(5, Math.max(1, row)), col, hasGrid: Boolean(gridMatch) };
     });
-    return coordinates.map(({ player, row, col }) => {
+    return coordinates.map(({ player, row, col, hasGrid: pointHasGrid }) => {
       const sameRow = coordinates.filter((point) => point.row === row);
       const index = sameRow.findIndex((point) => point.player === player);
-      const rawGrid = textValue(player.grid || asObject(player.player).grid, '');
-      const hasGrid = Boolean(rawGrid.match(/^(\d+)\s*[:,-]\s*(\d+)$/));
-      const columns = hasGrid ? sameRow.map((point) => point.col) : sameRow.map((_, position) => position + 1);
+      const columns = pointHasGrid ? sameRow.map((point) => point.col) : sameRow.map((_, position) => position + 1);
       const minCol = Math.min(...columns);
       const maxCol = Math.max(...columns);
-      const column = hasGrid ? col : index + 1;
+      const column = pointHasGrid ? col : index + 1;
       const left = maxCol === minCol ? 50 : 8 + ((column - minCol) / (maxCol - minCol)) * 84;
-      const yWithin = 4 + ((row - 1) / 4) * 43;
-      const top = side === 'home' ? yWithin : 96 - yWithin;
+      const yWithin = 5 + ((row - 1) / 4) * 39;
+      const top = side === 'home' ? yWithin : 100 - yWithin;
       const person = asObject(player.player || player);
-      const number = textValue(player.number ?? player.shirt_number ?? player.jersey_number ?? person.number ?? person.shirt_number, '');
-      return `<div class="pl-pitch-player" style="left:${left}%;top:${top}%"><span>${esc(number || '•')}</span><b>${esc(playerName(player))}</b></div>`;
+      const number = textValue(player.number ?? player.shirt_number ?? player.jersey_number ?? person.number ?? person.shirt_number, '•');
+      const name = playerName(player);
+      return `<div class="pl-pitch-player ${side === 'away' ? 'is-away' : 'is-home'}" style="left:${left}%;top:${top}%" title="${esc(name)}"><span>${esc(number)}</span><b>${esc(name)}</b></div>`;
     }).join('');
+  }
+  function pitchTeamIdentity(team, side) {
+    const name = team.team || (side === 'home' ? 'Home team' : 'Away team');
+    const logo = safeUrl(team.logo);
+    const crest = logo
+      ? `<img src="${esc(logo)}" alt="${esc(name)} crest" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.hidden=false"><span class="pl-pitch-crest-fallback" hidden>${esc(name.slice(0, 1).toUpperCase())}</span>`
+      : `<span class="pl-pitch-crest-fallback">${esc(name.slice(0, 1).toUpperCase())}</span>`;
+    return `<div class="pl-pitch-team-id pl-pitch-team-id-${side}">${crest}<span><b>${esc(name)}</b><small>${esc(team.formation || 'Formation not supplied')}</small></span></div>`;
   }
   function renderLineups(match) {
     const raw = match?.lineups ?? match?.formations ?? match?.team_lineups ?? null;
     const teams = lineupTeams(raw, match);
-    if (!teams.length) { $('plLineupsContent').innerHTML = emptyState('Line-ups not available', 'Starting XI, substitutes, player positions and formations will appear here when match information is available.'); return; }
     const hasStarters = teams.some((team) => team.starters.length);
-    const pitch = hasStarters ? `<div class="pl-formation-pitch" aria-label="Starting formations"><span class="pl-pitch-center" aria-hidden="true"></span><div class="pl-pitch-team-label pl-pitch-home"><b>${esc(teams[0]?.team || teamName(match, 'home'))}</b><small>${esc(teams[0]?.formation || '')}</small></div><div class="pl-pitch-team-label pl-pitch-away"><b>${esc(teams[1]?.team || teamName(match, 'away'))}</b><small>${esc(teams[1]?.formation || '')}</small></div>${teams[0] ? pitchMarkers(teams[0], 'home') : ''}${teams[1] ? pitchMarkers(teams[1], 'away') : ''}</div>` : '';
-    $('plLineupsContent').innerHTML = `${pitch}<div class="pl-lineup-grid">${teams.map((team) => `<article class="pl-lineup-team"><header><b>${esc(team.team)}</b><span>${esc(team.formation || 'Formation not supplied')}</span></header>${team.coach ? `<p>Coach: ${esc(team.coach)}</p>` : ''}${team.substitutes.length ? `<h3>Substitutes</h3><ol>${team.substitutes.map(playerMarkup).join('')}</ol>` : (team.starters.length ? `<h3>Starting XI</h3><ol>${team.starters.map(playerMarkup).join('')}</ol>` : '')}</article>`).join('')}</div>`;
+    if (!hasStarters) {
+      $('plLineupsContent').innerHTML = emptyState('Line-ups not available', 'Starting XI, substitutes, player positions and formations will appear here when confirmed information is supplied by the football provider.');
+      return;
+    }
+    const home = teams[0] || { team: teamName(match, 'home'), logo: teamLogo(match, 'home'), formation: '', starters: [], substitutes: [] };
+    const away = teams[1] || { team: teamName(match, 'away'), logo: teamLogo(match, 'away'), formation: '', starters: [], substitutes: [] };
+    const confirmed = teams.every((team) => team.confirmed !== false);
+    const pitch = `<div class="pl-lineups-confirmed"><span aria-hidden="true">✓</span><b>${confirmed ? 'Confirmed Line-ups' : 'Line-up information'}</b></div>
+      <div class="pl-formation-pitch" aria-label="Football formation pitch with starting players">
+        <div class="pl-pitch-field-lines" aria-hidden="true"><span class="pl-pitch-box pl-pitch-box-home"></span><span class="pl-pitch-box pl-pitch-box-away"></span><span class="pl-pitch-center"></span></div>
+        ${home.logo ? `<img class="pl-pitch-watermark pl-pitch-watermark-home" src="${esc(home.logo)}" alt="" aria-hidden="true" loading="lazy">` : ''}
+        ${away.logo ? `<img class="pl-pitch-watermark pl-pitch-watermark-away" src="${esc(away.logo)}" alt="" aria-hidden="true" loading="lazy">` : ''}
+        ${pitchTeamIdentity(home, 'home')}${pitchTeamIdentity(away, 'away')}
+        ${pitchMarkers(home, 'home')}${pitchMarkers(away, 'away')}
+      </div>`;
+    const teamCards = teams.map((team) => `<article class="pl-lineup-team"><header><b>${esc(team.team)}</b><span>${esc(team.formation || 'Formation not supplied')}</span></header>${team.coach ? `<p>Coach: ${esc(team.coach)}</p>` : ''}${team.substitutes.length ? `<h3>Substitutes</h3><ol>${team.substitutes.map(playerMarkup).join('')}</ol>` : ''}</article>`).join('');
+    $('plLineupsContent').innerHTML = `${pitch}${teamCards ? `<div class="pl-lineup-grid pl-lineup-bench-grid">${teamCards}</div>` : ''}`;
   }
   function flattenStandings(raw) {
     if (!raw) return [];
