@@ -96,9 +96,14 @@ Deno.serve(async (req) => {
         event_id: claimed.id,
         is_breaking: Boolean(claimed.is_breaking),
       },
+      // The notification has one article action only. No unsubscribe action/button
+      // is included; Web Push subscribers manage opt-out in their browser settings.
       web_buttons: [{ id: "read-story", text: "Read full story", url: articleUrl }],
       chrome_web_icon: `${siteUrl}/assets/images/parrothit-logo.png`,
       chrome_web_badge: `${siteUrl}/assets/images/parrothit-pwa-192.png`,
+      // Native Android companion-app channel. It is created by the app with the
+      // bundled parrot_chirp.wav notification sound. Web Push ignores this field.
+      existing_android_channel_id: "parrothit_news_bird_v1",
     };
 
     // Chrome's web notification image creates the expanded Big Picture style.
