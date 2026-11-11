@@ -916,11 +916,11 @@ function routeFor(providerCode: string, endpoints: Record<string, unknown>, view
   return validateProviderRoute(String(route || ""));
 }
 
-function rangeRouteFor(providerCode: string, endpoints: Record<string, unknown>, view: string): string {
-  // API-Football only supports reliable worldwide date feeds with date=YYYY-MM-DD.
-  // Its from/to range filters are scoped by league and season; a global request must
-  // therefore be synchronized as date-only requests in the rolling daily window below.
-  if (String(providerCode || "").toLowerCase() === "api-football") return "";
+function rangeRouteFor(providerCode: string, endpoints: Record<string, unknown>, view: string, competition = "all"): string {
+  // API-Football global feeds remain date-scoped. A competition page may use its
+  // league ID + season with the provider's supported from/to range endpoint.
+  const isApiFootball = String(providerCode || "").toLowerCase() === "api-football";
+  if (isApiFootball && competition === "all") return "";
   const nestedRange = plainObject(endpoints.range);
   const configured = endpoints[`${view}_range`] ?? endpoints[`${view}Range`] ?? nestedRange[view];
   if (typeof configured === "string" && configured.trim()) return validateProviderRoute(configured);
@@ -929,8 +929,7 @@ function rangeRouteFor(providerCode: string, endpoints: Record<string, unknown>,
     return validateProviderRoute(standardRoute);
   }
   const builtIns = builtInRangeEndpoints(providerCode);
-  // The range endpoints used for Upcoming/Results return all statuses unless a status filter
-  // is explicitly present, so they are also suitable for the Today calendar feed.
+  // Use the known scoped range route when API-Football has a provider catalogue ID.
   const builtIn = builtIns[view] || (view === "today" ? builtIns.upcoming : "");
   return builtIn ? validateProviderRoute(builtIn) : "";
 }
@@ -949,12 +948,20 @@ function expandProviderRoute(provider: Record<string, any>, view: string, date: 
   // Upcoming / Results after normalization, so no provider status filter is necessary.
   if (String(provider.provider_code || "").toLowerCase() === "api-football") {
     const target = new URL(expanded, "https://parrothit.invalid");
-    if (view === "live") {
-      target.pathname = "/fixtures";
+    const scopedRange = competition !== "all" && target.searchParams.has("from") && target.searchParams.has("to");
+    target.pathname = "/fixtures";
+    if (scopedRange) {
+      // API-Football supports from/to only when the request is scoped to a league and season.
+      // The worldwide feed remains date-scoped; a competition page can safely use league history.
+      target.searchParams.set("league", competition);
+      if (!target.searchParams.has("season")) target.searchParams.set("season", dateFrom.slice(0, 4));
+      target.searchParams.delete("date");
+      target.searchParams.delete("live");
+      target.searchParams.delete("status");
+    } else if (view === "live") {
       target.search = "";
       target.searchParams.set("live", "all");
     } else {
-      target.pathname = "/fixtures";
       target.search = "";
       target.searchParams.set("date", date);
     }
@@ -1007,17 +1014,29 @@ async function providerRequest(
     else target.searchParams.delete(key);
   }
   if (String(provider.provider_code || "").toLowerCase() === "api-football" && target.pathname.endsWith("/fixtures")) {
-    // Do not mix from/to/status with global worldwide requests. API-Football's
-    // date-range filters are league/season-scoped; the public global feed uses date.
-    target.searchParams.delete("from");
-    target.searchParams.delete("to");
-    target.searchParams.delete("status");
-    if (view === "live") {
+    const routeIsRangeScoped = /[?&]from=/.test(route) && /[?&]to=/.test(route);
+    const scopedRange = competition !== "all" && Boolean(target.searchParams.get("league") || routeIsRangeScoped)
+      && (target.searchParams.has("from") && target.searchParams.has("to") || routeIsRangeScoped);
+    if (scopedRange) {
+      target.searchParams.set("league", competition);
+      if (!target.searchParams.get("season")) target.searchParams.set("season", dateFrom.slice(0, 4));
+      target.searchParams.set("from", dateFrom);
+      target.searchParams.set("to", dateTo);
       target.searchParams.delete("date");
-      target.searchParams.set("live", "all");
-    } else {
       target.searchParams.delete("live");
-      target.searchParams.set("date", date || dateFrom || dateTo);
+      target.searchParams.delete("status");
+    } else {
+      // Global requests remain date-scoped; from/to are valid only with league + season.
+      target.searchParams.delete("from");
+      target.searchParams.delete("to");
+      target.searchParams.delete("status");
+      if (view === "live") {
+        target.searchParams.delete("date");
+        target.searchParams.set("live", "all");
+      } else {
+        target.searchParams.delete("live");
+        target.searchParams.set("date", date || dateFrom || dateTo);
+      }
     }
     target.searchParams.set("timezone", "Africa/Lagos");
   }
@@ -1655,7 +1674,7 @@ async function fetchProviderWindow(
 
   const code = String(provider.provider_code || "custom");
   const endpoints = plainObject(provider.endpoints);
-  const rangeRoute = rangeRouteFor(code, endpoints, view);
+  const rangeRoute = rangeRouteFor(code, endpoints, view, competition);
   if (code === "football-data-org" && rangeRoute) {
     return fetchFootballDataOrgWindowInBatches(db, provider, view, selectedDate, competition, ttl, dateFrom, dateTo, rangeRoute);
   }
@@ -1852,9 +1871,16 @@ Deno.serve(async (request: Request) => {
     const view = ["live", "today", "upcoming", "results"].includes(body.view) ? String(body.view) : "live";
     const dateText = String(body.date || "");
     const date = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : todayInLagos();
-    const dateFrom = todayInLagos();
-    const dateTo = `${dateFrom.slice(0, 4)}-12-31`;
+    const defaultDateFrom = todayInLagos();
+    const defaultDateTo = `${defaultDateFrom.slice(0, 4)}-12-31`;
+    const requestedDateFrom = String(body.date_from || "");
+    const requestedDateTo = String(body.date_to || "");
+    const dateFrom = action === "competition_feed" && /^\d{4}-\d{2}-\d{2}$/.test(requestedDateFrom) ? requestedDateFrom : defaultDateFrom;
+    const dateTo = action === "competition_feed" && /^\d{4}-\d{2}-\d{2}$/.test(requestedDateTo) ? requestedDateTo : defaultDateTo;
     const windowDays = daysBetweenInclusive(dateFrom, dateTo);
+    if (action === "competition_feed" && (dateFrom > dateTo || windowDays > 190)) {
+      return reply(400, { ok: false, error: "The selected competition date range is invalid or too large." });
+    }
     const requestedCompetition = String(body.competition || "all").toLowerCase().slice(0, 40);
     const competition = /^[a-z0-9_-]+$/.test(requestedCompetition) ? requestedCompetition : "all";
     const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -1926,6 +1952,94 @@ Deno.serve(async (request: Request) => {
     }
 
     const activeProviders = await loadActiveProviderConfigs(db, settings || {});
+    if (action === "competition_feed") {
+      const competitionName = safeString(body.competition_name).trim().slice(0, 120);
+      const competitionCountry = safeString(body.competition_country).trim().slice(0, 100);
+      const requestedView = ["upcoming", "results"].includes(view) ? view : "upcoming";
+      if (!competitionName) return reply(400, { ok: false, error: "A competition name is required." });
+      if (settings?.public_livescore_enabled !== true || !activeProviders.length) {
+        return reply(200, { ok: true, matches: [], view: requestedView, data_state: "unavailable", sync_pending: false, attributions: [] });
+      }
+      const ttl = Math.max(15, Math.min(3600, Number(settings.cache_seconds || settings.public_livescore_cache_seconds || 60)));
+      const targetName = normalizedName(competitionName);
+      const targetCountry = normalizedName(competitionCountry);
+      const providerResults = await runWithConcurrency(activeProviders, 6, async (provider) => {
+        const startedAt = Date.now();
+        try {
+          const providerCatalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
+          const catalogEntry = providerCatalog.find((item) =>
+            normalizedName(item.competition_name) === targetName
+            && (!targetCountry || targetCountry === "international" || !normalizedName(item.country_name) || normalizedName(item.country_name) === targetCountry)
+          ) || providerCatalog.find((item) => normalizedName(item.competition_name) === targetName);
+          if (!catalogEntry || (String(provider.provider_code || "").toLowerCase() === "api-football" && catalogEntry.external_competition_id == null)) {
+            return { ok: true, cached: true, stale: false, provider: provider.provider_name,
+              provider_id: provider.id, provider_code: provider.provider_code, matches: [], diagnostics: {},
+              http_status: null, duration_ms: Date.now() - startedAt, skipped: true };
+          }
+          const providerCompetition = catalogEntry.external_competition_id == null ? "all" : String(catalogEntry.external_competition_id);
+          const providerForCompetition = { ...provider };
+          if (String(provider.provider_code || "").toLowerCase() === "api-football" && catalogEntry?.season_year != null) {
+            providerForCompetition.default_query_params = {
+              ...plainObject(provider.default_query_params),
+              season: String(catalogEntry.season_year).slice(0, 4),
+            };
+          }
+          const result = await fetchProviderWindow(
+            db, providerForCompetition, requestedView, dateFrom, providerCompetition, ttl, dateFrom, dateTo,
+          );
+          const matching = (Array.isArray(result.matches) ? result.matches : []).filter((match: Record<string, any>) => {
+            const matchName = normalizedName(match.league || match.competition || match.league_name);
+            const matchCountry = normalizedName(match.country || match.league_country);
+            const sameId = catalogEntry?.external_competition_id != null
+              && String(match.competition_id || "") === String(catalogEntry.external_competition_id);
+            const sameName = matchName === targetName;
+            const sameCountry = !targetCountry || targetCountry === "international" || !matchCountry || matchCountry === targetCountry;
+            return sameId || (sameName && sameCountry);
+          });
+          return { ...result, matches: matching, duration_ms: Date.now() - startedAt };
+        } catch (providerError) {
+          return {
+            ok: false, cached: false, stale: false, provider: provider.provider_name,
+            provider_id: provider.id, provider_code: provider.provider_code, matches: [],
+            diagnostics: {}, http_status: null, duration_ms: Date.now() - startedAt,
+            error: providerError instanceof Error ? providerError.message : "Competition feed synchronization failed.",
+          };
+        }
+      });
+      const providerById = new Map(activeProviders.map((provider) => [String(provider.id), provider]));
+      await Promise.all(providerResults.map(async (result) => {
+        const provider = providerById.get(String(result.provider_id || ""));
+        if (!provider || result.skipped === true) return;
+        const partial = Boolean(result.error) || result.sync_pending === true || result.pagination_pending === true;
+        const outcome = result.ok !== true ? "failure" : partial ? "partial" : "success";
+        const count = Array.isArray(result.matches) ? result.matches.length : 0;
+        const message = result.error
+          ? String(result.error)
+          : `${requestedView} competition feed completed. ${count} matching record(s) available${result.sync_pending ? "; historical date batches remain" : ""}${result.pagination_pending ? "; additional provider pages remain" : ""}.`;
+        await logPublicProviderEvent(db, provider, `competition_${requestedView}`, outcome, result.http_status ?? null,
+          result.duration_ms ?? null, message);
+      }));
+      const successfulProviders = providerResults.filter((result) => result.ok === true);
+      const providerMatches = providerResults.flatMap((result) => Array.isArray(result.matches) ? result.matches : []);
+      const combined = deduplicateMatches(providerMatches, String(settings.selected_api_config_id || ""));
+      const pendingProviders = providerResults.filter((result) => result.sync_pending === true || result.pagination_pending === true);
+      const attributions = requiredPublicAttributions(providerResults);
+      if (!successfulProviders.length) {
+        return reply(200, { ok: true, matches: [], view: requestedView, data_state: "unavailable", sync_pending: false, attributions: [] });
+      }
+      return reply(200, {
+        ok: true,
+        matches: combined.matches.map((match) => publicMatchRow(match)),
+        view: requestedView,
+        date_from: dateFrom,
+        date_to: dateTo,
+        total_returned: combined.matches.length,
+        data_state: combined.matches.length ? "available" : "empty",
+        sync_pending: pendingProviders.some((result) => result.sync_pending === true),
+        pagination_pending: pendingProviders.some((result) => result.pagination_pending === true),
+        attributions,
+      });
+    }
     if (action === "catalog") {
       if (!activeProviders.length) return reply(200, { ok: true, competitions: [], competition_count: 0 });
       const competitions = await loadCombinedCompetitionCatalog(db, activeProviders);
