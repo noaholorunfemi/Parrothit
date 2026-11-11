@@ -33,3 +33,8 @@ verify_jwt = true
 # must allow the privacy-preserving record_failed_login action before sign-in.
 [functions.parrothit-admin-session]
 verify_jwt = false
+
+# Published newsroom stories are queued by a database trigger and delivered
+# through a Supabase Database Webhook protected by a shared secret header.
+[functions.parrothit-push-notification]
+verify_jwt = false
