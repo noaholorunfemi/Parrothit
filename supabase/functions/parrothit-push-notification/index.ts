@@ -69,17 +69,24 @@ Deno.serve(async (req) => {
     const summary = cleanText(claimed.summary, 220) || "Read the latest report from PARROTHIT.";
     const articleUrl = new URL(String(claimed.article_path || "/"), siteUrl).toString();
     let imageUrl = cleanText(claimed.image_url, 1200);
-    try {
-      const parsedImage = new URL(imageUrl);
-      if (parsedImage.protocol !== "https:") imageUrl = "";
-    } catch {
-      imageUrl = "";
+    if (imageUrl) {
+      try {
+        // Accept absolute public HTTPS URLs and site-relative image paths.
+        const parsedImage = new URL(imageUrl, siteUrl);
+        imageUrl = parsedImage.protocol === "https:" ? parsedImage.toString() : "";
+      } catch {
+        imageUrl = "";
+      }
     }
 
     const message: Record<string, unknown> = {
       app_id: oneSignalAppId,
       target_channel: "push",
-      included_segments: ["Subscribed Users"],
+      // "All" is OneSignal's universal shorthand for every push-subscribed user.
+      // This avoids silently targeting a segment name that may not exist in this app.
+      included_segments: ["All"],
+      priority: 10,
+      ttl: 86400,
       headings: { en: title },
       contents: { en: summary },
       url: articleUrl,
@@ -91,6 +98,7 @@ Deno.serve(async (req) => {
       },
       web_buttons: [{ id: "read-story", text: "Read full story", url: articleUrl }],
       chrome_web_icon: `${siteUrl}/assets/images/parrothit-logo.png`,
+      chrome_web_badge: `${siteUrl}/assets/images/parrothit-pwa-192.png`,
     };
 
     // Chrome's web notification image creates the expanded Big Picture style.
@@ -118,8 +126,14 @@ Deno.serve(async (req) => {
     }
 
     if (!result?.id) {
-      await db.from("parrothit_push_notification_events").update({ status: "no_subscribers", error_message: "OneSignal accepted the request but returned no message id; there may be no active subscriptions." }).eq("id", eventId);
-      return json({ ok: true, no_subscribers: true, onesignal: result });
+      const noRecipientDetail = cleanText(
+        result?.errors || result?.warnings || "OneSignal did not return a message ID. Confirm that this app has at least one active, opted-in Web Push subscription.",
+        1200,
+      );
+      await db.from("parrothit_push_notification_events")
+        .update({ status: "no_subscribers", error_message: noRecipientDetail })
+        .eq("id", eventId);
+      return json({ ok: true, no_subscribers: true, detail: noRecipientDetail, onesignal: result });
     }
 
     const { error: updateError } = await db
