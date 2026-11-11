@@ -22,6 +22,7 @@
   let menuOpen = false;
   let activeTab = 'info';
   let standingsFilter = 'all';
+  let h2hFilter = 'all';
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -389,20 +390,146 @@
   }
   function h2hRows(match) {
     const raw = match?.head_to_head ?? match?.h2h ?? match?.head2head ?? match?.previous_matches ?? null;
-    return flattenList(raw).map((row) => asObject(row)).filter((row) => Object.keys(row).length);
+    const records = [];
+    const visited = new Set();
+    const looksLikeFixture = (value) => {
+      const row = asObject(value);
+      const home = row.home ?? row.home_team ?? row.localteam ?? row.homeTeam ?? row.Team1 ?? row.teams?.home;
+      const away = row.away ?? row.away_team ?? row.visitorteam ?? row.awayTeam ?? row.Team2 ?? row.teams?.away;
+      return Boolean(home && away);
+    };
+    const walk = (value, inherited = {}, depth = 0) => {
+      if (depth > 7 || value === null || value === undefined) return;
+      if (Array.isArray(value)) { value.forEach((item) => walk(item, inherited, depth + 1)); return; }
+      if (typeof value !== 'object') return;
+      if (visited.has(value)) return;
+      visited.add(value);
+      if (looksLikeFixture(value)) { records.push({ row: value, inherited }); return; }
+
+      const groupName = textValue(value.round || value.stage || value.group_name || value.group || value.title || value.name || value.label, '');
+      const leagueValue = value.league ?? value.competition ?? value.tournament ?? value.LeagueName ?? '';
+      const leagueObject = asObject(leagueValue);
+      const competitionName = textValue(leagueObject.name || leagueObject.title || leagueValue || value.competition_name || value.league_name, inherited.competitionName || '');
+      const inheritedNext = {
+        groupName: groupName || inherited.groupName || '',
+        competitionName: competitionName || inherited.competitionName || '',
+        competitionLogo: safeUrl(firstValue(leagueObject.logo, leagueObject.emblem, value.competition_logo, value.league_logo, inherited.competitionLogo))
+      };
+      const preferred = ['data', 'matches', 'fixtures', 'results', 'events', 'head_to_head', 'h2h', 'previous_matches', 'items', 'meetings', 'games', 'records', 'response', 'competitions', 'leagues', 'groups'];
+      let followed = false;
+      preferred.forEach((key) => {
+        if (value[key] && typeof value[key] === 'object') { followed = true; walk(value[key], inheritedNext, depth + 1); }
+      });
+      if (!followed) {
+        Object.entries(value).forEach(([key, child]) => {
+          if (child && typeof child === 'object' && !['home', 'away', 'teams', 'league', 'competition', 'fixture', 'status', 'score', 'scores'].includes(key)) {
+            walk(child, inheritedNext, depth + 1);
+          }
+        });
+      }
+    };
+    walk(raw);
+    return records;
+  }
+  function h2hTeam(value, fallback) {
+    const team = asObject(value);
+    const name = textValue(typeof value === 'string' ? value : (team.name || team.team_name || team.TeamName || team.teamName || team.full_name || team.display_name || team.short_name || team.title), fallback);
+    const logo = safeUrl(team.logo || team.crest || team.badge || team.image || team.image_url || team.logo_url || team.crest_url || team.badge_url || team.TeamLogo || team.TeamIconUrl || team.TeamIconURL || team.teamIconUrl || team.team_icon || team.team_logo);
+    const id = textValue(team.id ?? team.team_id ?? team.TeamID ?? team.teamId, '');
+    return { name, logo, id };
+  }
+  function h2hScoreValue(...values) {
+    for (const value of values) {
+      if (value === 0 || (typeof value === 'number' && Number.isFinite(value))) return value;
+      if (value !== null && value !== undefined && value !== '') {
+        if (typeof value === 'object') {
+          const nested = value.value ?? value.score ?? value.total ?? value.goals ?? value.points ?? value.Points;
+          if (nested === 0 || (typeof nested === 'number' && Number.isFinite(nested)) || (typeof nested === 'string' && /^\d+$/.test(nested))) return nested;
+        } else if (/^\d+$/.test(String(value).trim())) return value;
+      }
+    }
+    return null;
+  }
+  function normalizeH2HRecord(record) {
+    const row = asObject(record.row);
+    const league = asObject(row.league || row.competition || row.tournament);
+    const fixture = asObject(row.fixture);
+    const teams = asObject(row.teams);
+    const homeRaw = row.home || row.home_team || row.localteam || row.homeTeam || row.Team1 || teams.home;
+    const awayRaw = row.away || row.away_team || row.visitorteam || row.awayTeam || row.Team2 || teams.away;
+    const home = h2hTeam(homeRaw, 'Home');
+    const away = h2hTeam(awayRaw, 'Away');
+    const scoreObject = asObject(row.score || row.scores);
+    const resultObject = asObject(row.result || row.result_score || row.full_time_result);
+    const goals = asObject(row.goals);
+    const resultList = asArray(row.MatchResults || row.matchResults || row.results);
+    const finalResult = resultList.find((item) => /final|full.?time|end/i.test(String(item?.ResultType || item?.result_type || item?.name || '')) || Number(item?.ResultTypeID ?? item?.result_type_id) === 2) || resultList[0] || {};
+    const homeScore = h2hScoreValue(row.home_score, goals.home, scoreObject.home, scoreObject.fulltime?.home, scoreObject.full_time?.home, resultObject.home, row.score_home, row.full_time_home, finalResult.PointsTeam1, finalResult.points_team1, finalResult.home_score);
+    const awayScore = h2hScoreValue(row.away_score, goals.away, scoreObject.away, scoreObject.fulltime?.away, scoreObject.full_time?.away, resultObject.away, row.score_away, row.full_time_away, finalResult.PointsTeam2, finalResult.points_team2, finalResult.away_score);
+    const dateValue = row.kickoff || row.date || row.match_date || row.start_time || row.MatchDateTimeUTC || row.matchDate || fixture.date || row.utcDate;
+    const rawStatus = textValue(row.status?.short || row.status?.long || fixture.status?.short || fixture.status?.long || row.status_code || row.status_detail || row.match_status || row.status || row.MatchStatus || row.statusText || (row.MatchIsFinished === true ? 'FT' : ''), '');
+    let status = rawStatus;
+    if (/^(FT|FINISHED|FULL.?TIME|ENDED|COMPLETED)$/i.test(rawStatus.replace(/[_-]/g, ' '))) status = 'FT';
+    else if (/AFTER.?EXTRA|\bAET\b/i.test(rawStatus)) status = 'AET';
+    else if (/PENALT|\bPEN\b/i.test(rawStatus)) status = 'PEN';
+    const compName = textValue(league.name || league.title || row.competition_name || row.league_name || row.LeagueName || row.league || row.competition || record.inherited.competitionName, '');
+    const round = textValue(row.round || row.stage || row.group_name || row.league?.round || row.league_round || row.group || record.inherited.groupName, '');
+    const groupTitle = round || compName || 'Other competitions';
+    const groupSubtitle = compName && compName.toLowerCase() !== groupTitle.toLowerCase() ? compName : textValue(row.country || league.country || '', '');
+    const compLogo = safeUrl(league.logo || league.emblem || row.competition_logo || row.league_logo || row.competition?.logo || record.inherited.competitionLogo);
+    const date = dateValue ? formatDateShort(dateValue).toUpperCase() : '—';
+    return { home, away, homeScore, awayScore, date, status: status || '—', groupTitle, groupSubtitle, compLogo, dateValue };
   }
   function renderH2H(match) {
-    const rows = h2hRows(match);
-    if (!rows.length) { $('plH2HContent').innerHTML = emptyState('Head-to-head data not available', 'Previous meetings will appear here when head-to-head information is available.'); return; }
-    $('plH2HContent').innerHTML = `<div class="pl-h2h-list">${rows.map((row) => {
-      const home = textValue(row.home || row.home_team || row.localteam || row.teams?.home || row.homeTeam, 'Home');
-      const away = textValue(row.away || row.away_team || row.visitorteam || row.teams?.away || row.awayTeam, 'Away');
-      const homeScore = row.home_score ?? row.goals?.home ?? row.score?.home ?? row.scores?.home ?? '–';
-      const awayScore = row.away_score ?? row.goals?.away ?? row.score?.away ?? row.scores?.away ?? '–';
-      const date = formatDateShort(row.kickoff || row.date || row.match_date || row.start_time || row.fixture?.date || row.utcDate);
-      const competition = textValue(row.league || row.competition || row.league?.name, '');
-      return `<article><small>${esc([date, competition].filter(Boolean).join(' · '))}</small><div><b>${esc(home)}</b><strong>${esc(homeScore)} – ${esc(awayScore)}</strong><b>${esc(away)}</b></div></article>`;
-    }).join('')}</div>`;
+    const allRows = h2hRows(match).map(normalizeH2HRecord).filter((row) => row.home.name !== 'Home' && row.away.name !== 'Away');
+    const homeTeam = teamName(match, 'home');
+    const awayTeam = teamName(match, 'away');
+    const selectedTeam = h2hFilter === 'home' ? homeTeam : h2hFilter === 'away' ? awayTeam : '';
+    const normalizeName = (value) => String(value || '').trim().toLocaleLowerCase().replace(/\s+/g, ' ');
+    const rows = selectedTeam ? allRows.filter((row) => [row.home.name, row.away.name].some((name) => normalizeName(name) === normalizeName(selectedTeam))) : allRows;
+    if (!rows.length) {
+      $('plH2HContent').innerHTML = `${emptyState('Head-to-head data not available', 'Previous meetings will appear here when the football data provider supplies them.')}<div class="pl-h2h-filterbar" role="group" aria-label="Filter previous meetings">${[['all','H2H'],['home',homeTeam],['away',awayTeam]].map(([key,label]) => `<button type="button" class="pl-h2h-filter${h2hFilter === key ? ' active' : ''}" data-h2h-filter="${key}" aria-pressed="${h2hFilter === key}">${esc(label)}</button>`).join('')}</div>`;
+      $('plH2HContent').querySelectorAll('[data-h2h-filter]').forEach((button) => button.addEventListener('click', () => { h2hFilter = button.dataset.h2hFilter || 'all'; renderH2H(currentMatch); }));
+      return;
+    }
+
+    let played = 0, homeWins = 0, draws = 0, awayWins = 0;
+    rows.forEach((row) => {
+      if (row.homeScore === null || row.awayScore === null) return;
+      const hs = Number(row.homeScore), as = Number(row.awayScore);
+      if (!Number.isFinite(hs) || !Number.isFinite(as)) return;
+      const first = normalizeName(row.home.name), second = normalizeName(row.away.name);
+      if (first === normalizeName(homeTeam) && second === normalizeName(awayTeam)) {
+        played++; if (hs > as) homeWins++; else if (hs < as) awayWins++; else draws++;
+      } else if (first === normalizeName(awayTeam) && second === normalizeName(homeTeam)) {
+        played++; if (hs > as) awayWins++; else if (hs < as) homeWins++; else draws++;
+      }
+    });
+    const groups = new Map();
+    rows.forEach((row) => {
+      const key = `${row.groupTitle.toLowerCase()}|${row.groupSubtitle.toLowerCase()}`;
+      if (!groups.has(key)) groups.set(key, { title: row.groupTitle, subtitle: row.groupSubtitle, logo: row.compLogo, rows: [] });
+      const group = groups.get(key);
+      if (!group.logo && row.compLogo) group.logo = row.compLogo;
+      group.rows.push(row);
+    });
+    const teamMarkup = (team) => `<div class="pl-h2h-team">${team.logo ? `<img src="${esc(team.logo)}" alt="" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.hidden=false"><span class="pl-h2h-team-fallback" hidden>${esc(team.name.slice(0,1).toUpperCase())}</span>` : `<span class="pl-h2h-team-fallback">${esc(team.name.slice(0,1).toUpperCase())}</span>`}<span>${esc(team.name)}</span></div>`;
+    const summaryValue = (value) => played ? String(value) : '—';
+    const summary = `<div class="pl-h2h-summary" aria-label="Head-to-head results summary"><div><b>${played || rows.length}</b><small>MEETINGS</small></div><div><b>${summaryValue(homeWins)}</b><small>${esc(homeTeam)} WINS</small></div><div><b>${summaryValue(draws)}</b><small>DRAWS</small></div><div><b>${summaryValue(awayWins)}</b><small>${esc(awayTeam)} WINS</small></div></div>`;
+    const filters = `<div class="pl-h2h-filterbar" role="group" aria-label="Filter previous meetings">${[['all','H2H'],['home',homeTeam],['away',awayTeam]].map(([key,label]) => `<button type="button" class="pl-h2h-filter${h2hFilter === key ? ' active' : ''}" data-h2h-filter="${key}" aria-pressed="${h2hFilter === key}">${esc(label)}</button>`).join('')}</div>`;
+    const groupMarkup = [...groups.values()].map((group) => {
+      group.rows.sort((a, b) => (Date.parse(b.dateValue || '') || 0) - (Date.parse(a.dateValue || '') || 0));
+      const icon = group.logo ? `<img src="${esc(group.logo)}" alt="" loading="lazy" referrerpolicy="strict-origin-when-cross-origin" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.hidden=false"><span class="pl-h2h-competition-fallback" hidden>${esc(group.title.slice(0,2).toUpperCase())}</span>` : `<span class="pl-h2h-competition-fallback">${esc(group.title.slice(0,2).toUpperCase())}</span>`;
+      return `<section class="pl-h2h-group"><header class="pl-h2h-group-head"><span class="pl-h2h-competition-icon">${icon}</span><span class="pl-h2h-group-copy"><b>${esc(group.title)}</b>${group.subtitle ? `<small>${esc(group.subtitle)}</small>` : ''}</span><span class="pl-h2h-group-count">${group.rows.length}</span></header><div class="pl-h2h-match-list">${group.rows.map((row) => {
+        const homeScore = row.homeScore === null ? '–' : row.homeScore;
+        const awayScore = row.awayScore === null ? '–' : row.awayScore;
+        const homeWon = row.homeScore !== null && row.awayScore !== null && Number(row.homeScore) > Number(row.awayScore);
+        const awayWon = row.homeScore !== null && row.awayScore !== null && Number(row.awayScore) > Number(row.homeScore);
+        return `<article class="pl-h2h-matchcard"><div class="pl-h2h-date"><time>${esc(row.date)}</time><b>${esc(row.status)}</b></div><div class="pl-h2h-teams">${teamMarkup(row.home)}${teamMarkup(row.away)}</div><div class="pl-h2h-scores"><b class="${homeWon ? 'is-winner' : ''}">${esc(homeScore)}</b><b class="${awayWon ? 'is-winner' : ''}">${esc(awayScore)}</b></div></article>`;
+      }).join('')}</div></section>`;
+    }).join('');
+    $('plH2HContent').innerHTML = `${summary}${filters}<div class="pl-h2h-groups">${groupMarkup}</div>`;
+    $('plH2HContent').querySelectorAll('[data-h2h-filter]').forEach((button) => button.addEventListener('click', () => { h2hFilter = button.dataset.h2hFilter || 'all'; renderH2H(currentMatch); }));
   }
   function renderDataPanels(match) {
     renderInfo(match);
@@ -446,9 +573,12 @@
   }
   function show(match) {
     currentMatch = match;
-    if (window.PARROTHIT_LIVESCORE_CLOCK) window.PARROTHIT_LIVESCORE_CLOCK.register(match);
+    // Reveal the match view before rendering optional fields so malformed optional
+    // data cannot leave the visitor trapped on the initial loading screen.
     $('plMatchLoading').hidden = true;
     $('plMatchContent').hidden = false;
+    try { if (window.PARROTHIT_LIVESCORE_CLOCK) window.PARROTHIT_LIVESCORE_CLOCK.register(match); }
+    catch { /* match rendering must not depend on the optional live clock */ }
     renderCompetition(match);
     renderTeam('plHomeTeam', match, 'home');
     renderTeam('plAwayTeam', match, 'away');
@@ -470,27 +600,41 @@
       void load();
     }, { once: true });
   }
-  async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  // Keep the timeout active until BOTH response headers and the complete body
+  // have arrived. A timeout around fetch() alone is insufficient because fetch()
+  // can resolve as soon as headers arrive while response.json() remains pending.
+  async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 15000) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     try {
-      return await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      const rawBody = await response.text();
+      let payload = {};
+      if (rawBody) {
+        try { payload = JSON.parse(rawBody); }
+        catch { throw new Error('The football service returned an unreadable response.'); }
+      }
+      return { response, payload };
+    } catch (error) {
+      if (timedOut || error?.name === 'AbortError') {
+        throw new Error('The match request timed out. Please try again.');
+      }
+      throw error;
     } finally {
       clearTimeout(timer);
     }
   }
   async function load() {
     if (busy) return;
-    if (!endpoint || !anonKey || /YOUR_PROJECT|YOUR_SUPABASE/i.test(`${baseUrl} ${anonKey}`)) {
-      if (!currentMatch) showError('Match information is temporarily unavailable. Please try again shortly.');
-      else $('plEventsNote').textContent = 'Showing the saved match information. Live updates are temporarily unavailable.';
-      return;
-    }
     if (!matchId) { showError('Match information is temporarily unavailable. Please return to LiveScore.'); return; }
 
-    // A visitor arrives from the scores list with the selected match already saved in
-    // sessionStorage. Render it immediately; never make the whole public fixture feed
-    // a prerequisite for opening this one match.
+    // Render the selected fixture from sessionStorage before depending on any live
+    // network call or public Supabase configuration. This keeps the scorecard useful
+    // even when the refresh service is slow or temporarily offline.
     if (!currentMatch) {
       try {
         const cached = JSON.parse(sessionStorage.getItem(`parrothit_ls_match_${matchId}`) || 'null');
@@ -501,14 +645,19 @@
       } catch { /* cached navigation data is optional */ }
     }
 
+    if (!endpoint || !anonKey || /YOUR_PROJECT|YOUR_SUPABASE/i.test(`${baseUrl} ${anonKey}`)) {
+      if (!currentMatch) showError('Match information is temporarily unavailable. Please try again shortly.');
+      else $('plEventsNote').textContent = 'Showing the saved match information. Live updates are temporarily unavailable.';
+      return;
+    }
+
     busy = true;
     try {
-      const response = await fetchWithTimeout(endpoint, {
+      const { response, payload } = await fetchJsonWithTimeout(endpoint, {
         method: 'POST', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` },
         body: JSON.stringify({ action: 'match', match_key: matchId, date: requestedDate })
-      }, 12000);
-      const payload = await response.json().catch(() => ({}));
+      }, 15000);
       if (!response.ok || payload.ok === false) throw new Error('Match information is temporarily unavailable.');
       const fresh = payload.match;
       if (!fresh || typeof fresh !== 'object') throw new Error('Match information is temporarily unavailable. Return to LiveScore and try again shortly.');
@@ -520,8 +669,12 @@
       // This keeps the score, competition and Info panel independent of slower routes.
     } catch (error) {
       const message = 'Match information is temporarily unavailable. Please try again shortly.';
-      if (currentMatch) $('plEventsNote').textContent = `Showing saved match information. ${message}`;
-      else showError(message);
+      if (currentMatch && $('plMatchContent') && !$('plMatchContent').hidden) {
+        $('plEventsNote').textContent = `Showing saved match information. ${message}`;
+      } else {
+        currentMatch = null;
+        showError(message);
+      }
     } finally { busy = false; }
   }
   function hasUsefulDetail(value) {
@@ -538,12 +691,11 @@
     const targetId = ({ summary: 'plSummaryContent', stats: 'plStatsContent', lineups: 'plLineupsContent', table: 'plStandingsContent', h2h: 'plH2HContent' })[tab];
     if (targetId && $(targetId)) $(targetId).innerHTML = '<div class="pl-detail-empty"><span class="pl-spinner"></span><strong>Loading this match section…</strong><p>Checking for the latest match information.</p></div>';
     try {
-      const response = await fetchWithTimeout(endpoint, {
+      const { response, payload } = await fetchJsonWithTimeout(endpoint, {
         method: 'POST', cache: 'no-store',
         headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` },
         body: JSON.stringify({ action: 'match_details', match_key: key, section: detailField, date: requestedDate })
-      }, 8000);
-      const payload = await response.json().catch(() => ({}));
+      }, 10000);
       if (!response.ok || payload.ok === false) throw new Error('Match details are temporarily unavailable.');
       if (!currentMatch || String(currentMatch.public_match_key ?? currentMatch.match_id ?? currentMatch.id ?? '') !== String(key)) return;
       const details = asObject(payload.details);
