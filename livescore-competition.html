@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090909">
+  <meta name="description" content="Competition fixtures, results and standings on PARROTHIT LiveScore.">
+  <title>Competition Centre — PARROTHIT LiveScore</title>
+  <link rel="stylesheet" href="css/livescore.css?v=competition-centre-20261111">
+  <link rel="stylesheet" href="css/livescore-competition.css?v=competition-centre-20261111">
+</head>
+<body class="pl-body pc-body">
+  <div class="pl-app">
+    <div class="pl-topline"><span>PARROTHIT · FOOTBALL</span><a href="livescore.html">Back to LiveScore</a></div>
+    <main class="pl-main pc-main">
+      <a class="pc-back" href="livescore.html">‹ <span>LiveScore</span></a>
+
+      <header class="pc-competition-hero">
+        <div class="pc-competition-identity">
+          <img id="pcCompetitionLogo" alt="" hidden>
+          <span id="pcCompetitionFallback" class="pc-competition-fallback">⚽</span>
+          <div class="pc-competition-copy">
+            <h1 id="pcCompetitionName">Loading competition…</h1>
+            <p id="pcCompetitionCountry">Football</p>
+            <small id="pcSeasonLabel"></small>
+          </div>
+        </div>
+        <div class="pc-hero-actions">
+          <button id="pcShare" class="pc-hero-icon" type="button" aria-label="Share competition" title="Share competition">↗</button>
+          <button id="pcCompetitionFavourite" class="pc-hero-icon pc-favourite" type="button" aria-label="Add competition to favourites" aria-pressed="false">☆</button>
+        </div>
+      </header>
+
+      <nav class="pc-tabs" aria-label="Competition sections" role="tablist">
+        <button class="active" type="button" role="tab" data-tab="overview" aria-selected="true">Overview</button>
+        <button type="button" role="tab" data-tab="fixtures" aria-selected="false">Fixtures</button>
+        <button type="button" role="tab" data-tab="results" aria-selected="false">Results</button>
+        <button type="button" role="tab" data-tab="standings" aria-selected="false">Standings</button>
+      </nav>
+
+      <section class="pc-stage-toolbar" id="pcStageToolbar" hidden>
+        <label for="pcStageSelect" class="pc-stage-select-wrap">
+          <span class="sr-only">Filter by competition stage</span>
+          <select id="pcStageSelect"><option value="all">All Stages</option></select>
+          <span class="pc-select-chevron">⌄</span>
+        </label>
+        <span id="pcStageCount" class="pc-stage-count"></span>
+      </section>
+
+      <div id="pcNotice" class="pc-notice" role="status" aria-live="polite" hidden></div>
+      <section id="pcCompetitionContent" class="pc-content" aria-live="polite">
+        <div class="pc-loading"><span class="pl-spinner"></span><strong>Loading competition information…</strong><p>Retrieving fixtures and recent results.</p></div>
+      </section>
+
+      <div id="pcPagination" class="pl-pagination pc-pagination" hidden></div>
+      <p class="pc-data-note">Fixtures, results and standings are shown only when returned by an activated football data provider. Coverage and season history may differ by provider.</p>
+      <div id="pcAttribution" class="pl-provider-attribution" aria-label="Sports data attribution"></div>
+    </main>
+
+    <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
+      <div><h3>PARROTHIT</h3><p>News that speaks! A Nigeria-first news platform with a global outlook.</p></div>
+      <div><h3>Explore</h3><p><a href="editorial-guidelines.html">Editorial Guidelines</a></p><p><a href="about.html">About us</a></p><p><a href="contact.html">Contact</a></p><p><a href="livescore.html">LiveScore</a></p></div>
+      <div><h3>News categories</h3><p><a href="nigeria.html">Nigeria</a> · <a href="world.html">World</a></p><p><a href="politics.html">Politics</a> · <a href="business.html">Business</a></p><p><a href="entertainment.html">Entertainment</a> · <a href="sports.html">Sports</a></p></div>
+    </div><div class="footer-bottom">© <span id="year"></span> PARROTHIT. All rights reserved. <span class="pl-footer-tagline">NEWS THAT SPEAKS!</span></div></div></footer>
+  </div>
+  <script src="supabase-config.js"></script>
+  <script src="js/livescore-config.js?v=match-centre-fix-20261108"></script>
+  <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
+  <script src="js/livescore-competition.js?v=competition-centre-20261111" defer></script>
+  <script src="/js/parrothit-ai-assistant.js" defer></script>
+</body>
+</html>
