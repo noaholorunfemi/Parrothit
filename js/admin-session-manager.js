@@ -22,17 +22,21 @@
   function renderSessions(rows) {
     const target = $('activeSessionRows');
     if (!target) return;
-    if (!rows || !rows.length) { target.innerHTML = '<tr><td colspan="6" class="empty-cell">No active administrator device sessions.</td></tr>'; return; }
+    if (!rows || !rows.length) { target.innerHTML = '<tr><td colspan="7" class="empty-cell">No active administrator device sessions. Browser locks that have missed their heartbeat lease are automatically released for a new sign-in.</td></tr>'; return; }
     target.innerHTML = rows.map((s) => {
       const a = s.admin || {};
       const name = a.display_name || a.username || 'Administrator';
       const role = String(a.role || 'admin').toLowerCase();
       const device = s.device_name || 'Unknown device';
       const isOwner = role === 'owner';
+      const leaseExpiry = s.lease_expires_at ? new Date(s.lease_expires_at).getTime() : 0;
+      const leaseText = leaseExpiry > Date.now() ? 'Heartbeat confirmed' : 'Lease expired';
+      const ipText = s.ip_address || 'Not supplied by hosting proxy';
       return '<tr><td><strong>' + escapeHtml(name) + '</strong><br><small>@' + escapeHtml(a.username || 'unknown') + '</small><br><span class="session-role">' + escapeHtml(role) + '</span></td>' +
-        '<td><strong>' + escapeHtml(device) + '</strong><br><small>' + escapeHtml((s.user_agent || '').slice(0, 150)) + '</small></td>' +
+        '<td><strong>' + escapeHtml(device) + '</strong><br><small>' + escapeHtml((s.user_agent || '').slice(0, 180)) + '</small></td>' +
+        '<td>' + escapeHtml(ipText) + '</td>' +
         '<td>' + escapeHtml(fmt(s.created_at)) + '</td><td>' + escapeHtml(fmt(s.last_activity_at)) + '</td>' +
-        '<td><span class="session-status">ACTIVE</span></td>' +
+        '<td><span class="session-status">' + escapeHtml(leaseText.toUpperCase()) + '</span><br><small>Until ' + escapeHtml(fmt(s.lease_expires_at)) + '</small></td>' +
         '<td><button class="session-btn danger" type="button" data-revoke-user="' + escapeHtml(s.user_id) + '" data-revoke-name="' + escapeHtml(name) + '">' + (isOwner ? 'Revoke owner session' : 'Revoke session') + '</button></td></tr>';
     }).join('');
     target.querySelectorAll('[data-revoke-user]').forEach((button) => {
@@ -70,7 +74,7 @@
     try {
       const settings = await invoke('get_timeout_settings');
       const minutes = Number(settings.session_timeout_minutes);
-      const selected = [5, 15, 30, 60].includes(minutes) ? minutes : 30;
+      const selected = [5, 10, 15, 30, 60].includes(minutes) ? minutes : 30;
       if (select) select.value = String(selected);
       const stat = $('currentTimeoutStat');
       if (stat) stat.textContent = selected === 60 ? '1 hour' : selected + ' min';
@@ -83,7 +87,7 @@
     const save = $('saveSessionTimeout');
     if (!select || !save) return;
     const minutes = Number(select.value);
-    if (![5, 15, 30, 60].includes(minutes)) return status('Choose 5, 15, 30 minutes or 1 hour.', true);
+    if (![5, 10, 15, 30, 60].includes(minutes)) return status('Choose 5, 10, 15, 30 minutes or 1 hour.', true);
     const label = minutes === 60 ? '1 hour' : minutes + ' minutes';
     if (!window.confirm('Set the inactivity timeout to ' + label + ' for EVERY administrator account?')) return;
     save.disabled = true;
@@ -106,7 +110,7 @@
       renderLogs(result.logs || []);
       const count = $('activeSessionCount');
       if (count) count.textContent = String((result.sessions || []).length);
-      status('Updated ' + new Date().toLocaleTimeString() + '. Each administrator account may hold only one active device session.');
+      status('Updated ' + new Date().toLocaleTimeString() + '. One live device is allowed per account. Stale five-minute heartbeat leases become eligible for safe recovery or replacement.');
     } catch (error) {
       renderSessions([]);
       renderLogs([]);
@@ -120,7 +124,7 @@
     if (!profile) return;
     booted = true;
     if (String(profile.role || '').toLowerCase() !== 'owner') {
-      $('sessionManagerRoot').innerHTML = '<section class="session-card"><h1>Owner access required</h1><p>Only Admin 1 (Owner) can view or revoke administrator sessions.</p><a class="session-btn" href="dashboard.html">Return to Control Room</a></section>';
+      $('sessionManagerRoot').innerHTML = '<section class="session-card"><h1>Owner access required</h1><p>Only Admin 1 (Owner) can view or revoke administrator sessions.</p><a class="session-btn" href="dashboard.html">Return to Control Room</a></section>'; 
       return;
     }
     $('refreshSessions').addEventListener('click', load);
