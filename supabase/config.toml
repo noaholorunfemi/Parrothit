@@ -38,3 +38,8 @@ verify_jwt = false
 # through a Supabase Database Webhook protected by a shared secret header.
 [functions.parrothit-push-notification]
 verify_jwt = false
+
+# Homepage image-ad updates are delivered through a Database Webhook protected
+# by the existing PARROTHIT_PUSH_WEBHOOK_SECRET header.
+[functions.parrothit-homepage-ad-notification]
+verify_jwt = false
