@@ -111,6 +111,23 @@ img,video,iframe{max-width:100%}
 @media(max-width:760px){.branding-grid{grid-template-columns:1fr}.branding-preview-grid{grid-template-columns:1fr}.branding-card{padding:11px}.branding-preview img,.branding-preview canvas{max-height:42vh}.branding-actions{display:grid;grid-template-columns:1fr}.branding-actions button{width:100%}}
 </style>
 
+
+<style id="parrothit-ai-image-draft-provider-css">
+.image-provider-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.image-provider-card{min-width:0;background:#081b12;border:1px solid #315b40;border-radius:10px;padding:12px}
+.image-provider-card h3{margin:0 0 5px;font-size:.98rem}
+.image-provider-card p{margin:5px 0;color:#c1d6c8;font-size:.83rem;line-height:1.45}
+.provider-state{display:inline-block;border-radius:20px;padding:4px 8px;font-size:.78rem;font-weight:800;background:#4a3211;color:#ffe4a6}
+.provider-state.ready{background:#14452a;color:#c9ffdb}
+.image-gen-box{border:1px solid #376448;background:#081b12;border-radius:12px;padding:13px;margin:14px 0}
+.image-gen-box textarea{width:100%;min-height:105px;padding:11px;border-radius:8px;border:1px solid #527260;background:#07160f;color:#fff;font:inherit;resize:vertical}
+.image-gen-preview{display:block;max-width:100%;max-height:55vh;object-fit:contain;background:#020704;border:1px solid #315b40;border-radius:9px;margin-top:10px}
+.image-gen-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.image-gen-actions button{flex:0 1 auto}
+@media(max-width:900px){.image-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.image-provider-grid{grid-template-columns:1fr}.image-gen-actions{display:grid;grid-template-columns:1fr}.image-gen-actions button{width:100%}}
+</style>
+
 </head>
 <body>
 <main class="wrap">
@@ -131,10 +148,37 @@ img,video,iframe{max-width:100%}
  <div class="row" style="margin-top:12px;align-items:center"><button type="button" class="green" id="saveBrandSettings">Save branding settings</button><span class="muted small" id="brandSettingsStatus">Review mode is selected by default.</span></div>
  <p class="warning" style="margin-bottom:0"><strong>Image-rights safeguard:</strong> only process images PARROTHIT owns, has licensed, or is otherwise authorized to modify. The engine targets publisher-added overlays and watermarks only; it must not remove logos that are part of the scene, such as shirt badges, product marks, shop signs, or stadium signage. AI branding does not grant image-reuse permission.</p>
 </section>
+
+<section class="panel" id="aiImageDraftProvidersPanel">
+ <div class="section-head"><div><h2>🎨 Brand newsroom draft image — AI image providers</h2><p class="muted">Configure a preferred text-to-image service for newsroom draft illustrations. API secrets stay in Supabase Edge Function Secrets; this page never stores provider keys in the browser or database.</p></div><span class="branding-status" id="imageDraftProviderStatus">Checking providers…</span></div>
+ <div class="row" style="align-items:end;margin-top:12px">
+  <div class="field" style="flex:2"><label for="imageDraftProviderSelect">Preferred image-drafting provider</label><select id="imageDraftProviderSelect"><option value="ovh">OVHcloud AI Endpoints — SDXL (free public test)</option><option value="cloudflare">Cloudflare Workers AI — FLUX.1 Schnell</option><option value="huggingface">Hugging Face Inference — FLUX.1 Schnell</option><option value="pollinations">Pollinations — FLUX</option><option value="stability">Stability AI — Stable Image Core</option><option value="replicate">Replicate — FLUX Schnell</option></select></div>
+  <button type="button" class="green" id="saveImageDraftProvider">Save preferred provider</button><button type="button" class="secondary" id="refreshImageDraftProviders">Refresh provider status</button>
+ </div>
+ <div id="imageDraftProviderCards" class="image-provider-grid" aria-live="polite"></div>
+ <p class="warning" style="margin-bottom:0"><strong>Free-tier notice:</strong> these are free or limited-credit options, not six unlimited free services. OVHcloud is preselected for no-key free testing; Cloudflare is a good next choice for a recurring daily free allowance. OVH's public endpoint is rate-limited. Hugging Face, Pollinations, Stability and Replicate limits depend on the current account, model, region or starter-credit offer. Check provider usage before each campaign; this page does not enable paid fallback or automatic provider switching.</p>
+ <p class="muted small" id="imageDraftProviderHelp">Add the secrets shown on the provider cards in Supabase Dashboard → Edge Functions → Secrets, then redeploy the newsroom function. No key should be pasted into this web page.</p>
+</section>
 <div class="branding-modal" id="brandImageModal" hidden role="dialog" aria-modal="true" aria-labelledby="brandModalTitle">
  <div class="branding-card">
   <div class="section-head"><div><h2 id="brandModalTitle">🦜 Brand newsroom draft image</h2><p class="muted small" id="brandModalSubtitle">The article remains In Review. Nothing will be published automatically.</p></div><button type="button" class="secondary" id="closeBrandModal">Close</button></div>
   <div id="brandModalMessage" class="msg" role="status" aria-live="polite"></div>
+
+  <section class="image-gen-box" aria-labelledby="imageDraftGenerateTitle">
+   <h3 id="imageDraftGenerateTitle">✨ Generate a new AI illustration for this draft</h3>
+   <p class="muted small">Creates a new editorial illustration for the selected unpublished article. This is a generated illustration, not documentary evidence or a replacement for a verified news photograph.</p>
+   <label for="imageDraftPrompt"><strong>Image prompt</strong></label>
+   <textarea id="imageDraftPrompt" maxlength="1400" placeholder="Describe a suitable editorial illustration for this news story. Example: A symbolic editorial illustration showing... No words or logos in the scene."></textarea>
+   <div class="row" style="margin-top:9px;align-items:end">
+    <div class="field"><label for="imageDraftAspect">Image shape</label><select id="imageDraftAspect"><option value="1:1">Square — 1:1</option><option value="16:9">Landscape — 16:9</option><option value="4:5">Portrait — 4:5</option></select></div>
+    <div class="field"><label for="imageDraftActiveProvider">Selected provider</label><input id="imageDraftActiveProvider" readonly value="Loading provider…"></div>
+   </div>
+   <label class="branding-rights" style="margin-top:10px"><input type="checkbox" id="imageDraftDisclosureConfirmed"><span>I understand this will be labelled <strong>AI-GENERATED ILLUSTRATION</strong>, must not be presented as a real photograph of the event, and must not imitate a copyrighted image, protected logo or identifiable person's likeness.</span></label>
+   <div class="image-gen-actions"><button type="button" class="blue" id="generateDraftImageBtn">Generate draft illustration</button><button type="button" class="green" id="saveGeneratedDraftImageBtn" disabled>Save illustration to draft</button><button type="button" class="secondary" id="restoreGeneratedDraftImageBtn" hidden>Restore previous draft image</button></div>
+   <p class="branding-help" id="imageDraftGenerationStatus" role="status" aria-live="polite">Select a configured provider above and enter a prompt to generate an illustration.</p>
+   <img id="generatedDraftImagePreview" class="image-gen-preview" alt="AI-generated illustration preview" hidden>
+  </section>
+
   <label class="branding-rights"><input type="checkbox" id="brandRightsConfirmed"><span>I confirm that PARROTHIT owns, has a licence for, or is otherwise authorized to edit and reuse this image. I understand that removing a watermark does not create image rights.</span></label>
   <div class="branding-actions"><button type="button" class="blue" id="brandAnalyzeBtn">Analyze image and detect logos</button><button type="button" class="secondary" id="brandUseDetectedBtn" disabled>Use all safe detected areas</button><button type="button" class="secondary" id="brandClearAreasBtn" disabled>Clear selected areas</button></div>
   <p class="branding-help" id="brandCanvasHelp">Review mode: AI-detected publisher overlays are outlined. Tap an outline to include or exclude it. Manual mode: drag on the image to mark a logo area. Scene logos are excluded.</p>
@@ -624,6 +668,83 @@ img,video,iframe{max-width:100%}
     $('brandPosition').value = brandSettings.position;
     $('brandSize').value = brandSettings.size;
   }
+
+  const IMAGE_DRAFT_PROVIDER_LABELS = {cloudflare:'Cloudflare Workers AI — FLUX.1 Schnell',ovh:'OVHcloud AI Endpoints — SDXL',huggingface:'Hugging Face Inference — FLUX.1 Schnell',pollinations:'Pollinations — FLUX',stability:'Stability AI — Stable Image Core',replicate:'Replicate — FLUX Schnell'};
+  const IMAGE_DRAFT_PROVIDER_SECRETS = {
+    cloudflare:['NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID','NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN'],
+    ovh:['No key required for the public free endpoint (optional NEWSROOM_IMAGE_DRAFT_OVH_API_TOKEN)'],
+    huggingface:['NEWSROOM_IMAGE_DRAFT_HF_TOKEN'],
+    pollinations:['NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY'],
+    stability:['NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY'],
+    replicate:['NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN']
+  };
+  let imageDraftProvider='ovh';
+  let imageDraftProviderConfigs=[];
+  let generatedDraftPreviewDataUrl='';
+  let generatedDraftMeta=null;
+  function imageDraftStatus(text,type='ok'){const el=$('imageDraftGenerationStatus');if(el){el.textContent=text;el.className='branding-help '+(type==='error'?'branding-processing':'');}}
+  function renderImageDraftProviders(providers,active){
+    imageDraftProviderConfigs=Array.isArray(providers)?providers:[];
+    imageDraftProvider=active||imageDraftProvider;
+    const select=$('imageDraftProviderSelect');if(select){select.value=imageDraftProvider; if(!select.value)select.value='ovh';}
+    const modalSelect=$('imageDraftActiveProvider');if(modalSelect)modalSelect.value=IMAGE_DRAFT_PROVIDER_LABELS[imageDraftProvider]||imageDraftProvider;
+    const ready=imageDraftProviderConfigs.filter(p=>p.configured).length;
+    $('imageDraftProviderStatus').textContent=`${ready} of 6 providers ready`;$('imageDraftProviderStatus').style.borderColor=ready?'#39704d':'#8e7024';
+    const cards=[
+      ['cloudflare','Cloudflare Workers AI','Recurring daily free allocation: 10,000 Neurons/day on Workers Free; FLUX Schnell uses its native output size, so the aspect-ratio selector may not apply.','NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID + NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN'],
+      ['ovh','OVHcloud AI Endpoints','Free SDXL public endpoint; anonymous use is limited to about 2 requests/minute per IP/model. Output is square 1024×1024.','No API key for public free test — do not add a paid API key for this no-cost mode.'],
+      ['huggingface','Hugging Face Inference','Small monthly free credit (currently $0.10/month); model/provider availability varies.','NEWSROOM_IMAGE_DRAFT_HF_TOKEN'],
+      ['pollinations','Pollinations','API key required; starter Pollen/quest credit may be limited or one-time, not a recurring free quota.','NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY'],
+      ['stability','Stability AI','Starter account currently advertises 25 one-time credits; continued use may require paid credits.','NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY'],
+      ['replicate','Replicate','Try-for-free runs depend on model and account; may require billing or credits.','NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN']
+    ];
+    $('imageDraftProviderCards').innerHTML=cards.map(([id,name,quota,secret])=>{const p=imageDraftProviderConfigs.find(x=>x.id===id)||{};return `<article class="image-provider-card"><h3>${esc(name)}</h3><span class="provider-state ${p.configured?'ready':''}">${p.configured?'READY':'NEEDS SETUP'}</span><p>${esc(quota)}</p><p><strong>Supabase secret:</strong><br><code>${esc(secret)}</code></p>${p.note?`<p>${esc(p.note)}</p>`:''}</article>`;}).join('');
+    if(!ready) $('imageDraftProviderHelp').textContent='Only OVHcloud public test is keyless, and it may be rate-limited. Add one provider’s secret values in Supabase Edge Function Secrets and redeploy.';
+    else $('imageDraftProviderHelp').textContent=`${ready} provider(s) are configured. Keys remain server-side. Select one and save it as the preferred image drafting provider.`;
+  }
+  async function loadImageDraftProviders(){
+    try{const result=await invoke('image_draft_provider_config');renderImageDraftProviders(result.providers,result.active_provider);}
+    catch(e){$('imageDraftProviderStatus').textContent='Could not load provider status';$('imageDraftProviderHelp').textContent=e.message||String(e);}
+  }
+  async function saveImageDraftProvider(){
+    const select=$('imageDraftProviderSelect');const id=select?.value||'ovh';const button=$('saveImageDraftProvider');button.disabled=true;button.textContent='Saving…';
+    try{const result=await invoke('set_active_image_draft_provider',{provider:id});imageDraftProvider=id;renderImageDraftProviders(result.providers,id);$('imageDraftActiveProvider').value=IMAGE_DRAFT_PROVIDER_LABELS[id];message(`Preferred image drafting provider saved: ${IMAGE_DRAFT_PROVIDER_LABELS[id]}.`);}
+    catch(e){message(e.message||String(e),'error');}
+    finally{button.disabled=false;button.textContent='Save preferred provider';}
+  }
+  function addAiIllustrationDisclosure(dataUrl){
+    return loadBrandImage(dataUrl).then(img=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);const scale=Math.max(1,c.width/1200),pad=Math.round(9*scale),font=Math.max(13,Math.round(17*scale));ctx.save();ctx.font=`800 ${font}px Arial,sans-serif`;const label='AI-GENERATED ILLUSTRATION';const w=ctx.measureText(label).width+pad*2,h=font+pad*1.3;ctx.fillStyle='rgba(18,22,20,.92)';ctx.fillRect(0,0,w,h);ctx.fillStyle='#fff';ctx.fillText(label,pad,pad+font*.76);ctx.restore();return c.toDataURL('image/png');});
+  }
+  async function generateDraftImage(){
+    if(!brandState?.post_id)throw new Error('Open an unpublished newsroom draft first.');
+    if(!$('imageDraftDisclosureConfirmed').checked)throw new Error('Confirm the AI illustration disclosure and content-integrity rules first.');
+    const prompt=$('imageDraftPrompt').value.trim();if(prompt.length<12)throw new Error('Enter a meaningful image prompt (at least 12 characters).');
+    const provider=imageDraftProvider||$('imageDraftProviderSelect')?.value||'ovh';
+    const btn=$('generateDraftImageBtn');btn.disabled=true;btn.textContent='Generating illustration…';$('saveGeneratedDraftImageBtn').disabled=true;generatedDraftPreviewDataUrl='';generatedDraftMeta=null;$('generatedDraftImagePreview').hidden=true;imageDraftStatus('The selected image model is generating an editorial illustration. This can take up to a minute…');
+    try{
+      const result=await invoke('image_draft_generate',{post_id:brandState.post_id,provider,prompt,aspect_ratio:$('imageDraftAspect').value,disclosure_confirmed:true});
+      let dataUrl=imageDataUrl(result.image_base64,result.image_mime||'image/png');
+      dataUrl=await addParrothitMark(dataUrl);dataUrl=await addAiIllustrationDisclosure(dataUrl);
+      generatedDraftPreviewDataUrl=dataUrl;generatedDraftMeta={provider:result.provider,model:result.model,prompt};
+      $('generatedDraftImagePreview').src=dataUrl;$('generatedDraftImagePreview').hidden=false;$('saveGeneratedDraftImageBtn').disabled=false;
+      imageDraftStatus(`Preview ready from ${IMAGE_DRAFT_PROVIDER_LABELS[result.provider]||result.provider} (${result.model}). PARROTHIT logo and AI disclosure label have been added. Review before saving.`);
+    }catch(e){imageDraftStatus(e.message||String(e),'error');throw e;}
+    finally{btn.disabled=false;btn.textContent='Generate draft illustration';}
+  }
+  async function saveGeneratedDraftImage(){
+    if(!generatedDraftPreviewDataUrl||!brandState?.post_id)throw new Error('Generate and preview the new image first.');
+    const btn=$('saveGeneratedDraftImageBtn');btn.disabled=true;btn.textContent='Saving…';
+    try{const result=await invoke('image_draft_save',{post_id:brandState.post_id,image_base64:fromDataUrl(generatedDraftPreviewDataUrl),image_mime:'image/png',provider:generatedDraftMeta.provider,model:generatedDraftMeta.model,prompt:generatedDraftMeta.prompt,disclosure_confirmed:true});
+      imageDraftStatus('AI illustration saved to the unpublished draft. The previous image is preserved and can be restored.');$('restoreGeneratedDraftImageBtn').hidden=false;message('AI-generated illustration saved to the unpublished newsroom draft. Nothing was published.');await loadCandidates();
+    }catch(e){imageDraftStatus(e.message||String(e),'error');}finally{btn.disabled=false;btn.textContent='Save illustration to draft';}
+  }
+  async function restoreGeneratedDraftImage(){
+    if(!brandState?.post_id)return;if(!confirm('Restore the draft image that was in place before AI image generation?'))return;
+    const btn=$('restoreGeneratedDraftImageBtn');btn.disabled=true;btn.textContent='Restoring…';
+    try{const result=await invoke('image_draft_restore',{post_id:brandState.post_id});imageDraftStatus(result.message||'Previous image restored.');btn.hidden=true;message('Previous draft image restored.');await loadCandidates();}
+    catch(e){imageDraftStatus(e.message||String(e),'error');}finally{btn.disabled=false;btn.textContent='Restore previous draft image';}
+  }
+
   async function loadBrandSettings() {
     try {
       const {data,error}=await client.from('site_settings').select('value').eq('key','newsroom_image_branding_settings').maybeSingle();
@@ -632,9 +753,9 @@ img,video,iframe{max-width:100%}
     } catch (e) { console.warn('PARROTHIT image branding settings could not be loaded:', e.message || e); }
     try {
       const state = await invoke('brand_image_config');
-      $('brandEngineStatus').textContent = state.configured ? 'Image AI ready' : 'OpenAI image key required';
+      $('brandEngineStatus').textContent = state.configured ? 'Logo removal AI ready' : 'Logo removal key required';
       $('brandEngineStatus').style.borderColor = state.configured ? '#39704d' : '#8e7024';
-      if (!state.configured) $('brandSettingsStatus').textContent = 'Add NEWSROOM_IMAGE_BRANDING_OPENAI_API_KEY in Supabase Edge Function Secrets before using image AI.';
+      if (!state.configured) $('brandSettingsStatus').textContent = 'Add NEWSROOM_IMAGE_BRANDING_OPENAI_API_KEY for logo removal. New AI draft illustration providers are configured separately below.';
     } catch (e) {
       $('brandEngineStatus').textContent = 'Image service not checked';
       $('brandSettingsStatus').textContent = e.message || 'Could not check image service configuration.';
@@ -773,6 +894,16 @@ img,video,iframe{max-width:100%}
     try {
       const state=await invoke('brand_image_state',{post_id:postId});
       brandState={post_id:postId,already_branded:!!state.already_branded};
+      $('imageDraftPrompt').value = `Create a clearly illustrative editorial image for this news headline: ${String(state.post_title||'').slice(0,220)}. Use symbolic visual storytelling, an accurate general setting, no words, no logos, no watermarks and no imitation of real photographs.`;
+      $('imageDraftDisclosureConfirmed').checked=false;generatedDraftPreviewDataUrl='';generatedDraftMeta=null;$('generatedDraftImagePreview').hidden=true;$('saveGeneratedDraftImageBtn').disabled=true;$('restoreGeneratedDraftImageBtn').hidden=true;$('imageDraftActiveProvider').value=IMAGE_DRAFT_PROVIDER_LABELS[imageDraftProvider]||imageDraftProvider;
+      imageDraftStatus('Enter or edit the prompt, then generate an editorial illustration using the selected provider.');
+      $('imageDraftPrompt').value = `Create a clearly illustrative editorial image for this news headline: ${String(state.post_title||'').slice(0,220)}. Use symbolic visual storytelling, an accurate general setting, no words, no logos, no watermarks and no imitation of real photographs.`;
+      $('imageDraftDisclosureConfirmed').checked=false;generatedDraftPreviewDataUrl='';generatedDraftMeta=null;$('generatedDraftImagePreview').hidden=true;$('saveGeneratedDraftImageBtn').disabled=true;$('restoreGeneratedDraftImageBtn').hidden=true;$('imageDraftActiveProvider').value=IMAGE_DRAFT_PROVIDER_LABELS[imageDraftProvider]||imageDraftProvider;
+      imageDraftStatus('Enter or edit the prompt, then generate an editorial illustration using the selected provider.');
+      $('imageDraftPrompt').value = `Create a clearly illustrative editorial image for this news headline: ${String(state.post_title||'').slice(0,220)}. Use symbolic visual storytelling, an accurate general setting, no words, no logos, no watermarks and no imitation of real photographs.`;
+      $('imageDraftDisclosureConfirmed').checked=false;generatedDraftPreviewDataUrl='';generatedDraftMeta=null;$('generatedDraftImagePreview').hidden=true;$('saveGeneratedDraftImageBtn').disabled=true;$('restoreGeneratedDraftImageBtn').hidden=true;$('imageDraftActiveProvider').value=IMAGE_DRAFT_PROVIDER_LABELS[imageDraftProvider]||imageDraftProvider;
+      imageDraftStatus('Enter or edit the prompt, then generate an editorial illustration using the selected provider.');
+      if(state.generated_image_active){$('restoreGeneratedDraftImageBtn').hidden=false;imageDraftStatus('An AI-generated illustration is currently attached. Restore the previous image at any time.');}
       if(state.already_branded){
         $('brandModalSubtitle').textContent='This draft already has a branded image. The original image is safely stored.';
         $('brandRestoreBtn').hidden=false;$('brandAnalyzeBtn').hidden=true;
@@ -886,6 +1017,9 @@ img,video,iframe{max-width:100%}
   $('saveDailySchedule')?.addEventListener('click', saveDailySchedule);
   $('runDailyScheduleNow')?.addEventListener('click', runDailyScheduleNow);
 
+  loadImageDraftProviders();
+  loadImageDraftProviders();
+  loadImageDraftProviders();
   init().catch(e => message(e.message || String(e), 'error'));
 })();
 </script>
