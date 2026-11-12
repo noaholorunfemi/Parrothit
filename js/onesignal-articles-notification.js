@@ -3,12 +3,12 @@
   const KEY = 'onesignal_article_notification_preferences';
   const DEFAULTS = { displayStyle: 'big_picture', colors: ['166534', 'D71920', 'EAB308'] };
   const STYLES = {
-    big_picture: { name: 'BIG PICTURE', title: 'Big Picture notification', description: 'The expanded notification includes a large article image, headline and summary.' },
+    big_picture: { name: 'BIG PICTURE', title: 'Big Picture notification', description: 'The public in-page alert uses a full-width article image above the Read full article action. Background push uses the platform large-image field.' },
     side_thumbnail: { name: 'SMALL PICTURE', title: 'Small Picture (Side Thumbnail) notification', description: 'Uses the article image as a small side/large icon on supported Android-family devices. Web Push keeps the branded icon and compact text.' },
     compact_text: { name: 'COMPACT TEXT ALERT', title: 'Compact Text Alert', description: 'A tidy text-only notification with the PARROTHIT brand icon, headline and summary.' },
     headline_focus: { name: 'HEADLINE FOCUS', title: 'Headline Focus notification', description: 'Prioritises the article headline and sends a shorter summary, without a large article image.' },
-    breaking_spotlight: { name: 'BREAKING NEWS SPOTLIGHT', title: 'Breaking News Spotlight', description: 'Uses the large image and high delivery priority. A BREAKING label is added to stories marked as breaking.' },
-    universal_image: { name: 'UNIVERSAL IMAGE PREVIEW', title: 'Universal Image Preview', description: 'Uses OneSignal’s cross-platform image field as a fallback for clients that support it.' }
+    breaking_spotlight: { name: 'BREAKING NEWS SPOTLIGHT', title: 'Breaking News Spotlight', description: 'The public alert shows a full-width image with breaking-news styling. Background push uses platform large-image fields and high delivery priority.' },
+    universal_image: { name: 'UNIVERSAL IMAGE PREVIEW', title: 'Universal Image Preview', description: 'The public alert shows a full-width article image. Background push also sends OneSignal’s cross-platform image field.' }
   };
   const VALID_COLORS = new Set(['166534','D71920','2563EB','EAB308','7C3AED','0F766E','EA580C','374151']);
   const $ = (id) => document.getElementById(id);
@@ -65,7 +65,7 @@
     image.style.background = settings.colors.length > 1
       ? `linear-gradient(120deg, ${settings.colors.map(c => '#' + c).join(', ')})`
       : `linear-gradient(120deg, #${border}, #65a30d)`;
-    image.style.height = side ? '64px' : '100px';
+    image.style.height = side ? '64px' : (['big_picture','breaking_spotlight','universal_image'].includes(settings.displayStyle) ? '146px' : '100px');
     const colors = $('chosenColours');
     colors.replaceChildren();
     settings.colors.forEach(color => {

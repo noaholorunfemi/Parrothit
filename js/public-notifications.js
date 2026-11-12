@@ -63,7 +63,7 @@
     style.textContent = `
       #${PROMPT_ID}{position:fixed;z-index:10040;top:calc(10px + env(safe-area-inset-top,0px));left:12px;right:12px;max-width:560px;margin:0 auto;background:#101318;color:#fff;border:1px solid #323943;border-top:4px solid #d71920;border-radius:15px;box-shadow:0 16px 48px rgba(0,0,0,.38);padding:14px 16px;font:14px/1.45 system-ui,-apple-system,Segoe UI,Arial,sans-serif;animation:parrothitPushIn .35s ease-out}
       #${PROMPT_ID} .ph-push-top{display:flex;align-items:center;gap:11px;padding-right:24px}#${PROMPT_ID} .ph-push-logo{width:43px;height:43px;object-fit:contain;border-radius:10px;background:#fff;flex:0 0 43px}#${PROMPT_ID} .ph-push-title{font-size:16px;font-weight:850;line-height:1.2;margin:0 0 3px}#${PROMPT_ID} .ph-push-kicker{font-size:10px;letter-spacing:1.2px;font-weight:900;color:#ff686d;margin:0 0 4px}#${PROMPT_ID} .ph-push-copy{color:#cbd2dc;margin:11px 0 13px}#${PROMPT_ID} .ph-push-actions{display:flex;gap:9px;flex-wrap:wrap}#${PROMPT_ID} button{border:0;border-radius:9px;padding:11px 15px;font-weight:850;cursor:pointer;font-size:13px}#${PROMPT_ID} .ph-push-enable{background:#d71920;color:#fff;flex:1}#${PROMPT_ID} .ph-push-later{background:#29313c;color:#e9edf2}#${PROMPT_ID} .ph-push-close{position:absolute;right:8px;top:5px;background:transparent;color:#cbd2dc;font-size:22px;padding:2px 7px}#${PROMPT_ID} .ph-push-note{font-size:11px;color:#9da8b7;margin:9px 0 0}
-      #${TOAST_ID}{position:fixed;z-index:10060;top:calc(10px + env(safe-area-inset-top,0px));left:10px;right:10px;max-width:720px;margin:0 auto;background:#101318;color:#fff;border:1px solid #3b4654;border-top:4px solid #d71920;border-radius:14px;box-shadow:0 14px 42px rgba(0,0,0,.42);font:14px/1.4 system-ui,-apple-system,Segoe UI,Arial,sans-serif;overflow:hidden;animation:parrothitPushIn .32s ease-out}#${TOAST_ID} .ph-toast-row{display:flex;align-items:center;gap:12px;padding:12px 44px 12px 12px;position:relative}#${TOAST_ID} .ph-toast-logo{width:46px;height:46px;object-fit:contain;flex:0 0 46px;border-radius:10px;background:#fff}#${TOAST_ID} .ph-toast-copy{display:block;min-width:0;color:#d9e0e8;text-decoration:none}#${TOAST_ID} .ph-toast-kicker{display:block;color:#ff7479;font-weight:900;letter-spacing:1.1px;font-size:10px;margin-bottom:3px}#${TOAST_ID} .ph-toast-title{display:block;color:#fff;font-weight:900;font-size:15px;line-height:1.25;overflow-wrap:anywhere}#${TOAST_ID} .ph-toast-body{display:block;color:#cbd2dc;font-size:12px;margin-top:3px}#${TOAST_ID} .ph-toast-hint{display:block;color:#ffb6b8;font-size:11px;font-weight:800;margin-top:5px}#${TOAST_ID} .ph-toast-close{position:absolute;right:8px;top:7px;border:0;background:transparent;color:#dbe2eb;font-size:22px;line-height:1;padding:4px 7px;cursor:pointer}
+      #${TOAST_ID}{--ph-toast-accent:#d71920;position:fixed;z-index:10060;top:calc(10px + env(safe-area-inset-top,0px));left:10px;right:10px;max-width:720px;margin:0 auto;background:#101318;color:#fff;border:1px solid #3b4654;border-top:5px solid var(--ph-toast-accent);border-radius:14px;box-shadow:0 14px 42px rgba(0,0,0,.42);font:14px/1.4 system-ui,-apple-system,Segoe UI,Arial,sans-serif;overflow:hidden;animation:parrothitPushIn .32s ease-out}#${TOAST_ID} .ph-toast-row{display:flex;align-items:center;gap:12px;padding:12px 44px 12px 12px;position:relative}#${TOAST_ID} .ph-toast-logo{width:46px;height:46px;object-fit:contain;flex:0 0 46px;border-radius:10px;background:#fff}#${TOAST_ID} .ph-toast-copy{display:block;min-width:0;flex:1;color:#d9e0e8;text-decoration:none}#${TOAST_ID} .ph-toast-kicker{display:block;color:var(--ph-toast-accent);font-weight:950;letter-spacing:1.1px;font-size:10px;margin-bottom:3px}#${TOAST_ID} .ph-toast-title{display:block;color:#fff;font-weight:900;font-size:15px;line-height:1.25;overflow-wrap:anywhere}#${TOAST_ID} .ph-toast-body{display:block;color:#cbd2dc;font-size:12px;margin-top:3px}#${TOAST_ID} .ph-toast-featured{display:block;width:100%;height:clamp(150px,35vw,250px);max-height:250px;aspect-ratio:16/9;object-fit:cover;margin:10px 0 0;border-radius:9px;background:#263238}#${TOAST_ID} .ph-toast-thumb{width:78px;height:78px;object-fit:cover;border-radius:9px;flex:0 0 78px;background:#263238}#${TOAST_ID} .ph-toast-hint{display:inline-flex;align-items:center;margin-top:9px;padding:7px 11px;border-radius:7px;background:var(--ph-toast-accent);color:#fff;font-size:11px;font-weight:900;letter-spacing:.02em}#${TOAST_ID} .ph-toast-close{position:absolute;right:8px;top:7px;z-index:2;border:0;background:#202833;color:#dbe2eb;font-size:22px;line-height:1;padding:3px 7px;border-radius:6px;cursor:pointer}#${TOAST_ID}.ph-toast--breaking_spotlight .ph-toast-kicker{color:#ff777d}#${TOAST_ID}.ph-toast--headline_focus .ph-toast-title{font-size:17px}#${TOAST_ID}.ph-toast--compact_text .ph-toast-body{display:none}
       @keyframes parrothitPushIn{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}@media(max-width:480px){#${PROMPT_ID}{left:8px;right:8px;padding:13px;border-radius:13px}#${TOAST_ID}{left:7px;right:7px;border-radius:12px}#${TOAST_ID} .ph-toast-row{gap:9px;padding:10px 40px 10px 9px}#${TOAST_ID} .ph-toast-logo{width:40px;height:40px;flex-basis:40px}#${TOAST_ID} .ph-toast-title{font-size:14px}}@media(prefers-reduced-motion:reduce){#${PROMPT_ID},#${TOAST_ID}{animation:none}}
     `; document.head.appendChild(style);
   }
@@ -90,13 +90,95 @@
   }
 
   let toastTimer = 0;
-  function showTopArticleAlert(title, body, articleUrl) {
+  function safeImageUrl(rawUrl) {
+    try {
+      const url = new URL(String(rawUrl || ''), location.origin);
+      if (url.protocol !== 'https:' || url.username || url.password) return '';
+      return url.href;
+    } catch (_) { return ''; }
+  }
+
+  function showTopArticleAlert(title, body, articleUrl, presentation) {
     if (isAdmin || !document.body) return;
-    injectNotificationStyles(); const previous=document.getElementById(TOAST_ID); if(previous)previous.remove(); if(toastTimer)window.clearTimeout(toastTimer);
-    const card=document.createElement('section'); card.id=TOAST_ID; card.setAttribute('role','alert'); card.setAttribute('aria-live','assertive');
-    const row=document.createElement('div'); row.className='ph-toast-row'; const logo=document.createElement('img'); logo.className='ph-toast-logo'; logo.src='/assets/images/parrothit-logo.png'; logo.alt='PARROTHIT';
-    const link=document.createElement('a'); link.className='ph-toast-copy'; link.href=safeArticleUrl(articleUrl); const kicker=document.createElement('span'); kicker.className='ph-toast-kicker'; kicker.textContent='🦜 PARROTHIT ARTICLE UPDATE'; const headline=document.createElement('strong'); headline.className='ph-toast-title'; headline.textContent=String(title||'A new story has been published').slice(0,180); const summary=document.createElement('span'); summary.className='ph-toast-body'; summary.textContent=String(body||'Tap to read the latest PARROTHIT report.').slice(0,220); const hint=document.createElement('span'); hint.className='ph-toast-hint'; hint.textContent='Tap this update to read the full article'; link.append(kicker,headline,summary,hint);
-    const close=document.createElement('button'); close.className='ph-toast-close'; close.type='button'; close.setAttribute('aria-label','Close article update'); close.textContent='×'; close.addEventListener('click',()=>card.remove()); row.append(logo,link,close); card.appendChild(row); document.body.appendChild(card); playParrotChirp(); toastTimer=window.setTimeout(()=>card.remove(),12000);
+    const details = presentation && typeof presentation === 'object' ? presentation : {};
+    const validStyles = new Set(['big_picture','side_thumbnail','compact_text','headline_focus','breaking_spotlight','universal_image']);
+    const requestedStyle = String(details.display_style || 'big_picture');
+    const displayStyle = validStyles.has(requestedStyle) ? requestedStyle : 'big_picture';
+    const imageUrl = safeImageUrl(details.image_url || details.image || '');
+    const largeImage = ['big_picture','breaking_spotlight','universal_image'].includes(displayStyle) && Boolean(imageUrl);
+    const sideImage = displayStyle === 'side_thumbnail' && Boolean(imageUrl);
+    const accent = String(details.accent_color || '#D71920').replace(/^#/, '');
+    const accentColor = /^[0-9a-f]{6}$/i.test(accent) ? '#' + accent : '#D71920';
+
+    injectNotificationStyles();
+    const previous = document.getElementById(TOAST_ID);
+    if (previous) previous.remove();
+    if (toastTimer) window.clearTimeout(toastTimer);
+
+    const card = document.createElement('section');
+    card.id = TOAST_ID;
+    card.className = 'ph-toast--' + displayStyle;
+    card.style.setProperty('--ph-toast-accent', accentColor);
+    card.setAttribute('role','alert');
+    card.setAttribute('aria-live','assertive');
+
+    const row = document.createElement('div');
+    row.className = 'ph-toast-row';
+    const logo = document.createElement('img');
+    logo.className = 'ph-toast-logo';
+    logo.src = '/assets/images/parrothit-logo.png';
+    logo.alt = 'PARROTHIT';
+
+    const link = document.createElement('a');
+    link.className = 'ph-toast-copy';
+    link.href = safeArticleUrl(articleUrl);
+    const kicker = document.createElement('span');
+    kicker.className = 'ph-toast-kicker';
+    kicker.textContent = displayStyle === 'breaking_spotlight' ? '🔴 PARROTHIT · BREAKING NEWS' : '🦜 PARROTHIT ARTICLE UPDATE';
+    const headline = document.createElement('strong');
+    headline.className = 'ph-toast-title';
+    headline.textContent = String(title || 'A new story has been published').slice(0,180);
+    const summary = document.createElement('span');
+    summary.className = 'ph-toast-body';
+    summary.textContent = String(body || 'Read the latest PARROTHIT report.').slice(0,220);
+    const hint = document.createElement('span');
+    hint.className = 'ph-toast-hint';
+    hint.textContent = 'Read full article';
+    link.append(kicker, headline, summary);
+
+    const close = document.createElement('button');
+    close.className = 'ph-toast-close';
+    close.type = 'button';
+    close.setAttribute('aria-label','Close article update');
+    close.textContent = '×';
+    close.addEventListener('click', () => card.remove());
+
+    if (sideImage) {
+      const thumb = document.createElement('img');
+      thumb.className = 'ph-toast-thumb';
+      thumb.src = imageUrl;
+      thumb.alt = 'Article image';
+      thumb.loading = 'eager';
+      thumb.addEventListener('error', () => thumb.remove(), { once: true });
+      row.append(logo, link, thumb, close);
+    } else {
+      row.append(logo, link, close);
+    }
+
+    if (largeImage) {
+      const featured = document.createElement('img');
+      featured.className = 'ph-toast-featured';
+      featured.src = imageUrl;
+      featured.alt = 'Article image';
+      featured.loading = 'eager';
+      featured.addEventListener('error', () => featured.remove(), { once: true });
+      link.append(featured);
+    }
+    link.append(hint);
+    card.appendChild(row);
+    document.body.appendChild(card);
+    playParrotChirp();
+    toastTimer = window.setTimeout(() => card.remove(), 15000);
   }
 
   function showPrompt(oneSignal) {
@@ -126,7 +208,7 @@
         try{
           OneSignal.Debug?.setLogLevel?.('warn'); await OneSignal.init({appId,serviceWorkerPath:'/OneSignalSDKWorker.js',serviceWorkerParam:{scope:'/'},autoResubscribe:true,welcomeNotification:{disable:true},notificationClickHandlerMatch:'exact',notificationClickHandlerAction:'navigate'});
           window.PARROTHIT_ONESIGNAL=OneSignal;window.PARROTHIT_PUSH_READY=true;
-          OneSignal.Notifications.addEventListener('foregroundWillDisplay',event=>{try{const notification=event&&event.notification?event.notification:{},extra=notification.additionalData||notification.data||{};showTopArticleAlert(notification.title||'New PARROTHIT article',notification.body||'A new article has just been published.',notification.launchURL||notification.url||extra.article_url||extra.url||'/');}catch(error){console.warn('PARROTHIT foreground update display failed:',error);}});
+          OneSignal.Notifications.addEventListener('foregroundWillDisplay',event=>{try{const notification=event&&event.notification?event.notification:{},extra=notification.additionalData||notification.data||{};showTopArticleAlert(notification.title||'New PARROTHIT article',notification.body||'A new article has just been published.',notification.launchURL||notification.url||extra.article_url||extra.url||'/',extra);}catch(error){console.warn('PARROTHIT foreground update display failed:',error);}});
           OneSignal.User.PushSubscription.addEventListener('change',change=>{const current=change&&change.current?change.current:{};if(current.optedIn===true)dismissFor(365);});
           if(!isAdmin&&Notification.permission!=='denied'){const delay=Math.max(1500,Number(window.PARROTHIT_PUSH_PROMPT_DELAY_MS)||8000);window.setTimeout(()=>showPrompt(OneSignal),delay);}
         }catch(error){console.error('PARROTHIT OneSignal initialisation failed:',error);}
