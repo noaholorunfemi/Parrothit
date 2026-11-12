@@ -86,6 +86,31 @@ img,video,iframe{max-width:100%}
 @media(max-width:360px){.daily-category-grid{grid-template-columns:minmax(0,1fr)}.wrap{padding:7px}.top,.panel{padding:10px}}
 </style>
 
+
+<style id="parrothit-ai-image-branding-css">
+.branding-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.branding-field{min-width:0;display:flex;flex-direction:column;gap:6px}
+.branding-status{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:30px;background:#183d2a;border:1px solid #39704d;font-size:.82rem;font-weight:800}
+.branding-modal{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:12px;overflow-y:auto}
+.branding-modal[hidden]{display:none!important}
+.branding-card{width:min(1100px,100%);max-height:96vh;overflow:auto;background:#0a1c13;border:1px solid #39704d;border-radius:16px;padding:16px;box-shadow:0 20px 70px rgba(0,0,0,.55)}
+.branding-preview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.branding-preview{background:#07130d;border:1px solid #315b40;border-radius:10px;padding:10px;min-width:0}
+.branding-preview h3{font-size:.95rem;margin:0 0 8px}
+.branding-preview img,.branding-preview canvas{display:block;width:100%;height:auto;max-height:55vh;object-fit:contain;background:#020704;border-radius:7px;touch-action:pan-y}
+.branding-preview canvas{cursor:crosshair}
+.branding-rights{display:flex;gap:10px;align-items:flex-start;background:#30270d;border:1px solid #8e7024;border-radius:9px;padding:11px;margin:12px 0;color:#fff2be;line-height:1.45}
+.branding-rights input{width:20px;height:20px;flex:0 0 auto;margin:2px 0 0}
+.branding-help{font-size:.84rem;color:#c3d8c9;line-height:1.5}
+.branding-detections{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}
+.branding-detections .pill{border:1px solid #8d5b31;background:#3b2819;color:#ffe1c5}
+.branding-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.branding-actions button{flex:0 1 auto}
+.branding-processing{color:#ffe49a;font-weight:800}
+.branding-ready{color:#9ff0b9;font-weight:800}
+@media(max-width:760px){.branding-grid{grid-template-columns:1fr}.branding-preview-grid{grid-template-columns:1fr}.branding-card{padding:11px}.branding-preview img,.branding-preview canvas{max-height:42vh}.branding-actions{display:grid;grid-template-columns:1fr}.branding-actions button{width:100%}}
+</style>
+
 </head>
 <body>
 <main class="wrap">
@@ -95,6 +120,34 @@ img,video,iframe{max-width:100%}
 </header>
 <div class="warning"><strong>Human approval remains mandatory.</strong> Every newsroom draft stays unpublished until an administrator reviews it. Choose one of four human-review destinations: Article Editor, Category Cards 1–6, Homepage Cards 1–15, or Featured Story Cards 1–16. No AI action can publish an article or occupy a card.</div>
 <div id="message" class="msg"></div>
+
+<section class="panel" id="aiImageBrandingPanel">
+ <div class="section-head"><div><h2>🦜 PARROTHIT AI Image Branding Engine</h2><p class="muted">Detect eligible publisher overlays, remove them with AI, and place the official PARROTHIT falcon mark on an unpublished newsroom draft. Original images are retained for restoration.</p></div><span class="branding-status" id="brandEngineStatus">Checking image service…</span></div>
+ <div class="branding-grid">
+  <div class="branding-field"><label for="brandMode">Processing mode</label><select id="brandMode"><option value="automatic">Mode 1 — Automatic</option><option value="review" selected>Mode 2 — Review before applying</option><option value="manual">Mode 3 — Manual logo selection</option></select></div>
+  <div class="branding-field"><label for="brandPosition">PARROTHIT logo position</label><select id="brandPosition"><option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option><option value="top-right">Top right</option><option value="top-left">Top left</option></select></div>
+  <div class="branding-field"><label for="brandSize">Logo size</label><select id="brandSize"><option value="small">Small</option><option value="medium" selected>Medium</option><option value="large">Large</option></select></div>
+ </div>
+ <div class="row" style="margin-top:12px;align-items:center"><button type="button" class="green" id="saveBrandSettings">Save branding settings</button><span class="muted small" id="brandSettingsStatus">Review mode is selected by default.</span></div>
+ <p class="warning" style="margin-bottom:0"><strong>Image-rights safeguard:</strong> only process images PARROTHIT owns, has licensed, or is otherwise authorized to modify. The engine targets publisher-added overlays and watermarks only; it must not remove logos that are part of the scene, such as shirt badges, product marks, shop signs, or stadium signage. AI branding does not grant image-reuse permission.</p>
+</section>
+<div class="branding-modal" id="brandImageModal" hidden role="dialog" aria-modal="true" aria-labelledby="brandModalTitle">
+ <div class="branding-card">
+  <div class="section-head"><div><h2 id="brandModalTitle">🦜 Brand newsroom draft image</h2><p class="muted small" id="brandModalSubtitle">The article remains In Review. Nothing will be published automatically.</p></div><button type="button" class="secondary" id="closeBrandModal">Close</button></div>
+  <div id="brandModalMessage" class="msg" role="status" aria-live="polite"></div>
+  <label class="branding-rights"><input type="checkbox" id="brandRightsConfirmed"><span>I confirm that PARROTHIT owns, has a licence for, or is otherwise authorized to edit and reuse this image. I understand that removing a watermark does not create image rights.</span></label>
+  <div class="branding-actions"><button type="button" class="blue" id="brandAnalyzeBtn">Analyze image and detect logos</button><button type="button" class="secondary" id="brandUseDetectedBtn" disabled>Use all safe detected areas</button><button type="button" class="secondary" id="brandClearAreasBtn" disabled>Clear selected areas</button></div>
+  <p class="branding-help" id="brandCanvasHelp">Review mode: AI-detected publisher overlays are outlined. Tap an outline to include or exclude it. Manual mode: drag on the image to mark a logo area. Scene logos are excluded.</p>
+  <div class="branding-detections" id="brandDetectionTags"></div>
+  <div class="branding-preview-grid">
+   <div class="branding-preview"><h3>Original image (preserved)</h3><img id="brandOriginalPreview" alt="Original draft image preview"></div>
+   <div class="branding-preview"><h3 id="brandOutputHeading">Branding preview</h3><canvas id="brandWorkCanvas" aria-label="Select publisher logo areas or preview branded result"></canvas></div>
+  </div>
+  <div class="branding-actions"><button type="button" class="blue" id="brandProcessBtn" disabled>Remove selected overlays + add PARROTHIT logo</button><button type="button" class="green" id="brandSaveBtn" disabled>Save branded image to draft</button><button type="button" class="secondary" id="brandRestoreBtn" hidden>Restore original image</button></div>
+  <p class="branding-help">Automatic mode processes eligible detected overlays after analysis. Review and Manual modes let you inspect or select the removal area before processing. The PARROTHIT mark is added after editing so the AI cannot redraw or distort the logo.</p>
+ </div>
+</div>
+
 <section class="panel" id="draftDestinationPanel">
  <div class="section-head"><div><h2>📥 Draft destination</h2><p class="muted">Choose where newly generated individual and scheduled newsroom drafts should be sent. This setting applies to future drafts only; it does not move existing articles.</p></div><span class="pill" id="draftDestinationBadge">Loading…</span></div>
  <div class="row" style="align-items:end"><div class="field" style="flex:2;min-width:260px"><label for="draftDestination">Send new drafts to</label><select id="draftDestination"><option value="articles">/admin/articles.html — Existing Article Editor</option><option value="category_card_manager">/admin/category-card-assignment-manager.html — Category Card 1–6 Assignment Manager</option><option value="homepage_news_card_manager">/admin/homepage-news-card-assignment-manager.html — Homepage News Card 1–15 Assignment Manager</option><option value="featured_story_card_manager">/admin/featured-story-card-destination-manager.html — Featured Story Card 1–16 Destination Manager</option></select></div><button type="button" id="saveDraftDestination" class="green">Save draft destination</button></div>
@@ -362,6 +415,7 @@ img,video,iframe{max-width:100%}
     await loadDraftDestination();
     await loadAIProviders(false);
     await loadDailySchedule();
+    await loadBrandSettings();
   }
 
   function startIdleTimeout(authClient, userId) {
@@ -425,7 +479,7 @@ img,video,iframe{max-width:100%}
       <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
       <td>${!c.linked_post_id && ['discovered', 'error'].includes(c.status) ? `<div class="actions"><select aria-label="Category for ${esc(c.source_title)}" data-category-select="${esc(c.id)}">${categoryOptions(c.category_id)}</select><button class="secondary" data-save-category="${esc(c.id)}">Save category</button></div>` : esc(categoryName(c.category_id))}</td><td><span class="pill">${esc(c.status)}</span></td><td><div class="actions">
       ${['discovered', 'error'].includes(c.status) && !c.linked_post_id ? `<button class="green" data-source-text="${c.id}">Retrieve Source Text — FREE</button><button class="blue" data-detailed-draft="${c.id}">Create Original Detailed Report — AI</button>` : ''}
-      ${c.linked_post_id ? `<a class="btn secondary" href="${esc(destinationPage(c.review_destination,c.linked_post_id))}">${destinationLabel(c.review_destination)}</a>` : ''}
+      ${c.linked_post_id ? `<a class="btn secondary" href="${esc(destinationPage(c.review_destination,c.linked_post_id))}">${destinationLabel(c.review_destination)}</a><button type="button" class="blue" data-brand-image="${esc(c.linked_post_id)}">🦜 Brand draft image</button>` : ''}
       ${c.status === 'discovered' ? `<button class="secondary" data-reject="${c.id}">Reject</button>` : ''}
       </div></td></tr>`).join('');
 
@@ -440,6 +494,7 @@ img,video,iframe{max-width:100%}
     }; });
     body.querySelectorAll('[data-source-text]').forEach(b => { b.onclick = () => manualDraftCandidate(b.dataset.sourceText, b, 'source_text'); });
     body.querySelectorAll('[data-detailed-draft]').forEach(b => { b.onclick = () => draftCandidate(b.dataset.detailedDraft, b, 'detailed'); });
+    body.querySelectorAll('[data-brand-image]').forEach(b => { b.onclick = () => openBrandImageWorkflow(b.dataset.brandImage, b); });
     body.querySelectorAll('[data-reject]').forEach(b => { b.onclick = async () => { if (!confirm('Reject this candidate?')) return; const { error } = await client.from('newsroom_candidates').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', b.dataset.reject); if (error) message(error.message, 'error'); else await loadCandidates(); }; });
   }
   async function invoke(action, extra = {}) {
@@ -532,6 +587,293 @@ img,video,iframe{max-width:100%}
       }
     } finally { b.disabled = false; b.textContent = oldText; }
   }
+
+
+  // PARROTHIT AI Image Branding Engine. All image edits stay on an unpublished draft.
+  let brandSettings = { mode: 'review', position: 'bottom-right', size: 'medium' };
+  let brandState = null;
+  let brandOriginalImage = null;
+  let brandSelectedAreas = [];
+  let brandDraftOutputDataUrl = '';
+  let brandWorkingBaseDataUrl = '';
+  let brandDrawing = false;
+  let brandDrawStart = null;
+  let brandCurrentRect = null;
+  const brandCanvas = $('brandWorkCanvas');
+  const brandCtx = brandCanvas.getContext('2d');
+  const brandFalcon = new Image();
+  brandFalcon.src = '../assets/images/parrothit-falcon.png';
+
+  function brandNote(text, type='ok') {
+    const el = $('brandModalMessage');
+    el.textContent = text;
+    el.className = 'msg show ' + (type === 'error' ? 'error' : 'ok');
+  }
+  function parseBrandSettings(value) {
+    try {
+      const v = typeof value === 'string' ? JSON.parse(value) : value;
+      if (v && typeof v === 'object') {
+        brandSettings = {
+          mode: ['automatic','review','manual'].includes(v.mode) ? v.mode : 'review',
+          position: ['bottom-right','bottom-left','top-right','top-left'].includes(v.position) ? v.position : 'bottom-right',
+          size: ['small','medium','large'].includes(v.size) ? v.size : 'medium'
+        };
+      }
+    } catch (_) { brandSettings = { mode:'review', position:'bottom-right', size:'medium' }; }
+    $('brandMode').value = brandSettings.mode;
+    $('brandPosition').value = brandSettings.position;
+    $('brandSize').value = brandSettings.size;
+  }
+  async function loadBrandSettings() {
+    try {
+      const {data,error}=await client.from('site_settings').select('value').eq('key','newsroom_image_branding_settings').maybeSingle();
+      if (error) throw error;
+      if (data?.value) parseBrandSettings(data.value);
+    } catch (e) { console.warn('PARROTHIT image branding settings could not be loaded:', e.message || e); }
+    try {
+      const state = await invoke('brand_image_config');
+      $('brandEngineStatus').textContent = state.configured ? 'Image AI ready' : 'OpenAI image key required';
+      $('brandEngineStatus').style.borderColor = state.configured ? '#39704d' : '#8e7024';
+      if (!state.configured) $('brandSettingsStatus').textContent = 'Add NEWSROOM_IMAGE_BRANDING_OPENAI_API_KEY in Supabase Edge Function Secrets before using image AI.';
+    } catch (e) {
+      $('brandEngineStatus').textContent = 'Image service not checked';
+      $('brandSettingsStatus').textContent = e.message || 'Could not check image service configuration.';
+    }
+  }
+  async function saveBrandingSettings() {
+    brandSettings = { mode:$('brandMode').value, position:$('brandPosition').value, size:$('brandSize').value };
+    const {error}=await client.from('site_settings').upsert({key:'newsroom_image_branding_settings',value:JSON.stringify(brandSettings),updated_at:new Date().toISOString()},{onConflict:'key'});
+    if (error) { $('brandSettingsStatus').textContent='Settings could not be saved: '+error.message; message('Image branding settings could not be saved: '+error.message,'error'); return; }
+    $('brandSettingsStatus').textContent='Saved. New branding workflows will use these settings.';
+    message('PARROTHIT image branding settings saved.');
+  }
+  function fromDataUrl(value) { return String(value || '').split(',').pop(); }
+  function imageDataUrl(base64, mime) { return `data:${mime || 'image/png'};base64,${fromDataUrl(base64)}`; }
+  function loadBrandImage(src) {
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=()=>resolve(img);
+      img.onerror=()=>reject(new Error('The image could not be loaded for preview.'));
+      img.src=src;
+    });
+  }
+  function brandCanvasScale(w,h) {
+    // Keep the PNG edit payload compact enough for mobile and Edge Function limits.
+    return Math.min(1, 1200/Math.max(w,h), Math.sqrt(1450000/(w*h)));
+  }
+  function brandBoxPixels(box) {
+    return { x:Math.round((Number(box.x)||0)*brandCanvas.width/1000), y:Math.round((Number(box.y)||0)*brandCanvas.height/1000), w:Math.round((Number(box.width)||0)*brandCanvas.width/1000), h:Math.round((Number(box.height)||0)*brandCanvas.height/1000) };
+  }
+  function paintBrandCanvas(showSelections=true) {
+    if (!brandOriginalImage || !brandCanvas.width || !brandCanvas.height) return;
+    brandCtx.clearRect(0,0,brandCanvas.width,brandCanvas.height);
+    brandCtx.drawImage(brandOriginalImage,0,0,brandCanvas.width,brandCanvas.height);
+    if (brandDraftOutputDataUrl) return;
+    const mode=brandSettings.mode;
+    const detections=(brandState?.detections||[]).filter(d=>d.safe_to_remove);
+    if (mode==='review' || mode==='automatic') {
+      detections.forEach((box,i)=>{
+        const p=brandBoxPixels(box); const selected=brandSelectedAreas.some(a=>a.sourceIndex===i);
+        brandCtx.save(); brandCtx.lineWidth=Math.max(3,brandCanvas.width/450); brandCtx.strokeStyle=selected?'#ff2635':'#ffcf4a'; brandCtx.fillStyle=selected?'rgba(224,27,36,.22)':'rgba(255,207,74,.09)';
+        brandCtx.setLineDash(selected?[]:[12,8]); brandCtx.fillRect(p.x,p.y,p.w,p.h); brandCtx.strokeRect(p.x,p.y,p.w,p.h); brandCtx.restore();
+      });
+    }
+    if (mode==='manual') {
+      brandSelectedAreas.forEach(a=>{
+        const p=brandBoxPixels(a); brandCtx.save(); brandCtx.lineWidth=Math.max(3,brandCanvas.width/450); brandCtx.strokeStyle='#ff2635'; brandCtx.fillStyle='rgba(224,27,36,.24)'; brandCtx.fillRect(p.x,p.y,p.w,p.h); brandCtx.strokeRect(p.x,p.y,p.w,p.h); brandCtx.restore();
+      });
+      if (brandCurrentRect) { brandCtx.save(); brandCtx.strokeStyle='#ffffff'; brandCtx.lineWidth=Math.max(2,brandCanvas.width/600); brandCtx.setLineDash([8,5]); brandCtx.strokeRect(brandCurrentRect.x,brandCurrentRect.y,brandCurrentRect.w,brandCurrentRect.h); brandCtx.restore(); }
+    }
+  }
+  function normalizedBox(x,y,w,h) {
+    const W=brandCanvas.width,H=brandCanvas.height;
+    const x1=Math.max(0,Math.min(W,x)), y1=Math.max(0,Math.min(H,y));
+    const x2=Math.max(0,Math.min(W,x+w)), y2=Math.max(0,Math.min(H,y+h));
+    return {x:Math.round(x1/W*1000),y:Math.round(y1/H*1000),width:Math.max(1,Math.round((x2-x1)/W*1000)),height:Math.max(1,Math.round((y2-y1)/H*1000)),safe_to_remove:true,description:'Administrator-selected overlay',sourceIndex:-1};
+  }
+  function canvasPoint(ev) {
+    const r=brandCanvas.getBoundingClientRect();
+    return {x:(ev.clientX-r.left)*(brandCanvas.width/r.width),y:(ev.clientY-r.top)*(brandCanvas.height/r.height)};
+  }
+  brandCanvas.addEventListener('pointerdown',ev=>{
+    if(!brandOriginalImage || brandDraftOutputDataUrl) return;
+    if(brandSettings.mode==='manual'){
+      brandDrawing=true; brandDrawStart=canvasPoint(ev); brandCurrentRect={x:brandDrawStart.x,y:brandDrawStart.y,w:0,h:0};
+      try{brandCanvas.setPointerCapture(ev.pointerId)}catch(_){} paintBrandCanvas();
+    }
+  });
+  brandCanvas.addEventListener('pointermove',ev=>{
+    if(!brandDrawing || !brandDrawStart) return;
+    const p=canvasPoint(ev); brandCurrentRect={x:Math.min(brandDrawStart.x,p.x),y:Math.min(brandDrawStart.y,p.y),w:Math.abs(p.x-brandDrawStart.x),h:Math.abs(p.y-brandDrawStart.y)}; paintBrandCanvas();
+  });
+  function finishBrandPointer(ev) {
+    if(brandDrawing && brandDrawStart && brandCurrentRect){
+      if(brandCurrentRect.w>8 && brandCurrentRect.h>8) brandSelectedAreas.push(normalizedBox(brandCurrentRect.x,brandCurrentRect.y,brandCurrentRect.w,brandCurrentRect.h));
+      brandDrawing=false; brandDrawStart=null; brandCurrentRect=null; paintBrandCanvas();
+      $('brandProcessBtn').disabled=brandSelectedAreas.length===0;$('brandClearAreasBtn').disabled=brandSelectedAreas.length===0;
+    }
+  }
+  brandCanvas.addEventListener('pointerup',finishBrandPointer);
+  brandCanvas.addEventListener('pointercancel',finishBrandPointer);
+  brandCanvas.addEventListener('click',ev=>{
+    if(brandSettings.mode!=='review' || !brandState || brandDraftOutputDataUrl) return;
+    const p=canvasPoint(ev); const detections=(brandState.detections||[]).filter(d=>d.safe_to_remove);
+    const index=detections.findIndex(b=>{const r=brandBoxPixels(b);return p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;});
+    if(index<0)return;
+    const existing=brandSelectedAreas.findIndex(a=>a.sourceIndex===index);
+    if(existing>=0)brandSelectedAreas.splice(existing,1);else brandSelectedAreas.push({...detections[index],sourceIndex:index});
+    paintBrandCanvas(); $('brandProcessBtn').disabled=false;
+  });
+  function makeBrandMask() {
+    const c=document.createElement('canvas'); c.width=brandCanvas.width;c.height=brandCanvas.height;
+    const cx=c.getContext('2d'); cx.clearRect(0,0,c.width,c.height);
+    // OpenAI image-edit masks use fully transparent pixels to mark editable areas.
+    // Keep the rest of the image opaque, then clear only the selected overlay regions.
+    cx.fillStyle='rgba(0,0,0,1)';cx.fillRect(0,0,c.width,c.height);
+    cx.globalCompositeOperation='destination-out';
+    brandSelectedAreas.forEach(a=>{const p=brandBoxPixels(a); if(p.w>0&&p.h>0)cx.fillRect(p.x,p.y,p.w,p.h);});
+    cx.globalCompositeOperation='source-over';
+    return c.toDataURL('image/png');
+  }
+  function roundedRect(ctx,x,y,w,h,r) {
+    const rr=Math.min(r,w/2,h/2); ctx.beginPath();ctx.moveTo(x+rr,y);ctx.arcTo(x+w,y,x+w,y+h,rr);ctx.arcTo(x+w,y+h,x,y+h,rr);ctx.arcTo(x,y+h,x,y,rr);ctx.arcTo(x,y,x+w,y,rr);ctx.closePath();
+  }
+  async function addParrothitMark(dataUrl) {
+    const output=await loadBrandImage(dataUrl);
+    const c=document.createElement('canvas');c.width=output.naturalWidth;c.height=output.naturalHeight;
+    const ctx=c.getContext('2d');ctx.drawImage(output,0,0,c.width,c.height);
+    if(!brandFalcon.naturalWidth){
+      if(brandFalcon.complete) throw new Error('The PARROTHIT falcon logo asset could not be loaded.');
+      await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('The PARROTHIT logo asset did not load in time.')),12000);brandFalcon.onload=()=>{clearTimeout(timer);resolve();};brandFalcon.onerror=()=>{clearTimeout(timer);reject(new Error('The PARROTHIT logo asset could not be loaded.'));};});
+    }
+    const width=c.width, height=c.height, targetW=Math.max(95,Math.round(width*(brandSettings.size==='small'?.14:brandSettings.size==='large'?.25:.19)));
+    const fontSize=Math.max(10,targetW/8.6), iconSize=fontSize*2.0, pad=Math.max(4,fontSize*.34);
+    ctx.font=`800 ${fontSize}px Arial, sans-serif`;
+    const textWidth=ctx.measureText('PARROTHIT').width;
+    const badgeW=iconSize+pad*3+textWidth, badgeH=iconSize+pad*2;
+    const margin=Math.max(12,Math.round(Math.min(width,height)*.025));
+    let x=brandSettings.position.endsWith('left')?margin:width-badgeW-margin;
+    let y=brandSettings.position.startsWith('top')?margin:height-badgeH-margin;
+    x=Math.max(0,Math.min(width-badgeW,x));y=Math.max(0,Math.min(height-badgeH,y));
+    ctx.save();ctx.fillStyle='rgba(3,10,18,.88)';roundedRect(ctx,x,y,badgeW,badgeH,Math.max(7,pad));ctx.fill();ctx.strokeStyle='#e01b24';ctx.lineWidth=Math.max(2,Math.round(width/900));ctx.stroke();
+    ctx.drawImage(brandFalcon,x+pad,y+pad,iconSize,iconSize);
+    ctx.fillStyle='#fff';ctx.textBaseline='middle';ctx.fillText('PARROTHIT',x+pad*2+iconSize,y+badgeH/2);
+    ctx.restore();
+    return c.toDataURL('image/png');
+  }
+  async function openBrandImageWorkflow(postId, button) {
+    brandState=null;brandOriginalImage=null;brandSelectedAreas=[];brandDraftOutputDataUrl='';brandWorkingBaseDataUrl='';brandCanvas.width=0;brandCanvas.height=0;
+    $('brandOriginalPreview').removeAttribute('src');$('brandDetectionTags').innerHTML='';$('brandRightsConfirmed').checked=false;
+    $('brandAnalyzeBtn').disabled=false;$('brandAnalyzeBtn').hidden=false;$('brandUseDetectedBtn').disabled=true;$('brandClearAreasBtn').disabled=true;
+    $('brandProcessBtn').disabled=true;$('brandSaveBtn').disabled=true;$('brandRestoreBtn').hidden=true;
+    $('brandModalMessage').className='msg';$('brandModalMessage').textContent='';
+    $('brandModalSubtitle').textContent='Checking draft image and existing branding history…';
+    $('brandImageModal').hidden=false;
+    const old=button?.textContent;if(button){button.disabled=true;button.textContent='Opening branding…';}
+    try {
+      const state=await invoke('brand_image_state',{post_id:postId});
+      brandState={post_id:postId,already_branded:!!state.already_branded};
+      if(state.already_branded){
+        $('brandModalSubtitle').textContent='This draft already has a branded image. The original image is safely stored.';
+        $('brandRestoreBtn').hidden=false;$('brandAnalyzeBtn').hidden=true;
+        brandNote('PARROTHIT branding is already applied to this draft. You can restore the preserved original image.');
+      } else {
+        $('brandModalSubtitle').textContent='This draft is unpublished. Confirm image rights, then analyze the source image.';
+        $('brandAnalyzeBtn').textContent=brandSettings.mode==='automatic'?'Analyze + automatically brand image':'Analyze image and detect logos';
+        $('brandCanvasHelp').textContent=brandSettings.mode==='manual'?'Manual mode: drag one or more rectangles around publisher-added overlay logos or watermarks. Avoid logos that are part of the photographed scene.':'Review mode: AI-detected publisher overlays are outlined. Tap an outline to include or exclude it. Scene logos are excluded.';
+      brandCanvas.style.touchAction=brandSettings.mode==='manual'?'none':'pan-y';
+      }
+    } catch(e){brandNote(e.message||String(e),'error');}
+    finally {if(button){button.disabled=false;button.textContent=old||'🦜 Brand draft image';}}
+  }
+  async function analyzeBrandImage() {
+    if(!brandState?.post_id)throw new Error('No draft was selected. Close the dialog and open the draft image again.');
+    if(!$('brandRightsConfirmed').checked)throw new Error('Confirm image ownership, licence, or permission before processing this image.');
+    const b=$('brandAnalyzeBtn');b.disabled=true;b.textContent='Analyzing image…';brandNote('AI is inspecting the image for publisher-added overlays. This may use OpenAI image-understanding credits.');
+    try {
+      const result=await invoke('brand_image_detect',{post_id:brandState.post_id,rights_confirmed:true});
+      if(result.already_branded){$('brandRestoreBtn').hidden=false;throw new Error('This draft already has a branded image. Use Restore Original instead.');}
+      brandState={...brandState,...result};
+      brandOriginalImage=await loadBrandImage(imageDataUrl(result.original_base64,result.image_mime));
+      $('brandOriginalPreview').src=imageDataUrl(result.original_base64,result.image_mime);
+      const scale=brandCanvasScale(brandOriginalImage.naturalWidth,brandOriginalImage.naturalHeight);
+      brandCanvas.width=Math.max(1,Math.round(brandOriginalImage.naturalWidth*scale));brandCanvas.height=Math.max(1,Math.round(brandOriginalImage.naturalHeight*scale));
+      brandCtx.clearRect(0,0,brandCanvas.width,brandCanvas.height);brandCtx.drawImage(brandOriginalImage,0,0,brandCanvas.width,brandCanvas.height);
+      // Keep a clean working copy. Detection outlines and manual selection boxes are preview-only.
+      brandWorkingBaseDataUrl=brandCanvas.toDataURL('image/png');
+      const safe=(result.detections||[]).filter(d=>d.safe_to_remove);
+      brandSelectedAreas=brandSettings.mode==='manual'?[]:safe.map((d,i)=>({...d,sourceIndex:i}));
+      $('brandDetectionTags').innerHTML=(result.detections||[]).length ? result.detections.map(d=>`<span class="pill">${esc(d.description||d.kind||'Detected mark')} · ${d.safe_to_remove?'eligible overlay':'scene logo / do not remove'}</span>`).join('') : '<span class="pill">No logo or watermark detected</span>';
+      $('brandUseDetectedBtn').disabled=!safe.length;$('brandClearAreasBtn').disabled=!safe.length;
+      $('brandProcessBtn').disabled=brandSettings.mode==='manual';
+      paintBrandCanvas();
+      brandNote(`Image analyzed. ${safe.length} eligible publisher overlay(s) detected. ${Math.max(0,(result.detections||[]).length-safe.length)} scene mark(s) excluded.`);
+      $('brandAnalyzeBtn').hidden=true;
+      if(brandSettings.mode==='automatic') await processBrandImage(true);
+      else if(brandSettings.mode==='manual') brandNote('Draw around each overlay to remove in Manual mode, then choose “Remove selected overlays + add PARROTHIT logo”.');
+    } catch(e){brandNote(e.message||String(e),'error');}
+    finally {b.disabled=false;b.textContent='Analyze image and detect logos';}
+  }
+  async function processBrandImage(autoSave=false) {
+    if(!brandOriginalImage || !brandState?.original_base64)throw new Error('Analyze the original image first.');
+    if(brandSettings.mode==='manual' && !brandSelectedAreas.length)throw new Error('Draw at least one logo or watermark area on the image first.');
+    const b=$('brandProcessBtn');b.disabled=true;b.textContent='AI image editing…';
+    try {
+      let editedDataUrl=brandWorkingBaseDataUrl;
+      if(brandSelectedAreas.length){
+        brandNote(`Removing ${brandSelectedAreas.length} selected overlay area(s) with AI…`);
+        const result=await invoke('brand_image_edit',{post_id:brandState.post_id,rights_confirmed:true,image_base64:fromDataUrl(editedDataUrl),mask_base64:fromDataUrl(makeBrandMask()),image_mime:'image/png'});
+        editedDataUrl=imageDataUrl(result.image_base64,result.image_mime||'image/png');
+      } else {
+        brandNote('No eligible overlay area is selected. The original image will be preserved and the PARROTHIT mark will be added.');
+      }
+      brandDraftOutputDataUrl=await addParrothitMark(editedDataUrl);
+      const outputImg=await loadBrandImage(brandDraftOutputDataUrl);
+      brandCanvas.width=outputImg.naturalWidth;brandCanvas.height=outputImg.naturalHeight;brandCtx.clearRect(0,0,brandCanvas.width,brandCanvas.height);brandCtx.drawImage(outputImg,0,0);
+      $('brandOutputHeading').textContent='AI removal + PARROTHIT branding preview';
+      $('brandSaveBtn').disabled=false;$('brandProcessBtn').textContent='Rebuild preview';$('brandProcessBtn').disabled=false;
+      $('brandCanvasHelp').textContent='Preview ready. Check that faces, scene details and the photograph remain intact before saving the branded image to the In Review draft.';
+      brandNote('Preview ready. The original image remains preserved. Save the branded result to update this draft.');
+      if(autoSave) await saveBrandImageToDraft();
+    } catch(e){brandNote(e.message||String(e),'error');throw e;}
+    finally {b.disabled=false; if(!brandDraftOutputDataUrl)b.textContent='Remove selected overlays + add PARROTHIT logo';}
+  }
+  async function saveBrandImageToDraft() {
+    if(!brandDraftOutputDataUrl || !brandState?.post_id)throw new Error('Create and review the branded preview first.');
+    const b=$('brandSaveBtn');b.disabled=true;b.textContent='Saving to draft…';
+    try {
+      const result=await invoke('brand_image_save',{post_id:brandState.post_id,rights_confirmed:true,original_base64:brandState.original_base64,original_mime:brandState.image_mime,branded_base64:fromDataUrl(brandDraftOutputDataUrl),branded_mime:'image/png',mode:brandSettings.mode});
+      brandNote('Branded image saved to the unpublished draft. The original was stored separately and can be restored at any time. '+(result.message||''));
+      $('brandRestoreBtn').hidden=false;$('brandAnalyzeBtn').hidden=true;$('brandSaveBtn').disabled=true;$('brandSaveBtn').textContent='Saved to draft';
+      message('PARROTHIT branding saved to the In Review draft. The article has not been published.');
+      await loadCandidates();
+    } catch(e){brandNote(e.message||String(e),'error');}
+    finally {if(!$('brandSaveBtn').disabled){b.disabled=false;b.textContent='Save branded image to draft';}}
+  }
+  async function restoreBrandOriginal() {
+    if(!brandState?.post_id)return;
+    if(!confirm('Restore the original image for this draft? The PARROTHIT-branded version will remain in branding history.'))return;
+    const b=$('brandRestoreBtn');b.disabled=true;b.textContent='Restoring…';
+    try {
+      const result=await invoke('brand_image_restore',{post_id:brandState.post_id});
+      brandNote(result.message||'Original image restored.');
+      $('brandRestoreBtn').hidden=true;$('brandAnalyzeBtn').hidden=false;$('brandSaveBtn').disabled=true;
+      message('Original image restored to the unpublished draft.');await loadCandidates();
+    } catch(e){brandNote(e.message||String(e),'error');}
+    finally {b.disabled=false;b.textContent='Restore original image';}
+  }
+  $('saveBrandSettings')?.addEventListener('click',()=>saveBrandingSettings().catch(e=>message(e.message||String(e),'error')));
+  $('brandMode')?.addEventListener('change',()=>{brandSettings.mode=$('brandMode').value;});
+  $('brandPosition')?.addEventListener('change',()=>{brandSettings.position=$('brandPosition').value;});
+  $('brandSize')?.addEventListener('change',()=>{brandSettings.size=$('brandSize').value;});
+  $('brandAnalyzeBtn')?.addEventListener('click',analyzeBrandImage);
+  $('brandUseDetectedBtn')?.addEventListener('click',()=>{brandSelectedAreas=(brandState?.detections||[]).filter(d=>d.safe_to_remove).map((d,i)=>({...d,sourceIndex:i}));paintBrandCanvas();$('brandProcessBtn').disabled=false;$('brandClearAreasBtn').disabled=!brandSelectedAreas.length;});
+  $('brandClearAreasBtn')?.addEventListener('click',()=>{brandSelectedAreas=[];paintBrandCanvas();$('brandProcessBtn').disabled=brandSettings.mode==='manual';$('brandClearAreasBtn').disabled=true;});
+  $('brandProcessBtn')?.addEventListener('click',()=>processBrandImage(false).catch(()=>{}));
+  $('brandSaveBtn')?.addEventListener('click',saveBrandImageToDraft);
+  $('brandRestoreBtn')?.addEventListener('click',restoreBrandOriginal);
+  $('closeBrandModal')?.addEventListener('click',()=>{$('brandImageModal').hidden=true;});
+  $('brandImageModal')?.addEventListener('click',e=>{if(e.target===$('brandImageModal'))$('brandImageModal').hidden=true;});
 
   $('saveDraftDestination')?.addEventListener('click', () => saveDraftDestination(true).catch(()=>{}));
   $('draftDestination')?.addEventListener('change', () => saveDraftDestination(true).catch(()=>{}));
