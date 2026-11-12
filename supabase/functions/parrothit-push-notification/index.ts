@@ -223,6 +223,7 @@ Deno.serve(async (req) => {
         is_breaking: Boolean(claimed.is_breaking),
         display_style: displayStyle,
         image_url: imageUrl || null,
+        accent_color: `#${accentHex}`,
       },
       // Keep one site-defined action on every article notification. Do not add
       // unsubscribe, preference-management, or secondary action buttons here.
