@@ -98,8 +98,8 @@ Deno.serve(async (req) => {
       },
       // Expose exactly one user-facing action: open the published article.
       // No subscription-management controls are exposed in the notification.
-      buttons: [{ id: "read-story", text: "Read full article" }],
-      web_buttons: [{ id: "read-story", text: "Read full article", url: articleUrl }],
+      buttons: [{ id: "read-full-article", text: "Read full article" }],
+      web_buttons: [{ id: "read-full-article", text: "Read full article", url: articleUrl }],
       chrome_web_icon: `${siteUrl}/assets/images/parrothit-logo.png`,
       chrome_web_badge: `${siteUrl}/assets/images/parrothit-pwa-192.png`,
       // Native Android companion-app channel. It is created by the app with the
