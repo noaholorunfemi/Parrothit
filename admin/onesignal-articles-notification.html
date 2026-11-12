@@ -26,7 +26,7 @@
 
     <section class="notice" role="note">
       <strong>How these settings work</strong>
-      <p>Saved settings apply to the next article notifications sent by PARROTHIT. Each layout uses the matching OneSignal image fields where the recipient platform supports them. The phone or browser still controls its native notification layout.</p>
+      <p>Saved settings apply to the next article notifications sent by PARROTHIT. When the site is open, the public foreground alert now mirrors the selected layout, including the full-width Big Picture image. When the site is closed, OneSignal sends the matching platform image fields; the phone/browser controls how much of the image appears while the notification is collapsed.</p>
       <p class="notice-action"><strong>Action rule:</strong> every PARROTHIT article notification has exactly one action — <b>Read full article</b>. PARROTHIT does not add an unsubscribe action to article notifications.</p>
     </section>
 
@@ -38,7 +38,7 @@
           <span class="style-number">01</span><span class="style-title">Big Picture <em class="recommended-tag">RECOMMENDED</em></span>
           <span class="mini-notification big-preview"><b>PARROTHIT · NEWS</b><strong>Article headline appears here</strong><span>Article summary appears below the headline.</span><i>ARTICLE IMAGE</i></span>
           <span class="style-description">Large article image with headline and summary. Recommended default for visual stories.</span>
-          <span class="style-support">Chrome Web: large image · Android native: expanded Big Picture</span>
+          <span class="style-support">Public foreground alert: full-width image · Chrome/Android push: large image when expanded</span>
         </label>
         <label class="style-card" data-style-card="side_thumbnail">
           <input type="radio" name="displayStyle" value="side_thumbnail">
@@ -95,7 +95,7 @@
     </section>
 
     <section class="panel preview-panel">
-      <div class="section-head"><div><span class="section-kicker">03 · PREVIEW & SAVE</span><h2>Preview your current selection</h2><p>This is a guide to your chosen content style, not a pixel-perfect screenshot of every Android/browser version.</p></div></div>
+      <div class="section-head"><div><span class="section-kicker">03 · PREVIEW & SAVE</span><h2>Preview your current selection</h2><p>This preview reflects the public in-page alert. Background notification shade layouts remain subject to the device/browser; Android users may need to expand the notification to see the full Big Picture image.</p></div></div>
       <div class="preview-wrap">
         <div class="preview-phone"><div class="phone-speaker"></div><div class="phone-screen"><div class="phone-status"><span>9:41</span><span>▮ ▮ ▰</span></div><div class="phone-notification" id="notificationPreview"><div class="preview-brand"><span class="preview-logo">🦜</span><span><b>PARROTHIT</b><small>NEWS THAT SPEAKS!</small></span><time>now</time></div><strong class="preview-headline">Example: New story published on PARROTHIT</strong><p class="preview-summary">This is where the article summary will appear for subscribers.</p><div class="preview-image" id="previewImage">ARTICLE IMAGE</div><div class="preview-action">READ FULL ARTICLE</div></div></div></div>
         <div class="preview-details"><div class="preview-pill" id="previewStyleName">BIG PICTURE</div><h3 id="previewTitle">Big Picture notification</h3><p id="previewDescription">The expanded notification includes a large article image, headline and summary.</p><div class="chosen-colours" id="chosenColours"></div></div>
@@ -104,6 +104,6 @@
     </section>
     <footer class="page-footer">PARROTHIT · Articles notification control · Only new article pushes use these settings. Every layout has one action: <b>Read full article</b>.</footer>
   </main>
-  <script src="../js/onesignal-articles-notification.js?v=20261112-v2" defer></script>
+  <script src="../js/onesignal-articles-notification.js?v=20261112-v3" defer></script>
 </body>
 </html>
