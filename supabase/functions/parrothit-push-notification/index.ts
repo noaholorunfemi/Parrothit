@@ -79,6 +79,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Read shared article-notification presentation preferences set in the Admin page.
+    // The service-role client bypasses RLS; missing/invalid settings safely fall back to Big Picture.
+    const { data: preferenceRow, error: preferenceError } = await db
+      .from("site_settings")
+      .select("value")
+      .eq("key", "onesignal_article_notification_preferences")
+      .maybeSingle();
+    if (preferenceError) console.warn("Could not load article notification preferences; using defaults:", preferenceError.message);
+
+    const rawPreferences = preferenceRow?.value && typeof preferenceRow.value === "object" ? preferenceRow.value as Record<string, unknown> : {};
+    const allowedStyles = new Set(["big_picture", "side_thumbnail", "compact_text", "headline_focus", "breaking_spotlight", "universal_image"]);
+    const requestedStyle = String(rawPreferences.displayStyle || "big_picture");
+    const displayStyle = allowedStyles.has(requestedStyle) ? requestedStyle : "big_picture";
+    const allowedColors = new Set(["166534", "D71920", "2563EB", "EAB308", "7C3AED", "0F766E", "EA5808", "374151"]);
+    const selectedColors = Array.isArray(rawPreferences.colors)
+      ? [...new Set(rawPreferences.colors.map((value) => String(value).replace(/^#/, "").toUpperCase()).filter((value) => allowedColors.has(value)))]
+      : [];
+    const colorList = selectedColors.length ? selectedColors : ["166534"];
+    // Stable rotation: the event UUID selects one of the admin-approved accent colours.
+    const colorIndex = [...eventId].reduce((sum, character) => (sum + character.charCodeAt(0)) >>> 0, 0) % colorList.length;
+    const accentHex = colorList[colorIndex];
+
+    let notificationTitle = title;
+    let notificationSummary = summary;
+    if (displayStyle === "headline_focus") notificationSummary = summary.slice(0, 125);
+    if (displayStyle === "breaking_spotlight" && Boolean(claimed.is_breaking)) {
+      notificationTitle = `🔴 BREAKING: ${title}`.slice(0, 180);
+    }
+
     const message: Record<string, unknown> = {
       app_id: oneSignalAppId,
       target_channel: "push",
@@ -87,8 +116,11 @@ Deno.serve(async (req) => {
       included_segments: ["All"],
       priority: 10,
       ttl: 86400,
-      headings: { en: title },
-      contents: { en: summary },
+      headings: { en: notificationTitle },
+      contents: { en: notificationSummary },
+      // OneSignal Android accent marker; web browsers keep their own notification styling.
+      android_accent_color: `FF${accentHex}`,
+      huawei_accent_color: `#${accentHex}`,
       url: articleUrl,
       data: {
         source: "parrothit-newsroom",
@@ -107,12 +139,23 @@ Deno.serve(async (req) => {
       existing_android_channel_id: "parrothit_news_bird_v1",
     };
 
-    // Chrome's web notification image creates the expanded Big Picture style.
-    // Android native-style clients also receive the platform Big Picture field.
+    if (displayStyle === "breaking_spotlight") message.priority = 10;
+
+    // The selected display style maps to OneSignal fields supported by the target platform.
+    // Final visual arrangement is controlled by the browser / Android notification renderer.
     if (imageUrl) {
-      message.chrome_web_image = imageUrl;
-      message.big_picture = imageUrl;
-      message.global_image = imageUrl;
+      if (displayStyle === "big_picture" || displayStyle === "breaking_spotlight") {
+        message.chrome_web_image = imageUrl;
+        message.big_picture = imageUrl;
+        message.global_image = imageUrl;
+      } else if (displayStyle === "side_thumbnail") {
+        // Android native large icon/thumbnail. Web Push may show the brand icon only.
+        message.large_icon = imageUrl;
+      } else if (displayStyle === "universal_image") {
+        // Let OneSignal use the all-platform fallback where the platform supports an image.
+        message.global_image = imageUrl;
+      }
+      // compact_text and headline_focus intentionally omit article image fields.
     }
 
     const response = await fetch("https://api.onesignal.com/notifications", {
