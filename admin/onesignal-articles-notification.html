@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#063b2d">
+  <title>OneSignal Articles Notification | PARROTHIT Admin</title>
+  <script>document.documentElement.classList.add('admin-auth-pending');</script>
+  <link rel="stylesheet" href="../css/onesignal-articles-notification.css?v=20261112-v1">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <script src="../js/admin-auth-guard.js"></script>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo" onerror="this.style.display='none'">
+        <div><span class="eyebrow">PARROTHIT CONTROL ROOM</span><h1>OneSignal Articles Notification</h1><p>Choose how published stories are presented to subscribers.</p></div>
+      </div>
+      <div class="top-actions">
+        <a class="top-btn" href="dashboard.html">← Admin Dashboard</a>
+        <a class="top-btn onesignal-btn" href="https://dashboard.onesignal.com/apps/3af29fab-7ee8-4aaf-b840-6d57304af507" target="_blank" rel="noopener noreferrer">↗ Open OneSignal Website</a>
+      </div>
+    </header>
+
+    <section class="notice" role="note">
+      <strong>How these settings work</strong>
+      <p>Saved settings apply to the next article notifications sent by PARROTHIT. OneSignal sends image and accent fields that each supported platform can render. Chrome/Android browser notifications and Android native notifications do not expose a fully custom layout API, so the phone or browser may arrange the same content differently.</p>
+    </section>
+
+    <section class="panel">
+      <div class="section-head"><div><span class="section-kicker">01 · DISPLAY STYLE</span><h2>Choose a notification display</h2><p>Select one of the six presentation styles.</p></div><span class="live-tag">● LIVE CONFIGURATION</span></div>
+      <div class="style-grid" id="styleGrid">
+        <label class="style-card selected" data-style-card="big_picture">
+          <input type="radio" name="displayStyle" value="big_picture" checked>
+          <span class="style-number">01</span><span class="style-title">Big Picture</span>
+          <span class="mini-notification big-preview"><b>PARROTHIT · NEWS</b><strong>Article headline appears here</strong><span>Article summary appears below the headline.</span><i>ARTICLE IMAGE</i></span>
+          <span class="style-description">Large article image with headline and summary. Recommended default for visual stories.</span>
+          <span class="style-support">Chrome Web: large image · Android native: expanded Big Picture</span>
+        </label>
+        <label class="style-card" data-style-card="side_thumbnail">
+          <input type="radio" name="displayStyle" value="side_thumbnail">
+          <span class="style-number">02</span><span class="style-title">Small Side Picture</span>
+          <span class="mini-notification side-preview"><b>PARROTHIT · NEWS</b><span class="side-row"><i>IMG</i><span><strong>Article headline appears here</strong><small>Article summary appears below.</small></span></span></span>
+          <span class="style-description">Uses the article image as an Android large icon/thumbnail rather than a full-width image.</span>
+          <span class="style-support">Android native: large icon · Web Push: compact branded notification</span>
+        </label>
+        <label class="style-card" data-style-card="compact_text">
+          <input type="radio" name="displayStyle" value="compact_text">
+          <span class="style-number">03</span><span class="style-title">Compact Text Alert</span>
+          <span class="mini-notification text-preview"><b>PARROTHIT · NEWS</b><strong>Article headline appears here</strong><span>Article summary appears below. No article image is sent.</span></span>
+          <span class="style-description">A tidy text-only notification with the PARROTHIT brand icon, headline and summary.</span>
+          <span class="style-support">All supported push platforms · No article image field</span>
+        </label>
+        <label class="style-card" data-style-card="headline_focus">
+          <input type="radio" name="displayStyle" value="headline_focus">
+          <span class="style-number">04</span><span class="style-title">Headline Focus</span>
+          <span class="mini-notification headline-preview"><b>PARROTHIT · TOP STORY</b><strong>ARTICLE HEADLINE</strong><span>Short summary preview, keeping the title prominent.</span></span>
+          <span class="style-description">Prioritises the headline and trims the summary preview. No large article image is sent.</span>
+          <span class="style-support">All supported push platforms · Short summary</span>
+        </label>
+        <label class="style-card" data-style-card="breaking_spotlight">
+          <input type="radio" name="displayStyle" value="breaking_spotlight">
+          <span class="style-number">05</span><span class="style-title">Breaking News Spotlight</span>
+          <span class="mini-notification breaking-preview"><b>🔴 PARROTHIT · BREAKING</b><strong>Breaking article headline</strong><span>Urgent story summary with the article image.</span><i>BREAKING IMAGE</i></span>
+          <span class="style-description">High-priority presentation with a large image. Adds a breaking label when the article is marked as breaking.</span>
+          <span class="style-support">High-priority delivery · Image where supported</span>
+        </label>
+        <label class="style-card" data-style-card="universal_image">
+          <input type="radio" name="displayStyle" value="universal_image">
+          <span class="style-number">06</span><span class="style-title">Universal Image Preview</span>
+          <span class="mini-notification universal-preview"><b>PARROTHIT · NEWS</b><strong>Article headline appears here</strong><span>Article summary appears below.</span><i>IMAGE PREVIEW</i></span>
+          <span class="style-description">Uses OneSignal's cross-platform image field as a fallback for clients that support it.</span>
+          <span class="style-support">Global image field · Exact rendering varies by platform</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head"><div><span class="section-kicker">02 · NOTIFICATION COLOURS</span><h2>Choose multiple colours</h2><p>Choose one or more accent colours. PARROTHIT selects one of your chosen colours for each future send.</p></div></div>
+      <div class="colour-grid" id="colourGrid">
+        <label class="colour-option"><input type="checkbox" value="166534" checked><span class="swatch" style="--swatch:#166534"></span><span><b>Parrot Green</b><small>#166534</small></span></label>
+        <label class="colour-option"><input type="checkbox" value="D71920" checked><span class="swatch" style="--swatch:#D71920"></span><span><b>News Red</b><small>#D71920</small></span></label>
+        <label class="colour-option"><input type="checkbox" value="2563EB"><span class="swatch" style="--swatch:#2563EB"></span><span><b>Sky Blue</b><small>#2563EB</small></span></label>
+        <label class="colour-option"><input type="checkbox" value="EAB308" checked><span class="swatch" style="--swatch:#EAB308"></span><span><b>Golden Yellow</b><small>#EAB308</small></span></label>
+        <label class="colour-option"><input type="checkbox" value="7C3AED"><span class="swatch" style="--swatch:#7C3AED"></span><span><b>Purple</b><small>#7C3AED</small></span></label>
+        <label class="colour-option"><input type="checkbox" value="0F766E"><span class="swatch" style="--swatch:#0F766E"></span><span><b>Teal</b><small>#0F766E</small></span></label>
+        <label class="colour-option"><input type="checkbox" value="EA580C"><span class="swatch" style="--swatch:#EA580C"></span><span><b>Orange</b><small>#EA580C</small></span></label>
+        <label class="colour-option"><input type="checkbox" value="374151"><span class="swatch" style="--swatch:#374151"></span><span><b>Charcoal</b><small>#374151</small></span></label>
+      </div>
+      <p class="colour-note"><strong>Platform note:</strong> OneSignal's Android accent colour affects the small notification icon/accent area on supported Android native notifications. Browsers control their own notification background and cannot be forced to use a custom colour by a website. Your choices are still saved and supplied to supported platforms.</p>
+    </section>
+
+    <section class="panel preview-panel">
+      <div class="section-head"><div><span class="section-kicker">03 · PREVIEW & SAVE</span><h2>Preview your current selection</h2><p>This is a guide to your chosen content style, not a pixel-perfect screenshot of every Android/browser version.</p></div></div>
+      <div class="preview-wrap">
+        <div class="preview-phone"><div class="phone-speaker"></div><div class="phone-screen"><div class="phone-status"><span>9:41</span><span>▮ ▮ ▰</span></div><div class="phone-notification" id="notificationPreview"><div class="preview-brand"><span class="preview-logo">🦜</span><span><b>PARROTHIT</b><small>NEWS THAT SPEAKS!</small></span><time>now</time></div><strong class="preview-headline">Example: New story published on PARROTHIT</strong><p class="preview-summary">This is where the article summary will appear for subscribers.</p><div class="preview-image" id="previewImage">ARTICLE IMAGE</div><div class="preview-action">READ FULL ARTICLE</div></div></div></div>
+        <div class="preview-details"><div class="preview-pill" id="previewStyleName">BIG PICTURE</div><h3 id="previewTitle">Big Picture notification</h3><p id="previewDescription">The expanded notification includes a large article image, headline and summary.</p><div class="chosen-colours" id="chosenColours"></div></div>
+      </div>
+      <div class="save-row"><div class="save-status" id="saveStatus" role="status" aria-live="polite">Waiting for administrator session…</div><div class="save-actions"><button type="button" class="btn secondary" id="resetButton">Reset defaults</button><button type="button" class="btn primary" id="saveButton">💾 Save notification settings</button></div></div>
+    </section>
+    <footer class="page-footer">PARROTHIT · Articles notification control · Only new article pushes use these settings. The notification action remains <b>Read full article</b>.</footer>
+  </main>
+  <script src="../js/onesignal-articles-notification.js?v=20261112-v1" defer></script>
+</body>
+</html>
