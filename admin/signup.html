@@ -1,76 +1,132 @@
-<!doctype html><html lang="en"><head><script src="../js/local-preview.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin account setup | PARROTHIT</title><link rel="stylesheet" href="../css/style.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../supabase-config.example.js"></script><style id="parrot-warning-styles">
-#parrot-warning-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,10,20,.68);backdrop-filter:blur(0);-webkit-backdrop-filter:blur(0);opacity:0;visibility:hidden;transition:opacity .34s ease,visibility .34s ease,backdrop-filter .34s ease}
-#parrot-warning-overlay.pw-open{opacity:1;visibility:visible;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-#parrot-warning-dialog{width:min(100%,430px);position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.78);border-radius:24px;background:linear-gradient(145deg,#fff 0%,#fff8f2 54%,#fff 100%);box-shadow:0 28px 90px rgba(0,0,0,.34);transform:translateY(30px) scale(.88) rotateX(7deg);opacity:0;transition:transform .48s cubic-bezier(.16,1,.3,1),opacity .3s ease;font-family:inherit;color:#171923;will-change:transform,opacity}
-#parrot-warning-overlay.pw-open #parrot-warning-dialog{transform:translateY(0) scale(1) rotateX(0);opacity:1;animation:pw-dialog-pop .52s cubic-bezier(.16,1,.3,1) both}
-#parrot-warning-dialog:before{content:"";position:absolute;inset:0 0 auto;height:7px;background:linear-gradient(90deg,#d71920,#ff9b38,#ffe2a8,#d71920);background-size:250% 100%;animation:pw-shimmer 2.6s linear infinite}
-#parrot-warning-dialog:after{content:"";position:absolute;pointer-events:none;width:150px;height:150px;right:-90px;top:-90px;border-radius:50%;background:rgba(255,155,56,.14);filter:blur(2px)}
-#parrot-warning-dialog .pw-content{position:relative;z-index:1;padding:28px 26px 24px;text-align:center}
-#parrot-warning-dialog .pw-logo-wrap{width:86px;height:86px;margin:2px auto 15px;padding:7px;border-radius:25px;background:linear-gradient(145deg,#fff,#ffe4df);box-shadow:0 8px 24px rgba(215,25,32,.18);border:1px solid #ffd1cc;animation:pw-logo-enter .72s cubic-bezier(.16,1,.3,1) both,pw-float 3s ease-in-out .8s infinite;transform-origin:center}
-#parrot-warning-dialog .pw-logo{display:block;width:100%;height:100%;object-fit:contain;border-radius:17px}
-#parrot-warning-dialog h2{font-size:1.5rem;line-height:1.2;margin:0 0 9px;color:#b9141b;font-weight:900;letter-spacing:-.025em;animation:pw-text-enter .42s ease .12s both}
-#parrot-warning-dialog .pw-message{margin:0 auto;color:#4b5563;font-size:.98rem;line-height:1.55;max-width:340px;overflow-wrap:anywhere;animation:pw-text-enter .42s ease .18s both}
-#parrot-warning-dialog .pw-note{font-size:.79rem;color:#8a5260;margin:13px 0 0;animation:pw-text-enter .42s ease .22s both}
-#parrot-warning-dialog .pw-actions{display:flex;gap:10px;margin-top:23px}
-#parrot-warning-dialog .pw-btn{flex:1;border:0;border-radius:12px;padding:12px 14px;font:inherit;font-weight:800;cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s ease,background .2s ease;animation:pw-button-enter .42s ease .25s both}
-#parrot-warning-dialog .pw-btn:hover{transform:translateY(-3px) scale(1.02)}
-#parrot-warning-dialog .pw-btn:active{transform:translateY(0) scale(.98)}
-#parrot-warning-dialog .pw-cancel{background:#f1f3f6;color:#293244;border:1px solid #dfe3e9}
-#parrot-warning-dialog .pw-cancel:hover{background:#e7ebf1;box-shadow:0 5px 14px rgba(23,32,51,.10)}
-#parrot-warning-dialog .pw-continue{background:linear-gradient(135deg,#d71920,#a80f16);color:white;box-shadow:0 7px 18px rgba(215,25,32,.24)}
-#parrot-warning-dialog .pw-continue:hover{box-shadow:0 11px 26px rgba(215,25,32,.36)}
-@keyframes pw-shimmer{to{background-position:250% 0}}
-@keyframes pw-dialog-pop{0%{filter:blur(3px)}100%{filter:blur(0)}}
-@keyframes pw-logo-enter{0%{opacity:0;transform:translateY(14px) scale(.55) rotate(-12deg)}70%{opacity:1;transform:translateY(-3px) scale(1.06) rotate(3deg)}100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
-@keyframes pw-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-@keyframes pw-text-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes pw-button-enter{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@media(prefers-reduced-motion:reduce){#parrot-warning-overlay,#parrot-warning-dialog,#parrot-warning-dialog .pw-btn{transition:none;animation:none!important}#parrot-warning-dialog:before,#parrot-warning-dialog .pw-logo-wrap{animation:none!important}}
-</style>
-<link rel="stylesheet" href="../css/admin-responsive.css"></head><body><nav class="parrothit-admin-shortcuts" style="display:flex;gap:10px;flex-wrap:wrap;margin:12px 0"><a href="../index.html" style="display:inline-block;background:#d71920;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">← Back to Home</a><a href="dashboard.html" style="display:inline-block;background:#15803d;color:#fff;padding:9px 13px;border-radius:8px;font-weight:700;text-decoration:none">Control Room</a></nav>
-<div class="back-home-wrap"><a class="back-home-link" href="../index.html">← Back home</a></div>
-<main class="admin-shell"><header class="admin-header"><h1>PARROTHIT ADMIN ACCOUNTS</h1><a href="login.html">Back to sign in</a></header><section class="admin-panel" style="max-width:650px;margin:24px auto"><h2>Administrator registration</h2><div class="notice"><strong>Restricted:</strong> Public visitors cannot register as administrators. Admin 1 (Owner) must authorize administrator accounts. Maximum: four administrators total.</div><p>To prevent unauthorized access, this page does not create admin accounts by itself. First configure Supabase, establish the Owner account using the secure setup instructions, then use the owner-only admin management feature.</p><p>Account details for each approved administrator should include a display name, unique username, email and a strong password. Password recovery is available from the <a href="forgot-password.html"><u>forgot-password page</u></a>.</p><a class="button" href="login.html">Go to sign in</a><p class="meta">Never put a Supabase service-role key in browser code.</p></section></main><script id="parrot-warning-script">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#452078">
+  <title>PARROTHIT Admin Sign Up Page</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <style>
+    :root{color-scheme:light;--purple:#48227b;--purple2:#6d28d9;--green:#087a42;--green2:#16a34a;--red:#d71920;--ink:#172033;--muted:#667085;--line:#e3e7ed}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 8% 8%,#7444a6 0,transparent 34%),linear-gradient(140deg,#29134c 0%,#452078 40%,#087a42 100%);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);padding:24px 14px 40px}
+    .wrap{width:min(100%,760px);margin:0 auto}.brand{display:flex;align-items:center;gap:12px;color:#fff;margin:0 0 18px}.brand img{width:54px;height:54px;object-fit:contain;background:#fff;border-radius:15px;padding:5px}.brand strong{display:block;font-size:1.05rem;letter-spacing:.07em}.brand span{display:block;font-size:.78rem;color:#e9ddff;margin-top:3px;letter-spacing:.1em;font-weight:750}
+    .card{overflow:hidden;border:1px solid #ffffff75;border-radius:22px;background:#fff;box-shadow:0 26px 80px #14082980}.card-head{padding:25px 28px;background:linear-gradient(115deg,#fff 0%,#f7f2ff 70%,#f0fff6 100%);border-bottom:1px solid var(--line);position:relative}.card-head:after{content:"";position:absolute;left:0;bottom:0;width:100%;height:5px;background:linear-gradient(90deg,var(--purple2),var(--green2),var(--red))}.eyebrow{margin:0 0 7px;font-size:.7rem;font-weight:950;letter-spacing:.16em;color:var(--green);text-transform:uppercase}.card-head h1{font-size:clamp(1.45rem,4vw,2rem);line-height:1.15;margin:0;color:#29134c}.card-head p{margin:9px 0 0;color:#5d6675;line-height:1.55}
+    form{padding:25px 28px 28px}.photo-area{display:flex;align-items:center;gap:17px;padding:15px;border:1px dashed #a78bce;background:#faf7ff;border-radius:15px;margin-bottom:20px}.avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:#e9e2f5;border:4px solid #fff;box-shadow:0 0 0 2px var(--purple2);flex:0 0 auto}.photo-copy{min-width:0}.photo-copy label{display:block;font-weight:850;color:#39205e;margin-bottom:6px}.photo-copy small{display:block;color:var(--muted);margin-top:6px;line-height:1.4}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.field{min-width:0}.field.full{grid-column:1/-1}label.field-label{display:block;font-size:.86rem;font-weight:800;color:#344054;margin-bottom:6px}.field input{width:100%;min-width:0;border:1px solid #cbd2dd;border-radius:11px;padding:12px 13px;font:inherit;color:#172033;background:#fff;outline:none}.field input:focus{border-color:var(--purple2);box-shadow:0 0 0 3px #6d28d926}.field input[readonly]{background:#f2f3f6;color:#536071}.password-hint{display:block;color:#777f8e;font-size:.75rem;margin-top:5px}.divider{grid-column:1/-1;border:0;border-top:1px solid var(--line);margin:7px 0 2px}.privacy{font-size:.78rem;color:#657084;line-height:1.55;margin:17px 0 0}.submit{width:100%;margin-top:19px;border:0;border-radius:12px;padding:14px 16px;background:linear-gradient(100deg,var(--purple2),var(--green));color:#fff;font:900 1rem inherit;cursor:pointer;box-shadow:0 8px 20px #48227b28}.submit:hover{filter:brightness(1.05)}.submit:disabled{opacity:.6;cursor:wait}.status{display:none;margin:17px 0 0;padding:12px 14px;border-radius:11px;font-weight:750;line-height:1.5;overflow-wrap:anywhere}.status.show{display:block}.status.error{color:#991b1b;background:#fff0f0;border:1px solid #fecaca}.status.ok{color:#075b32;background:#eafaf0;border:1px solid #bbf7d0}.bottom{padding:14px 18px;background:#f8fafc;text-align:center;color:#727b89;font-size:.75rem}.bottom b{color:#452078}.sign-in{color:#5b21b6;font-weight:800;text-decoration:none}.hidden{display:none!important}
+    @media(max-width:560px){body{padding:13px 10px 28px}.brand{margin-left:4px}.brand img{width:46px;height:46px}.card{border-radius:17px}.card-head{padding:21px 18px 20px}form{padding:19px 17px 22px}.grid{grid-template-columns:minmax(0,1fr);gap:13px}.field.full{grid-column:auto}.photo-area{align-items:flex-start;padding:12px;gap:13px}.avatar{width:74px;height:74px}.photo-copy{flex:1}.photo-copy input{max-width:100%}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><img src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo"><div><strong>PARROTHIT ADMINISTRATION</strong><span>NEWS THAT SPEAKS!</span></div></div>
+    <main class="card">
+      <header class="card-head"><p class="eyebrow">Employee invitation · secure account setup</p><h1>PARROTHIT Admin Sign Up Page</h1><p>Complete your administrator profile using the invitation sent to your registered email address. Choose your own password before signing in.</p></header>
+      <form id="signupForm" novalidate>
+        <div class="photo-area">
+          <img class="avatar" id="photoPreview" src="../assets/images/parrothit-logo.png" alt="Profile picture preview">
+          <div class="photo-copy"><label for="profilePicture">Profile picture <span style="color:#d71920">*</span></label><input id="profilePicture" type="file" accept="image/jpeg,image/png,image/webp" required><small>Use a clear JPG, PNG or WebP image. Maximum size: 5 MB.</small></div>
+        </div>
+        <div class="grid">
+          <div class="field"><label class="field-label" for="firstName">First name</label><input id="firstName" name="given-name" maxlength="80" autocomplete="given-name" required></div>
+          <div class="field"><label class="field-label" for="lastName">Last name</label><input id="lastName" name="family-name" maxlength="80" autocomplete="family-name" required></div>
+          <div class="field"><label class="field-label" for="username">Username</label><input id="username" name="username" maxlength="32" minlength="3" autocomplete="username" pattern="[A-Za-z0-9_.-]{3,32}" required><small class="password-hint">3–32 characters: letters, numbers, dots, underscores or hyphens.</small></div>
+          <div class="field"><label class="field-label" for="email">Email address</label><input id="email" type="email" autocomplete="email" readonly required><small class="password-hint">This is the email address Admin 1 approved for your invitation.</small></div>
+          <div class="field full"><label class="field-label" for="phone">Phone number</label><input id="phone" type="tel" maxlength="40" autocomplete="tel" required></div>
+          <hr class="divider">
+          <div class="field"><label class="field-label" for="password">Create new password</label><input id="password" type="password" autocomplete="new-password" minlength="10" required><small class="password-hint">At least 10 characters, including uppercase, lowercase and a number.</small></div>
+          <div class="field"><label class="field-label" for="confirmPassword">Confirm new password</label><input id="confirmPassword" type="password" autocomplete="new-password" minlength="10" required></div>
+        </div>
+        <p class="privacy">Your profile details are linked to your employee invitation. Keep your password private. PARROTHIT staff will never ask you to send your password or sign-in code by email or chat.</p>
+        <button class="submit" id="submitBtn" type="submit">Complete Admin Registration</button>
+        <p class="status" id="pageStatus" role="status" aria-live="polite"></p>
+      </form>
+      <footer class="bottom">THE PARROTHIT ADMIN TEAM · <b>Secure employee onboarding</b> · <a class="sign-in" href="login.html">Admin sign in</a></footer>
+    </main>
+  </div>
+<script>
 (()=>{
-'use strict';
-if(window.__PARROTHIT_WARNING_READY__)return;window.__PARROTHIT_WARNING_READY__=true;
-const ACTION_WORDS=/\b(save|update|publish|unpublish|delete|remove|clear|upload|replace|approve|dismiss|reset|restore|backup|invite|create|add|submit|sync|import|export|enable|disable|apply|send|post|change password|sign out|logout)\b/i;
-const SKIP_SELECTOR='[data-tab],[data-goto],.side-nav button,.password-toggle,[data-warning-skip],#parrot-warning-cancel,#parrot-warning-continue';
-let pendingResolve=null,queued=null,bypassClick=null,bypassSubmit=null,returnFocusElement=null;
-function actionText(el){return (el.getAttribute('data-confirm-action')||el.getAttribute('aria-label')||el.getAttribute('title')||el.innerText||el.value||el.textContent||'').trim().replace(/\s+/g,' ').slice(0,180)}
-function ensureDialog(){if(document.getElementById('parrot-warning-overlay'))return;
-const overlay=document.createElement('div');overlay.id='parrot-warning-overlay';overlay.setAttribute('aria-hidden','true');overlay.innerHTML=`<section id="parrot-warning-dialog" role="alertdialog" aria-modal="true" aria-labelledby="parrot-warning-title" aria-describedby="parrot-warning-message"><div class="pw-content"><div class="pw-logo-wrap"><img class="pw-logo" src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo"></div><h2 id="parrot-warning-title">Parrot Warning!</h2><p class="pw-message" id="parrot-warning-message">You are about to make a change. Would you like to revoke this action or continue?</p><p class="pw-note">Please review before continuing.</p><div class="pw-actions"><button type="button" class="pw-btn pw-cancel" id="parrot-warning-cancel">Revoke action</button><button type="button" class="pw-btn pw-continue" id="parrot-warning-continue">Continue</button></div></div></section>`;
-document.body.appendChild(overlay);
-const finish=answer=>{const active=document.activeElement;if(overlay.contains(active)){if(returnFocusElement&&returnFocusElement.isConnected&&!overlay.contains(returnFocusElement)){try{returnFocusElement.focus({preventScroll:true})}catch(_){returnFocusElement.focus()}}else if(active&&typeof active.blur==='function'){active.blur()}}overlay.classList.remove('pw-open');overlay.setAttribute('aria-hidden','true');document.body.style.removeProperty('overflow');const resolve=pendingResolve;pendingResolve=null;returnFocusElement=null;setTimeout(()=>{if(resolve)resolve(answer)},190)};
-overlay.addEventListener('click',e=>{if(e.target===overlay)finish(false)});
-overlay.querySelector('#parrot-warning-cancel').addEventListener('click',()=>finish(false));
-overlay.querySelector('#parrot-warning-continue').addEventListener('click',()=>finish(true));
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&overlay.classList.contains('pw-open'))finish(false)});
-overlay.__finish=finish;
-}
-function ask(message){ensureDialog();const overlay=document.getElementById('parrot-warning-overlay');if(pendingResolve){return Promise.resolve(false)}returnFocusElement=document.activeElement&&!overlay.contains(document.activeElement)?document.activeElement:null;const msg=overlay.querySelector('#parrot-warning-message');msg.textContent=message||'You are about to make a change. Would you like to revoke this action or continue?';overlay.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';requestAnimationFrame(()=>overlay.classList.add('pw-open'));return new Promise(resolve=>{pendingResolve=resolve;setTimeout(()=>overlay.querySelector('#parrot-warning-cancel').focus(),60)})}
-function isAction(el){if(!el||el.closest(SKIP_SELECTOR))return false;const txt=actionText(el).replace(/\s+/g,' ').trim().toLowerCase();return el.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(txt)||el.hasAttribute('data-commit-change');}
-function messageFor(el){const label=actionText(el)||'this action';return `Parrot Warning! You are about to ${label.charAt(0).toLowerCase()+label.slice(1)}. Do you want to revoke this action or continue?`}
-document.addEventListener('click',async e=>{
- const el=e.target.closest('button,input[type="submit"],input[type="button"],input[type="file"],[role="button"],a[data-confirm-action]');if(!el)return;
- if(bypassClick===el){bypassClick=null;return}
- if(!isAction(el))return;
- e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
- const ok=await ask(messageFor(el));if(!ok)return;
- if(el.matches('a')){location.href=el.href;return}
- bypassClick=el;const form=el.form||el.closest('form');if(form)bypassSubmit=form;
- const oldConfirm=window.confirm;window.confirm=()=>true;
- try{el.click()}catch(err){console.error('PARROTHIT action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassClick===el)bypassClick=null;if(bypassSubmit===form)bypassSubmit=null},0)}
-},true);
-document.addEventListener('submit',async e=>{
- const form=e.target;if(!(form instanceof HTMLFormElement))return;
- if(bypassSubmit===form){bypassSubmit=null;return}
- const submitter=e.submitter;const submitLabel=submitter?actionText(submitter).replace(/\s+/g,' ').trim().toLowerCase():'';if(!(submitter&&(submitter.id==='parrothit-admin-commit-button'||/^commit changes?$/.test(submitLabel)||submitter.hasAttribute('data-commit-change'))))return;const label=actionText(submitter)||'Commit Change';
- e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
- const ok=await ask(`Parrot Warning! You are about to ${String(label).trim().toLowerCase()}. Do you want to revoke this action or continue?`);if(!ok)return;
- bypassSubmit=form;const oldConfirm=window.confirm;window.confirm=()=>true;
- try{if(form.requestSubmit)form.requestSubmit(submitter||undefined);else HTMLFormElement.prototype.submit.call(form)}catch(err){console.error('PARROTHIT form action failed:',err)}finally{window.confirm=oldConfirm;setTimeout(()=>{if(bypassSubmit===form)bypassSubmit=null},0)}
-},true);
+  'use strict';
+  const $=id=>document.getElementById(id);
+  let client=null,session=null,profile=null;
+  const setStatus=(message,type='error')=>{const el=$('pageStatus');el.textContent=message;el.className='status show '+type;};
+  const validUsername=value=>/^[a-z0-9_.-]{3,32}$/.test(value);
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  async function boot(){
+    try{
+      if(!window.supabase||!window.getParrothitSupabaseClient)throw new Error('PARROTHIT sign-up service is not configured. Please contact Admin 1 (Owner).');
+      client=window.getParrothitSupabaseClient();
+      if(!client)throw new Error('Could not connect to the PARROTHIT account service.');
+      // Allow Supabase JS to consume the one-time recovery link in the URL.
+      for(let i=0;i<12;i++){
+        const result=await client.auth.getSession();
+        session=result.data?.session||null;
+        if(session)break;
+        await wait(250);
+      }
+      if(!session){
+        const params=new URLSearchParams(location.search);
+        const error=params.get('error_description')||params.get('error');
+        throw new Error(error?'This invitation link is invalid or expired. Ask Admin 1 (Owner) to issue a new invitation.':'Open this page using the one-time invitation link sent to your registered Gmail address.');
+      }
+      const {data,error}=await client.rpc('get_my_admin_profile');
+      if(error||!data||String(data.user_id)!==String(session.user.id))throw new Error('Your invitation could not be verified. Please open the latest invitation email.');
+      profile=data;
+      if(data.role!=='admin'||data.is_suspended)throw new Error('This invitation does not have active employee administrator access. Contact Admin 1 (Owner).');
+      if(data.profile_setup_completed===true){
+        $('signupForm').classList.add('hidden');
+        setStatus('Your administrator profile has already been completed. Go to Admin sign in.','ok');
+        return;
+      }
+      $('firstName').value=data.first_name||'';
+      $('lastName').value=data.last_name||'';
+      $('username').value=data.username||'';
+      $('email').value=session.user.email||data.email||'';
+      $('phone').value=data.phone_number||'';
+      if(data.profile_picture_url){$('photoPreview').src=data.profile_picture_url;}
+    }catch(error){$('submitBtn').disabled=true;setStatus(error.message||'Unable to verify your invitation.');}
+  }
+  $('profilePicture').addEventListener('change',()=>{
+    const file=$('profilePicture').files?.[0];
+    if(!file)return;
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){$('profilePicture').value='';setStatus('Choose a JPG, PNG or WebP image no larger than 5 MB.');return;}
+    $('photoPreview').src=URL.createObjectURL(file);
+  });
+  $('signupForm').addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!session||!client){setStatus('Your invitation session is missing. Reopen the invitation link from your email.');return;}
+    const first=$('firstName').value.trim(),last=$('lastName').value.trim(),username=$('username').value.trim().toLowerCase(),phone=$('phone').value.trim();
+    const password=$('password').value,confirmPassword=$('confirmPassword').value,file=$('profilePicture').files?.[0];
+    if(!first||!last||!phone||!validUsername(username)){setStatus('Complete all profile fields and choose a valid username.');return;}
+    if(!file){setStatus('Upload your profile picture to continue.');return;}
+    if(!/^[+0-9() .-]{7,40}$/.test(phone)){setStatus('Enter a valid phone number.');return;}
+    if(password.length<10||!/[A-Z]/.test(password)||!/[a-z]/.test(password)||!/[0-9]/.test(password)){setStatus('Use at least 10 characters, including uppercase, lowercase and a number.');return;}
+    if(password!==confirmPassword){setStatus('The password confirmation does not match.');return;}
+    const button=$('submitBtn');button.disabled=true;button.textContent='Securing your account…';
+    let uploadedPath='';
+    try{
+      const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
+      uploadedPath=session.user.id+'/'+(crypto.randomUUID?crypto.randomUUID():Date.now())+'.'+ext;
+      const upload=await client.storage.from('admin-profile-pictures').upload(uploadedPath,file,{contentType:file.type,upsert:false,cacheControl:'3600'});
+      if(upload.error)throw upload.error;
+      const publicUrl=client.storage.from('admin-profile-pictures').getPublicUrl(uploadedPath).data.publicUrl;
+      const passwordUpdate=await client.auth.updateUser({password});
+      if(passwordUpdate.error)throw passwordUpdate.error;
+      const completed=await client.rpc('complete_admin_invitation',{
+        p_first_name:first,p_last_name:last,p_username:username,p_phone_number:phone,p_profile_picture_url:publicUrl
+      });
+      if(completed.error)throw completed.error;
+      setStatus('Your PARROTHIT administrator account is ready. Sign in using your username or registered email and the new password you just created.','ok');
+      $('signupForm').querySelectorAll('input,button').forEach(el=>el.disabled=true);
+      try{await client.auth.signOut({scope:'local'});}catch(_e){}
+      setTimeout(()=>location.replace('login.html?setup=complete'),2200);
+    }catch(error){
+      if(uploadedPath){try{await client.storage.from('admin-profile-pictures').remove([uploadedPath]);}catch(_e){}}
+      setStatus(error.message||'Your registration could not be completed. Check your details and try again.');
+      button.disabled=false;button.textContent='Complete Admin Registration';
+    }
+  });
+  boot();
 })();
-</script><script src="../js/parrothit-advertise-banner.js" defer></script>
-<script src="/js/public-notifications.js?v=20261112-read-article-only-v1"></script>
-</body></html>
+</script>
+</body>
+</html>

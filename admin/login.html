@@ -101,6 +101,15 @@
 </div>
 <script>
 const form=document.getElementById('loginForm');
+const loginParams=new URLSearchParams(location.search);
+if(loginParams.get('setup')==='complete'){
+  const setupNotice=document.getElementById('loginMessage');
+  if(setupNotice)setupNotice.textContent='Your PARROTHIT administrator account is ready. Sign in with your username or registered email and the new password you created.';
+}
+if(loginParams.get('reason')==='setup-incomplete'){
+  const setupNotice=document.getElementById('loginMessage');
+  if(setupNotice)setupNotice.textContent='Complete the secure Admin Sign Up invitation sent to your registered Gmail before signing in.';
+}
 if(new URLSearchParams(location.search).get('reason')==='idle-timeout'){
   const loginNotice=document.getElementById('loginMessage');
   if(loginNotice)loginNotice.textContent='You were automatically signed out after 5 minutes without activity. Please sign in again.';
@@ -248,6 +257,11 @@ form.addEventListener('submit',async e=>{
     if(!profile||String(profile.user_id||'')!==String(sessionData.session.user.id)||!['owner','admin'].includes(String(profile.role||'').trim().toLowerCase())){
       console.warn('Admin profile verification did not match the authenticated user.',{authenticatedUserId:sessionData.session.user.id,profileUserId:profile&&profile.user_id,profileRole:profile&&profile.role});
       await appealClient.auth.signOut();showAuthAlert('unauthorized','Your account signed in, but PARROTHIT could not verify a matching owner/admin profile for this Supabase user. Run the admin profile login SQL migration supplied with the fix, then try again.');return;
+    }
+    if(profile.profile_setup_completed===false){
+      await appealClient.auth.signOut();
+      showAuthAlert('unauthorized','Your employee invitation has not been completed yet. Open the one-time PARROTHIT Admin Sign Up link sent to your registered Gmail address, finish your profile and create your password first.');
+      return;
     }
     // This project may have an older admin_profiles schema without email/is_suspended columns.
     // Do not request missing columns during sign-in; the core owner check uses user_id + role.
