@@ -19,5 +19,5 @@ function renderDest(){selected=null;$('allocate').disabled=true;let page=$('page
 async function allocate(){let c=campaigns.find(x=>x.id===$('campaign').value);if(!c||!selected)return;let start=$('start').value,end=$('end').value;if(!start||!end||end<start){msg('Choose valid start and end dates.');return}if(!['paid','PAID'].includes(c.payment_status)){msg('Only verified paid campaigns can be allocated.');return}let payload={campaign_id:c.id,destination_id:selected.destination_id,start_date:start,end_date:end,status:start>new Date().toISOString().slice(0,10)?'scheduled':'allocated',admin_note:$('note').value.trim()||null};let r=await sb.from('advertisement_campaign_allocations').insert(payload);if(r.error){msg('Allocation failed: '+r.error.message);return}msg('Campaign allocated successfully. Confirm the page/card integration and schedule before publishing.');selected=null;$('allocate').disabled=true;await load()}
 init().catch(e=>msg(e.message||'Initialization failed'));
 })();
-</script><script src="/js/public-notifications.js?v=20261111-top-alert-v2"></script>
+</script><script src="/js/public-notifications.js?v=20261112-read-article-only-v1"></script>
 </body></html>
