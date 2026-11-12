@@ -215,6 +215,114 @@ Deno.serve(async (req) => {
     return post;
   };
   const keyForBranding = resolveBrandingOpenAIKey();
+
+  // PARROTHIT AI draft illustration providers. API tokens live only in Edge Function secrets.
+  type ImageDraftProviderId = "cloudflare" | "ovh" | "huggingface" | "pollinations" | "stability" | "replicate";
+  type ImageDraftProviderStatus = {id:ImageDraftProviderId;name:string;configured:boolean;missing:string[];model:string;note:string};
+  const imageDraftProviderStatus = (): ImageDraftProviderStatus[] => {
+    const env=(name:string)=>Deno.env.get(name)||"";
+    const cloudflareToken=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN")||env("CLOUDFLARE_API_TOKEN");
+    const cloudflareAccount=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID")||env("CLOUDFLARE_ACCOUNT_ID");
+    const rows:ImageDraftProviderStatus[]=[
+      {id:"cloudflare",name:"Cloudflare Workers AI",configured:!!cloudflareToken&&!!cloudflareAccount,missing:[...(!cloudflareAccount?["NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID"]:[]),...(!cloudflareToken?["NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN"]:[])],model:env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_MODEL")||"@cf/black-forest-labs/flux-1-schnell",note:"Workers Free currently includes 10,000 Neurons/day; overage depends on account plan."},
+      {id:"ovh",name:"OVHcloud AI Endpoints",configured:true,missing:[],model:env("NEWSROOM_IMAGE_DRAFT_OVH_MODEL")||"stable-diffusion-xl-base-v10",note:"Free public SDXL endpoint; anonymous limit is 2 requests/minute/IP/model; output is square 1024x1024."},
+      {id:"huggingface",name:"Hugging Face Inference",configured:!!env("NEWSROOM_IMAGE_DRAFT_HF_TOKEN"),missing:env("NEWSROOM_IMAGE_DRAFT_HF_TOKEN")?[]:["NEWSROOM_IMAGE_DRAFT_HF_TOKEN"],model:env("NEWSROOM_IMAGE_DRAFT_HF_MODEL")||"black-forest-labs/FLUX.1-schnell",note:"Small monthly credit; model availability and hardware routing can vary."},
+      {id:"pollinations",name:"Pollinations",configured:!!env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY"),missing:env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY")?[]:["NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY"],model:env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_MODEL")||"flux",note:"Requires API key; starter Pollen is limited and may be a one-time allowance."},
+      {id:"stability",name:"Stability AI",configured:!!env("NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY"),missing:env("NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY")?[]:["NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY"],model:env("NEWSROOM_IMAGE_DRAFT_STABILITY_MODEL")||"stable-image-core",note:"Starter credits are limited; ongoing generation may require paid credits."},
+      {id:"replicate",name:"Replicate",configured:!!env("NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN"),missing:env("NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN")?[]:["NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN"],model:env("NEWSROOM_IMAGE_DRAFT_REPLICATE_MODEL")||"black-forest-labs/flux-schnell",note:"Free try runs depend on model/account availability; may require billing."}
+    ];
+    return rows;
+  };
+  const getActiveImageDraftProvider = async (): Promise<ImageDraftProviderId> => {
+    const {data}=await db.from("site_settings").select("value").eq("key","newsroom_active_image_draft_provider").maybeSingle();
+    const value=String(data?.value||"ovh");
+    return (["cloudflare","ovh","huggingface","pollinations","stability","replicate"].includes(value)?value:"ovh") as ImageDraftProviderId;
+  };
+  const imageMimeForBytes = (bytes:Uint8Array):string => {
+    for(const mime of ["image/png","image/jpeg","image/webp"]){if(imageBytesMatchMime(mime,bytes))return mime;}
+    throw new Error("The image provider did not return a valid PNG, JPEG, or WebP image.");
+  };
+  const readProviderImage = async (response:Response):Promise<{bytes:Uint8Array;mime:string}> => {
+    const type=(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
+    if(!response.ok){const raw=(await response.text()).slice(0,1600);let detail=raw;try{const p=JSON.parse(raw);detail=p.error?.message||p.error||p.message||p.detail||raw;}catch{}throw new Error(`Image provider returned HTTP ${response.status}: ${String(detail).slice(0,700)}`);}
+    if(type.startsWith("image/")){const bytes=await readLimitedResponse(response,6_000_000);return {bytes,mime:imageMimeForBytes(bytes)};}
+    const raw=(await response.text()).slice(0,10_000_000);let data:any={};try{data=JSON.parse(raw);}catch{throw new Error("Image provider returned an unsupported response format.");}
+    const b64=data?.result?.image||data?.image||data?.b64_json||data?.data?.[0]?.b64_json||data?.images?.[0];
+    if(typeof b64==="string"){const bytes=bytesFromBase64(b64);return {bytes,mime:imageMimeForBytes(bytes)};}
+    const detail=data?.errors?.[0]?.message||data?.error?.message||data?.error||data?.message||"No image bytes were included in the provider response.";
+    throw new Error(String(detail).slice(0,700));
+  };
+  const imageDimensionsForRatio=(ratio:string)=>ratio==="16:9"?{width:1024,height:576}:ratio==="4:5"?{width:832,height:1040}:{width:1024,height:1024};
+  const generateWithImageDraftProvider = async (provider:ImageDraftProviderId,prompt:string,ratio:string):Promise<{bytes:Uint8Array;mime:string;model:string}> => {
+    const env=(name:string)=>Deno.env.get(name)||"";const dims=imageDimensionsForRatio(ratio);const timeout=AbortSignal.timeout(120000);
+    if(provider==="cloudflare"){
+      const token=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN")||env("CLOUDFLARE_API_TOKEN");const account=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID")||env("CLOUDFLARE_ACCOUNT_ID");if(!token||!account)throw new Error("Cloudflare requires NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID and NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN secrets.");
+      const model=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_MODEL")||"@cf/black-forest-labs/flux-1-schnell";const endpoint=`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/${model}`;
+      const response=await fetch(endpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,steps:4}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
+    }
+    if(provider==="ovh"){
+      const model=env("NEWSROOM_IMAGE_DRAFT_OVH_MODEL")||"stable-diffusion-xl-base-v10";const headers:Record<string,string>={"Content-Type":"application/json"};
+      const response=await fetch("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/images/generations",{method:"POST",headers,body:JSON.stringify({model,prompt,size:"1024x1024"}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
+    }
+    if(provider==="huggingface"){
+      const token=env("NEWSROOM_IMAGE_DRAFT_HF_TOKEN");if(!token)throw new Error("Add NEWSROOM_IMAGE_DRAFT_HF_TOKEN in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_HF_MODEL")||"black-forest-labs/FLUX.1-schnell";
+      const response=await fetch(`https://router.huggingface.co/hf-inference/models/${model}`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"image/png"},body:JSON.stringify({inputs:prompt,parameters:{width:dims.width,height:dims.height}}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
+    }
+    if(provider==="pollinations"){
+      const key=env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY");if(!key)throw new Error("Add NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_MODEL")||"flux";const endpoint=`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=${dims.width}&height=${dims.height}&nologo=true`;
+      const response=await fetch(endpoint,{headers:{Authorization:`Bearer ${key}`,Accept:"image/png,image/jpeg"},signal:timeout});const result=await readProviderImage(response);return {...result,model};
+    }
+    if(provider==="stability"){
+      const key=env("NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY");if(!key)throw new Error("Add NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_STABILITY_MODEL")||"stable-image-core";const form=new FormData();form.append("prompt",prompt);form.append("output_format","png");form.append("aspect_ratio",ratio);
+      const response=await fetch("https://api.stability.ai/v2beta/stable-image/generate/core",{method:"POST",headers:{Authorization:`Bearer ${key}`,Accept:"image/*"},body:form,signal:timeout});const result=await readProviderImage(response);return {...result,model};
+    }
+    if(provider==="replicate"){
+      const token=env("NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN");if(!token)throw new Error("Add NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_REPLICATE_MODEL")||"black-forest-labs/flux-schnell";const start=await fetch(`https://api.replicate.com/v1/models/${model}/predictions`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"wait=60"},body:JSON.stringify({input:{prompt,aspect_ratio:ratio,output_format:"png"}}),signal:timeout});
+      let prediction:any={};const startText=await start.text();try{prediction=JSON.parse(startText||"{}");}catch{}if(!start.ok)throw new Error(`Replicate returned HTTP ${start.status}: ${String(prediction.detail||prediction.error||startText).slice(0,600)}`);
+      for(let i=0;i<5&&prediction.status!=="succeeded"&&prediction.status!=="failed"&&prediction.status!=="canceled";i++){const pollUrl=prediction.urls?.get;if(!pollUrl)break;await new Promise(r=>setTimeout(r,1800));const poll=await fetch(pollUrl,{headers:{Authorization:`Bearer ${token}`},signal:timeout});const pollText=await poll.text();try{prediction=JSON.parse(pollText||"{}");}catch{throw new Error("Replicate returned an unreadable prediction status.");}}
+      if(prediction.status!=="succeeded")throw new Error(prediction.status==="failed"?(prediction.error||"Replicate image generation failed."):"Replicate is still generating this image. Try again in a moment; no draft has been changed.");
+      const output=Array.isArray(prediction.output)?prediction.output[0]:prediction.output;if(typeof output!=="string"||!/^https:\/\//i.test(output))throw new Error("Replicate did not return a downloadable image URL.");const outUrl=new URL(output);if(!["replicate.delivery","pbxt.replicate.delivery"].some(h=>outUrl.hostname===h||outUrl.hostname.endsWith("."+h)))throw new Error("Replicate returned an unexpected image host.");const imageResponse=await fetch(outUrl.href,{signal:timeout});const result=await readProviderImage(imageResponse);return {...result,model};
+    }
+    throw new Error("Unknown image drafting provider.");
+  };
+  if(action==="image_draft_provider_config"){
+    const active_provider=await getActiveImageDraftProvider();return json({ok:true,active_provider,providers:imageDraftProviderStatus()});
+  }
+  if(action==="set_active_image_draft_provider"){
+    const provider=String(body.provider||"") as ImageDraftProviderId;const status=imageDraftProviderStatus().find(p=>p.id===provider);if(!status)return json({error:"Choose one of the six supported image providers."},400);if(!status.configured)return json({error:`${status.name} is not configured. Add: ${status.missing.join(", ")}.`},400);
+    const {error}=await db.from("site_settings").upsert({key:"newsroom_active_image_draft_provider",value:provider,updated_at:new Date().toISOString()},{onConflict:"key"});if(error)return json({error:`Could not save the active image provider: ${error.message}`},500);return json({ok:true,active_provider:provider,providers:imageDraftProviderStatus()});
+  }
+  if(action==="image_draft_generate"){
+    try{
+      const post=await readEditablePost(String(body.post_id||""));if(body.disclosure_confirmed!==true)return json({error:"Confirm that this is a disclosed AI-generated illustration, not a documentary photograph."},400);
+      const provider=String(body.provider||await getActiveImageDraftProvider()) as ImageDraftProviderId;const config=imageDraftProviderStatus().find(p=>p.id===provider);if(!config)return json({error:"Choose a supported image generation provider."},400);if(!config.configured)return json({error:`${config.name} is not configured. Add: ${config.missing.join(", ")}.`},503);
+      const rawPrompt=String(body.prompt||"").trim();if(rawPrompt.length<12||rawPrompt.length>1400)return json({error:"The image prompt must contain 12 to 1,400 characters."},400);const ratio=["1:1","16:9","4:5"].includes(String(body.aspect_ratio))?String(body.aspect_ratio):"1:1";
+      const safePrompt=`Create a clearly illustrative editorial artwork for a news article. It must look like an illustration, not a documentary photograph or visual evidence of a real event. Do not copy or imitate a real photograph, copyrighted artwork, brand logo, publisher watermark, protected character, or identifiable real person's likeness. Do not include text, captions, flags with inaccurate details, fake logos or watermarks. Use this creative brief: ${rawPrompt}`;
+      const generated=await generateWithImageDraftProvider(provider,safePrompt,ratio);const mime=imageMimeForBytes(generated.bytes);return json({ok:true,post_id:post.id,post_title:post.title,provider,model:generated.model,image_mime:mime,image_base64:bytesToBase64(generated.bytes),message:"Image generated for preview. Review the illustration and AI disclosure before saving it to the draft."});
+    }catch(e){return json({error:e instanceof Error?e.message:String(e)},400);}
+  }
+  if(action==="image_draft_save"){
+    const uploaded:string[]=[];let insertedId:string|null=null;let priorActiveId:string|null=null;
+    try{
+      const post=await readEditablePost(String(body.post_id||""));if(body.disclosure_confirmed!==true)return json({error:"AI illustration disclosure confirmation is required."},400);
+      const provider=String(body.provider||"").slice(0,40);const model=String(body.model||"").slice(0,180);const prompt=String(body.prompt||"").slice(0,1400);if(!provider||!model||!prompt)throw new Error("Provider, model and prompt details are required for image history.");
+      const generatedBytes=bytesFromBase64(String(body.image_base64||""));const mime=imageMimeForBytes(generatedBytes);const current={image_url:post.image_url||null};
+      const {data:active,error:activeErr}=await db.from("newsroom_image_draft_assets").select("id,original_image_url,original_image_path").eq("post_id",post.id).eq("is_active",true).maybeSingle();if(activeErr)throw new Error(`Image-draft history table is unavailable. Run supabase/newsroom-image-draft-providers.sql first. ${activeErr.message}`);
+      let originalUrl:string|null=current.image_url;let originalPath:string|null=null;
+      if(active){priorActiveId=active.id;originalUrl=active.original_image_url||null;originalPath=active.original_image_path||null;}
+      else if(current.image_url){const fetched=await fetchPublicImage(current.image_url);if(!fetched.response.ok)throw new Error(`The previous draft image could not be preserved (HTTP ${fetched.response.status}).`);const sourceMime=(fetched.response.headers.get("content-type")||"").split(";")[0].toLowerCase();if(!["image/jpeg","image/png","image/webp"].includes(sourceMime))throw new Error("The current draft image cannot be preserved because it is not JPEG, PNG or WebP. No change was made.");const originalBytes=await readLimitedResponse(fetched.response,6_000_000);if(!imageBytesMatchMime(sourceMime,originalBytes))throw new Error("The current image format could not be verified; no change was made.");originalPath=`${post.id}/draft-original-${crypto.randomUUID()}.${sourceMime==="image/jpeg"?"jpg":sourceMime==="image/webp"?"webp":"png"}`;const originalUpload=await db.storage.from(BRAND_BUCKET).upload(originalPath,new Blob([originalBytes],{type:sourceMime}),{contentType:sourceMime,cacheControl:"31536000",upsert:false});if(originalUpload.error)throw new Error(`Could not preserve the previous draft image: ${originalUpload.error.message}`);uploaded.push(originalPath);originalUrl=db.storage.from(BRAND_BUCKET).getPublicUrl(originalPath).data.publicUrl;}
+      const ext=mime==="image/jpeg"?"jpg":mime==="image/webp"?"webp":"png";const generatedPath=`${post.id}/ai-draft-${crypto.randomUUID()}.${ext}`;const generatedUpload=await db.storage.from(BRAND_BUCKET).upload(generatedPath,new Blob([generatedBytes],{type:mime}),{contentType:mime,cacheControl:"31536000",upsert:false});if(generatedUpload.error)throw new Error(`Could not save the generated image: ${generatedUpload.error.message}`);uploaded.push(generatedPath);const generatedUrl=db.storage.from(BRAND_BUCKET).getPublicUrl(generatedPath).data.publicUrl;
+      const deactivate=await db.from("newsroom_image_draft_assets").update({is_active:false}).eq("post_id",post.id).eq("is_active",true);if(deactivate.error)throw new Error(`Could not archive the previous AI image history: ${deactivate.error.message}`);
+      const insert=await db.from("newsroom_image_draft_assets").insert({post_id:post.id,original_image_path:originalPath,original_image_url:originalUrl,generated_image_path:generatedPath,generated_image_url:generatedUrl,provider_id:provider,model,prompt,created_by:userData.user.id,is_active:true}).select("id").single();if(insert.error)throw new Error(`Could not save image history: ${insert.error.message}`);insertedId=insert.data.id;
+      const {data:updated,error:updateErr}=await db.from("posts").update({image_url:generatedUrl}).eq("id",post.id).is("published_at",null).select("id").maybeSingle();if(updateErr||!updated)throw new Error(`Could not attach the image to the draft: ${updateErr?.message||"The draft may have been published while the image was being saved."}`);
+      return json({ok:true,message:"AI illustration attached to the unpublished draft. Original image preserved for restoration.",generated_image_url:generatedUrl,original_image_url:originalUrl});
+    }catch(e){if(insertedId){try{await db.from("newsroom_image_draft_assets").delete().eq("id",insertedId);}catch(_){}}if(priorActiveId){try{await db.from("newsroom_image_draft_assets").update({is_active:true}).eq("id",priorActiveId);}catch(_){}}if(uploaded.length){try{await db.storage.from(BRAND_BUCKET).remove(uploaded);}catch(_){}}return json({error:e instanceof Error?e.message:String(e)},400);}
+  }
+  if(action==="image_draft_restore"){
+    try{const post=await readEditablePost(String(body.post_id||""));const {data:asset,error}=await db.from("newsroom_image_draft_assets").select("id,original_image_url").eq("post_id",post.id).eq("is_active",true).order("created_at",{ascending:false}).limit(1).maybeSingle();if(error)throw new Error(`Could not read image history. Run the image-draft migration. ${error.message}`);if(!asset)return json({error:"No generated image is active for this draft."},404);const {data:restored,error:updateErr}=await db.from("posts").update({image_url:asset.original_image_url}).eq("id",post.id).is("published_at",null).select("id").maybeSingle();if(updateErr||!restored)throw new Error(`Could not restore the previous image: ${updateErr?.message||"Draft is no longer editable."}`);const {error:historyErr}=await db.from("newsroom_image_draft_assets").update({is_active:false,restored_at:new Date().toISOString()}).eq("id",asset.id);if(historyErr)throw new Error(`Image restored but history could not be updated: ${historyErr.message}`);return json({ok:true,message:"The image that was present before AI generation has been restored. Generated copies remain in storage history."});}
+    catch(e){return json({error:e instanceof Error?e.message:String(e)},400);}
+  }
+
   if (action === "brand_image_config") {
     return json({ ok: true, configured: !!keyForBranding, vision_model: Deno.env.get("NEWSROOM_IMAGE_BRANDING_VISION_MODEL") || "gpt-4.1-mini", edit_model: Deno.env.get("NEWSROOM_IMAGE_BRANDING_EDIT_MODEL") || "gpt-image-2.5-sunburst", bucket: BRAND_BUCKET });
   }
@@ -223,7 +331,9 @@ Deno.serve(async (req) => {
       const post = await readEditablePost(String(body.post_id || ""));
       const { data: asset, error } = await db.from("newsroom_image_branding_assets").select("id,original_image_url,branded_image_url,created_at,mode").eq("post_id", post.id).eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (error) return json({ error: `Could not check branding history: ${error.message}. Run supabase/newsroom-ai-image-branding.sql first.` }, 500);
-      return json({ ok: true, already_branded: !!asset, original_image_url: asset?.original_image_url || null, branded_image_url: asset?.branded_image_url || null, post_title: post.title });
+      const { data: draftAsset, error: draftAssetError } = await db.from("newsroom_image_draft_assets").select("id,original_image_url,generated_image_url,created_at").eq("post_id",post.id).eq("is_active",true).order("created_at",{ascending:false}).limit(1).maybeSingle();
+      const draftHistoryUnavailable = !!draftAssetError;
+      return json({ ok: true, already_branded: !!asset, original_image_url: asset?.original_image_url || null, branded_image_url: asset?.branded_image_url || null, generated_image_active: !!draftAsset, generated_original_image_url: draftAsset?.original_image_url || null, post_title: post.title, draft_history_available: !draftHistoryUnavailable });
     } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 400); }
   }
   if (action === "brand_image_detect") {
@@ -279,7 +389,7 @@ Deno.serve(async (req) => {
       await readEditablePost(String(body.post_id || ""));
       const imageBytes = bytesFromBase64(String(body.image_base64 || ""));
       const maskBytes = bytesFromBase64(String(body.mask_base64 || ""));
-      const imageMime = ["image/png","image/jpeg","image/webp"].includes(String(body.image_mime || "")) ? String(body.image_mime) : "image/png";
+      const imageMime: string = ["image/png","image/jpeg","image/webp"].includes(String(body.image_mime || "")) ? String(body.image_mime) : "image/png";
       if (imageMime !== "image/png") throw new Error("The selected-area editor currently submits PNG images only.");
       if (maskBytes.length > 4_000_000) throw new Error("The image-edit mask must be smaller than 4 MB.");
       const inputDimensions = pngDimensions(imageBytes);
