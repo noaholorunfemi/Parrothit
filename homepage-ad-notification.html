@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10151d">
+  <meta name="description" content="Browse the latest PARROTHIT Homepage image advertisements.">
+  <title>Homepage Image Ads | PARROTHIT</title>
+  <link rel="icon" href="/assets/images/parrothit-logo.png">
+  <link rel="stylesheet" href="/css/homepage-ad-notification.css?v=20261112-home-ad-push-v1">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/supabase-config.js?v=20261112-home-ad-push-v1"></script>
+</head>
+<body class="ph-ad-gallery">
+  <main class="ph-gallery-shell">
+    <header class="ph-gallery-top">
+      <div class="ph-gallery-brand">
+        <img src="/assets/images/parrothit-logo.png" alt="PARROTHIT logo">
+        <div><strong>PARROTHIT</strong><small>NEWS THAT SPEAKS!</small></div>
+      </div>
+      <a class="ph-gallery-back" href="/index.html">← Homepage</a>
+    </header>
+
+    <section class="ph-gallery-intro">
+      <span class="ph-gallery-kicker">HOMEPAGE ADVERTISING UPDATE</span>
+      <h1 id="phGalleryHeadline">PARROTHIT Homepage Ads</h1>
+      <p id="phGallerySummary">Browse the latest image advertisements from PARROTHIT.</p>
+    </section>
+
+    <div id="phGalleryStatus" class="ph-gallery-status" role="status" aria-live="polite" hidden>Loading the latest advertisements…</div>
+
+    <section id="phGalleryCard" class="ph-gallery-card" aria-label="PARROTHIT image advertisement gallery" hidden>
+      <div id="phGalleryStage" class="ph-gallery-stage">
+        <img id="phGalleryImage" src="" alt="PARROTHIT advertisement">
+        <span id="phGalleryCount" class="ph-gallery-count">1 / 10</span>
+        <div class="ph-gallery-nav">
+          <button id="phGalleryPrevious" type="button" aria-label="Previous advertisement">‹</button>
+          <button id="phGalleryNext" type="button" aria-label="Next advertisement">›</button>
+        </div>
+      </div>
+      <div class="ph-gallery-copy">
+        <h2 id="phGalleryTitle">Advertisement headline</h2>
+        <p id="phGalleryDescription">Explore this advertising placement on PARROTHIT.</p>
+        <div class="ph-gallery-url"><b>IMAGE URL</b><a id="phGalleryImageUrl" href="#" target="_blank" rel="noopener noreferrer">Loading image URL…</a></div>
+        <div class="ph-gallery-actions">
+          <a id="phGalleryVisit" class="ph-gallery-visit" href="/contact.html?subject=Advertising">VISIT ADVERTISEMENT</a>
+          <button id="phGalleryShare" class="ph-gallery-share" type="button">SHARE GALLERY</button>
+        </div>
+      </div>
+      <div id="phGalleryDots" class="ph-gallery-dots" aria-label="Choose an advertisement"></div>
+    </section>
+
+    <footer class="ph-gallery-foot"><span id="phGallerySlot">IMAGE 1</span> · Swipe left or right, or use the arrows, to browse all available ads.<br><span id="phGalleryUpdated"></span></footer>
+  </main>
+  <script src="/js/homepage-ad-notification.js?v=20261112-home-ad-push-v1" defer></script>
+</body>
+</html>
