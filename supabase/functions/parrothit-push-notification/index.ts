@@ -207,7 +207,9 @@ Deno.serve(async (req) => {
       app_id: oneSignalAppId,
       target_channel: "push",
       included_segments: ["All"],
-      priority: 10,
+      // Keep ordinary article pushes at normal priority; reserve the highest
+      // delivery priority for the Breaking News Spotlight selection.
+      priority: displayStyle === "breaking_spotlight" ? 10 : 5,
       ttl: 86400,
       headings: { en: notificationTitle },
       contents: { en: notificationSummary },
@@ -222,17 +224,17 @@ Deno.serve(async (req) => {
         display_style: displayStyle,
         image_url: imageUrl || null,
       },
+      // Keep one site-defined action on every article notification. Do not add
+      // unsubscribe, preference-management, or secondary action buttons here.
+      // OneSignal uses `buttons` for native push and `web_buttons` for Web Push.
       buttons: [{ id: "read-full-article", text: "Read full article" }],
       web_buttons: [{ id: "read-full-article", text: "Read full article", url: articleUrl }],
       chrome_web_icon: `${siteUrl}/assets/images/parrothit-logo.png`,
       chrome_web_badge: `${siteUrl}/assets/images/parrothit-pwa-192.png`,
     };
 
-    if (displayStyle === "breaking_spotlight") message.priority = 10;
-
-    // Platform-specific fields are all supplied in Big Picture mode. OneSignal's
-    // API defines chrome_web_image for Chrome Web Push and big_picture for Android
-    // native push. global_image is the cross-platform fallback.
+    // Platform-specific image fields are selected per display style. Big Picture
+    // uses expanded-image fields, while Universal Image uses the global fallback.
     if (imageUrl) {
       if (displayStyle === "big_picture" || displayStyle === "breaking_spotlight") {
         message.chrome_web_image = imageUrl;
@@ -241,7 +243,12 @@ Deno.serve(async (req) => {
         message.huawei_big_picture = imageUrl;
         message.adm_big_picture = imageUrl;
       } else if (displayStyle === "side_thumbnail") {
+        // Large icons produce a small side image on supported native clients;
+        // browser Web Push keeps the PARROTHIT brand icon because it does not
+        // provide a separate, consistently supported side-thumbnail field.
         message.large_icon = imageUrl;
+        message.huawei_large_icon = imageUrl;
+        message.adm_large_icon = imageUrl;
       } else if (displayStyle === "universal_image") {
         message.global_image = imageUrl;
       }
@@ -300,6 +307,9 @@ Deno.serve(async (req) => {
       image_verified: imageVerified,
       image_note: imageCheckNote,
       display_style: displayStyle,
+      accent_color: `#${accentHex}`,
+      action_count: 1,
+      action: "Read full article",
     });
   } catch (error) {
     const reason = cleanText(error instanceof Error ? error.message : error, 1200);
