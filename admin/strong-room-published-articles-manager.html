@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STRONG ROOM: Published Articles Manager | PARROTHIT</title>
+<script>document.documentElement.classList.add('admin-auth-pending');</script>
+<link rel="stylesheet" href="../css/admin-responsive.css"><link rel="stylesheet" href="../css/admin-responsive-fixes.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase-config.js"></script>
+<script src="../js/admin-auth-guard.js"></script>
+<style>
+:root{font-family:Arial,sans-serif;color:#1f2937;background:#f4f1ed;--brown:#4b2e20;--brown2:#68432f;--brown3:#8b634b;--line:#e5d9d1;--muted:#76685f;--panel:#fff}
+*{box-sizing:border-box}body{margin:0;background:#f4f1ed;color:#1f2937}.wrap{width:min(1540px,100%);margin:auto;padding:18px}.hero,.panel{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px;margin-bottom:16px;box-shadow:0 6px 22px rgba(60,37,25,.06)}.hero{background:linear-gradient(130deg,#2d1c14,#5a3827 60%,#78533e);color:#fff;border:1px solid #74513d;border-bottom:5px solid #b58a6c;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}.hero h1{margin:0;font-size:clamp(1.3rem,3vw,2.1rem);letter-spacing:.01em}.hero p{margin:8px 0 0;color:#f0e5dd;line-height:1.5;max-width:850px}.hero-actions,.actions,.filters,.pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.btn,button{border:0;border-radius:9px;padding:10px 14px;min-height:42px;font:inherit;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:var(--brown);color:#fff}.btn.secondary,button.secondary{background:#eee8e3;color:#3e3028;border:1px solid #ded2c8}.btn.brown-outline,button.brown-outline{background:#fff;color:var(--brown);border:1px solid #b99b87}.btn.danger,button.danger{background:#a51d25;color:#fff}.btn:disabled,button:disabled{opacity:.55;cursor:wait}.small{font-size:.84rem}.muted{color:var(--muted);line-height:1.5}.notice{padding:13px 15px;background:#f8f1eb;border:1px solid #e2cdbc;border-left:5px solid var(--brown3);border-radius:10px;line-height:1.55;color:#563b2c;margin-bottom:14px}.notice strong{color:#3b2418}.status{display:none;padding:11px 13px;border-radius:9px;margin:10px 0;white-space:pre-wrap;overflow-wrap:anywhere}.status.show{display:block}.status.ok{background:#e6f5eb;color:#14532d;border:1px solid #bbdfc7}.status.error{background:#fff0ef;color:#991b1b;border:1px solid #f3c1bd}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:15px}.stat{background:#fff;border:1px solid var(--line);border-radius:11px;padding:14px}.stat span{display:block;color:var(--muted);font-size:.83rem;margin-bottom:5px}.stat strong{font-size:1.55rem;color:var(--brown)}.panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}.panel-head h2{margin:0 0 5px;font-size:1.2rem;color:#3b281e}.panel-head p{margin:0}.filters{display:grid;grid-template-columns:2fr repeat(5,minmax(130px,1fr));gap:10px;margin:14px 0}.field{display:flex;flex-direction:column;gap:6px;min-width:0}.field label{font-size:.86rem;font-weight:800;color:#49382d}.field input,.field select,.field textarea{width:100%;min-width:0;padding:11px;border:1px solid #d7c9bf;border-radius:8px;font:inherit;background:#fff;color:#1f2937}.field textarea{min-height:125px;resize:vertical;line-height:1.55}.field.full{grid-column:1/-1}.table-wrap{overflow-x:auto;width:100%;border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch}table{width:100%;min-width:1020px;border-collapse:collapse}th,td{padding:11px 10px;border-bottom:1px solid #eee5df;text-align:left;vertical-align:top;overflow-wrap:anywhere}th{background:#f7f2ee;color:#594637;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;position:sticky;top:0}tr:last-child td{border-bottom:0}.article-title{font-weight:850;color:#3c281d}.subline{font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4}.tag{display:inline-block;margin:2px 3px 2px 0;padding:4px 7px;border-radius:6px;background:#f2e8e0;color:#533927;font-size:.73rem;font-weight:800;white-space:normal}.tag.category{background:#e9f2ea;color:#245b35}.tag.home{background:#e9f0fc;color:#1d4c8a}.tag.featured{background:#f5eafa;color:#693887}.tag.card{background:#fff0d9;color:#8a4a08}.pill{display:inline-flex;padding:5px 8px;border-radius:99px;background:#e6f5eb;color:#166534;font-size:.75rem;font-weight:850}.empty{text-align:center;padding:28px;color:var(--muted)}.editor{border:2px solid #b99b87;background:#fffcfa}.editor-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(260px,.8fr);gap:15px;margin-top:14px}.editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.image-preview{display:block;max-width:100%;max-height:230px;object-fit:contain;border:1px solid var(--line);border-radius:9px;background:#f7f3ef}.sidebox{background:#f8f3ef;border:1px solid #e6d8ce;border-radius:11px;padding:14px;min-width:0}.sidebox h3{margin:0 0 8px;color:#4b3021}.editor-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.progress{height:8px;border-radius:99px;background:#eee4dd;overflow:hidden;margin:10px 0}.progress span{display:block;height:100%;width:100%;background:var(--brown3);animation:pulse 1.2s ease-in-out infinite alternate}@keyframes pulse{to{opacity:.45}}.table-meta{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}.destination-summary{display:flex;flex-wrap:wrap;gap:5px}.footer-note{font-size:.82rem;color:var(--muted);line-height:1.5;margin-top:13px}.danger-zone{margin-top:15px;padding:13px;background:#fff4f2;border:1px solid #efc6c1;border-radius:9px;color:#7f1d1d}.hidden{display:none!important}.admin-auth-pending body{visibility:hidden}
+@media(max-width:1100px){.filters{grid-template-columns:repeat(3,minmax(0,1fr))}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.wrap{padding:9px}.hero,.panel{padding:13px;border-radius:11px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.filters{grid-template-columns:repeat(2,minmax(0,1fr))}.editor-grid{grid-template-columns:1fr}.editor-fields{grid-template-columns:1fr}.field.full{grid-column:auto}.hero-actions>*{flex:1 1 auto}.editor-actions>*{flex:1 1 100%}}
+@media(max-width:420px){.filters{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="admin-auth-pending">
+<main class="wrap">
+<header class="hero">
+ <div><h1>🔐 STRONG ROOM: Published Articles Manager</h1><p>The central control room for every published PARROTHIT story. Find articles wherever they appear, inspect all public destinations, safely re-edit live content, or permanently remove a story and its public card assignments.</p></div>
+ <div class="hero-actions"><a class="btn secondary" href="dashboard.html">← Control Room</a><a class="btn secondary" href="articles.html">Article Editor</a><button type="button" id="refreshBtn">↻ Refresh records</button></div>
+</header>
+<div class="notice"><strong>Administrator-only publishing control.</strong> This manager reads published stories directly from Supabase <code>public.posts</code>. Edits retain the article's published status and original publication date. Permanent deletion clears destination references and removes the actual Supabase post record through a single database function. This action cannot be undone.</div>
+<div id="status" class="status" role="status" aria-live="polite"></div>
+<section class="stats" aria-label="Published content overview">
+ <div class="stat"><span>Published articles</span><strong id="statTotal">—</strong></div>
+ <div class="stat"><span>Category pages tracked</span><strong id="statCategories">—</strong></div>
+ <div class="stat"><span>Articles in homepage cards</span><strong id="statHome">—</strong></div>
+ <div class="stat"><span>Articles in featured cards</span><strong id="statFeatured">—</strong></div>
+ <div class="stat"><span>Articles in card assignments</span><strong id="statAssigned">—</strong></div>
+</section>
+<section class="panel">
+ <div class="panel-head"><div><h2>🧭 Published content destination explorer</h2><p class="muted small">Search and fetch articles from all category feeds, category card assignments, homepage slots 1–15 and featured story slots 1–16.</p></div><div class="actions"><button type="button" class="secondary" id="exportBtn">⇩ Export filtered CSV</button><button type="button" class="secondary" id="clearFiltersBtn">Clear filters</button></div></div>
+ <div class="filters">
+  <label class="field"><span>Search published content</span><input id="searchInput" type="search" placeholder="Headline, summary, article ID, slug…"></label>
+  <label class="field"><span>Category / news page</span><select id="categoryFilter"><option value="">All categories</option></select></label>
+  <label class="field"><span>Public destination</span><select id="destinationFilter"><option value="all">All destinations</option><option value="category_feed">Category news page feed</option><option value="category_card">Category Card 1–6 assignment</option><option value="homepage">Homepage News Card 1–15</option><option value="featured">Featured Story Card 1–16</option><option value="without_card">No assigned card slot</option></select></label>
+  <label class="field"><span>Published from</span><input id="dateFrom" type="date"></label>
+  <label class="field"><span>Published to</span><input id="dateTo" type="date"></label>
+  <label class="field"><span>Sort records</span><select id="sortFilter"><option value="newest">Newest published</option><option value="oldest">Oldest published</option><option value="updated">Recently updated</option><option value="title">Headline A–Z</option><option value="views">Most viewed</option></select></label>
+ </div>
+ <div class="table-meta"><span class="muted small" id="resultCount">Loading published articles…</span><span class="muted small" id="fetchInfo">Preparing Supabase records</span></div>
+ <div id="loadingBar" class="progress"><span></span></div>
+ <div class="table-wrap"><table><thead><tr><th>Published article</th><th>Category</th><th>Published date</th><th>Public destinations</th><th>Views</th><th>Manage</th></tr></thead><tbody id="articleRows"><tr><td colspan="6" class="empty">Connecting to Supabase…</td></tr></tbody></table></div>
+ <div class="table-meta"><span class="muted small" id="pageInfo">Page 1</span><div class="pager"><button type="button" class="secondary" id="prevBtn">← Previous</button><button type="button" class="secondary" id="nextBtn">Next →</button></div></div>
+ <p class="footer-note">The manager fetches all published rows in batches and paginates the results on this page. Destination tags are reconciled from the three public settings records and the normalized category-card assignment table.</p>
+</section>
+<section class="panel editor hidden" id="editorPanel">
+ <div class="panel-head"><div><h2>✎ Re-edit published article</h2><p class="muted small" id="editorMeta">Select an article to edit.</p></div><button type="button" class="secondary" id="closeEditorBtn">Close editor</button></div>
+ <div class="editor-grid">
+  <form id="articleForm">
+   <div class="editor-fields">
+    <label class="field full"><span>Article headline</span><input id="editTitle" maxlength="240" required></label>
+    <label class="field full"><span>Article summary</span><textarea id="editSummary" maxlength="1200" required style="min-height:90px"></textarea></label>
+    <label class="field full"><span>Full article content</span><textarea id="editBody" required style="min-height:360px"></textarea></label>
+    <label class="field"><span>Current category / news page</span><select id="editCategory" disabled></select><small class="muted">Category is shown for destination awareness. Change category through the destination manager to preserve manually assigned card routing.</small></label>
+    <label class="field"><span>Author / news desk</span><input id="editAuthor" maxlength="180"></label>
+    <label class="field full"><span>Featured image URL</span><input id="editImageUrl" type="url" placeholder="https://…"></label>
+    <label class="field full"><span>Upload replacement image</span><input id="editImageFile" type="file" accept="image/*"><small class="muted">Uploads to the existing parrothit-media bucket (maximum 50 MB).</small></label>
+    <label class="field"><span>Breaking news flag</span><select id="editBreaking"><option value="false">Standard article</option><option value="true">Breaking news</option></select></label>
+   </div>
+   <div class="editor-actions"><button type="submit" id="saveArticleBtn">Save published changes</button><button type="button" class="secondary" id="previewArticleBtn">Open public article ↗</button><button type="button" class="secondary" id="cancelEditBtn">Discard edits</button></div>
+  </form>
+  <aside class="sidebox">
+   <h3>Publication integrity</h3><p class="small muted">Saving changes updates the existing Supabase row. The article stays published, keeps its original published date, retains its slug, and keeps all current destination assignments.</p>
+   <img id="editImagePreview" class="image-preview" alt="Article image preview" hidden>
+   <h3 style="margin-top:17px">Current public destinations</h3><div id="editorDestinations" class="destination-summary"><span class="muted small">No destination details available.</span></div>
+   <div class="danger-zone"><strong>Permanent removal</strong><p class="small">This removes the article from all public destinations and deletes its row from Supabase. Related article comments, likes and newsroom review links may be removed by database cascading rules.</p><button type="button" class="danger" id="deleteArticleBtn">🗑 Permanently delete article</button></div>
+  </aside>
+ </div>
+</section>
+<section class="panel"><div class="panel-head"><div><h2>🧰 Destination coverage & safeguards</h2><p class="muted small">Recommended checks before a permanent removal.</p></div></div>
+ <div class="editor-fields">
+  <div class="sidebox"><h3>Category news feeds</h3><p class="small muted">Published posts are automatically included in their matching category page based on the post's <code>category_id</code>. Changing the category in the editor moves the article to the newly selected category feed.</p></div>
+  <div class="sidebox"><h3>Category card slots</h3><p class="small muted">The manager checks <code>category_card_assignments</code> and <code>site_settings.category_cards</code>, including original cards and additional category-card positions.</p></div>
+  <div class="sidebox"><h3>Homepage destinations</h3><p class="small muted">Homepage News Card 1–15 assignments are detected from <code>site_settings.homepage_cards</code>. Existing card positions are displayed beside each matching article.</p></div>
+  <div class="sidebox"><h3>Featured story destinations</h3><p class="small muted">Featured Story Card 1–16 records are detected from <code>site_settings.news_cards</code>. Article IDs and article slug destinations are both used where available.</p></div>
+ </div>
+ <p class="footer-note">Recommendation: export a CSV snapshot before bulk editorial clean-up. Keep destination managers as the preferred tools for assigning or replacing cards; use STRONG ROOM for global discovery, corrections and permanent removal.</p>
+</section>
+</main>
+<script src="../js/strong-room-published-articles-manager.js"></script>
+<script src="../js/parrothit-advertise-banner.js" defer></script>
+<script src="/js/public-notifications.js?v=20261112-strong-room-v1"></script>
+</body></html>
