@@ -16,6 +16,7 @@ const sha256 = async (value: string) => {
   return Array.from(new Uint8Array(digest)).map((v) => v.toString(16).padStart(2, "0")).join("");
 };
 const clean = (value: unknown, max = 160) => String(value ?? "").trim().slice(0, max);
+const requestIp = (req: Request) => clean(req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || "", 64) || null;
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function authSessionIdFromHeader(authHeader: string): string | null {
   try {
@@ -95,7 +96,7 @@ Deno.serve(async (req: Request) => {
     ? Number(timeoutSettings.session_timeout_minutes) : 30;
 
   const sessionToken = clean(body.session_token, 300);
-  if (action === "claim") {
+  if (action === "claim" || action === "recover") {
     if (sessionToken.length < 40) return reply(400, { success: false, error: "A valid device session token is required." });
     const tokenHash = await sha256(sessionToken);
     const deviceId = clean(body.device_id, 180);
@@ -109,21 +110,34 @@ Deno.serve(async (req: Request) => {
       p_device_fingerprint: deviceFingerprint,
       p_device_name: deviceName,
       p_user_agent: userAgent,
+      p_recover_only: action === "recover",
     });
-    if (claimError) return reply(500, { success: false, error: "Could not establish the secure admin session. Apply the single-session database migration and deploy this function.", detail: claimError.message });
+    if (claimError) return reply(500, { success: false, error: "Could not establish or recover the secure admin session. Apply the smart session lease migration and deploy this function.", detail: claimError.message });
     const result = Array.isArray(claimRows) ? claimRows[0] : claimRows;
     if (!result?.accepted) {
       await admin.from("admin_session_audit").insert({
-        actor_user_id: userId, target_user_id: userId, action: "login_rejected_active_session",
-        device_name: deviceName, details: { active_device_name: result?.active_device_name || "another device" },
+        actor_user_id: userId, target_user_id: userId,
+        action: action === "recover" ? "admin_session_recovery_denied" : "login_rejected_active_session",
+        device_name: deviceName, details: { active_device_name: result?.active_device_name || "another device", recovery_attempt: action === "recover" },
       });
       return reply(200, {
-        success: false, code: "SESSION_ALREADY_ACTIVE",
-        message: "This admin account is already active on another device. Log out from that device or ask Admin 1 (Owner) to revoke its session before trying again.",
+        success: false, code: action === "recover" ? "SESSION_RECOVERY_DENIED" : "SESSION_ALREADY_ACTIVE",
+        message: action === "recover"
+          ? "This browser can no longer recover its session. It may have been revoked, expired, or replaced by another device. Sign in again."
+          : "This admin account is already active on another device. Log out from that device or ask Admin 1 (Owner) to revoke its session before trying again.",
         active_device_name: result?.active_device_name || "another device",
       });
     }
-    await admin.from("admin_session_audit").insert({ actor_user_id: userId, target_user_id: userId, action: "admin_session_claimed", device_name: deviceName, details: {} });
+    const ipAddress = requestIp(req);
+    if (ipAddress) {
+      await admin.from("admin_active_sessions").update({ ip_address: ipAddress })
+        .eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash);
+    }
+    await admin.from("admin_session_audit").insert({
+      actor_user_id: userId, target_user_id: userId,
+      action: action === "recover" ? "admin_session_recovered" : "admin_session_claimed",
+      device_name: deviceName, details: { recovery: action === "recover" },
+    });
     return reply(200, { success: true, message: "This device is now the active admin device." });
   }
 
@@ -138,26 +152,50 @@ Deno.serve(async (req: Request) => {
   }
 
   const { data: active, error: activeError } = await admin.from("admin_active_sessions")
-    .select("user_id,session_token_hash,device_name,created_at,last_activity_at,expires_at")
+    .select("user_id,session_token_hash,device_name,created_at,last_activity_at,expires_at,lease_expires_at")
     .eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash).maybeSingle();
   if (activeError) return reply(500, { success: false, error: "Could not verify your active admin device session." });
-  if (!active || new Date(active.expires_at).getTime() <= Date.now() || new Date(active.last_activity_at).getTime() <= Date.now() - timeoutMinutes * 60 * 1000) {
-    if (active) {
-      await admin.from("admin_active_sessions").delete().eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash);
-      await admin.from("admin_session_audit").insert({ actor_user_id: userId, target_user_id: userId, action: "admin_session_expired", device_name: active.device_name, details: { reason: "inactive_or_expired" } });
-    }
-    return reply(200, { success: false, code: "SESSION_INVALID", message: "This admin device session has expired or was revoked. Sign in again." });
+  if (!active) return reply(200, { success: false, code: "SESSION_INVALID", message: "This admin device session has been revoked or replaced. Sign in again." });
+
+  const nowMs = Date.now();
+  const idleExpired = new Date(active.last_activity_at).getTime() <= nowMs - timeoutMinutes * 60 * 1000;
+  const absoluteExpired = new Date(active.expires_at).getTime() <= nowMs;
+  if (idleExpired || absoluteExpired) {
+    await admin.from("admin_active_sessions").delete().eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash);
+    await admin.from("admin_session_audit").insert({ actor_user_id: userId, target_user_id: userId, action: "admin_session_expired", device_name: active.device_name, details: { reason: idleExpired ? "inactivity_timeout" : "absolute_expiry" } });
+    return reply(200, { success: false, code: "SESSION_INVALID", message: "Your administrator session expired due to inactivity. Sign in again." });
   }
 
-  if (action === "validate") return reply(200, { success: true, device_name: active.device_name, last_activity_at: active.last_activity_at, session_timeout_minutes: timeoutMinutes });
+  const leaseExpiryMs = active.lease_expires_at ? new Date(active.lease_expires_at).getTime() : 0;
+  if (!leaseExpiryMs || leaseExpiryMs <= nowMs) {
+    // Keep the row briefly so the same browser can prove its device identity and
+    // reclaim the session. An owner revocation deletes the row and cannot recover.
+    return reply(200, { success: false, code: "SESSION_LEASE_EXPIRED", message: "This browser session paused. Reconnecting this same device…" });
+  }
+
+  if (action === "validate") return reply(200, {
+    success: true, device_name: active.device_name, last_activity_at: active.last_activity_at,
+    lease_expires_at: active.lease_expires_at, session_timeout_minutes: timeoutMinutes,
+  });
 
   if (action === "heartbeat") {
     const now = new Date().toISOString();
+    const touchActivity = body.touch_activity !== false; // Backward-compatible with older admin pages.
+    const updatePayload: Record<string, unknown> = {
+      lease_expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const ipAddress = requestIp(req);
+    if (ipAddress) updatePayload.ip_address = ipAddress;
+    if (touchActivity) updatePayload.last_activity_at = now;
     const { data: updated, error: updateError } = await admin.from("admin_active_sessions")
-      .update({ last_activity_at: now, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() })
+      .update(updatePayload)
       .eq("user_id", userId).eq("auth_session_id", authSessionId).eq("session_token_hash", tokenHash).select("user_id").maybeSingle();
     if (updateError || !updated) return reply(200, { success: false, code: "SESSION_INVALID", message: "Your admin device session is no longer active." });
-    return reply(200, { success: true, last_activity_at: now, session_timeout_minutes: timeoutMinutes });
+    return reply(200, {
+      success: true, last_activity_at: touchActivity ? now : active.last_activity_at,
+      lease_expires_at: updatePayload.lease_expires_at, session_timeout_minutes: timeoutMinutes,
+    });
   }
 
   if (["list", "revoke", "revoke_all", "get_timeout_settings", "set_timeout_settings"].includes(action)) {
@@ -180,8 +218,10 @@ Deno.serve(async (req: Request) => {
 
     if (action === "list") {
       const { data: sessions, error: sessionsError } = await admin.from("admin_active_sessions")
-        .select("user_id,device_name,device_fingerprint,user_agent,created_at,last_activity_at,expires_at")
-        .gt("expires_at", new Date().toISOString()).gt("last_activity_at", new Date(Date.now() - timeoutMinutes * 60 * 1000).toISOString())
+        .select("user_id,device_name,device_fingerprint,user_agent,ip_address,created_at,last_activity_at,expires_at,lease_expires_at")
+        .gt("expires_at", new Date().toISOString())
+        .gt("lease_expires_at", new Date().toISOString())
+        .gt("last_activity_at", new Date(Date.now() - timeoutMinutes * 60 * 1000).toISOString())
         .order("last_activity_at", { ascending: false });
       if (sessionsError) return reply(500, { success: false, error: "Could not load active admin sessions." });
       const userIds = [...new Set((sessions || []).map((s) => s.user_id))];
