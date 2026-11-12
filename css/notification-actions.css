@@ -1,0 +1,43 @@
+/* PARROTHIT article notification: one action only — READ FULL ARTICLE. */
+#parrothit-live-article-alert .ph-toast-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+#parrothit-live-article-alert .ph-toast-read-article {
+  display: block;
+  min-width: 0;
+  color: #fff;
+  text-decoration: none;
+  flex: 1 1 auto;
+}
+#parrothit-live-article-alert .ph-toast-read-article:focus-visible {
+  outline: 3px solid #ffb6b8;
+  outline-offset: 4px;
+  border-radius: 5px;
+}
+#parrothit-live-article-alert .ph-toast-read-label {
+  display: inline-block;
+  margin-top: 7px;
+  padding: 7px 11px;
+  border-radius: 7px;
+  background: #d71920;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .35px;
+}
+/* A notification update must never expose subscription-management actions. */
+#parrothit-live-article-alert button,
+#parrothit-live-article-alert [role="button"],
+#parrothit-live-article-alert .unsubscribe,
+#parrothit-live-article-alert [data-action="unsubscribe"],
+#parrothit-live-article-alert [data-parrothit-notification-action="unsubscribe"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+@media (max-width: 480px) {
+  #parrothit-live-article-alert .ph-toast-row { gap: 9px; padding: 10px; }
+  #parrothit-live-article-alert .ph-toast-read-label { font-size: 10px; }
+}
