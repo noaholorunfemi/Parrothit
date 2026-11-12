@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#063b2d">
   <title>OneSignal Articles Notification | PARROTHIT Admin</title>
   <script>document.documentElement.classList.add('admin-auth-pending');</script>
-  <link rel="stylesheet" href="../css/onesignal-articles-notification.css?v=20261112-v1">
+  <link rel="stylesheet" href="../css/onesignal-articles-notification.css?v=20261112-v2">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
@@ -26,7 +26,8 @@
 
     <section class="notice" role="note">
       <strong>How these settings work</strong>
-      <p>Saved settings apply to the next article notifications sent by PARROTHIT. OneSignal sends image and accent fields that each supported platform can render. Chrome/Android browser notifications and Android native notifications do not expose a fully custom layout API, so the phone or browser may arrange the same content differently.</p>
+      <p>Saved settings apply to the next article notifications sent by PARROTHIT. Each layout uses the matching OneSignal image fields where the recipient platform supports them. The phone or browser still controls its native notification layout.</p>
+      <p class="notice-action"><strong>Action rule:</strong> every PARROTHIT article notification has exactly one action — <b>Read full article</b>. PARROTHIT does not add an unsubscribe action to article notifications.</p>
     </section>
 
     <section class="panel">
@@ -34,14 +35,14 @@
       <div class="style-grid" id="styleGrid">
         <label class="style-card selected" data-style-card="big_picture">
           <input type="radio" name="displayStyle" value="big_picture" checked>
-          <span class="style-number">01</span><span class="style-title">Big Picture</span>
+          <span class="style-number">01</span><span class="style-title">Big Picture <em class="recommended-tag">RECOMMENDED</em></span>
           <span class="mini-notification big-preview"><b>PARROTHIT · NEWS</b><strong>Article headline appears here</strong><span>Article summary appears below the headline.</span><i>ARTICLE IMAGE</i></span>
           <span class="style-description">Large article image with headline and summary. Recommended default for visual stories.</span>
           <span class="style-support">Chrome Web: large image · Android native: expanded Big Picture</span>
         </label>
         <label class="style-card" data-style-card="side_thumbnail">
           <input type="radio" name="displayStyle" value="side_thumbnail">
-          <span class="style-number">02</span><span class="style-title">Small Side Picture</span>
+          <span class="style-number">02</span><span class="style-title">Small Picture (Side Thumbnail)</span>
           <span class="mini-notification side-preview"><b>PARROTHIT · NEWS</b><span class="side-row"><i>IMG</i><span><strong>Article headline appears here</strong><small>Article summary appears below.</small></span></span></span>
           <span class="style-description">Uses the article image as an Android large icon/thumbnail rather than a full-width image.</span>
           <span class="style-support">Android native: large icon · Web Push: compact branded notification</span>
@@ -75,6 +76,7 @@
           <span class="style-support">Global image field · Exact rendering varies by platform</span>
         </label>
       </div>
+      <div class="recommendation-box"><strong>PARROTHIT recommendation</strong><p>Use <b>Big Picture</b> for most published stories. Keep <b>Breaking News Spotlight</b> for genuinely urgent reports marked as breaking. Use a clear, public HTTPS article image and a short headline so the alert is easy to scan.</p></div>
     </section>
 
     <section class="panel">
@@ -100,8 +102,8 @@
       </div>
       <div class="save-row"><div class="save-status" id="saveStatus" role="status" aria-live="polite">Waiting for administrator session…</div><div class="save-actions"><button type="button" class="btn secondary" id="resetButton">Reset defaults</button><button type="button" class="btn primary" id="saveButton">💾 Save notification settings</button></div></div>
     </section>
-    <footer class="page-footer">PARROTHIT · Articles notification control · Only new article pushes use these settings. The notification action remains <b>Read full article</b>.</footer>
+    <footer class="page-footer">PARROTHIT · Articles notification control · Only new article pushes use these settings. Every layout has one action: <b>Read full article</b>.</footer>
   </main>
-  <script src="../js/onesignal-articles-notification.js?v=20261112-v1" defer></script>
+  <script src="../js/onesignal-articles-notification.js?v=20261112-v2" defer></script>
 </body>
 </html>
