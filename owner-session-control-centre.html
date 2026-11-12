@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Owner Session Control Centre | PARROTHIT</title>
+  <script>document.documentElement.classList.add('admin-auth-pending');</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="js/admin-auth-guard.js"></script>
+  <style>
+    :root{--bg:#07140f;--panel:#10231a;--panel2:#162d22;--line:#2b4b3a;--text:#f8fafc;--muted:#c1d2c7;--purple:#7c3aed;--purple2:#a78bfa;--danger:#b91c1c;--ok:#86efac}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top right,#2b1550 0,#07140f 48%);color:var(--text);font:15px/1.5 system-ui,Arial,sans-serif;min-height:100vh}
+    .wrap{max-width:1450px;margin:0 auto;padding:20px}.header{background:linear-gradient(120deg,#261044,#4c1d95 56%,#103c2a);color:#fff;border:1px solid #8b5cf6;border-bottom:4px solid #a78bfa;border-radius:17px;padding:22px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;box-shadow:0 14px 44px #0006}.header h1{margin:0;font-size:clamp(1.25rem,3vw,2rem)}.header p{margin:5px 0 0;color:#ede9fe}.actions{display:flex;gap:9px;flex-wrap:wrap}
+    .session-btn{border:1px solid #a78bfa;border-radius:9px;padding:10px 14px;background:linear-gradient(120deg,#6d28d9,#7c3aed);color:#fff;text-decoration:none;font-weight:850;cursor:pointer}.session-btn.light{background:#fff;color:#4c1d95;border-color:#ddd6fe}.session-btn.danger{background:#991b1b;border-color:#fca5a5}.session-btn:disabled{opacity:.55;cursor:wait}.notice{margin:15px 0;padding:14px 16px;border:1px solid #7c3aed;background:#20133a;border-radius:12px;color:#f3e8ff}.session-notice{margin:14px 0;padding:12px 14px;border-radius:10px;background:#172b21;color:#e5f5ea;border:1px solid var(--line)}.session-notice.is-error{background:#3a171b;color:#fee2e2;border-color:#fecaca}
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:15px 0}.stat,.card{background:linear-gradient(150deg,var(--panel),#0c1d15);border:1px solid var(--line);border-radius:14px;padding:16px;color:var(--text);box-shadow:0 5px 20px #0003}.stat small{display:block;color:var(--muted)}.stat strong{display:block;font-size:1.7rem;color:#c4b5fd}.card{margin:15px 0;overflow:hidden}.card h2{margin:0 0 8px;color:#fff}.card p{color:var(--muted)}.table-wrap{width:100%;overflow:auto;border:1px solid var(--line);border-radius:10px}.table{width:100%;min-width:1050px;border-collapse:collapse}.table th,.table td{text-align:left;padding:11px;border-bottom:1px solid var(--line);vertical-align:top}.table th{background:#24133e;color:#ddd6fe;font-size:.77rem;text-transform:uppercase;letter-spacing:.04em}.table tr:last-child td{border-bottom:0}.table td{color:#f1f5f9}.table small{color:#b8c7be;overflow-wrap:anywhere}.session-role{display:inline-block;margin-top:4px;padding:2px 7px;border-radius:20px;background:#3b2368;color:#ddd6fe;font-size:.72rem;font-weight:800;text-transform:uppercase}.session-status{display:inline-block;background:#173d29;color:#bbf7d0;padding:4px 8px;border-radius:20px;font-size:.72rem;font-weight:900}.empty-cell{text-align:center!important;color:var(--muted)!important;padding:25px!important}.foot{color:var(--muted);font-size:.85rem;margin:15px 0}.timeout-row{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.timeout-row label{display:grid;gap:6px;font-weight:850}.timeout-row select{min-width:200px;padding:11px;border:1px solid #8b5cf6;border-radius:9px;background:#111827;color:#fff;font:inherit}.control-note{padding:12px 14px;background:#172d21;border:1px solid #315a42;border-radius:10px;color:#d1fae5;margin-top:12px}
+    @media(max-width:850px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.wrap{padding:10px}.header{padding:16px}.stats{grid-template-columns:1fr 1fr;gap:8px}.stat{padding:12px}.stat strong{font-size:1.4rem}.actions{width:100%}.actions a,.actions button{flex:1;text-align:center}.timeout-row select{min-width:0;width:100%}}
+  </style>
+</head>
+<body class="admin-auth-pending">
+  <main class="wrap" id="sessionManagerRoot">
+    <header class="header"><div><h1>🛡️ Owner Session Control Centre</h1><p>Admin 1 security console · One live device per administrator account</p></div><div class="actions"><a class="session-btn light" href="dashboard.html">← Control Room</a><button class="session-btn" id="refreshSessions" type="button">↻ Refresh sessions</button></div></header>
+    <div class="notice"><strong>Owner-only security controls.</strong> A second device cannot silently take over a live account. A browser that closes unexpectedly stops renewing its five-minute presence lease; the same browser can recover its own session, and an abandoned lease becomes eligible for a fresh sign-in. Inactivity expiry remains separately controlled below.</div>
+    <div id="sessionManagerStatus" class="session-notice" role="status" aria-live="polite">Checking Admin 1 access…</div>
+    <section class="stats">
+      <div class="stat"><small>Live administrator sessions</small><strong id="activeSessionCount">—</strong></div>
+      <div class="stat"><small>Devices allowed per account</small><strong>1</strong></div>
+      <div class="stat"><small>Global inactivity timeout</small><strong id="currentTimeoutStat">30 min</strong></div>
+      <div class="stat"><small>Browser presence lease</small><strong>5 min</strong></div>
+    </section>
+    <section class="card" id="session-timeout-card">
+      <h2>⏱️ Global administrator inactivity timeout</h2>
+      <p class="foot">This setting applies to every administrator. Real pointer, keyboard, touch, scroll or form activity resets the inactivity clock. Background heartbeat checks keep a live browser lock fresh but do not count as user activity.</p>
+      <div class="timeout-row"><label for="sessionTimeoutSelect">Sign out after inactivity
+        <select id="sessionTimeoutSelect"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes (Recommended)</option><option value="60">1 hour</option></select>
+      </label><button class="session-btn" id="saveSessionTimeout" type="button">Save timeout</button></div>
+      <div class="control-note"><b>Session warning:</b> one minute before expiry, administrators receive a live countdown with <b>Continue Session</b> and <b>Log Out Now</b> actions. A short 90-second network recovery grace period is allowed for temporary connection loss.</div>
+    </section>
+    <section class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><h2>Live administrator device sessions</h2><p class="foot">Username, role, device/browser, network IP (when supplied by the hosting proxy), login time, last user activity and the lease renewal deadline.</p></div><button class="session-btn danger" id="revokeAllSessions" type="button">Revoke ALL sessions</button></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th>Administrator</th><th>Device / browser</th><th>IP address</th><th>Signed in</th><th>Last user activity</th><th>Presence lease</th><th>Action</th></tr></thead><tbody id="activeSessionRows"><tr><td colspan="7" class="empty-cell">Loading active sessions…</td></tr></tbody></table></div>
+    </section>
+    <section class="card"><h2>Security activity log</h2><p class="foot">Recent successful claims, rejected concurrent sign-ins, releases, inactivity expirations and owner revocations.</p><div class="table-wrap"><table class="table" style="min-width:760px"><thead><tr><th>Time</th><th>Event</th><th>Target admin ID</th><th>Device / details</th></tr></thead><tbody id="sessionAuditRows"><tr><td colspan="4" class="empty-cell">Loading security events…</td></tr></tbody></table></div></section>
+    <p class="foot">PARROTHIT · Device tokens are never displayed in this console. IP details are only shown to Admin 1 when the hosting proxy supplies a verified address; VPNs and shared networks may affect how an address identifies a device.</p>
+  </main>
+  <script src="js/admin-session-manager.js"></script>
+  <script src="/js/public-notifications.js?v=20261112-read-article-only-v1"></script>
+</body>
+</html>
