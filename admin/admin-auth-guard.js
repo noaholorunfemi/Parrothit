@@ -11,8 +11,8 @@
   var TOKEN_PREFIX = 'parrothit-admin-session-token-v1:';
   var ACTIVITY_PREFIX = 'parrothit-admin-last-activity-v1:';
   var WELCOME_MARKER_KEY = 'parrothit-admin-welcome-pending-v1';
-  var ALLOWED_TIMEOUTS = [5, 15, 30, 60];
-  var HEARTBEAT_INTERVAL_MS = 15000;
+  var ALLOWED_TIMEOUTS = [5, 10, 15, 30, 60];
+  var HEARTBEAT_INTERVAL_MS = 20000;
   var VALIDATION_INTERVAL_MS = 30000;
   var ACTIVITY_CLOCK_SKEW_MS = 30000;
 
@@ -28,6 +28,28 @@
   }
   function clearActivity(userId) { try { localStorage.removeItem(activityKey(userId)); } catch (_) {} }
   function writeActivity(userId, value) { try { localStorage.setItem(activityKey(userId), String(value)); } catch (_) {} }
+  function getDeviceLabel() {
+    var ua = navigator.userAgent || '';
+    var os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Mac OS|Macintosh/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Unknown OS';
+    var browser = /Edg\//i.test(ua) ? 'Edge' : /Firefox\//i.test(ua) ? 'Firefox' : /CriOS\//i.test(ua) ? 'Chrome iOS' : /Chrome\//i.test(ua) ? 'Chrome' : /Safari\//i.test(ua) ? 'Safari' : 'Browser';
+    return os + ' · ' + browser;
+  }
+  async function recoverExpiredBrowserLease(client, userId, sessionToken) {
+    var deviceId = '';
+    try { deviceId = localStorage.getItem('parrothit-admin-device-id-v1') || ''; } catch (_) {}
+    if (!deviceId) return null;
+    try {
+      var claim = await client.functions.invoke('parrothit-admin-session', {
+        body: { action: 'recover', session_token: sessionToken, device_id: deviceId, device_name: getDeviceLabel(), user_agent: navigator.userAgent || '' }
+      });
+      if (claim.error || !claim.data || claim.data.success !== true) return null;
+      try { localStorage.setItem(activityKey(userId), String(Date.now())); } catch (_) {}
+      return await client.functions.invoke('parrothit-admin-session', { body: { action: 'validate', session_token: sessionToken } });
+    } catch (error) {
+      console.warn('PARROTHIT same-device lease recovery failed:', error);
+      return null;
+    }
+  }
 
   function deny(reason) {
     var target = new URL('login.html' + (reason ? '?reason=' + encodeURIComponent(reason) : ''), location.href);
@@ -218,6 +240,10 @@
       var validation = await client.functions.invoke('parrothit-admin-session', {
         body: { action: 'validate', session_token: deviceToken }
       });
+      if (!validation.error && validation.data && validation.data.code === 'SESSION_LEASE_EXPIRED') {
+        var recoveredValidation = await recoverExpiredBrowserLease(client, userId, deviceToken);
+        if (recoveredValidation) validation = recoveredValidation;
+      }
       if (validation.error || !validation.data || validation.data.success !== true) {
         clearToken(userId);
         clearActivity(userId);
@@ -304,8 +330,12 @@
     var lastActivityWrite = 0;
     var heartbeatInFlight = false;
     var validationInFlight = false;
+    var recoveryPromise = null;
     var loggingOut = false;
     var warningNode = null;
+    var networkNode = null;
+    var networkFailureSince = 0;
+    var NETWORK_GRACE_MS = 90000;
 
     function applyTimeout(value) {
       var minutes = Number(value);
@@ -313,81 +343,198 @@
       timeoutMinutes = minutes;
       timeoutMs = minutes * 60 * 1000;
       window.PARROTHIT_ADMIN_IDLE_TIMEOUT_MS = timeoutMs;
-      if (warningNode) {
-        var text = warningNode.querySelector('[data-session-warning-text]');
-        if (text) text.textContent = 'Your admin session will expire in 1 minute due to inactivity.';
-      }
+      window.PARROTHIT_ADMIN_SESSION_TIMEOUT_MINUTES = minutes;
+      updateWarning();
+    }
+    function formatCountdown(ms) {
+      var total = Math.max(0, Math.ceil(ms / 1000));
+      var minutes = Math.floor(total / 60);
+      var seconds = total % 60;
+      return minutes + ':' + String(seconds).padStart(2, '0');
     }
     function hideWarning() {
       if (warningNode && warningNode.parentNode) warningNode.parentNode.removeChild(warningNode);
       warningNode = null;
     }
+    function updateWarning() {
+      if (!warningNode) return;
+      var text = warningNode.querySelector('[data-session-warning-text]');
+      var remaining = Math.max(0, timeoutMs - (Date.now() - lastActivity));
+      if (text) text.textContent = 'Your PARROTHIT admin session will expire in ' + formatCountdown(remaining) + ' due to inactivity.';
+    }
     function showWarning() {
       if (warningNode || loggingOut || !document.body) return;
       warningNode = document.createElement('aside');
+      warningNode.id = 'parrothit-admin-session-warning';
       warningNode.setAttribute('role', 'alertdialog');
       warningNode.setAttribute('aria-live', 'assertive');
-      warningNode.style.cssText = 'position:fixed;z-index:2147483000;left:16px;right:16px;bottom:16px;max-width:560px;margin:0 auto;padding:16px 18px;border:2px solid #f59e0b;border-radius:14px;background:#10251a;color:#fff;box-shadow:0 12px 38px #0008;font:600 14px/1.5 system-ui,Arial,sans-serif;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap';
+      warningNode.style.cssText = 'position:fixed;z-index:2147483000;left:12px;right:12px;bottom:12px;max-width:620px;margin:0 auto;padding:15px 16px;border:2px solid #f59e0b;border-radius:15px;background:linear-gradient(135deg,#241547,#3b1d68);color:#fff;box-shadow:0 14px 42px #0009;font:700 14px/1.5 system-ui,Arial,sans-serif;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap';
       var message = document.createElement('span');
       message.setAttribute('data-session-warning-text', '');
-      message.textContent = 'Your admin session will expire in 1 minute due to inactivity.';
-      var button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = 'Continue Session';
-      button.style.cssText = 'border:0;border-radius:9px;padding:10px 14px;background:#22c55e;color:#052e16;font-weight:900;cursor:pointer';
-      button.addEventListener('click', function () { markActivity(); hideWarning(); });
+      message.style.cssText = 'flex:1 1 230px;min-width:0';
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+      var keep = document.createElement('button');
+      keep.type = 'button';
+      keep.textContent = 'Continue Session';
+      keep.style.cssText = 'border:0;border-radius:9px;padding:10px 13px;background:#c4b5fd;color:#2e1065;font-weight:950;cursor:pointer';
+      keep.addEventListener('click', function () { markActivity(); hideWarning(); });
+      var logout = document.createElement('button');
+      logout.type = 'button';
+      logout.textContent = 'Log Out Now';
+      logout.style.cssText = 'border:1px solid #c4b5fd;border-radius:9px;padding:10px 13px;background:transparent;color:#fff;font-weight:850;cursor:pointer';
+      logout.addEventListener('click', function () { expire('manual-logout'); });
+      actions.appendChild(keep);
+      actions.appendChild(logout);
       warningNode.appendChild(message);
-      warningNode.appendChild(button);
+      warningNode.appendChild(actions);
       document.body.appendChild(warningNode);
+      updateWarning();
+    }
+    function hideNetworkWarning() {
+      if (networkNode && networkNode.parentNode) networkNode.parentNode.removeChild(networkNode);
+      networkNode = null;
+    }
+    function showNetworkWarning() {
+      if (networkNode || loggingOut || !document.body) return;
+      networkNode = document.createElement('aside');
+      networkNode.id = 'parrothit-admin-network-warning';
+      networkNode.setAttribute('role', 'status');
+      networkNode.setAttribute('aria-live', 'assertive');
+      networkNode.style.cssText = 'position:fixed;z-index:2147482999;left:12px;right:12px;top:12px;max-width:620px;margin:0 auto;padding:13px 15px;border:1px solid #fbbf24;border-radius:13px;background:#422006;color:#fff7ed;box-shadow:0 12px 35px #0008;font:700 13px/1.5 system-ui,Arial,sans-serif;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap';
+      var text = document.createElement('span');
+      text.setAttribute('data-network-warning-text', '');
+      text.style.cssText = 'flex:1 1 250px';
+      var retry = document.createElement('button');
+      retry.type = 'button';
+      retry.textContent = 'Retry connection';
+      retry.style.cssText = 'border:0;border-radius:8px;padding:9px 12px;background:#fbbf24;color:#422006;font-weight:900;cursor:pointer';
+      retry.addEventListener('click', function () { heartbeat(true, false); });
+      networkNode.appendChild(text);
+      networkNode.appendChild(retry);
+      document.body.appendChild(networkNode);
+      updateNetworkWarning();
+    }
+    function updateNetworkWarning() {
+      if (!networkNode) return;
+      var elapsed = networkFailureSince ? Date.now() - networkFailureSince : 0;
+      var remaining = Math.max(0, NETWORK_GRACE_MS - elapsed);
+      var text = networkNode.querySelector('[data-network-warning-text]');
+      if (text) text.textContent = 'Connection interrupted. Reconnect within ' + formatCountdown(remaining) + ' to keep this admin session active.';
+    }
+    function transientNetworkFailure() {
+      if (!networkFailureSince) networkFailureSince = Date.now();
+      showNetworkWarning();
+      updateNetworkWarning();
+      if (Date.now() - networkFailureSince >= NETWORK_GRACE_MS) {
+        expire('session-check-failed', 'The secure admin connection was unavailable for too long. Sign in again.');
+      }
+    }
+    function networkRestored() {
+      networkFailureSince = 0;
+      hideNetworkWarning();
     }
     async function expire(reason, message) {
       if (loggingOut) return;
       loggingOut = true;
       hideWarning();
+      hideNetworkWarning();
       try { await client.auth.signOut({ scope: 'local' }); }
       catch (err) { console.warn('PARROTHIT admin session sign-out failed:', err); }
       clearToken(userId);
       clearActivity(userId);
       if (message) failPage(message); else goLogin(reason || 'idle-timeout');
     }
-    async function heartbeat(force) {
+    function deviceLabel() {
+      var ua = navigator.userAgent || '';
+      var os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Mac OS|Macintosh/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : 'Unknown OS';
+      var browser = /Edg\//i.test(ua) ? 'Edge' : /Firefox\//i.test(ua) ? 'Firefox' : /CriOS\//i.test(ua) ? 'Chrome iOS' : /Chrome\//i.test(ua) ? 'Chrome' : /Safari\//i.test(ua) ? 'Safari' : 'Browser';
+      return os + ' · ' + browser;
+    }
+    function recoverSameDevice() {
+      if (recoveryPromise) return recoveryPromise;
+      if (loggingOut) return Promise.resolve(false);
+      recoveryPromise = (async function () {
+        try {
+          var deviceId = '';
+          try { deviceId = localStorage.getItem('parrothit-admin-device-id-v1') || ''; } catch (_) {}
+          if (!deviceId) return false;
+          var claim = await client.functions.invoke('parrothit-admin-session', {
+            body: {
+              action: 'recover', session_token: deviceToken, device_id: deviceId,
+              device_name: deviceLabel(), user_agent: navigator.userAgent || ''
+            }
+          });
+          if (claim.error || !claim.data || claim.data.success !== true) return false;
+          var now = Date.now();
+          lastActivity = now;
+          writeActivity(userId, now);
+          lastActivityWrite = now;
+          lastHeartbeat = now;
+          networkRestored();
+          hideWarning();
+          return true;
+        } catch (error) {
+          console.warn('PARROTHIT same-device session recovery could not complete:', error);
+          return false;
+        }
+      })();
+      return recoveryPromise.finally(function () { recoveryPromise = null; });
+    }
+    async function handleServerResult(response, operation) {
+      if (response && response.data && response.data.success === true) {
+        networkRestored();
+        applyTimeout(response.data.session_timeout_minutes);
+        return true;
+      }
+      if (response && response.data && response.data.code === 'SESSION_LEASE_EXPIRED') {
+        if (await recoverSameDevice()) return true;
+        await expire('session-revoked', 'This browser lease expired and the same device could not reclaim it. Another device may now be active. Sign in again.');
+        return false;
+      }
+      if (response && response.data && response.data.success === false) {
+        var code = String(response.data.code || '');
+        if (['SESSION_INVALID', 'NOT_ADMIN', 'ADMIN_SUSPENDED', 'SESSION_RECOVERY_DENIED'].includes(code)) {
+          await expire('session-revoked', (response.data.message || response.data.error) || 'This administrator session has ended or was revoked. Sign in again.');
+          return false;
+        }
+      }
+      transientNetworkFailure();
+      return false;
+    }
+    async function heartbeat(force, touchActivity) {
       if (loggingOut || heartbeatInFlight || document.visibilityState === 'hidden') return;
-      if (Date.now() - lastActivity >= timeoutMs) return;
       if (!force && Date.now() - lastHeartbeat < HEARTBEAT_INTERVAL_MS) return;
+      if (!navigator.onLine) { transientNetworkFailure(); return; }
       lastHeartbeat = Date.now();
       heartbeatInFlight = true;
       try {
         var r = await client.functions.invoke('parrothit-admin-session', {
-          body: { action: 'heartbeat', session_token: deviceToken }
+          body: { action: 'heartbeat', session_token: deviceToken, touch_activity: touchActivity === true }
         });
-        if (r.error || !r.data || r.data.success !== true) {
-          await expire('session-revoked', (r.data && (r.data.message || r.data.error)) || 'This device session has ended or was revoked. Sign in again.');
-        } else {
-          applyTimeout(r.data.session_timeout_minutes);
-        }
+        await handleServerResult(r, 'heartbeat');
       } catch (e) {
         console.warn('PARROTHIT admin session heartbeat failed:', e);
-        await expire('session-check-failed', 'The secure admin session could not be verified. Check your connection and sign in again.');
+        transientNetworkFailure();
       } finally { heartbeatInFlight = false; }
     }
     async function validate() {
       if (loggingOut || validationInFlight || document.visibilityState === 'hidden' || Date.now() - lastValidation < VALIDATION_INTERVAL_MS) return;
+      if (!navigator.onLine) { transientNetworkFailure(); return; }
       lastValidation = Date.now();
       validationInFlight = true;
       try {
         var r = await client.functions.invoke('parrothit-admin-session', {
           body: { action: 'validate', session_token: deviceToken }
         });
-        if (r.error || !r.data || r.data.success !== true) {
-          await expire('session-revoked', (r.data && (r.data.message || r.data.error)) || 'This device is no longer the active admin device.');
-        } else {
-          applyTimeout(r.data.session_timeout_minutes);
-          var stamp = r.data.last_activity_at ? new Date(r.data.last_activity_at).getTime() : 0;
+        var ok = await handleServerResult(r, 'validate');
+        if (ok && r.data && r.data.last_activity_at) {
+          var stamp = new Date(r.data.last_activity_at).getTime();
           if (Number.isFinite(stamp) && stamp > 0) lastActivity = Math.max(lastActivity, stamp);
         }
       } catch (e) {
         console.warn('PARROTHIT admin session validation failed:', e);
-        await expire('session-check-failed', 'The secure admin session could not be verified. Sign in again.');
+        transientNetworkFailure();
       } finally { validationInFlight = false; }
     }
     function check() {
@@ -397,6 +544,8 @@
       var elapsed = Date.now() - lastActivity;
       if (elapsed >= timeoutMs) { expire('idle-timeout'); return; }
       if (timeoutMs - elapsed <= 60000) showWarning(); else hideWarning();
+      updateWarning();
+      updateNetworkWarning();
       validate();
     }
     function markActivity() {
@@ -408,7 +557,7 @@
       lastActivity = now;
       if (now - lastActivityWrite >= 800) { lastActivityWrite = now; writeActivity(userId, now); }
       hideWarning();
-      heartbeat(false);
+      heartbeat(true, true);
     }
 
     ['pointerdown', 'keydown', 'touchstart', 'click', 'input', 'change', 'scroll'].forEach(function (type) {
@@ -429,17 +578,24 @@
       }
     });
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') check();
+      if (document.visibilityState === 'visible') {
+        check();
+        heartbeat(true, false);
+      }
     });
     window.addEventListener('focus', check);
+    window.addEventListener('offline', transientNetworkFailure);
+    window.addEventListener('online', function () { heartbeat(true, false); });
     window.setInterval(function () {
       check();
-      // Refresh the server-side activity clock only while the administrator is visibly active.
-      if (document.visibilityState === 'visible' && Date.now() - lastActivity < 30000) heartbeat(false);
+      // A presence heartbeat renews the five-minute browser lease, but does not
+      // reset inactivity. Only real input or Continue Session resets idle time.
+      if (document.visibilityState === 'visible') heartbeat(false, false);
     }, 1000);
 
     window.PARROTHIT_ADMIN_IDLE_TIMEOUT_MS = timeoutMs;
     window.PARROTHIT_ADMIN_SESSION_TIMEOUT_MINUTES = timeoutMinutes;
     window.PARROTHIT_ADMIN_SESSION_STATUS = 'active';
+    heartbeat(true, false);
   }
 })();

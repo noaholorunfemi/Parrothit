@@ -102,5 +102,5 @@
     const identifierHash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
     await client.functions.invoke('parrothit-admin-session', { body: { action: 'record_failed_login', identifier_hash: identifierHash, device_name: deviceName(), user_agent: navigator.userAgent || '' } });
   }
-  window.PARROTHITAdminSession = { readToken, saveToken, clearToken, claim, invoke, release, recordFailedLogin, tokenKey, deviceName };
+  window.PARROTHITAdminSession = { readToken, saveToken, clearToken, claim, invoke, release, recordFailedLogin, tokenKey, deviceName, getDeviceId };
 })(window);
