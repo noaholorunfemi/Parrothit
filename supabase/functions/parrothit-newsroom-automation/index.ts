@@ -118,6 +118,243 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: "Request body must be JSON." }, 400); }
   const action = String(body.action || "");
 
+
+  // PARROTHIT AI image branding actions. Uses a separate OpenAI image key;
+  // API credentials remain server-side and are never returned to the browser.
+  const BRAND_BUCKET = "parrothit-newsroom-branding";
+  const resolveBrandingOpenAIKey = (): string => {
+    const legacyOpenAI = (Deno.env.get("NEWSROOM_AI_API_URL") || "").startsWith("https://api.openai.com/") ? (Deno.env.get("NEWSROOM_AI_API_KEY") || "") : "";
+    const direct = Deno.env.get("NEWSROOM_IMAGE_BRANDING_OPENAI_API_KEY") || Deno.env.get("OPENAI_API_KEY") || Deno.env.get("NEWSROOM_AI_PROVIDER_OPENAI_API_KEY") || legacyOpenAI;
+    if (direct) return direct;
+    try {
+      const raw = Deno.env.get("NEWSROOM_AI_PROVIDERS_JSON") || "";
+      const parsed = JSON.parse(raw || "{}");
+      const providers = parsed.providers && typeof parsed.providers === "object" ? parsed.providers : parsed;
+      const openai = providers.OPENAI || providers.openai || {};
+      return String(openai.api_key || openai.apiKey || openai.API_KEY || "");
+    } catch { return ""; }
+  };
+  const bytesFromBase64 = (value: string): Uint8Array => {
+    const raw = String(value || "").replace(/^data:[^,]+,/, "").replace(/\s/g, "");
+    if (!raw || raw.length > 8_500_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) throw new Error("The supplied image is empty, too large, or is not valid base64.");
+    const binary = atob(raw);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    if (out.length > 6_000_000) throw new Error("Images must be 6 MB or smaller for this branding workflow.");
+    return out;
+  };
+  const bytesToBase64 = (bytes: Uint8Array): string => {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(binary);
+  };
+  const readLimitedResponse = async (response: Response, maxBytes: number): Promise<Uint8Array> => {
+    if (!response.body) throw new Error("The image server returned an empty response.");
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) { try { await reader.cancel(); } catch (_) {} throw new Error(`Images must be ${Math.round(maxBytes / 1_000_000)} MB or smaller for this branding workflow.`); }
+      chunks.push(value);
+    }
+    const output = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { output.set(chunk, offset); offset += chunk.byteLength; }
+    return output;
+  };
+  const imageBytesMatchMime = (mime: string, bytes: Uint8Array): boolean => {
+    if (mime === "image/png") return bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+    if (mime === "image/jpeg") return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    if (mime === "image/webp") return bytes.length >= 12 && String.fromCharCode(...bytes.subarray(0,4)) === "RIFF" && String.fromCharCode(...bytes.subarray(8,12)) === "WEBP";
+    return false;
+  };
+  const pngDimensions = (bytes: Uint8Array): { width: number; height: number } => {
+    if (bytes.length < 24 || !imageBytesMatchMime("image/png", bytes)) throw new Error("The image-edit input and mask must be valid PNG files.");
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return { width: view.getUint32(16, false), height: view.getUint32(20, false) };
+  };
+  const safePublicImageUrl = (value: string): URL => {
+    const u = new URL(value);
+    const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (u.protocol !== "https:" || u.username || u.password || !host || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || host === "metadata.google.internal") throw new Error("Only public HTTPS image URLs are supported.");
+    if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) || host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80:") || host === "::") throw new Error("Private network image URLs are not allowed.");
+    return u;
+  };
+  const fetchPublicImage = async (value: string): Promise<{ response: Response; url: URL }> => {
+    let target = safePublicImageUrl(value);
+    const signal = AbortSignal.timeout(20000);
+    for (let hop = 0; hop <= 4; hop++) {
+      const response = await fetch(target.href, {
+        headers: { "User-Agent": "PARROTHIT-Newsroom-Image-Branding/1.0", "Accept": "image/jpeg,image/png,image/webp" },
+        redirect: "manual", signal,
+      });
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get("location");
+        try { await response.body?.cancel(); } catch (_) {}
+        if (!location) throw new Error("The image server returned a redirect without a destination.");
+        if (hop === 4) throw new Error("The image URL redirected too many times.");
+        target = safePublicImageUrl(new URL(location, target).href);
+        continue;
+      }
+      if (response.status >= 300 && response.status < 400) {
+        try { await response.body?.cancel(); } catch (_) {}
+        throw new Error("The image server returned an unsupported redirect.");
+      }
+      return { response, url: target };
+    }
+    throw new Error("The image URL could not be resolved safely.");
+  };
+  const readEditablePost = async (postId: string) => {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(postId)) throw new Error("A valid draft article ID is required.");
+    const { data: post, error } = await db.from("posts").select("id,title,status,image_url,published_at").eq("id", postId).maybeSingle();
+    if (error || !post) throw new Error(error?.message || "The newsroom draft could not be found.");
+    if (post.published_at || !["draft", "in_review"].includes(String(post.status || "").toLowerCase())) throw new Error("Only unpublished drafts in Draft or In Review status can be branded. Published articles are protected.");
+    return post;
+  };
+  const keyForBranding = resolveBrandingOpenAIKey();
+  if (action === "brand_image_config") {
+    return json({ ok: true, configured: !!keyForBranding, vision_model: Deno.env.get("NEWSROOM_IMAGE_BRANDING_VISION_MODEL") || "gpt-4.1-mini", edit_model: Deno.env.get("NEWSROOM_IMAGE_BRANDING_EDIT_MODEL") || "gpt-image-2.5-sunburst", bucket: BRAND_BUCKET });
+  }
+  if (action === "brand_image_state") {
+    try {
+      const post = await readEditablePost(String(body.post_id || ""));
+      const { data: asset, error } = await db.from("newsroom_image_branding_assets").select("id,original_image_url,branded_image_url,created_at,mode").eq("post_id", post.id).eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (error) return json({ error: `Could not check branding history: ${error.message}. Run supabase/newsroom-ai-image-branding.sql first.` }, 500);
+      return json({ ok: true, already_branded: !!asset, original_image_url: asset?.original_image_url || null, branded_image_url: asset?.branded_image_url || null, post_title: post.title });
+    } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 400); }
+  }
+  if (action === "brand_image_detect") {
+    try {
+      if (!keyForBranding) return json({ error: "Image branding is not configured. Add NEWSROOM_IMAGE_BRANDING_OPENAI_API_KEY in Supabase Edge Function Secrets, then redeploy this function." }, 503);
+      if (body.rights_confirmed !== true) return json({ error: "Confirm that PARROTHIT has the rights or permission to edit and reuse this image." }, 400);
+      const post = await readEditablePost(String(body.post_id || ""));
+      const { data: activeAsset, error: activeAssetError } = await db.from("newsroom_image_branding_assets").select("id").eq("post_id", post.id).eq("is_active", true).limit(1).maybeSingle();
+      if (activeAssetError) throw new Error(`Could not read branding history: ${activeAssetError.message}. Run supabase/newsroom-ai-image-branding.sql first.`);
+      if (activeAsset) return json({ ok: true, already_branded: true, message: "This draft already has PARROTHIT branding. Restore the original before applying another branding pass." });
+      const imageUrl = String(post.image_url || "");
+      if (!imageUrl) return json({ error: "This draft has no featured image. Add an authorized image in the draft editor first." }, 400);
+      const fetchedImage = await fetchPublicImage(imageUrl);
+      const response = fetchedImage.response;
+      if (!response.ok) throw new Error(`Could not retrieve the draft image (HTTP ${response.status}).`);
+      const contentType = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+      if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) throw new Error("Only JPEG, PNG, and WebP images can be branded. Animated GIFs and other formats are not supported in this first release.");
+      const declared = Number(response.headers.get("content-length") || 0);
+      if (declared > 6_000_000) throw new Error("The original image is larger than 6 MB. Please upload a smaller authorized copy to the draft first.");
+      const imageBytes = await readLimitedResponse(response, 6_000_000);
+      if (!imageBytes.length || !imageBytesMatchMime(contentType, imageBytes)) throw new Error("The downloaded file does not match its declared image format.");
+      const originalBase64 = bytesToBase64(imageBytes);
+      const dataUrl = `data:${contentType};base64,${originalBase64}`;
+      const visionModel = Deno.env.get("NEWSROOM_IMAGE_BRANDING_VISION_MODEL") || "gpt-4.1-mini";
+      const vision = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST", headers: { "Authorization": `Bearer ${keyForBranding}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: visionModel, temperature: 0, max_tokens: 1200, response_format: { type: "json_object" }, messages: [
+          { role: "system", content: "You are a conservative newsroom image-review assistant. Return valid JSON only. Never recommend removing logos that are physically part of a photographed scene." },
+          { role: "user", content: [
+            { type: "text", text: `Inspect this news image for publisher-added overlays, corner watermarks, broadcaster bugs, or editorial source logos that are visibly superimposed on top of the photograph. Do NOT classify as removable: logos on clothing, microphones, vehicles, products, buildings, shop signs, stadium boards, team badges, or any other logo that is physically part of the scene. Return JSON with this exact shape: {"detections":[{"x":0,"y":0,"width":0,"height":0,"description":"short explanation","kind":"watermark|publisher_overlay|scene_logo|other","safe_to_remove":true}],"notes":"short plain-language note"}. Coordinates must be normalized integers from 0 to 1000 measured from the top-left; x/y are the top-left and width/height are dimensions. Include all visible likely logos but set safe_to_remove true ONLY for a clear publisher-added overlay/watermark. If uncertain, set false. Do not fabricate a detection.` },
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } }
+          ] }
+        ] }), signal: AbortSignal.timeout(60000)
+      });
+      const visionRaw = await vision.text(); let visionPayload: any = {}; try { visionPayload = visionRaw ? JSON.parse(visionRaw) : {}; } catch { visionPayload = {}; }
+      if (!vision.ok) throw new Error(visionPayload?.error?.message || `OpenAI image analysis returned HTTP ${vision.status}.`);
+      const content = visionPayload?.choices?.[0]?.message?.content;
+      let parsed: any = {};
+      try { parsed = JSON.parse(typeof content === "string" ? content : "{}"); } catch { throw new Error("The image-analysis model returned an unreadable result. Try again or use Manual mode."); }
+      const detections = (Array.isArray(parsed.detections) ? parsed.detections : []).slice(0, 12).map((d: any) => {
+        const n = (v: any) => Math.max(0, Math.min(1000, Math.round(Number(v) || 0)));
+        const x=n(d.x), y=n(d.y), w=Math.max(1,Math.min(1000-x,n(d.width))), h=Math.max(1,Math.min(1000-y,n(d.height)));
+        const kind=String(d.kind || "other").slice(0,40);
+        return { x, y, width:w, height:h, description:String(d.description || kind).slice(0,180), kind, safe_to_remove:d.safe_to_remove === true && ["watermark","publisher_overlay"].includes(kind) };
+      }).filter((d: any) => d.width > 0 && d.height > 0);
+      return json({ ok: true, post_id: post.id, post_title: post.title, original_base64: originalBase64, image_mime: contentType, detections, notes: String(parsed.notes || "").slice(0,500) });
+    } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 400); }
+  }
+  if (action === "brand_image_edit") {
+    try {
+      if (!keyForBranding) return json({ error: "Image branding is not configured. Add NEWSROOM_IMAGE_BRANDING_OPENAI_API_KEY in Supabase Edge Function Secrets." }, 503);
+      if (body.rights_confirmed !== true) return json({ error: "Confirm image ownership, licence, or permission before editing this image." }, 400);
+      await readEditablePost(String(body.post_id || ""));
+      const imageBytes = bytesFromBase64(String(body.image_base64 || ""));
+      const maskBytes = bytesFromBase64(String(body.mask_base64 || ""));
+      const imageMime = ["image/png","image/jpeg","image/webp"].includes(String(body.image_mime || "")) ? String(body.image_mime) : "image/png";
+      if (imageMime !== "image/png") throw new Error("The selected-area editor currently submits PNG images only.");
+      if (maskBytes.length > 4_000_000) throw new Error("The image-edit mask must be smaller than 4 MB.");
+      const inputDimensions = pngDimensions(imageBytes);
+      const maskDimensions = pngDimensions(maskBytes);
+      if (inputDimensions.width !== maskDimensions.width || inputDimensions.height !== maskDimensions.height) throw new Error("The image-edit mask dimensions must exactly match the input image.");
+      const form = new FormData();
+      form.append("model", Deno.env.get("NEWSROOM_IMAGE_BRANDING_EDIT_MODEL") || "gpt-image-2.5-sunburst");
+      form.append("image[]", new Blob([imageBytes], { type: imageMime }), imageMime === "image/jpeg" ? "news-image.jpg" : imageMime === "image/webp" ? "news-image.webp" : "news-image.png");
+      form.append("mask", new Blob([maskBytes], { type: "image/png" }), "logo-removal-mask.png");
+      form.append("prompt", "Edit only the masked regions of this authorized news photograph. Remove the publisher-added overlay logo or watermark inside the masked region and reconstruct the natural background as if the overlay had never been there. Preserve the exact scene, people, faces, clothing, products, signs, objects, composition, colors and all unmasked pixels. Do not remove any scene-integrated logo, do not add any text, and do not add a replacement brand mark; PARROTHIT branding is applied separately after this edit.");
+      form.append("quality", "medium");
+      form.append("output_format", "png");
+      const edited = await fetch("https://api.openai.com/v1/images/edits", { method: "POST", headers: { "Authorization": `Bearer ${keyForBranding}` }, body: form, signal: AbortSignal.timeout(120000) });
+      const raw = await edited.text(); let payload: any = {}; try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = {}; }
+      if (!edited.ok) throw new Error(payload?.error?.message || `OpenAI image editing returned HTTP ${edited.status}.`);
+      const output = payload?.data?.[0]?.b64_json;
+      if (!output) throw new Error("OpenAI image editing did not return an image. Check the image model, API access, and available credits.");
+      return json({ ok: true, image_base64: output, image_mime: "image/png" });
+    } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 400); }
+  }
+  if (action === "brand_image_save") {
+    const uploadedPaths: string[] = [];
+    let previousActiveAssetId: string | null = null;
+    try {
+      if (body.rights_confirmed !== true) return json({ error: "Confirm image ownership, licence, or permission before saving this edited image." }, 400);
+      const post = await readEditablePost(String(body.post_id || ""));
+      const originalBytes = bytesFromBase64(String(body.original_base64 || ""));
+      const brandedBytes = bytesFromBase64(String(body.branded_base64 || ""));
+      const originalMime = ["image/jpeg","image/png","image/webp"].includes(String(body.original_mime || "")) ? String(body.original_mime) : "image/png";
+      const brandedMime = String(body.branded_mime || "image/png") === "image/jpeg" ? "image/jpeg" : "image/png";
+      const ext = (mime: string) => mime === "image/jpeg" ? "jpg" : mime === "image/webp" ? "webp" : "png";
+      const stamp = `${Date.now()}-${crypto.randomUUID()}`;
+      const originalPath = `${post.id}/original/${stamp}.${ext(originalMime)}`;
+      const brandedPath = `${post.id}/branded/${stamp}.${ext(brandedMime)}`;
+      const originalUpload = await db.storage.from(BRAND_BUCKET).upload(originalPath, new Blob([originalBytes], { type: originalMime }), { contentType: originalMime, cacheControl: "31536000", upsert: false });
+      if (originalUpload.error) throw new Error(`Could not preserve original image: ${originalUpload.error.message}. Run the branding SQL migration first.`);
+      uploadedPaths.push(originalPath);
+      const brandedUpload = await db.storage.from(BRAND_BUCKET).upload(brandedPath, new Blob([brandedBytes], { type: brandedMime }), { contentType: brandedMime, cacheControl: "31536000", upsert: false });
+      if (brandedUpload.error) throw new Error(`Could not store branded image: ${brandedUpload.error.message}`);
+      uploadedPaths.push(brandedPath);
+      const originalUrl = db.storage.from(BRAND_BUCKET).getPublicUrl(originalPath).data.publicUrl;
+      const brandedUrl = db.storage.from(BRAND_BUCKET).getPublicUrl(brandedPath).data.publicUrl;
+      const { data: previousAsset, error: previousAssetError } = await db.from("newsroom_image_branding_assets").select("id").eq("post_id", post.id).eq("is_active", true).limit(1).maybeSingle();
+      if (previousAssetError) throw new Error(`Could not read existing branding history: ${previousAssetError.message}. Run the branding SQL migration first.`);
+      previousActiveAssetId = previousAsset?.id || null;
+      const { error: deactivateError } = await db.from("newsroom_image_branding_assets").update({ is_active: false, restored_at: new Date().toISOString() }).eq("post_id", post.id).eq("is_active", true);
+      if (deactivateError) throw new Error(`Could not archive the previous branding record: ${deactivateError.message}`);
+      const { data: asset, error: assetError } = await db.from("newsroom_image_branding_assets").insert({ post_id: post.id, source_image_url: post.image_url, original_path: originalPath, branded_path: brandedPath, original_image_url: originalUrl, branded_image_url: brandedUrl, mode: ["automatic","review","manual"].includes(String(body.mode)) ? body.mode : "review", created_by: userData.user.id, is_active: true }).select("id").single();
+      if (assetError) throw new Error(`Could not save branding history: ${assetError.message}. Run supabase/newsroom-ai-image-branding.sql first.`);
+      const { data: updatedPost, error: updateError } = await db.from("posts").update({ image_url: brandedUrl }).eq("id", post.id).is("published_at", null).select("id").maybeSingle();
+      if (updateError || !updatedPost) {
+        await db.from("newsroom_image_branding_assets").update({ is_active: false, restored_at: new Date().toISOString() }).eq("id", asset.id);
+        throw new Error(`The branded image was stored but the draft image could not be updated: ${updateError?.message || "The draft may have been published while branding was running."}`);
+      }
+      return json({ ok: true, branded_image_url: brandedUrl, original_image_url: originalUrl, message: "The draft image was updated. The original is preserved in PARROTHIT image branding storage." });
+    } catch (e) {
+      if (previousActiveAssetId) { try { await db.from("newsroom_image_branding_assets").update({ is_active: true, restored_at: null }).eq("id", previousActiveAssetId); } catch (_) {} }
+      if (uploadedPaths.length) { try { await db.storage.from(BRAND_BUCKET).remove(uploadedPaths); } catch (_) {} }
+      return json({ error: e instanceof Error ? e.message : String(e) }, 400);
+    }
+  }
+  if (action === "brand_image_restore") {
+    try {
+      const post = await readEditablePost(String(body.post_id || ""));
+      const { data: asset, error } = await db.from("newsroom_image_branding_assets").select("id,original_image_url").eq("post_id", post.id).eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (error) return json({ error: `Could not load original image history: ${error.message}. Run supabase/newsroom-ai-image-branding.sql first.` }, 500);
+      if (!asset) return json({ error: "No preserved original image was found for this draft." }, 404);
+      const { data: restoredPost, error: updateError } = await db.from("posts").update({ image_url: asset.original_image_url }).eq("id", post.id).is("published_at", null).select("id").maybeSingle();
+      if (updateError || !restoredPost) throw new Error(`Could not restore the original image: ${updateError?.message || "The draft may have been published while restoration was running."}`);
+      const { error: historyError } = await db.from("newsroom_image_branding_assets").update({ is_active: false, restored_at: new Date().toISOString() }).eq("id", asset.id);
+      if (historyError) throw new Error(`The original image was restored, but its history status could not be updated: ${historyError.message}`);
+      return json({ ok: true, message: "The preserved original image has been restored to the draft. The branded copy remains in image history." });
+    } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 400); }
+  }
+
   // AI provider credentials are kept only in Edge Function secrets. Provider IDs
   // are discovered dynamically from NEWSROOM_AI_PROVIDER_<ID>_* variables, so
   // there is no hard-coded six-provider limit. Legacy numbered slots remain valid.
