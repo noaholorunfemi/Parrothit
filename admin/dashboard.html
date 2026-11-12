@@ -66,46 +66,7 @@ button.commit-change:hover{background:#166534!important}
 .quick-card.ph-football-room-card em{display:inline-block;margin-top:12px;font-size:.72rem;font-style:normal;font-weight:900;letter-spacing:.06em}
 .quick-card.ph-football-room-card:hover{filter:brightness(1.08);border-color:#bfdbfe;transform:translateY(-1px)}
 </style>
-
-<style id="parrothit-mobile-top-action-overflow-fix">
-/* Keep Control Room header actions inside their buttons on phones. */
-@media (max-width: 700px) {
-  body.control-body .control-top { min-width: 0; }
-  body.control-body .control-top .top-actions {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    gap: 9px !important;
-  }
-  body.control-body .control-top .top-actions > a,
-  body.control-body .control-top .top-actions > button {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    min-height: 76px;
-    box-sizing: border-box !important;
-    padding: 12px 9px !important;
-    margin: 0 !important;
-    white-space: normal !important;
-    word-break: normal !important;
-    overflow-wrap: break-word !important;
-    hyphens: none !important;
-    line-height: 1.3 !important;
-    text-align: center !important;
-    font-size: clamp(.82rem, 3.3vw, .98rem) !important;
-  }
-}
-@media (max-width: 360px) {
-  body.control-body .control-top .top-actions { grid-template-columns: minmax(0, 1fr) !important; }
-  body.control-body .control-top .top-actions > a,
-  body.control-body .control-top .top-actions > button { min-height: 52px; }
-}
-</style>
-
+<link rel="stylesheet" href="../css/admin-dashboard-mobile-fix.css?v=20261112-v2">
 </head>
 <body class="control-body admin-auth-pending">
 <section class="parrothit-dashboard-toolbar" aria-label="PARROTHIT administrator shortcuts">
