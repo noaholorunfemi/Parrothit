@@ -51,7 +51,7 @@
     box.classList.add('parrothit-watermark-box');
     const logo=document.createElement('img');
     logo.className='parrothit-card-watermark-logo';
-    logo.src=(location.pathname.includes('/admin/')?'../assets/images/parrothit-logo.png':(location.pathname.split('/').filter(Boolean).length>1?'../assets/images/parrothit-logo.png':'assets/images/parrothit-logo.png'));
+    logo.src=(location.pathname.includes('/admin/')?'/assets/perf-v2/parrothit-logo-256.webp':(location.pathname.split('/').filter(Boolean).length>1?'/assets/perf-v2/parrothit-logo-256.webp':'/assets/perf-v2/parrothit-logo-256.webp'));
     logo.alt='PARROTHIT';
     logo.setAttribute('aria-hidden','true');
     box.appendChild(logo);
