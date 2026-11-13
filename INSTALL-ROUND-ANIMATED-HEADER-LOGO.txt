@@ -1,0 +1,16 @@
+PARROTHIT ROUND ANIMATED HEADER LOGO PATCH
+
+INSTALLATION
+1. Extract this ZIP.
+2. Open the Parrothit-main folder inside it.
+3. Merge its contents into the root of your existing Parrothit-main website project and overwrite when prompted.
+4. Deploy the website.
+
+CHANGES
+- Restores the public masthead logo using a new round 384px WebP asset.
+- Adds a subtle animated circular ring; the logo artwork itself remains still and readable.
+- Adds a fallback to the original /assets/images/parrothit-logo.png if the new image cannot load.
+- Updates public pages that use the shared brand-image masthead.
+- Respects prefers-reduced-motion.
+
+No database, Supabase, Edge Function, or API changes.
