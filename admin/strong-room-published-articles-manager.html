@@ -14,13 +14,74 @@
 @media(max-width:1100px){.filters{grid-template-columns:repeat(3,minmax(0,1fr))}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.wrap{padding:9px}.hero,.panel{padding:13px;border-radius:11px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.filters{grid-template-columns:repeat(2,minmax(0,1fr))}.editor-grid{grid-template-columns:1fr}.editor-fields{grid-template-columns:1fr}.field.full{grid-column:auto}.hero-actions>*{flex:1 1 auto}.editor-actions>*{flex:1 1 100%}}
 @media(max-width:420px){.filters{grid-template-columns:1fr}}
+
+/* STRONG ROOM owner-only second-factor gate */
+.strong-overlay{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:16px;background:rgba(7,12,20,.86);backdrop-filter:blur(8px);overflow:auto}
+.strong-overlay[hidden]{display:none!important}
+.strong-card{width:min(560px,100%);max-height:min(92dvh,900px);overflow:auto;background:#fff;border:1px solid #d8c4b5;border-top:6px solid #8b1e2d;border-radius:18px;padding:22px;box-shadow:0 24px 90px rgba(0,0,0,.42);color:#241b17}
+.strong-brand{display:flex;align-items:center;gap:12px;margin-bottom:16px}.strong-brand img{width:52px;height:52px;object-fit:contain;border-radius:50%;border:2px solid #b58a6c;padding:3px;background:#fff}.strong-brand b{display:block;font-size:1.08rem;color:#4b2e20}.strong-brand small{color:#76685f;font-weight:800;letter-spacing:.06em}
+.strong-card h2{margin:8px 0;color:#3b2418;font-size:1.35rem}.strong-card p{line-height:1.55;color:#5f5149}.strong-card .field{margin:12px 0}.strong-card .field input{min-height:48px}.strong-card .btn{width:100%;margin-top:8px;min-height:48px}.strong-rule-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:10px 0}.strong-rule{padding:7px 9px;border-radius:8px;background:#f5f0ec;color:#76685f;font-size:.8rem;font-weight:800}.strong-rule.ok{background:#e6f5eb;color:#166534}.strong-gate-note{padding:11px;background:#f8f1eb;border-left:4px solid #9b6b4d;border-radius:8px;font-size:.84rem}.strong-gate-error{color:#991b1b;background:#fff0ef;border:1px solid #f3c1bd;border-radius:8px;padding:10px;margin-top:10px;white-space:pre-wrap;overflow-wrap:anywhere}.strong-gate-error:empty{display:none}.strong-danger-card{border-top-color:#b91c1c}.strong-danger-card h2{color:#991b1b}.strong-risk-list{padding-left:20px;line-height:1.6;color:#5b302b}.strong-ack{display:flex;gap:10px;align-items:flex-start;padding:13px;background:#fff4f2;border:1px solid #efc6c1;border-radius:10px;font-weight:800;color:#7f1d1d;line-height:1.45;margin:14px 0}.strong-ack input{width:20px;height:20px;flex:0 0 20px;margin:0}.strong-modal-actions{display:flex;gap:9px;flex-wrap:wrap}.strong-modal-actions>*{flex:1 1 180px}
+#lockStrongRoomBtn{background:#991b1b}#changeStrongPasswordBtn{background:#55408a}
+#lockStrongRoomBtn[hidden],#changeStrongPasswordBtn[hidden]{display:none!important}
+@media(max-width:520px){.strong-card{padding:16px;border-radius:14px}.strong-rule-list{grid-template-columns:1fr}.strong-modal-actions>*{flex-basis:100%}}
+
 </style>
 </head>
 <body class="admin-auth-pending">
-<main class="wrap">
+
+<div class="strong-overlay" id="strongGate" role="dialog" aria-modal="true" aria-labelledby="strongGateTitle">
+ <section class="strong-card">
+  <div class="strong-brand"><img src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo"><div><small>ADMIN 1 · OWNER ACCESS</small><b>PARROTHIT STRONG ROOM</b></div></div>
+  <h2 id="strongGateTitle">🔐 Owner security check</h2>
+  <p>This page has a separate Strong Room password. It is not your normal PARROTHIT admin password and cannot be used to sign in to the admin dashboard.</p>
+  <div class="strong-gate-note">Only Admin 1 (Owner) can open this page. Your Strong Room password is checked by Supabase and is never stored in this browser.</div>
+  <form id="strongSetupForm" hidden>
+   <h3>Create your Strong Room password</h3>
+   <p>Use at least 14 characters and include all four character types below.</p>
+   <label class="field"><span>New Strong Room password</span><input id="strongSetupPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+   <div class="strong-rule-list" aria-live="polite"><span class="strong-rule" id="ruleLength">At least 14 characters</span><span class="strong-rule" id="ruleUpper">Capital letter (A–Z)</span><span class="strong-rule" id="ruleLower">Small letter (a–z)</span><span class="strong-rule" id="ruleNumber">Number (0–9)</span><span class="strong-rule" id="ruleSpecial">Special character</span></div>
+   <label class="field"><span>Confirm Strong Room password</span><input id="strongSetupConfirm" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+   <button class="btn" type="submit" id="strongSetupSubmit">Create Strong Room password</button>
+  </form>
+  <form id="strongLoginForm" hidden>
+   <h3>Unlock STRONG ROOM</h3>
+   <label class="field"><span>Strong Room password</span><input id="strongLoginPassword" type="password" maxlength="128" autocomplete="current-password" required></label>
+   <button class="btn" type="submit" id="strongLoginSubmit">Unlock owner-only page</button>
+   <p class="small muted">Five consecutive incorrect attempts trigger a 15-minute lockout. Use your password manager to keep the password safe.</p>
+  </form>
+  <div id="strongGateError" class="strong-gate-error" role="alert" aria-live="assertive"></div>
+  <p class="small muted" style="margin-bottom:0">Security recommendation: do not reuse your email, admin login password, website password, or a simple numeric PIN.</p>
+ </section>
+</div>
+<div class="strong-overlay" id="strongRiskWarning" role="alertdialog" aria-modal="true" aria-labelledby="strongRiskTitle" hidden>
+ <section class="strong-card strong-danger-card">
+  <div class="strong-brand"><img src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo"><div><small>OWNER-ONLY · HIGH RISK</small><b>STRONG ROOM ACCESS</b></div></div>
+  <h2 id="strongRiskTitle">⚠️ Before you continue</h2>
+  <p><strong>You are entering PARROTHIT's highest-risk editorial control page.</strong> Changes here affect articles that are already live on the public website.</p>
+  <ul class="strong-risk-list"><li><strong>Editing:</strong> saving can immediately overwrite the published headline, summary, article body, author, breaking-news flag, or featured image and synchronise copied public-card content.</li><li><strong>Deleting:</strong> permanent deletion removes the published post and clears mapped public destinations. Related comments, likes, and newsroom references may also be removed by database cascade rules.</li><li><strong>Recovery:</strong> deletion cannot be undone from this page. A backup may be the only way to reconstruct lost content.</li><li><strong>Verification:</strong> check the headline, article ID, public destinations, and content carefully before every save or deletion.</li></ul>
+  <div class="strong-gate-note"><strong>Recommended:</strong> export a filtered CSV before editorial clean-up and keep a separate backup of the original article content and images.</div>
+  <label class="strong-ack"><input type="checkbox" id="strongRiskAcknowledge"><span>I understand that edits affect live articles and permanent deletion may be irreversible. I accept responsibility for actions taken in this room.</span></label>
+  <div class="strong-modal-actions"><button type="button" class="btn" id="strongRiskContinue" disabled>Continue to Published Articles Manager</button><button type="button" class="btn secondary" id="strongRiskCancel">Lock and leave</button></div>
+ </section>
+</div>
+<div class="strong-overlay" id="strongChangePassword" role="dialog" aria-modal="true" aria-labelledby="strongChangeTitle" hidden>
+ <section class="strong-card">
+  <h2 id="strongChangeTitle">Change Strong Room password</h2>
+  <p>Changing this password revokes all current Strong Room unlock tokens. You will need to unlock the page again.</p>
+  <form id="strongChangeForm">
+   <label class="field"><span>Current Strong Room password</span><input id="strongCurrentPassword" type="password" autocomplete="current-password" required></label>
+   <label class="field"><span>New password (14+ characters)</span><input id="strongNewPassword" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+   <label class="field"><span>Confirm new password</span><input id="strongNewConfirm" type="password" minlength="14" maxlength="128" autocomplete="new-password" required></label>
+   <div class="strong-modal-actions"><button type="submit" class="btn" id="strongChangeSubmit">Change password</button><button type="button" class="btn secondary" id="strongChangeCancel">Cancel</button></div>
+  </form>
+  <div id="strongChangeError" class="strong-gate-error" role="alert"></div>
+ </section>
+</div>
+
+<main class="wrap hidden" id="strongApp">
 <header class="hero">
  <div><h1>🔐 STRONG ROOM: Published Articles Manager</h1><p>The central control room for every published PARROTHIT story. Find articles wherever they appear, inspect all public destinations, safely re-edit live content, or permanently remove a story and its public card assignments.</p></div>
- <div class="hero-actions"><a class="btn secondary" href="dashboard.html">← Control Room</a><a class="btn secondary" href="articles.html">Article Editor</a><button type="button" id="refreshBtn">↻ Refresh records</button></div>
+ <div class="hero-actions"><button type="button" class="btn" id="lockStrongRoomBtn" hidden>🔒 Lock Strong Room</button><button type="button" class="btn" id="changeStrongPasswordBtn" hidden>Change Strong Room password</button><a class="btn secondary" href="dashboard.html">← Control Room</a><a class="btn secondary" href="articles.html">Article Editor</a><button type="button" id="refreshBtn">↻ Refresh records</button></div>
 </header>
 <div class="notice"><strong>Administrator-only publishing control.</strong> This manager reads published stories directly from Supabase <code>public.posts</code>. Edits retain the article's published status and original publication date. Permanent deletion clears destination references and removes the actual Supabase post record through a single database function. This action cannot be undone.</div>
 <div id="status" class="status" role="status" aria-live="polite"></div>
