@@ -101,7 +101,7 @@
     header.style.cssText = 'display:flex;align-items:center;gap:12px;position:relative;';
     var logo = document.createElement('img');
     logo.alt = 'PARROTHIT';
-    logo.src = /\/admin\//i.test(location.pathname) ? '../assets/images/parrothit-logo.png' : 'assets/images/parrothit-logo.png';
+    logo.src = /\/admin\//i.test(location.pathname) ? '/assets/perf-v2/parrothit-logo-256.webp' : '/assets/perf-v2/parrothit-logo-256.webp';
     logo.style.cssText = 'width:48px;height:48px;object-fit:contain;border-radius:12px;background:#fff;padding:4px;flex:0 0 48px;';
     logo.onerror = function () { logo.style.display = 'none'; };
     header.appendChild(logo);
