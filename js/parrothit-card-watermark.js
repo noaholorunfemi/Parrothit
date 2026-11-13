@@ -85,7 +85,7 @@
 
   async function loadSharedCategoryCards(){
     const file=(location.pathname.split('/').pop()||'index.html').replace(/\.html?$/i,'');
-    const supported=new Set(['business','celebrity-news','culture','education','entertainment','football','health','nigeria','nigerian-celebrity','nollywood','politics','religion','sports-athletics','sports-basketball','sports-football','sports-table-tennis','sports-tennis','sports','technology','wildlife','world']);
+    const supported=new Set(['business','celebrity-news','culture','education','entertainment','football','health','nigeria','nigerian-celebrity','nollywood','politics','religion','sports-athletics','sports-basketball','sports-football','sports-table-tennis','sports-tennis','sports','technology','wildlife','world','9ja-stories','9ja-universities','as-e-dey-hot','lagos-lifestyle']);
     if(!supported.has(file)) return;
     const make=window.getParrothitPublicSupabaseClient;
     const client=typeof make==='function'?make():null;

@@ -86,7 +86,7 @@
     const file = (location.pathname.split('/').pop() || '').replace(/\.html?$/i, '').toLowerCase();
     const requested = new URLSearchParams(location.search).get('category');
     if(file==='category' && requested) return normalizeLabel(requested);
-    const map = { nigeria:'nigeria', world:'world', politics:'politics', entertainment:'entertainment', sports:'sports', business:'business', technology:'technology', education:'education', health:'health', religion:'religion', culture:'culture', wildlife:'wildlife', 'celebrity-news':'celebrity news', football:'football', nollywood:'nollywood', 'nigerian-celebrity':'nigerian celebrity', volleyball:'volleyball', athlete:'athlete', lifestyle:'lifestyle' };
+    const map = { nigeria:'nigeria', world:'world', politics:'politics', entertainment:'entertainment', sports:'sports', business:'business', technology:'technology', education:'education', health:'health', religion:'religion', culture:'culture', wildlife:'wildlife', 'celebrity-news':'celebrity news', football:'football', nollywood:'nollywood', 'nigerian-celebrity':'nigerian celebrity', volleyball:'volleyball', athlete:'athlete', lifestyle:'lifestyle', '9ja-stories':'9ja stories', '9ja-universities':'9ja universities', 'as-e-dey-hot':'as e dey hot', 'lagos-lifestyle':'lagos lifestyle' };
     if (file.startsWith('sports-')) return normalizeLabel(file.slice('sports-'.length));
     return map[file] || '';
   }
@@ -100,7 +100,7 @@
   async function displayCategoryImage(localState, cloud) {
     const categoryKey = currentCategory();
     if (!categoryKey) return;
-    const labels = { nigeria:'Nigeria', world:'World', politics:'Politics', entertainment:'Entertainment', business:'Business', technology:'Technology', education:'Education', health:'Health', religion:'Religion', culture:'Culture', wildlife:'Wildlife', 'celebrity news':'Celebrity News', nollywood:'Nollywood', 'nigerian celebrity':'Nigerian Celebrity', football:'Football', 'table tennis':'Table Tennis', basketball:'Basketball', tennis:'Tennis', athletics:'Athletics' };
+    const labels = { nigeria:'Nigeria', world:'World', politics:'Politics', entertainment:'Entertainment', business:'Business', technology:'Technology', education:'Education', health:'Health', religion:'Religion', culture:'Culture', wildlife:'Wildlife', 'celebrity news':'Celebrity News', nollywood:'Nollywood', 'nigerian celebrity':'Nigerian Celebrity', football:'Football', 'table tennis':'Table Tennis', basketball:'Basketball', tennis:'Tennis', athletics:'Athletics', '9ja stories':'9ja STORIES 😀', '9ja universities':'9ja UNIVERSITIES 🏛️', 'as e dey hot':'As-e-dey-hot🔥', 'lagos lifestyle':'Lagos-Lifestyle' };
     const label = labels[categoryKey] || categoryKey.replace(/\b\w/g, ch => ch.toUpperCase());
     const categoryImages = { ...((cloud.settings && cloud.settings.category_images) || {}), ...((localState.settings && localState.settings.categoryImages) || {}) };
     let reference = categoryImages[label] || categoryImages[categoryKey] || '';
@@ -134,8 +134,8 @@
       'sports-football':'sports-football.html', nollywood:'nollywood.html', 'nigerian-celebrity':'nigerian-celebrity.html',
       'table-tennis':'sports-table-tennis.html', 'sports-table-tennis':'sports-table-tennis.html', basketball:'sports-basketball.html',
       'sports-basketball':'sports-basketball.html', tennis:'sports-tennis.html', 'sports-tennis':'sports-tennis.html',
-      athletics:'sports-athletics.html', athlete:'category.html?category=athlete', 'sports-athletics':'sports-athletics.html',
-      volleyball:'category.html?category=volleyball', lifestyle:'category.html?category=lifestyle'
+      athletics:'sports-athletics.html', athlete:'sports-athletics.html', 'sports-athletics':'sports-athletics.html',
+      volleyball:'category.html?category=volleyball', lifestyle:'category.html?category=lifestyle', '9ja-stories':'9ja-stories.html', '9ja-universities':'9ja-universities.html', 'as-e-dey-hot':'as-e-dey-hot.html', 'lagos-lifestyle':'lagos-lifestyle.html'
     };
     cat.href = categoryDestinations[categorySlug] || ('category.html?category=' + encodeURIComponent(categorySlug || 'world'));
     cat.style.textDecoration = 'none'; cat.setAttribute('aria-label', 'Browse ' + (post.category || 'news') + ' category');
@@ -543,7 +543,7 @@
     if (!/\/article\.html$/i.test(location.pathname) && !/^article\.html$/i.test(location.pathname)) return false;
     const key = new URLSearchParams(location.search).get('categoryCard');
     if (!key) return false;
-    const match = key.match(/^([a-z-]+)-(\d{1,2})$/); if (!match) return false;
+    const match = key.match(/^([a-z0-9-]+)-(\d{1,2})$/); if (!match) return false;
     const category = match[1], number = Number(match[2]);
     let records = {};
     try { records = JSON.parse(localStorage.getItem('parrothit-category-cards-v1-' + category) || '{}') || {}; } catch (_) {}

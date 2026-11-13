@@ -34,6 +34,10 @@
     {title:'Category News',path:'/category.html',description:'Public category feed showing the latest headlines for the selected news topic.',tags:['news','categories','article']},
     {title:'Nigeria',path:'/nigeria.html',description:'News and stories about Nigeria.',tags:['news','nigeria']},
     {title:'World',path:'/world.html',description:'International news and world affairs.',tags:['news','world']},
+    {title:'9ja STORIES 😀',path:'/9ja-stories.html',description:'Nigerian community stories, personal experiences and human-interest features.',tags:['news','nigeria','stories']},
+    {title:'9ja UNIVERSITIES 🏛️',path:'/9ja-universities.html',description:'Nigerian university news, campus life and higher-education coverage.',tags:['news','education','universities']},
+    {title:'As-e-dey-hot🔥',path:'/as-e-dey-hot.html',description:'Trending stories and conversations receiving attention.',tags:['news','trending','entertainment']},
+    {title:'Lagos-Lifestyle',path:'/lagos-lifestyle.html',description:'Lagos lifestyle, city culture, places and experiences.',tags:['news','lagos','lifestyle']},
     {title:'Politics',path:'/politics.html',description:'Political news and public affairs.',tags:['news','politics']},
     {title:'Business',path:'/business.html',description:'Business and economy coverage.',tags:['news','business']},
     {title:'Technology',path:'/technology.html',description:'Technology news and digital developments.',tags:['news','technology']},
@@ -144,7 +148,7 @@
     if (/nigerian-celebrity|celebrity/.test(p)) return ['news','entertainment','celebrity'];
     if (/contact|social-links/.test(p)) return ['contact','general','social'];
     if (/search/.test(p)) return ['search','news','general'];
-    if (/nigeria|world|politics|business|technology|education|health|entertainment|nollywood|religion|culture|wildlife/.test(p)) return ['news', p.replace(/^\//,'').replace(/\.html$/,'')];
+    if (/9ja-stories|9ja-universities|as-e-dey-hot|lagos-lifestyle|nigeria|world|politics|business|technology|education|health|entertainment|nollywood|religion|culture|wildlife/.test(p)) return ['news', p.replace(/^\//,'').replace(/\.html$/,'')];
     if (/article|category/.test(p)) return ['news','categories','article'];
     return ['home','news','general'];
   }
