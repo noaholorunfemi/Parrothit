@@ -216,86 +216,257 @@ Deno.serve(async (req) => {
   };
   const keyForBranding = resolveBrandingOpenAIKey();
 
-  // PARROTHIT AI draft illustration providers. API tokens live only in Edge Function secrets.
-  type ImageDraftProviderId = "cloudflare" | "ovh" | "huggingface" | "pollinations" | "stability" | "replicate";
-  type ImageDraftProviderStatus = {id:ImageDraftProviderId;name:string;configured:boolean;missing:string[];model:string;note:string};
-  const imageDraftProviderStatus = (): ImageDraftProviderStatus[] => {
-    const env=(name:string)=>Deno.env.get(name)||"";
-    const cloudflareToken=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN")||env("CLOUDFLARE_API_TOKEN");
-    const cloudflareAccount=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID")||env("CLOUDFLARE_ACCOUNT_ID");
-    const rows:ImageDraftProviderStatus[]=[
-      {id:"cloudflare",name:"Cloudflare Workers AI",configured:!!cloudflareToken&&!!cloudflareAccount,missing:[...(!cloudflareAccount?["NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID"]:[]),...(!cloudflareToken?["NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN"]:[])],model:env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_MODEL")||"@cf/black-forest-labs/flux-1-schnell",note:"Workers Free currently includes 10,000 Neurons/day; overage depends on account plan."},
-      {id:"ovh",name:"OVHcloud AI Endpoints",configured:true,missing:[],model:env("NEWSROOM_IMAGE_DRAFT_OVH_MODEL")||"stable-diffusion-xl-base-v10",note:"Free public SDXL endpoint; anonymous limit is 2 requests/minute/IP/model; output is square 1024x1024."},
-      {id:"huggingface",name:"Hugging Face Inference",configured:!!env("NEWSROOM_IMAGE_DRAFT_HF_TOKEN"),missing:env("NEWSROOM_IMAGE_DRAFT_HF_TOKEN")?[]:["NEWSROOM_IMAGE_DRAFT_HF_TOKEN"],model:env("NEWSROOM_IMAGE_DRAFT_HF_MODEL")||"black-forest-labs/FLUX.1-schnell",note:"Small monthly credit; model availability and hardware routing can vary."},
-      {id:"pollinations",name:"Pollinations",configured:!!env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY"),missing:env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY")?[]:["NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY"],model:env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_MODEL")||"flux",note:"Requires API key; starter Pollen is limited and may be a one-time allowance."},
-      {id:"stability",name:"Stability AI",configured:!!env("NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY"),missing:env("NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY")?[]:["NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY"],model:env("NEWSROOM_IMAGE_DRAFT_STABILITY_MODEL")||"stable-image-core",note:"Starter credits are limited; ongoing generation may require paid credits."},
-      {id:"replicate",name:"Replicate",configured:!!env("NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN"),missing:env("NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN")?[]:["NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN"],model:env("NEWSROOM_IMAGE_DRAFT_REPLICATE_MODEL")||"black-forest-labs/flux-schnell",note:"Free try runs depend on model/account availability; may require billing."}
-    ];
-    return rows;
+  // PARROTHIT AI draft illustration providers — 20 server-side integrations.
+  // API keys entered by an administrator are AES-GCM encrypted before database storage.
+  type ImageDraftProviderId = "cloudflare" | "ovh" | "huggingface" | "pollinations" | "stability" | "replicate" | "openai" | "google" | "fal" | "runware" | "ideogram" | "leonardo" | "bfl" | "deepai" | "getimg" | "novita" | "magnific" | "segmind" | "pixazo" | "recraft";
+  type ImageDraftProviderStatus = {id:ImageDraftProviderId;name:string;configured:boolean;missing:string[];model:string;note:string;website:string;keyWebsite:string;keyHint?:string;updatedAt?:string;keyless?:boolean};
+  type ImageDraftProviderDef = {id:ImageDraftProviderId;name:string;model:string;note:string;website:string;keyWebsite:string;envKey?:string;envModel?:string;keyless?:boolean};
+  const IMAGE_DRAFT_PROVIDERS:ImageDraftProviderDef[]=[
+    {id:"cloudflare",name:"Cloudflare Workers AI",model:"@cf/black-forest-labs/flux-1-schnell",note:"Requires an API token and Cloudflare Account ID. Usage depends on your Workers plan and model billing.",website:"https://developers.cloudflare.com/workers-ai/",keyWebsite:"https://dash.cloudflare.com/profile/api-tokens",envKey:"NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN",envModel:"NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_MODEL"},
+    {id:"ovh",name:"OVHcloud AI Endpoints",model:"stable-diffusion-xl-base-v10",note:"Keyless public SDXL endpoint currently supported as a limited test route; subject to anonymous rate limits and availability.",website:"https://endpoints.ai.cloud.ovh.net/",keyWebsite:"https://endpoints.ai.cloud.ovh.net/",keyless:true,envModel:"NEWSROOM_IMAGE_DRAFT_OVH_MODEL"},
+    {id:"huggingface",name:"Hugging Face Inference",model:"black-forest-labs/FLUX.1-schnell",note:"Choose a model supported by your Inference Providers account. Credits and model availability vary.",website:"https://huggingface.co/docs/inference-providers/index",keyWebsite:"https://huggingface.co/settings/tokens",envKey:"NEWSROOM_IMAGE_DRAFT_HF_TOKEN",envModel:"NEWSROOM_IMAGE_DRAFT_HF_MODEL"},
+    {id:"pollinations",name:"Pollinations",model:"flux",note:"API access and starter Pollen/credit availability can change. Check current account limits before use.",website:"https://pollinations.ai/",keyWebsite:"https://enter.pollinations.ai/",envKey:"NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_POLLINATIONS_MODEL"},
+    {id:"stability",name:"Stability AI",model:"stable-image-core",note:"Image API access is credit-based; check current pricing and account balance.",website:"https://platform.stability.ai/docs/api-reference/",keyWebsite:"https://platform.stability.ai/account/keys",envKey:"NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_STABILITY_MODEL"},
+    {id:"replicate",name:"Replicate",model:"black-forest-labs/flux-schnell",note:"Model runs are billed by the selected model and account. Try-credit availability varies.",website:"https://replicate.com/docs/reference/http",keyWebsite:"https://replicate.com/account/api-tokens",envKey:"NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN",envModel:"NEWSROOM_IMAGE_DRAFT_REPLICATE_MODEL"},
+    {id:"openai",name:"OpenAI Images",model:"gpt-image-2.6-flare",note:"Uses the official Images API. Organization verification or billing may be required for image models.",website:"https://developers.openai.com/api/docs/guides/image-generation",keyWebsite:"https://platform.openai.com/api-keys",envKey:"NEWSROOM_IMAGE_DRAFT_OPENAI_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_OPENAI_MODEL"},
+    {id:"google",name:"Google Gemini Image",model:"gemini-3.1-flash-image",note:"Uses Gemini image generation. API access, supported model IDs and billing vary by project/region.",website:"https://ai.google.dev/gemini-api/docs/image-generation",keyWebsite:"https://aistudio.google.com/apikey",envKey:"NEWSROOM_IMAGE_DRAFT_GOOGLE_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_GOOGLE_MODEL"},
+    {id:"fal",name:"fal.ai",model:"fal-ai/flux/schnell",note:"Queue-based model API. Each model can have its own schema and per-image price.",website:"https://fal.ai/docs/model-api-reference/image-generation-api/overview",keyWebsite:"https://fal.ai/dashboard/keys",envKey:"NEWSROOM_IMAGE_DRAFT_FAL_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_FAL_MODEL"},
+    {id:"runware",name:"Runware",model:"runware:100@1",note:"Single imageInference API; model IDs and usage prices vary. The default model can be changed in the Edge Function secret.",website:"https://runware.ai/docs/models-api/introduction",keyWebsite:"https://runware.ai/",envKey:"NEWSROOM_IMAGE_DRAFT_RUNWARE_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_RUNWARE_MODEL"},
+    {id:"ideogram",name:"Ideogram",model:"ideogram-v4",note:"Official synchronous image generation API. API access and in-flight limits depend on the account.",website:"https://developer.ideogram.ai/ideogram-api/api-overview",keyWebsite:"https://ideogram.ai/manage-api",envKey:"NEWSROOM_IMAGE_DRAFT_IDEOGRAM_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_IDEOGRAM_MODEL"},
+    {id:"leonardo",name:"Leonardo.Ai",model:"1dd50843-d653-4516-a8e3-f0238ee453ff",note:"API credits are separate from some web-app subscriptions. Default model is FLUX Schnell; model ID may be overridden.",website:"https://docs.leonardo.ai/docs/getting-started",keyWebsite:"https://app.leonardo.ai/api-access",envKey:"NEWSROOM_IMAGE_DRAFT_LEONARDO_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_LEONARDO_MODEL"},
+    {id:"bfl",name:"Black Forest Labs — FLUX",model:"flux-2-pro",note:"Asynchronous FLUX API. A positive credit balance is required; model pricing applies.",website:"https://docs.bfl.ai/quick_start",keyWebsite:"https://dashboard.bfl.ai/",envKey:"NEWSROOM_IMAGE_DRAFT_BFL_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_BFL_MODEL"},
+    {id:"deepai",name:"DeepAI",model:"text2img",note:"Requires DeepAI API access. The service returns a hosted image URL; current plan requirements apply.",website:"https://deep.ai/docs",keyWebsite:"https://deepai.org/dashboard",envKey:"NEWSROOM_IMAGE_DRAFT_DEEPAI_API_KEY"},
+    {id:"getimg",name:"getimg.ai",model:"flux-schnell",note:"Pay-as-you-go image API. Cost varies by model and resolution; check usage before generating.",website:"https://docs.getimg.ai/",keyWebsite:"https://dashboard.getimg.ai/",envKey:"NEWSROOM_IMAGE_DRAFT_GETIMG_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_GETIMG_MODEL"},
+    {id:"novita",name:"Novita AI",model:"sd_xl_base_1.0.safetensors",note:"Asynchronous image API. Select an account-supported model; billed usage and model availability vary.",website:"https://novita.ai/docs/api-reference/model-apis-txt2img",keyWebsite:"https://novita.ai/",envKey:"NEWSROOM_IMAGE_DRAFT_NOVITA_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_NOVITA_MODEL"},
+    {id:"magnific",name:"Magnific API",model:"flux-dev",note:"Credit-based image generation. API access may require a provisioned API plan/key.",website:"https://www.magnific.com/ai/docs/magnific-api",keyWebsite:"https://www.magnific.com/developers/dashboard",envKey:"NEWSROOM_IMAGE_DRAFT_MAGNIFIC_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_MAGNIFIC_MODEL"},
+    {id:"segmind",name:"Segmind",model:"fast-flux-schnell",note:"Direct image response from model endpoints. Model endpoint and credits depend on account access.",website:"https://docs.segmind.com/docs/get-started/quickstart",keyWebsite:"https://cloud.segmind.com/",envKey:"NEWSROOM_IMAGE_DRAFT_SEGMIND_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_SEGMIND_MODEL"},
+    {id:"pixazo",name:"Pixazo API",model:"gpt-image-2-6-flare",note:"One key provides access to multiple image model endpoints. The configured adapter uses Pixazo's documented GPT Image endpoint.",website:"https://gateway.pixazo.ai/api/text-to-image",keyWebsite:"https://api.pixazo.ai/",envKey:"NEWSROOM_IMAGE_DRAFT_PIXAZO_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_PIXAZO_MODEL"},
+    {id:"recraft",name:"Recraft API",model:"recraftv4",note:"Credit-based generation. Recraft API model access and rights depend on your account plan.",website:"https://www.recraft.ai/api",keyWebsite:"https://www.recraft.ai/api",envKey:"NEWSROOM_IMAGE_DRAFT_RECRAFT_API_KEY",envModel:"NEWSROOM_IMAGE_DRAFT_RECRAFT_MODEL"}
+  ];
+  const isImageDraftProviderId=(value:string):value is ImageDraftProviderId=>IMAGE_DRAFT_PROVIDERS.some(p=>p.id===value);
+  const imageVaultKey=async()=>{
+    const secret=Deno.env.get("NEWSROOM_IMAGE_DRAFT_ENCRYPTION_KEY")||"";
+    if(secret.length<32)throw new Error("Secure image-provider key storage is not initialized. Add a 32+ character NEWSROOM_IMAGE_DRAFT_ENCRYPTION_KEY in Supabase Edge Function Secrets, then redeploy the newsroom function.");
+    const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(secret));
+    return await crypto.subtle.importKey("raw",digest,{name:"AES-GCM"},false,["encrypt","decrypt"]);
   };
-  const getActiveImageDraftProvider = async (): Promise<ImageDraftProviderId> => {
+  const encryptImageSecret=async(value:string)=>{
+    const iv=crypto.getRandomValues(new Uint8Array(12));const key=await imageVaultKey();
+    const cipher=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(value));
+    return {iv:bytesToBase64(iv),ciphertext:bytesToBase64(new Uint8Array(cipher))};
+  };
+  const decryptImageSecret=async(ciphertext:string,iv:string)=>{
+    const key=await imageVaultKey();const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:bytesFromBase64(iv)},key,bytesFromBase64(ciphertext));
+    return new TextDecoder().decode(plain);
+  };
+  const readImageProviderVaultRow=async(provider:ImageDraftProviderId)=>{
+    const {data,error}=await db.from("newsroom_image_provider_keys").select("key_ciphertext,key_iv,extra_ciphertext,extra_iv,key_hint,updated_at").eq("provider_id",provider).maybeSingle();
+    if(error)throw new Error(`Image-provider key vault is unavailable. Run supabase/newsroom-image-draft-providers.sql first. ${error.message}`);
+    return data;
+  };
+  const getImageProviderCredentials=async(provider:ImageDraftProviderId):Promise<{key:string;extra:string}>=>{
+    const def=IMAGE_DRAFT_PROVIDERS.find(p=>p.id===provider)!;const row=await readImageProviderVaultRow(provider);
+    let key="",extra="";
+    if(row?.key_ciphertext&&row?.key_iv)key=await decryptImageSecret(row.key_ciphertext,row.key_iv);
+    if(row?.extra_ciphertext&&row?.extra_iv)extra=await decryptImageSecret(row.extra_ciphertext,row.extra_iv);
+    if(!key&&def.envKey)key=Deno.env.get(def.envKey)||"";
+    if(provider==="cloudflare"&&!extra)extra=Deno.env.get("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID")||Deno.env.get("CLOUDFLARE_ACCOUNT_ID")||"";
+    return {key,extra};
+  };
+  const imageDraftProviderStatus=async():Promise<ImageDraftProviderStatus[]>=>{
+    const {data:vaultRows,error}=await db.from("newsroom_image_provider_keys").select("provider_id,key_hint,updated_at");
+    if(error)throw new Error(`Image-provider key vault is unavailable. Run supabase/newsroom-image-draft-providers.sql first. ${error.message}`);
+    const vault=new Map((vaultRows||[]).map((r:any)=>[String(r.provider_id),r]));
+    return await Promise.all(IMAGE_DRAFT_PROVIDERS.map(async def=>{
+      const row:any=vault.get(def.id);const legacyKey=def.envKey?Deno.env.get(def.envKey)||"":"";
+      const credentials=def.id==="cloudflare"?await getImageProviderCredentials(def.id):null;
+      const keyPresent=!!row?.key_hint||!!legacyKey;
+      const accountPresent=def.id!=="cloudflare"||!!(credentials?.extra||Deno.env.get("CLOUDFLARE_ACCOUNT_ID"));
+      const configured=!!def.keyless||(keyPresent&&accountPresent);
+      const missing:string[]=[];if(!def.keyless&&!keyPresent)missing.push("API key");if(def.id==="cloudflare"&&!accountPresent)missing.push("Cloudflare Account ID");
+      const model=(def.envModel?Deno.env.get(def.envModel)||"":"")||def.model;
+      return {id:def.id,name:def.name,configured,missing,model,note:def.note,website:def.website,keyWebsite:def.keyWebsite,keyHint:row?.key_hint?`••••${row.key_hint}`:legacyKey?"Configured in server secrets":"",updatedAt:row?.updated_at||"",keyless:!!def.keyless};
+    }));
+  };
+  const getActiveImageDraftProvider=async():Promise<ImageDraftProviderId>=>{
     const {data}=await db.from("site_settings").select("value").eq("key","newsroom_active_image_draft_provider").maybeSingle();
-    const value=String(data?.value||"ovh");
-    return (["cloudflare","ovh","huggingface","pollinations","stability","replicate"].includes(value)?value:"ovh") as ImageDraftProviderId;
+    const value=String(data?.value||"ovh");return isImageDraftProviderId(value)?value:"ovh";
   };
-  const imageMimeForBytes = (bytes:Uint8Array):string => {
+  const imageMimeForBytes=(bytes:Uint8Array):string=>{
     for(const mime of ["image/png","image/jpeg","image/webp"]){if(imageBytesMatchMime(mime,bytes))return mime;}
     throw new Error("The image provider did not return a valid PNG, JPEG, or WebP image.");
   };
-  const readProviderImage = async (response:Response):Promise<{bytes:Uint8Array;mime:string}> => {
+  const readProviderImage=async(response:Response):Promise<{bytes:Uint8Array;mime:string}>=>{
     const type=(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
     if(!response.ok){const raw=(await response.text()).slice(0,1600);let detail=raw;try{const p=JSON.parse(raw);detail=p.error?.message||p.error||p.message||p.detail||raw;}catch{}throw new Error(`Image provider returned HTTP ${response.status}: ${String(detail).slice(0,700)}`);}
     if(type.startsWith("image/")){const bytes=await readLimitedResponse(response,6_000_000);return {bytes,mime:imageMimeForBytes(bytes)};}
     const raw=(await response.text()).slice(0,10_000_000);let data:any={};try{data=JSON.parse(raw);}catch{throw new Error("Image provider returned an unsupported response format.");}
-    const b64=data?.result?.image||data?.image||data?.b64_json||data?.data?.[0]?.b64_json||data?.images?.[0];
+    const b64=data?.result?.image||data?.image||data?.b64_json||data?.data?.[0]?.b64_json||data?.images?.[0]?.b64_json||data?.image_base64||data?.output?.b64_json;
     if(typeof b64==="string"){const bytes=bytesFromBase64(b64);return {bytes,mime:imageMimeForBytes(bytes)};}
     const detail=data?.errors?.[0]?.message||data?.error?.message||data?.error||data?.message||"No image bytes were included in the provider response.";
     throw new Error(String(detail).slice(0,700));
   };
-  const imageDimensionsForRatio=(ratio:string)=>ratio==="16:9"?{width:1024,height:576}:ratio==="4:5"?{width:832,height:1040}:{width:1024,height:1024};
-  const generateWithImageDraftProvider = async (provider:ImageDraftProviderId,prompt:string,ratio:string):Promise<{bytes:Uint8Array;mime:string;model:string}> => {
-    const env=(name:string)=>Deno.env.get(name)||"";const dims=imageDimensionsForRatio(ratio);const timeout=AbortSignal.timeout(120000);
+  const imageDimensionsForRatio=(ratio:string)=>ratio==="16:9"?{width:1536,height:864}:ratio==="4:5"?{width:1024,height:1280}:{width:1024,height:1024};
+  const downloadProviderImage=async(url:string)=>{
+    if(typeof url!=="string"||!/^https:\/\//i.test(url))throw new Error("The provider did not return a valid HTTPS image URL.");
+    const fetched=await fetchPublicImage(url);if(!fetched.response.ok)throw new Error(`Could not download the generated image (HTTP ${fetched.response.status}).`);
+    return await readProviderImage(fetched.response);
+  };
+  const parseJsonResponse=async(response:Response,providerName:string)=>{
+    const raw=(await response.text()).slice(0,2_000_000);let data:any={};try{data=JSON.parse(raw||"{}");}catch{if(!response.ok)throw new Error(`${providerName} returned HTTP ${response.status}: ${raw.slice(0,500)}`);throw new Error(`${providerName} returned an unsupported response format.`);}
+    if(!response.ok)throw new Error(`${providerName} returned HTTP ${response.status}: ${String(data.error?.message||data.error||data.message||data.detail||raw).slice(0,700)}`);
+    return data;
+  };
+  const waitForFalResult=async(key:string,submit:any)=>{
+    if(!submit?.status_url||!submit?.response_url)throw new Error("fal.ai did not return queue status/result URLs.");
+    for(let i=0;i<36;i++){
+      const statusResponse=await fetch(submit.status_url,{headers:{Authorization:`Key ${key}`},signal:AbortSignal.timeout(120000)});
+      const status=await parseJsonResponse(statusResponse,"fal.ai");
+      if(status.status==="COMPLETED"){
+        const resultResponse=await fetch(submit.response_url,{headers:{Authorization:`Key ${key}`},signal:AbortSignal.timeout(120000)});
+        return await parseJsonResponse(resultResponse,"fal.ai result");
+      }
+      if(status.status!=="IN_QUEUE"&&status.status!=="IN_PROGRESS")throw new Error(status.error||"fal.ai image generation failed.");
+      await new Promise(r=>setTimeout(r,2000));
+    }
+    throw new Error("fal.ai is still generating this image. Please try again in a moment.");
+  };
+  const waitForNovitaImage=async(key:string,taskId:string)=>{
+    for(let i=0;i<36;i++){
+      const response=await fetch(`https://api.novita.ai/v3/async/task-result?task_id=${encodeURIComponent(taskId)}`,{headers:{Authorization:`Bearer ${key}`},signal:AbortSignal.timeout(120000)});
+      const result=await parseJsonResponse(response,"Novita AI");const state=String(result.task?.status||"");
+      if(state==="TASK_STATUS_SUCCEED"){const url=result.images?.[0]?.image_url;if(url)return await downloadProviderImage(url);throw new Error("Novita completed but did not return an image URL.");}
+      if(["TASK_STATUS_FAILED","TASK_STATUS_CANCELED"].includes(state))throw new Error(result.task?.reason||"Novita image generation failed.");
+      await new Promise(r=>setTimeout(r,2000));
+    }
+    throw new Error("Novita is still generating this image. Please try again in a moment.");
+  };
+  const waitForPixazoImage=async(key:string,start:any)=>{
+    const statusUrl=String(start?.polling_url||start?.status_url||(start?.request_id?`https://gateway.pixazo.ai/v2/requests/status/${encodeURIComponent(start.request_id)}`:""));
+    if(!statusUrl){const direct=start?.output?.media_url||start?.media_url||start?.image_url||start?.images?.[0]?.url||start?.data?.[0]?.url;if(direct)return await downloadProviderImage(direct);throw new Error("Pixazo did not return a request ID or polling URL.");}
+    for(let i=0;i<48;i++){
+      const response=await fetch(statusUrl,{headers:{"Ocp-Apim-Subscription-Key":key,Accept:"application/json"},signal:AbortSignal.timeout(120000)});
+      const result=await parseJsonResponse(response,"Pixazo");const state=String(result.status||result.state||"").toUpperCase();
+      const imageUrl=result.output?.media_url||result.output?.image_url||result.output?.images?.[0]?.url||result.media_url||result.image_url||result.images?.[0]?.url||result.data?.[0]?.url;
+      if(["COMPLETED","SUCCEEDED","SUCCESS","DONE"].includes(state)||imageUrl){if(imageUrl)return await downloadProviderImage(imageUrl);throw new Error("Pixazo completed without returning an image URL.");}
+      if(["FAILED","ERROR","CANCELLED","CANCELED"].includes(state))throw new Error(result.error?.message||result.error||result.message||"Pixazo image generation failed.");
+      await new Promise(r=>setTimeout(r,2500));
+    }
+    throw new Error("Pixazo is still generating this image. Please try again shortly.");
+  };
+  const generateWithImageDraftProvider=async(provider:ImageDraftProviderId,prompt:string,ratio:string):Promise<{bytes:Uint8Array;mime:string;model:string}>=>{
+    const env=(name:string)=>Deno.env.get(name)||"";const dims=imageDimensionsForRatio(ratio);const timeout=AbortSignal.timeout(120000);const def=IMAGE_DRAFT_PROVIDERS.find(p=>p.id===provider)!;const model=env(def.envModel||"")||def.model;
+    const credentials=await getImageProviderCredentials(provider);const key=credentials.key;
+    if(provider!=="ovh"&&!key)throw new Error(`Add the ${def.name} API key in the AI image provider setup panel.`);
     if(provider==="cloudflare"){
-      const token=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN")||env("CLOUDFLARE_API_TOKEN");const account=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID")||env("CLOUDFLARE_ACCOUNT_ID");if(!token||!account)throw new Error("Cloudflare requires NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID and NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN secrets.");
-      const model=env("NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_MODEL")||"@cf/black-forest-labs/flux-1-schnell";const endpoint=`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/${model}`;
-      const response=await fetch(endpoint,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,steps:4}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
+      const account=credentials.extra;if(!account)throw new Error("Cloudflare requires the Account ID too. Enter it in the optional Cloudflare Account ID field.");
+      const endpoint=`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/${model}`;
+      const response=await fetch(endpoint,{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,steps:4}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
     }
     if(provider==="ovh"){
-      const model=env("NEWSROOM_IMAGE_DRAFT_OVH_MODEL")||"stable-diffusion-xl-base-v10";const headers:Record<string,string>={"Content-Type":"application/json"};
-      const response=await fetch("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/images/generations",{method:"POST",headers,body:JSON.stringify({model,prompt,size:"1024x1024"}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
+      const response=await fetch("https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/images/generations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model,prompt,size:"1024x1024"}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
     }
     if(provider==="huggingface"){
-      const token=env("NEWSROOM_IMAGE_DRAFT_HF_TOKEN");if(!token)throw new Error("Add NEWSROOM_IMAGE_DRAFT_HF_TOKEN in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_HF_MODEL")||"black-forest-labs/FLUX.1-schnell";
-      const response=await fetch(`https://router.huggingface.co/hf-inference/models/${model}`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"image/png"},body:JSON.stringify({inputs:prompt,parameters:{width:dims.width,height:dims.height}}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
+      const response=await fetch(`https://router.huggingface.co/hf-inference/models/${encodeURIComponent(model)}`,{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json",Accept:"image/png"},body:JSON.stringify({inputs:prompt,parameters:{width:dims.width,height:dims.height}}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
     }
     if(provider==="pollinations"){
-      const key=env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY");if(!key)throw new Error("Add NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_POLLINATIONS_MODEL")||"flux";const endpoint=`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=${dims.width}&height=${dims.height}&nologo=true`;
+      const endpoint=`https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?model=${encodeURIComponent(model)}&width=${dims.width}&height=${dims.height}&nologo=true`;
       const response=await fetch(endpoint,{headers:{Authorization:`Bearer ${key}`,Accept:"image/png,image/jpeg"},signal:timeout});const result=await readProviderImage(response);return {...result,model};
     }
     if(provider==="stability"){
-      const key=env("NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY");if(!key)throw new Error("Add NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_STABILITY_MODEL")||"stable-image-core";const form=new FormData();form.append("prompt",prompt);form.append("output_format","png");form.append("aspect_ratio",ratio);
+      const form=new FormData();form.append("prompt",prompt);form.append("output_format","png");form.append("aspect_ratio",ratio);
       const response=await fetch("https://api.stability.ai/v2beta/stable-image/generate/core",{method:"POST",headers:{Authorization:`Bearer ${key}`,Accept:"image/*"},body:form,signal:timeout});const result=await readProviderImage(response);return {...result,model};
     }
     if(provider==="replicate"){
-      const token=env("NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN");if(!token)throw new Error("Add NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN in Supabase Edge Function Secrets.");const model=env("NEWSROOM_IMAGE_DRAFT_REPLICATE_MODEL")||"black-forest-labs/flux-schnell";const start=await fetch(`https://api.replicate.com/v1/models/${model}/predictions`,{method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"wait=60"},body:JSON.stringify({input:{prompt,aspect_ratio:ratio,output_format:"png"}}),signal:timeout});
+      const start=await fetch(`https://api.replicate.com/v1/models/${model.split("/").map(encodeURIComponent).join("/")}/predictions`,{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json",Prefer:"wait=60"},body:JSON.stringify({input:{prompt,aspect_ratio:ratio,output_format:"png"}}),signal:timeout});
       let prediction:any={};const startText=await start.text();try{prediction=JSON.parse(startText||"{}");}catch{}if(!start.ok)throw new Error(`Replicate returned HTTP ${start.status}: ${String(prediction.detail||prediction.error||startText).slice(0,600)}`);
-      for(let i=0;i<5&&prediction.status!=="succeeded"&&prediction.status!=="failed"&&prediction.status!=="canceled";i++){const pollUrl=prediction.urls?.get;if(!pollUrl)break;await new Promise(r=>setTimeout(r,1800));const poll=await fetch(pollUrl,{headers:{Authorization:`Bearer ${token}`},signal:timeout});const pollText=await poll.text();try{prediction=JSON.parse(pollText||"{}");}catch{throw new Error("Replicate returned an unreadable prediction status.");}}
-      if(prediction.status!=="succeeded")throw new Error(prediction.status==="failed"?(prediction.error||"Replicate image generation failed."):"Replicate is still generating this image. Try again in a moment; no draft has been changed.");
-      const output=Array.isArray(prediction.output)?prediction.output[0]:prediction.output;if(typeof output!=="string"||!/^https:\/\//i.test(output))throw new Error("Replicate did not return a downloadable image URL.");const outUrl=new URL(output);if(!["replicate.delivery","pbxt.replicate.delivery"].some(h=>outUrl.hostname===h||outUrl.hostname.endsWith("."+h)))throw new Error("Replicate returned an unexpected image host.");const imageResponse=await fetch(outUrl.href,{signal:timeout});const result=await readProviderImage(imageResponse);return {...result,model};
+      for(let i=0;i<26&&prediction.status!=="succeeded"&&prediction.status!=="failed"&&prediction.status!=="canceled";i++){const pollUrl=prediction.urls?.get;if(!pollUrl)break;await new Promise(r=>setTimeout(r,1800));const poll=await fetch(pollUrl,{headers:{Authorization:`Bearer ${key}`},signal:timeout});const pollText=await poll.text();try{prediction=JSON.parse(pollText||"{}");}catch{throw new Error("Replicate returned an unreadable prediction status.");}}
+      if(prediction.status!=="succeeded")throw new Error(prediction.status==="failed"?(prediction.error||"Replicate image generation failed."):"Replicate is still generating this image. Try again shortly; no draft has been changed.");
+      const output=Array.isArray(prediction.output)?prediction.output[0]:prediction.output;const result=await downloadProviderImage(output);return {...result,model};
+    }
+    if(provider==="openai"){
+      const response=await fetch("https://api.openai.com/v1/images/generations",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt,size:ratio==="16:9"?"1536x1024":ratio==="4:5"?"1024x1536":"1024x1024",quality:"low",output_format:"png",n:1}),signal:timeout});
+      const data=await parseJsonResponse(response,"OpenAI Images");const b64=data.data?.[0]?.b64_json;if(!b64)throw new Error("OpenAI Images did not return base64 image data.");const bytes=bytesFromBase64(b64);return {bytes,mime:imageMimeForBytes(bytes),model};
+    }
+    if(provider==="google"){
+      const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],responseFormat:{image:{aspectRatio:ratio}}}}),signal:timeout});
+      const data=await parseJsonResponse(response,"Google Gemini");const part=(data.candidates?.[0]?.content?.parts||[]).find((p:any)=>p.inlineData?.data||p.inline_data?.data);const b64=part?.inlineData?.data||part?.inline_data?.data;if(!b64)throw new Error("Google Gemini did not return an image. Confirm the selected model supports image output.");const bytes=bytesFromBase64(b64);return {bytes,mime:imageMimeForBytes(bytes),model};
+    }
+    if(provider==="fal"){
+      const endpoint=model.startsWith("fal-ai/")?model:`fal-ai/${model}`;const image_size=ratio==="16:9"?"landscape_16_9":ratio==="4:5"?"portrait_4_5":"square_hd";
+      const startResponse=await fetch(`https://queue.fal.run/${endpoint}`,{method:"POST",headers:{Authorization:`Key ${key}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,image_size}),signal:timeout});const startData=await parseJsonResponse(startResponse,"fal.ai");const result=await waitForFalResult(key,startData);const url=result.images?.[0]?.url||result.image?.url||result.output?.url;if(!url)throw new Error("fal.ai completed without returning an image URL.");const image=await downloadProviderImage(url);return {...image,model};
+    }
+    if(provider==="runware"){
+      const taskUUID=crypto.randomUUID();const response=await fetch("https://api.runware.ai/v1",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify([{taskType:"imageInference",taskUUID,positivePrompt:prompt,width:dims.width,height:dims.height,model,numberResults:1}]),signal:timeout});
+      const data=await parseJsonResponse(response,"Runware");const item=data.data?.[0];if(item?.imageURL){const image=await downloadProviderImage(item.imageURL);return {...image,model};}if(item?.imageData){const bytes=bytesFromBase64(item.imageData);return {bytes,mime:imageMimeForBytes(bytes),model};}throw new Error(data.errors?.[0]?.message||"Runware did not return an image URL or image data.");
+    }
+    if(provider==="ideogram"){
+      const form=new FormData();form.append("text_prompt",prompt);form.append("aspect_ratio",ratio==="16:9"?"16x9":ratio==="4:5"?"4x5":"1x1");form.append("resolution","1K");const response=await fetch("https://api.ideogram.ai/v1/ideogram-v4/generate",{method:"POST",headers:{"Api-Key":key},body:form,signal:timeout});const data=await parseJsonResponse(response,"Ideogram");const image=await downloadProviderImage(data.data?.[0]?.url||data.images?.[0]?.url);return {...image,model};
+    }
+    if(provider==="leonardo"){
+      const response=await fetch("https://cloud.leonardo.ai/api/rest/v1/generations",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,modelId:model,width:dims.width,height:dims.height,num_images:1}),signal:timeout});const data=await parseJsonResponse(response,"Leonardo.Ai");const generationId=data.sdGenerationJob?.generationId||data.generationId;if(!generationId)throw new Error("Leonardo did not return a generation ID.");
+      for(let i=0;i<30;i++){await new Promise(r=>setTimeout(r,2000));const poll=await fetch(`https://cloud.leonardo.ai/api/rest/v1/generations/${encodeURIComponent(generationId)}`,{headers:{Authorization:`Bearer ${key}`},signal:timeout});const result=await parseJsonResponse(poll,"Leonardo.Ai");const images=result.generations_by_pk?.generated_images||result.generated_images||[];if(images[0]?.url){const image=await downloadProviderImage(images[0].url);return {...image,model};}if(result.generations_by_pk?.status==="FAILED")throw new Error("Leonardo image generation failed.");}
+      throw new Error("Leonardo is still generating this image. Please try again shortly.");
+    }
+    if(provider==="bfl"){
+      const response=await fetch(`https://api.bfl.ai/v1/${encodeURIComponent(model)}`,{method:"POST",headers:{"x-key":key,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({prompt,width:dims.width,height:dims.height}),signal:timeout});const data=await parseJsonResponse(response,"Black Forest Labs");const pollingUrl=data.polling_url||`https://api.bfl.ai/v1/get_result?id=${encodeURIComponent(data.id||"")}`;
+      for(let i=0;i<36;i++){await new Promise(r=>setTimeout(r,1800));const poll=await fetch(pollingUrl,{headers:{"x-key":key,Accept:"application/json"},signal:timeout});const result=await parseJsonResponse(poll,"Black Forest Labs");if(result.status==="Ready"||result.status==="succeeded"){const image=await downloadProviderImage(result.result?.sample||result.result?.url);return {...image,model};}if(result.status==="Error"||result.status==="failed")throw new Error(result.error||"FLUX image generation failed.");}
+      throw new Error("Black Forest Labs is still generating this image. Please try again shortly.");
+    }
+    if(provider==="deepai"){
+      const form=new FormData();form.append("text",prompt);form.append("image_generator_version","standard");form.append("width",String(dims.width));form.append("height",String(dims.height));const response=await fetch("https://api.deepai.org/api/text2img",{method:"POST",headers:{"api-key":key},body:form,signal:timeout});const data=await parseJsonResponse(response,"DeepAI");const image=await downloadProviderImage(data.output_url);return {...image,model};
+    }
+    if(provider==="getimg"){
+      const response=await fetch("https://api.getimg.ai/v2/images/generations",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model,prompt,aspect_ratio:ratio,output_format:"png"}),signal:timeout});const data=await parseJsonResponse(response,"getimg.ai");const url=data.data?.[0]?.url||data.images?.[0]?.url||data.output_url;const image=await downloadProviderImage(url);return {...image,model};
+    }
+    if(provider==="novita"){
+      const start=await fetch("https://api.novita.ai/v3/async/txt2img",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({extra:{response_image_type:"jpeg"},request:{model_name:model,prompt,width:dims.width,height:dims.height,image_num:1,steps:20,seed:-1}}),signal:timeout});const data=await parseJsonResponse(start,"Novita AI");if(!data.task_id)throw new Error("Novita did not return a task ID.");const image=await waitForNovitaImage(key,data.task_id);return {...image,model};
+    }
+    if(provider==="magnific"){
+      const endpoint=model==="flux-dev"?"https://api.magnific.com/v1/ai/text-to-image/flux-dev":"https://api.magnific.com/v1/ai/text-to-image";const aspect_ratio=ratio==="16:9"?"widescreen_16_9":ratio==="4:5"?"portrait_4_5":"square_1_1";
+      const response=await fetch(endpoint,{method:"POST",headers:{"x-magnific-api-key":key,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({prompt,aspect_ratio}),signal:timeout});const data=await parseJsonResponse(response,"Magnific");const url=data.image_url||data.output_url||data.url||data.data?.[0]?.url||data.image?.url||data.result?.url;if(!url)throw new Error("Magnific response did not include an image URL. Confirm your API account/model endpoint.");const image=await downloadProviderImage(url);return {...image,model};
+    }
+    if(provider==="segmind"){
+      const response=await fetch(`https://api.segmind.com/v1/${encodeURIComponent(model)}`,{method:"POST",headers:{"x-api-key":key,"Content-Type":"application/json"},body:JSON.stringify({prompt,steps:4,aspect_ratio:ratio}),signal:timeout});const result=await readProviderImage(response);return {...result,model};
+    }
+    if(provider==="pixazo"){
+      const endpoint=model.includes("/")?model:"gpt-image-2-6-flare";const size=ratio==="16:9"?"1536x1024":ratio==="4:5"?"1024x1536":"1024x1024";const response=await fetch(`https://gateway.pixazo.ai/${encodeURIComponent(endpoint)}/v1/text-to-image`,{method:"POST",headers:{"Ocp-Apim-Subscription-Key":key,"Content-Type":"application/json","Cache-Control":"no-cache"},body:JSON.stringify({prompt,size,quality:"low",n:1}),signal:timeout});const data=await parseJsonResponse(response,"Pixazo");const image=await waitForPixazoImage(key,data);return {...image,model};
+    }
+    if(provider==="recraft"){
+      const response=await fetch("https://external.api.recraft.ai/v1/images/generations",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({prompt,model,size:ratio==="16:9"?"1820x1024":ratio==="4:5"?"1024x1280":"1024x1024"}),signal:timeout});const data=await parseJsonResponse(response,"Recraft");const url=data.data?.[0]?.url||data.image?.url||data.url;if(!url)throw new Error("Recraft did not return a generated image URL.");const image=await downloadProviderImage(url);return {...image,model};
     }
     throw new Error("Unknown image drafting provider.");
   };
   if(action==="image_draft_provider_config"){
-    const active_provider=await getActiveImageDraftProvider();return json({ok:true,active_provider,providers:imageDraftProviderStatus()});
+    try{const active_provider=await getActiveImageDraftProvider();return json({ok:true,active_provider,providers:await imageDraftProviderStatus()});}
+    catch(e){return json({error:e instanceof Error?e.message:String(e)},503);}
+  }
+  if(action==="save_image_draft_provider_key"){
+    try{
+      const provider=String(body.provider||"");if(!isImageDraftProviderId(provider))return json({error:"Choose one of the 20 supported image providers."},400);
+      const def=IMAGE_DRAFT_PROVIDERS.find(p=>p.id===provider)!;if(def.keyless)return json({error:`${def.name} is currently a keyless public test provider; no key is required.`},400);
+      const apiKey=String(body.api_key||"").trim();if(apiKey.length<8||apiKey.length>3000)return json({error:"Enter a valid API key (8–3,000 characters)."},400);
+      let extra=provider==="cloudflare"?String(body.account_id||"").trim():"";if(provider==="cloudflare"&&!extra){const existing=await getImageProviderCredentials("cloudflare");extra=existing.extra;}if(provider==="cloudflare"&&!/^[a-f0-9]{32}$/i.test(extra))return json({error:"Enter the 32-character Cloudflare Account ID as well as its API token."},400);
+      const encrypted=await encryptImageSecret(apiKey);const extraEncrypted=extra?await encryptImageSecret(extra):null;
+      const {error}=await db.from("newsroom_image_provider_keys").upsert({provider_id:provider,key_ciphertext:encrypted.ciphertext,key_iv:encrypted.iv,extra_ciphertext:extraEncrypted?.ciphertext||null,extra_iv:extraEncrypted?.iv||null,key_hint:apiKey.slice(-4),updated_by:userData.user.id,updated_at:new Date().toISOString()},{onConflict:"provider_id"});
+      if(error)throw new Error(`Could not securely save this API key: ${error.message}`);
+      return json({ok:true,message:`${def.name} API key saved securely. The key will not be shown again.`,providers:await imageDraftProviderStatus()});
+    }catch(e){return json({error:e instanceof Error?e.message:String(e)},400);}
+  }
+  if(action==="delete_image_draft_provider_key"){
+    try{const provider=String(body.provider||"");if(!isImageDraftProviderId(provider))return json({error:"Choose a supported provider."},400);const {error}=await db.from("newsroom_image_provider_keys").delete().eq("provider_id",provider);if(error)throw error;
+      if(await getActiveImageDraftProvider()===provider)await db.from("site_settings").upsert({key:"newsroom_active_image_draft_provider",value:"ovh",updated_at:new Date().toISOString()},{onConflict:"key"});
+      return json({ok:true,message:"Saved API key removed. This provider is no longer configured unless a legacy server secret exists.",active_provider:await getActiveImageDraftProvider(),providers:await imageDraftProviderStatus()});
+    }catch(e){return json({error:e instanceof Error?e.message:String(e)},400);}
   }
   if(action==="set_active_image_draft_provider"){
-    const provider=String(body.provider||"") as ImageDraftProviderId;const status=imageDraftProviderStatus().find(p=>p.id===provider);if(!status)return json({error:"Choose one of the six supported image providers."},400);if(!status.configured)return json({error:`${status.name} is not configured. Add: ${status.missing.join(", ")}.`},400);
-    const {error}=await db.from("site_settings").upsert({key:"newsroom_active_image_draft_provider",value:provider,updated_at:new Date().toISOString()},{onConflict:"key"});if(error)return json({error:`Could not save the active image provider: ${error.message}`},500);return json({ok:true,active_provider:provider,providers:imageDraftProviderStatus()});
+    const provider=String(body.provider||"");if(!isImageDraftProviderId(provider))return json({error:"Choose one of the 20 supported image providers."},400);const providers=await imageDraftProviderStatus();const status=providers.find(p=>p.id===provider);if(!status)return json({error:"Choose a supported image generation provider."},400);if(!status.configured)return json({error:`${status.name} is not configured. Add its API key first${status.missing.length?`: ${status.missing.join(", ")}`:""}.`},400);
+    const {error}=await db.from("site_settings").upsert({key:"newsroom_active_image_draft_provider",value:provider,updated_at:new Date().toISOString()},{onConflict:"key"});if(error)return json({error:`Could not save the active image provider: ${error.message}`},500);return json({ok:true,active_provider:provider,providers:await imageDraftProviderStatus()});
   }
   if(action==="image_draft_generate"){
     try{
       const post=await readEditablePost(String(body.post_id||""));if(body.disclosure_confirmed!==true)return json({error:"Confirm that this is a disclosed AI-generated illustration, not a documentary photograph."},400);
-      const provider=String(body.provider||await getActiveImageDraftProvider()) as ImageDraftProviderId;const config=imageDraftProviderStatus().find(p=>p.id===provider);if(!config)return json({error:"Choose a supported image generation provider."},400);if(!config.configured)return json({error:`${config.name} is not configured. Add: ${config.missing.join(", ")}.`},503);
+      const providerValue=String(body.provider||await getActiveImageDraftProvider());if(!isImageDraftProviderId(providerValue))return json({error:"Choose a supported image generation provider."},400);const provider=providerValue;const config=(await imageDraftProviderStatus()).find(p=>p.id===provider);if(!config)return json({error:"Choose a supported image generation provider."},400);if(!config.configured)return json({error:`${config.name} is not configured. Add its API key first${config.missing.length?`: ${config.missing.join(", ")}`:""}.`},503);
       const rawPrompt=String(body.prompt||"").trim();if(rawPrompt.length<12||rawPrompt.length>1400)return json({error:"The image prompt must contain 12 to 1,400 characters."},400);const ratio=["1:1","16:9","4:5"].includes(String(body.aspect_ratio))?String(body.aspect_ratio):"1:1";
       const safePrompt=`Create a clearly illustrative editorial artwork for a news article. It must look like an illustration, not a documentary photograph or visual evidence of a real event. Do not copy or imitate a real photograph, copyrighted artwork, brand logo, publisher watermark, protected character, or identifiable real person's likeness. Do not include text, captions, flags with inaccurate details, fake logos or watermarks. Use this creative brief: ${rawPrompt}`;
       const generated=await generateWithImageDraftProvider(provider,safePrompt,ratio);const mime=imageMimeForBytes(generated.bytes);return json({ok:true,post_id:post.id,post_title:post.title,provider,model:generated.model,image_mime:mime,image_base64:bytesToBase64(generated.bytes),message:"Image generated for preview. Review the illustration and AI disclosure before saving it to the draft."});
