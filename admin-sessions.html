@@ -7,8 +7,8 @@
   <title>Owner Session Control Centre | PARROTHIT</title>
   <script>document.documentElement.classList.add('admin-auth-pending');</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js"></script>
-  <script src="js/admin-auth-guard.js"></script>
+  <script src="../supabase-config.js"></script>
+  <script src="../js/admin-auth-guard.js"></script>
   <style>
     :root{--bg:#07140f;--panel:#10231a;--panel2:#162d22;--line:#2b4b3a;--text:#f8fafc;--muted:#c1d2c7;--purple:#7c3aed;--purple2:#a78bfa;--danger:#b91c1c;--ok:#86efac}
     *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top right,#2b1550 0,#07140f 48%);color:var(--text);font:15px/1.5 system-ui,Arial,sans-serif;min-height:100vh}
@@ -44,7 +44,7 @@
     <section class="card"><h2>Security activity log</h2><p class="foot">Recent successful claims, rejected concurrent sign-ins, releases, inactivity expirations and owner revocations.</p><div class="table-wrap"><table class="table" style="min-width:760px"><thead><tr><th>Time</th><th>Event</th><th>Target admin ID</th><th>Device / details</th></tr></thead><tbody id="sessionAuditRows"><tr><td colspan="4" class="empty-cell">Loading security events…</td></tr></tbody></table></div></section>
     <p class="foot">PARROTHIT · Device tokens are never displayed in this console. IP details are only shown to Admin 1 when the hosting proxy supplies a verified address; VPNs and shared networks may affect how an address identifies a device.</p>
   </main>
-  <script src="js/admin-session-manager.js"></script>
+  <script src="../js/admin-session-manager.js"></script>
   <script src="/js/public-notifications.js?v=20261112-read-article-only-v1"></script>
 </body>
 </html>
