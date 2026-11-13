@@ -1,0 +1,6 @@
+# PARROTHIT performance cache policy (Cloudflare static assets)
+/assets/perf-v2/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/images/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
