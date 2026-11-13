@@ -126,6 +126,29 @@ img,video,iframe{max-width:100%}
 .image-gen-actions button{flex:0 1 auto}
 @media(max-width:900px){.image-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.image-provider-grid{grid-template-columns:1fr}.image-gen-actions{display:grid;grid-template-columns:1fr}.image-gen-actions button{width:100%}}
+.image-provider-setup{background:#07160f;border:1px solid #315b40;border-radius:11px;padding:12px;margin-top:10px}
+.image-provider-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.image-provider-actions button{flex:1 1 180px}
+.image-provider-selected{font-size:.86rem;line-height:1.5;color:#d1e3d8;padding:10px;background:#0d2418;border-radius:8px;overflow-wrap:anywhere}
+.image-provider-selected a,.image-provider-card a{color:#9deab8;font-weight:800;text-decoration:underline}
+.image-provider-directory{margin-top:13px;border:1px solid #315b40;border-radius:10px;background:#07160f;padding:11px}
+.image-provider-directory summary{cursor:pointer;font-weight:850;color:#d9ffe5}
+.image-provider-card{min-height:0}
+.image-provider-card .provider-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;font-size:.82rem}
+.image-provider-card .provider-keyhint{font-size:.78rem;color:#a8e6b9}
+.image-provider-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1050px){.image-provider-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.image-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.image-provider-grid{grid-template-columns:1fr}.image-provider-actions{display:grid;grid-template-columns:1fr}.image-provider-actions button{width:100%}}
+/* Compact newsroom navigation and internal scroll areas keep large feeds/queues from stretching the whole page. */
+.newsroom-quick-nav{position:sticky;top:0;z-index:40;display:flex;gap:7px;overflow-x:auto;white-space:nowrap;background:#07130d;border:1px solid #315b40;border-radius:10px;padding:8px;margin:9px 0 12px;box-shadow:0 5px 18px rgba(0,0,0,.35)}
+.newsroom-quick-nav a{flex:0 0 auto;color:#d9ffe5;text-decoration:none;font-size:.82rem;font-weight:800;padding:7px 10px;border-radius:20px;background:#173525}
+.newsroom-quick-nav a:hover{background:#23613c}
+#feedSourcesPanel .table-wrap{max-height:270px;overflow:auto}
+#storyQueuePanel .table-wrap{max-height:480px;overflow:auto}
+#feedSourcesPanel th,#storyQueuePanel th{position:sticky;top:0;z-index:3;background:#123322;box-shadow:0 1px 0 #376448}
+#candidateSearchBox{max-width:300px}
+@media(max-width:600px){#feedSourcesPanel .table-wrap{max-height:32vh}#storyQueuePanel .table-wrap{max-height:42vh}.newsroom-quick-nav{top:0}}
 </style>
 
 </head>
@@ -137,6 +160,9 @@ img,video,iframe{max-width:100%}
 </header>
 <div class="warning"><strong>Human approval remains mandatory.</strong> Every newsroom draft stays unpublished until an administrator reviews it. Choose one of four human-review destinations: Article Editor, Category Cards 1–6, Homepage Cards 1–15, or Featured Story Cards 1–16. No AI action can publish an article or occupy a card.</div>
 <div id="message" class="msg"></div>
+<nav class="newsroom-quick-nav" aria-label="Newsroom sections">
+ <a href="#feedSourcesPanel">📡 Feed sources</a><a href="#storyQueuePanel">🗂️ Story queue</a><a href="#draftWorkflowPanel">📝 Workflow</a><a href="#aiImageDraftProvidersPanel">🎨 Image providers</a><a href="#aiProviderPanel">🤖 Article AI</a><a href="#dailySchedulePanel">🗓️ Schedule</a>
+</nav>
 
 <section class="panel" id="aiImageBrandingPanel">
  <div class="section-head"><div><h2>🦜 PARROTHIT AI Image Branding Engine</h2><p class="muted">Detect eligible publisher overlays, remove them with AI, and place the official PARROTHIT falcon mark on an unpublished newsroom draft. Original images are retained for restoration.</p></div><span class="branding-status" id="brandEngineStatus">Checking image service…</span></div>
@@ -150,14 +176,28 @@ img,video,iframe{max-width:100%}
 </section>
 
 <section class="panel" id="aiImageDraftProvidersPanel">
- <div class="section-head"><div><h2>🎨 Brand newsroom draft image — AI image providers</h2><p class="muted">Configure a preferred text-to-image service for newsroom draft illustrations. API secrets stay in Supabase Edge Function Secrets; this page never stores provider keys in the browser or database.</p></div><span class="branding-status" id="imageDraftProviderStatus">Checking providers…</span></div>
- <div class="row" style="align-items:end;margin-top:12px">
-  <div class="field" style="flex:2"><label for="imageDraftProviderSelect">Preferred image-drafting provider</label><select id="imageDraftProviderSelect"><option value="ovh">OVHcloud AI Endpoints — SDXL (free public test)</option><option value="cloudflare">Cloudflare Workers AI — FLUX.1 Schnell</option><option value="huggingface">Hugging Face Inference — FLUX.1 Schnell</option><option value="pollinations">Pollinations — FLUX</option><option value="stability">Stability AI — Stable Image Core</option><option value="replicate">Replicate — FLUX Schnell</option></select></div>
-  <button type="button" class="green" id="saveImageDraftProvider">Save preferred provider</button><button type="button" class="secondary" id="refreshImageDraftProviders">Refresh provider status</button>
+ <div class="section-head"><div><h2>🎨 Brand newsroom draft image — 20 AI providers</h2><p class="muted">Choose a service, paste its API key and save. Keys are encrypted on the server and never displayed again. Each generation creates a preview; an admin must review and save it to an unpublished draft.</p></div><span class="branding-status" id="imageDraftProviderStatus">Checking providers…</span></div>
+ <div class="image-provider-setup">
+  <div class="row" style="align-items:end;margin-top:12px">
+   <div class="field" style="flex:2"><label for="imageDraftProviderSelect">Image-drafting provider</label><select id="imageDraftProviderSelect"><option value="ovh">OVHcloud AI Endpoints — keyless public test</option></select></div>
+   <div class="field" style="flex:2"><label for="imageDraftApiKey">Provider API key</label><input id="imageDraftApiKey" type="password" autocomplete="new-password" placeholder="Paste the provider API key here"></div>
+   <div class="field" id="imageDraftCloudflareAccountWrap" hidden><label for="imageDraftCloudflareAccount">Cloudflare Account ID</label><input id="imageDraftCloudflareAccount" type="text" autocomplete="off" placeholder="Required 32-character Account ID"></div>
+  </div>
+  <div class="image-provider-actions">
+   <button type="button" class="green" id="saveImageDraftApiKey">🔐 Save API key securely</button>
+   <button type="button" class="secondary" id="removeImageDraftApiKey">Remove saved key</button>
+   <button type="button" class="blue" id="saveImageDraftProvider">Use selected provider</button>
+   <button type="button" class="secondary" id="refreshImageDraftProviders">Refresh provider status</button>
+  </div>
+  <div id="imageDraftSelectedProviderInfo" class="image-provider-selected" aria-live="polite">Choose a provider to see its API registration link and setup notes.</div>
  </div>
- <div id="imageDraftProviderCards" class="image-provider-grid" aria-live="polite"></div>
- <p class="warning" style="margin-bottom:0"><strong>Free-tier notice:</strong> these are free or limited-credit options, not six unlimited free services. OVHcloud is preselected for no-key free testing; Cloudflare is a good next choice for a recurring daily free allowance. OVH's public endpoint is rate-limited. Hugging Face, Pollinations, Stability and Replicate limits depend on the current account, model, region or starter-credit offer. Check provider usage before each campaign; this page does not enable paid fallback or automatic provider switching.</p>
- <p class="muted small" id="imageDraftProviderHelp">Add the secrets shown on the provider cards in Supabase Dashboard → Edge Functions → Secrets, then redeploy the newsroom function. No key should be pasted into this web page.</p>
+ <details class="image-provider-directory">
+  <summary>View the 20-provider directory, API websites and connection status</summary>
+  <div class="field" style="margin-top:12px"><label for="imageDraftProviderSearch">Find a provider</label><input id="imageDraftProviderSearch" type="search" placeholder="Search by provider name…"></div>
+  <div id="imageDraftProviderCards" class="image-provider-grid" aria-live="polite"></div>
+ </details>
+ <p class="warning" style="margin:12px 0 0"><strong>Cost and rights safeguard:</strong> 20 provider connections do not mean 20 free services. Most use prepaid credits or pay-as-you-go billing. Check the provider's current pricing, model availability and commercial-use terms before generating an image. The system uses one provider at a time; it will not silently switch to a paid provider or publish an image.</p>
+ <p class="muted small" id="imageDraftProviderHelp">Secure API-key vault status will appear here after the newsroom Edge Function and SQL migration are deployed.</p>
 </section>
 <div class="branding-modal" id="brandImageModal" hidden role="dialog" aria-modal="true" aria-labelledby="brandModalTitle">
  <div class="branding-card">
@@ -197,7 +237,7 @@ img,video,iframe{max-width:100%}
  <div class="row" style="align-items:end"><div class="field" style="flex:2;min-width:260px"><label for="draftDestination">Send new drafts to</label><select id="draftDestination"><option value="articles">/admin/articles.html — Existing Article Editor</option><option value="category_card_manager">/admin/category-card-assignment-manager.html — Category Card 1–6 Assignment Manager</option><option value="homepage_news_card_manager">/admin/homepage-news-card-assignment-manager.html — Homepage News Card 1–15 Assignment Manager</option><option value="featured_story_card_manager">/admin/featured-story-card-destination-manager.html — Featured Story Card 1–16 Destination Manager</option></select></div><button type="button" id="saveDraftDestination" class="green">Save draft destination</button></div>
  <p class="muted small" id="draftDestinationStatus" role="status" aria-live="polite">Loading the saved destination…</p>
 </section>
-<section class="panel">
+<section class="panel" id="feedSourcesPanel">
   <div class="section-head"><div><h2>1. Feed sources</h2><p class="muted">Add RSS or Atom feeds. Feed URLs are fetched by the secure Supabase Edge Function, not by your browser.</p></div><button id="discoverBtn" class="green">🔎 Discover new stories</button></div>
   <form id="sourceForm"><div class="row">
     <div class="field"><label for="sourceName">Source name</label><input id="sourceName" required maxlength="120" placeholder="Example: BBC News Africa"></div>
@@ -207,11 +247,12 @@ img,video,iframe{max-width:100%}
   </div></form>
   <div class="table-wrap"><table><thead><tr><th>Source</th><th>Feed URL</th><th>Default category</th><th>Enabled</th><th>Actions</th></tr></thead><tbody id="sourceRows"><tr><td colspan="5" class="empty">Loading sources…</td></tr></tbody></table></div>
 </section>
-<section class="panel">
+<section class="panel" id="storyQueuePanel">
   <div class="section-head"><div><h2>2. Discovered story queue</h2><p class="muted">Choose either to retrieve source-page text for editorial review (free, when accessible) or create an original detailed report with AI (uses configured AI credits). Both remain In Review.</p></div><button id="reloadCandidates" class="secondary">Reload queue</button></div>
+  <div class="row" style="margin:8px 0;justify-content:space-between"><span id="candidateQueueCount" class="muted small">Latest discovered and drafted stories</span><div class="field" style="flex:0 1 300px"><label class="small" for="candidateSearchBox">Filter visible results</label><input type="search" id="candidateSearchBox" placeholder="Search headlines, publishers or categories"></div></div>
   <div class="table-wrap"><table><thead><tr><th>Source headline</th><th>Source / date</th><th>Category</th><th>Status</th><th>Action</th></tr></thead><tbody id="candidateRows"><tr><td colspan="5" class="empty">Loading candidates…</td></tr></tbody></table></div>
 </section>
-<section class="panel">
+<section class="panel" id="draftWorkflowPanel">
   <h2>3. Draft and publish workflow</h2>
   <ol class="muted">
     <li>Run discovery to collect recent links from enabled feeds.</li>
@@ -517,7 +558,8 @@ img,video,iframe{max-width:100%}
       try { data = await readWithTimeoutFallback(result, 'newsroom_candidates', { select: candidateColumns, order: 'discovered_at.desc', limit: 60 }); }
       catch (error) { body.innerHTML = `<tr><td colspan="5" class="empty">${esc(error.message)}. Run newsroom-automation-phase2.sql and the updated category-card-assignment-manager.sql migrations.</td></tr>`; return; }
     }
-    if (!data?.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No discovered stories yet. Click “Discover new stories”.</td></tr>'; return; }
+    if (!data?.length) { body.innerHTML = '<tr><td colspan="5" class="empty">No discovered stories yet. Click “Discover new stories”.</td></tr>'; $('candidateQueueCount').textContent='No stories in the latest queue'; return; }
+    $('candidateQueueCount').textContent=`Showing ${data.length} latest stories · table scrolls independently`;
     body.innerHTML = data.map(c => `<tr>
       <td><strong>${esc(c.source_title)}</strong><p class="muted small">${esc((c.source_summary || '').slice(0, 220))}</p><a href="${esc(c.source_url)}" target="_blank" rel="noopener" style="color:#b7e4c7">Open source ↗</a>${c.error_message ? `<p style="color:#ffb5b5" class="small">${esc(c.error_message)}</p>` : ''}</td>
       <td>${esc(c.source_name)}<br><span class="muted small">${c.source_published_at ? esc(new Date(c.source_published_at).toLocaleString()) : 'Date not supplied'}</span></td>
@@ -669,48 +711,86 @@ img,video,iframe{max-width:100%}
     $('brandSize').value = brandSettings.size;
   }
 
-  const IMAGE_DRAFT_PROVIDER_LABELS = {cloudflare:'Cloudflare Workers AI — FLUX.1 Schnell',ovh:'OVHcloud AI Endpoints — SDXL',huggingface:'Hugging Face Inference — FLUX.1 Schnell',pollinations:'Pollinations — FLUX',stability:'Stability AI — Stable Image Core',replicate:'Replicate — FLUX Schnell'};
-  const IMAGE_DRAFT_PROVIDER_SECRETS = {
-    cloudflare:['NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID','NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN'],
-    ovh:['No key required for the public free endpoint (optional NEWSROOM_IMAGE_DRAFT_OVH_API_TOKEN)'],
-    huggingface:['NEWSROOM_IMAGE_DRAFT_HF_TOKEN'],
-    pollinations:['NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY'],
-    stability:['NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY'],
-    replicate:['NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN']
-  };
+  const IMAGE_DRAFT_PROVIDER_CATALOG = [
+    {id:'cloudflare',name:'Cloudflare Workers AI',model:'FLUX.1 Schnell',api:'https://dash.cloudflare.com/profile/api-tokens',docs:'https://developers.cloudflare.com/workers-ai/',note:'Needs API token + Cloudflare Account ID (both can be pasted once).'},
+    {id:'ovh',name:'OVHcloud AI Endpoints',model:'Stable Diffusion XL',api:'https://endpoints.ai.cloud.ovh.net/',docs:'https://endpoints.ai.cloud.ovh.net/',note:'Keyless public test endpoint; rate-limited.'},
+    {id:'huggingface',name:'Hugging Face Inference',model:'FLUX.1 Schnell',api:'https://huggingface.co/settings/tokens',docs:'https://huggingface.co/docs/inference-providers/index',note:'Use a model enabled in your account.'},
+    {id:'pollinations',name:'Pollinations',model:'FLUX',api:'https://enter.pollinations.ai/',docs:'https://pollinations.ai/',note:'Starter credits/allowances may change.'},
+    {id:'stability',name:'Stability AI',model:'Stable Image Core',api:'https://platform.stability.ai/account/keys',docs:'https://platform.stability.ai/docs/api-reference/',note:'Credit-based API.'},
+    {id:'replicate',name:'Replicate',model:'FLUX Schnell',api:'https://replicate.com/account/api-tokens',docs:'https://replicate.com/docs/reference/http',note:'Model usage is billed by the model.'},
+    {id:'openai',name:'OpenAI Images',model:'GPT Image 2.6 Flare',api:'https://platform.openai.com/api-keys',docs:'https://developers.openai.com/api/docs/guides/image-generation',note:'Organization verification or billing may be required.'},
+    {id:'google',name:'Google Gemini Image',model:'Gemini 3.1 Flash Image',api:'https://aistudio.google.com/apikey',docs:'https://ai.google.dev/gemini-api/docs/image-generation',note:'Model access/usage depends on project and region.'},
+    {id:'fal',name:'fal.ai',model:'FLUX Schnell',api:'https://fal.ai/dashboard/keys',docs:'https://fal.ai/docs/model-api-reference/image-generation-api/overview',note:'Queue-based model API; per-model pricing.'},
+    {id:'runware',name:'Runware',model:'Image Inference',api:'https://runware.ai/',docs:'https://runware.ai/docs/models-api/introduction',note:'One API for many supported image models.'},
+    {id:'ideogram',name:'Ideogram',model:'Ideogram 4',api:'https://ideogram.ai/manage-api',docs:'https://developer.ideogram.ai/ideogram-api/api-overview',note:'High-quality image and typography models.'},
+    {id:'leonardo',name:'Leonardo.Ai',model:'FLUX Schnell',api:'https://app.leonardo.ai/api-access',docs:'https://docs.leonardo.ai/docs/getting-started',note:'API credits may be separate from web app credits.'},
+    {id:'bfl',name:'Black Forest Labs',model:'FLUX.2 Pro',api:'https://dashboard.bfl.ai/',docs:'https://docs.bfl.ai/quick_start',note:'Requires positive API credit balance.'},
+    {id:'deepai',name:'DeepAI',model:'Text2Img',api:'https://deepai.org/dashboard',docs:'https://deep.ai/docs',note:'Check current API plan requirements.'},
+    {id:'getimg',name:'getimg.ai',model:'FLUX Schnell',api:'https://dashboard.getimg.ai/',docs:'https://docs.getimg.ai/',note:'Pay-as-you-go; per-model pricing.'},
+    {id:'novita',name:'Novita AI',model:'SDXL 1.0',api:'https://novita.ai/',docs:'https://novita.ai/docs/api-reference/model-apis-txt2img',note:'Asynchronous task API; choose an enabled model.'},
+    {id:'magnific',name:'Magnific API',model:'FLUX Dev',api:'https://www.magnific.com/developers/dashboard',docs:'https://www.magnific.com/ai/docs/magnific-api',note:'API access may require plan provisioning.'},
+    {id:'segmind',name:'Segmind',model:'Fast FLUX Schnell',api:'https://cloud.segmind.com/',docs:'https://docs.segmind.com/docs/get-started/quickstart',note:'Direct model endpoint; usage is account-dependent.'},
+    {id:'pixazo',name:'Pixazo API',model:'GPT Image 2.6 Flare',api:'https://api.pixazo.ai/',docs:'https://gateway.pixazo.ai/api/text-to-image',note:'Single API key across multiple image model providers.'},
+    {id:'recraft',name:'Recraft API',model:'Recraft V4',api:'https://www.recraft.ai/api',docs:'https://www.recraft.ai/api',note:'Credit-based generation; review current commercial terms.'}
+  ];
+  const IMAGE_DRAFT_PROVIDER_LABELS = Object.fromEntries(IMAGE_DRAFT_PROVIDER_CATALOG.map(p=>[p.id,`${p.name} — ${p.model}`]));
   let imageDraftProvider='ovh';
   let imageDraftProviderConfigs=[];
   let generatedDraftPreviewDataUrl='';
   let generatedDraftMeta=null;
   function imageDraftStatus(text,type='ok'){const el=$('imageDraftGenerationStatus');if(el){el.textContent=text;el.className='branding-help '+(type==='error'?'branding-processing':'');}}
+  function renderImageDraftProviderCards(){
+    const search=($('imageDraftProviderSearch')?.value||'').trim().toLowerCase();
+    const cards=IMAGE_DRAFT_PROVIDER_CATALOG.filter(p=>!search||`${p.name} ${p.model} ${p.note}`.toLowerCase().includes(search));
+    $('imageDraftProviderCards').innerHTML=cards.map(p=>{
+      const status=imageDraftProviderConfigs.find(x=>x.id===p.id)||{};
+      return `<article class="image-provider-card"><h3>${esc(p.name)}</h3><span class="provider-state ${status.configured?'ready':''}">${status.configured?'READY':'NEEDS API KEY'}</span><p><strong>Default model:</strong> ${esc(status.model||p.model)}</p><p>${esc(status.note||p.note)}</p>${status.keyHint?`<p class="provider-keyhint">${esc(status.keyHint)}</p>`:''}<div class="provider-links"><a href="${esc(p.api)}" target="_blank" rel="noopener">Get API key ↗</a><a href="${esc(p.docs)}" target="_blank" rel="noopener">API docs ↗</a><button type="button" class="secondary" data-pick-image-provider="${esc(p.id)}">Select</button></div></article>`;
+    }).join('')||'<p class="muted">No providers match that search.</p>';
+    $('imageDraftProviderCards').querySelectorAll('[data-pick-image-provider]').forEach(button=>button.addEventListener('click',()=>{ $('imageDraftProviderSelect').value=button.dataset.pickImageProvider; updateImageDraftSelectedProvider(); $('imageDraftProviderSelect').scrollIntoView({behavior:'smooth',block:'center'}); }));
+  }
+  function updateImageDraftSelectedProvider(){
+    const id=$('imageDraftProviderSelect')?.value||'ovh';const p=IMAGE_DRAFT_PROVIDER_CATALOG.find(x=>x.id===id)||IMAGE_DRAFT_PROVIDER_CATALOG[1];
+    $('imageDraftCloudflareAccountWrap').hidden=id!=='cloudflare';
+    const status=imageDraftProviderConfigs.find(x=>x.id===id)||{};
+    $('imageDraftSelectedProviderInfo').innerHTML=`<strong>${esc(p.name)}</strong> · ${esc(status.model||p.model)}<br>${esc(status.note||p.note)}<br><a href="${esc(p.api)}" target="_blank" rel="noopener">Open provider website / get API key ↗</a> · <a href="${esc(p.docs)}" target="_blank" rel="noopener">Read API docs ↗</a>${status.configured?`<br><span class="provider-keyhint">Status: key saved${status.keyHint?' ('+esc(status.keyHint)+')':''}</span>`:`<br><span style="color:#ffdb9e">Status: ${id==='ovh'?'keyless public test':'API key required'}</span>`}`;
+    $('removeImageDraftApiKey').disabled=!status.keyHint||String(status.keyHint).includes('server secrets');
+  }
   function renderImageDraftProviders(providers,active){
-    imageDraftProviderConfigs=Array.isArray(providers)?providers:[];
-    imageDraftProvider=active||imageDraftProvider;
-    const select=$('imageDraftProviderSelect');if(select){select.value=imageDraftProvider; if(!select.value)select.value='ovh';}
+    imageDraftProviderConfigs=Array.isArray(providers)?providers:[];imageDraftProvider=active||imageDraftProvider;
+    const select=$('imageDraftProviderSelect');
+    if(select){const previous=select.value;select.innerHTML=IMAGE_DRAFT_PROVIDER_CATALOG.map(p=>`<option value="${p.id}">${esc(p.name)} — ${esc(p.model)}</option>`).join('');select.value=IMAGE_DRAFT_PROVIDER_CATALOG.some(p=>p.id===imageDraftProvider)?imageDraftProvider:(previous||'ovh');}
     const modalSelect=$('imageDraftActiveProvider');if(modalSelect)modalSelect.value=IMAGE_DRAFT_PROVIDER_LABELS[imageDraftProvider]||imageDraftProvider;
     const ready=imageDraftProviderConfigs.filter(p=>p.configured).length;
-    $('imageDraftProviderStatus').textContent=`${ready} of 6 providers ready`;$('imageDraftProviderStatus').style.borderColor=ready?'#39704d':'#8e7024';
-    const cards=[
-      ['cloudflare','Cloudflare Workers AI','Recurring daily free allocation: 10,000 Neurons/day on Workers Free; FLUX Schnell uses its native output size, so the aspect-ratio selector may not apply.','NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_ACCOUNT_ID + NEWSROOM_IMAGE_DRAFT_CLOUDFLARE_API_TOKEN'],
-      ['ovh','OVHcloud AI Endpoints','Free SDXL public endpoint; anonymous use is limited to about 2 requests/minute per IP/model. Output is square 1024×1024.','No API key for public free test — do not add a paid API key for this no-cost mode.'],
-      ['huggingface','Hugging Face Inference','Small monthly free credit (currently $0.10/month); model/provider availability varies.','NEWSROOM_IMAGE_DRAFT_HF_TOKEN'],
-      ['pollinations','Pollinations','API key required; starter Pollen/quest credit may be limited or one-time, not a recurring free quota.','NEWSROOM_IMAGE_DRAFT_POLLINATIONS_API_KEY'],
-      ['stability','Stability AI','Starter account currently advertises 25 one-time credits; continued use may require paid credits.','NEWSROOM_IMAGE_DRAFT_STABILITY_API_KEY'],
-      ['replicate','Replicate','Try-for-free runs depend on model and account; may require billing or credits.','NEWSROOM_IMAGE_DRAFT_REPLICATE_API_TOKEN']
-    ];
-    $('imageDraftProviderCards').innerHTML=cards.map(([id,name,quota,secret])=>{const p=imageDraftProviderConfigs.find(x=>x.id===id)||{};return `<article class="image-provider-card"><h3>${esc(name)}</h3><span class="provider-state ${p.configured?'ready':''}">${p.configured?'READY':'NEEDS SETUP'}</span><p>${esc(quota)}</p><p><strong>Supabase secret:</strong><br><code>${esc(secret)}</code></p>${p.note?`<p>${esc(p.note)}</p>`:''}</article>`;}).join('');
-    if(!ready) $('imageDraftProviderHelp').textContent='Only OVHcloud public test is keyless, and it may be rate-limited. Add one provider’s secret values in Supabase Edge Function Secrets and redeploy.';
-    else $('imageDraftProviderHelp').textContent=`${ready} provider(s) are configured. Keys remain server-side. Select one and save it as the preferred image drafting provider.`;
+    $('imageDraftProviderStatus').textContent=`${ready} of 20 providers ready`;$('imageDraftProviderStatus').style.borderColor=ready?'#39704d':'#8e7024';
+    renderImageDraftProviderCards();updateImageDraftSelectedProvider();
+    $('imageDraftProviderHelp').textContent=`${ready} of 20 provider connections are configured. Paste a provider key above and save it securely. API keys are encrypted on the server and are never returned to this page. OVHcloud remains available as a limited keyless public test.`;
   }
   async function loadImageDraftProviders(){
     try{const result=await invoke('image_draft_provider_config');renderImageDraftProviders(result.providers,result.active_provider);}
-    catch(e){$('imageDraftProviderStatus').textContent='Could not load provider status';$('imageDraftProviderHelp').textContent=e.message||String(e);}
+    catch(e){$('imageDraftProviderStatus').textContent='Provider service needs setup';$('imageDraftProviderHelp').textContent=(e.message||String(e))+' Apply the supplied SQL migration and deploy the updated newsroom Edge Function.';}
+  }
+  async function saveImageDraftProviderKey(){
+    const provider=$('imageDraftProviderSelect')?.value||'ovh';const apiKey=$('imageDraftApiKey').value.trim();
+    if(provider==='ovh'){message('OVHcloud public test is keyless. Select a provider that uses an API key.', 'error');return;}
+    if(!apiKey){message('Paste the selected provider API key first.','error');$('imageDraftApiKey').focus();return;}
+    const button=$('saveImageDraftApiKey');button.disabled=true;button.textContent='Encrypting and saving…';
+    try{const result=await invoke('save_image_draft_provider_key',{provider,api_key:apiKey,account_id:$('imageDraftCloudflareAccount').value.trim()});$('imageDraftApiKey').value='';$('imageDraftCloudflareAccount').value='';renderImageDraftProviders(result.providers,imageDraftProvider);message(result.message||'Provider API key saved securely.');}
+    catch(e){message(e.message||String(e),'error');}
+    finally{button.disabled=false;button.textContent='🔐 Save API key securely';}
+  }
+  async function removeImageDraftProviderKey(){
+    const provider=$('imageDraftProviderSelect')?.value||'ovh';if(provider==='ovh')return;
+    if(!confirm(`Remove the saved ${IMAGE_DRAFT_PROVIDER_LABELS[provider]||provider} API key?`))return;
+    const button=$('removeImageDraftApiKey');button.disabled=true;button.textContent='Removing…';
+    try{const result=await invoke('delete_image_draft_provider_key',{provider});renderImageDraftProviders(result.providers,result.active_provider);message(result.message||'Saved API key removed.');}
+    catch(e){message(e.message||String(e),'error');}
+    finally{button.textContent='Remove saved key';updateImageDraftSelectedProvider();}
   }
   async function saveImageDraftProvider(){
-    const select=$('imageDraftProviderSelect');const id=select?.value||'ovh';const button=$('saveImageDraftProvider');button.disabled=true;button.textContent='Saving…';
+    const select=$('imageDraftProviderSelect');const id=select?.value||'ovh';const button=$('saveImageDraftProvider');button.disabled=true;button.textContent='Saving selection…';
     try{const result=await invoke('set_active_image_draft_provider',{provider:id});imageDraftProvider=id;renderImageDraftProviders(result.providers,id);$('imageDraftActiveProvider').value=IMAGE_DRAFT_PROVIDER_LABELS[id];message(`Preferred image drafting provider saved: ${IMAGE_DRAFT_PROVIDER_LABELS[id]}.`);}
     catch(e){message(e.message||String(e),'error');}
-    finally{button.disabled=false;button.textContent='Save preferred provider';}
+    finally{button.disabled=false;button.textContent='Use selected provider';}
   }
   function addAiIllustrationDisclosure(dataUrl){
     return loadBrandImage(dataUrl).then(img=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);const scale=Math.max(1,c.width/1200),pad=Math.round(9*scale),font=Math.max(13,Math.round(17*scale));ctx.save();ctx.font=`800 ${font}px Arial,sans-serif`;const label='AI-GENERATED ILLUSTRATION';const w=ctx.measureText(label).width+pad*2,h=font+pad*1.3;ctx.fillStyle='rgba(18,22,20,.92)';ctx.fillRect(0,0,w,h);ctx.fillStyle='#fff';ctx.fillText(label,pad,pad+font*.76);ctx.restore();return c.toDataURL('image/png');});
@@ -1009,16 +1089,21 @@ img,video,iframe{max-width:100%}
   $('saveDraftDestination')?.addEventListener('click', () => saveDraftDestination(true).catch(()=>{}));
   $('draftDestination')?.addEventListener('change', () => saveDraftDestination(true).catch(()=>{}));
   $('saveAIProvider')?.addEventListener('click', saveAIProvider);
+  $('imageDraftProviderSelect')?.addEventListener('change', updateImageDraftSelectedProvider);
+  $('saveImageDraftApiKey')?.addEventListener('click', saveImageDraftProviderKey);
+  $('removeImageDraftApiKey')?.addEventListener('click', removeImageDraftProviderKey);
+  $('imageDraftProviderSearch')?.addEventListener('input', renderImageDraftProviderCards);
+  $('saveImageDraftProvider')?.addEventListener('click', saveImageDraftProvider);
+  $('refreshImageDraftProviders')?.addEventListener('click', loadImageDraftProviders);
   $('refreshAIProviders')?.addEventListener('click', () => loadAIProviders(false));
   $('refreshBtn').onclick = async () => { await refresh(); await loadAIProviders(true); await loadDailySchedule(); };
   $('reloadCandidates').onclick = loadCandidates;
+  $('candidateSearchBox')?.addEventListener('input',()=>{const q=$('candidateSearchBox').value.trim().toLowerCase();$('candidateRows')?.querySelectorAll('tr').forEach(row=>{row.hidden=!!q&&!row.textContent.toLowerCase().includes(q);});});
   $('selectAllDailyCategories')?.addEventListener('click', () => { document.querySelectorAll('#dailyCategoryChecks input[type=checkbox]').forEach(box => { box.checked = true; }); $('dailyScheduleCount').textContent = `${categories.length} categories available · ${categories.length} selected`; });
   $('clearDailyCategories')?.addEventListener('click', () => { document.querySelectorAll('#dailyCategoryChecks input[type=checkbox]').forEach(box => { box.checked = false; }); $('dailyScheduleCount').textContent = `${categories.length} categories available · 0 selected`; });
   $('saveDailySchedule')?.addEventListener('click', saveDailySchedule);
   $('runDailyScheduleNow')?.addEventListener('click', runDailyScheduleNow);
 
-  loadImageDraftProviders();
-  loadImageDraftProviders();
   loadImageDraftProviders();
   init().catch(e => message(e.message || String(e), 'error'));
 })();
