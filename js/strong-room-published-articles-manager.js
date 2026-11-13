@@ -5,6 +5,7 @@
   const PAGE_SIZE = 50;
   const SETTINGS_KEYS = ['category_cards', 'homepage_cards', 'news_cards'];
   let client = null, profile = null, posts = [], categories = [], settings = {}, assignmentRows = [];
+  let strongRoomToken = '', strongRoomIdleTimer = null, strongRoomHeartbeat = null, strongRoomLastActivity = Date.now(), strongRoomLastHeartbeat = 0, strongRoomOpenedAt = 0;
   let destinations = new Map(), filtered = [], page = 1, current = null, uploadedImage = '';
 
   function reveal() {
@@ -24,14 +25,126 @@
     const sessionResult = await client.auth.getSession();
     if (sessionResult.error) throw sessionResult.error;
     if (!sessionResult.data.session) { location.replace('login.html?next=' + encodeURIComponent(location.pathname.split('/').pop())); return false; }
-    const pr = await client.from('admin_profiles').select('user_id,role,is_suspended,username,display_name').eq('user_id', sessionResult.data.session.user.id).maybeSingle();
+    const pr = await client.rpc('get_my_admin_profile');
     if (pr.error) throw pr.error;
-    if (!pr.data || pr.data.is_suspended || !['owner','admin'].includes(pr.data.role)) throw new Error('Active PARROTHIT administrator access is required.');
-    profile = pr.data; window.PARROTHIT_ADMIN_CLIENT = client; reveal();
+    const ownerProfile = pr.data;
+    if (!ownerProfile || String(ownerProfile.user_id || '') !== String(sessionResult.data.session.user.id) || ownerProfile.is_suspended === true || String(ownerProfile.role || '').trim().toLowerCase() !== 'owner') {
+      document.getElementById('strongGateError').textContent = 'Access denied. STRONG ROOM: Published Articles Manager is reserved exclusively for Admin 1 (Owner).';
+      location.replace('dashboard.html?strong_room=owner_only'); return false;
+    }
+    profile = ownerProfile; window.PARROTHIT_ADMIN_CLIENT = client; reveal();
     const signout = document.createElement('button'); signout.type = 'button'; signout.className = 'btn secondary'; signout.textContent = 'Sign out';
-    signout.addEventListener('click', async () => { await client.auth.signOut(); location.replace('login.html'); });
+    signout.addEventListener('click', async () => { await lockStrongRoom(false); await client.auth.signOut(); location.replace('login.html'); });
     document.querySelector('.hero-actions').prepend(signout);
+    await prepareStrongRoomGate();
     return true;
+  }
+
+  function showGateError(message) { const node = $('strongGateError'); if (node) node.textContent = message || ''; }
+  function strongPasswordRules(value) {
+    return { length: value.length >= 14, upper: /[A-Z]/.test(value), lower: /[a-z]/.test(value), number: /[0-9]/.test(value), special: /[^A-Za-z0-9]/.test(value) };
+  }
+  function paintPasswordRules() {
+    const rules = strongPasswordRules($('strongSetupPassword').value);
+    Object.entries({length:'ruleLength',upper:'ruleUpper',lower:'ruleLower',number:'ruleNumber',special:'ruleSpecial'}).forEach(([key,id]) => $(id).classList.toggle('ok', rules[key]));
+    return Object.values(rules).every(Boolean);
+  }
+  async function prepareStrongRoomGate() {
+    $('strongApp').classList.add('hidden'); $('strongGate').hidden = false; $('strongSetupForm').hidden = true; $('strongLoginForm').hidden = true;
+    showGateError('');
+    const response = await client.rpc('parrothit_strong_room_status');
+    if (response.error) throw new Error('Strong Room security migration is not installed. Run supabase/strong-room-owner-only-passcode.sql in Supabase SQL Editor. Details: ' + response.error.message);
+    const hasPassword = !!(response.data && response.data.has_password);
+    $('strongSetupForm').hidden = hasPassword; $('strongLoginForm').hidden = !hasPassword;
+    $('strongGateTitle').textContent = hasPassword ? '🔐 Unlock owner-only page' : '🔐 Create your Strong Room password';
+    setTimeout(() => (hasPassword ? $('strongLoginPassword') : $('strongSetupPassword')).focus(), 100);
+  }
+  function openRiskWarning(token) {
+    strongRoomToken = token; strongRoomOpenedAt = Date.now(); strongRoomLastActivity = Date.now(); strongRoomLastHeartbeat = Date.now();
+    $('strongRiskAcknowledge').checked = false; $('strongRiskContinue').disabled = true;
+    $('strongGate').hidden = true; $('strongRiskWarning').hidden = false;
+  }
+  function startStrongRoomTimers() {
+    clearInterval(strongRoomIdleTimer); clearInterval(strongRoomHeartbeat);
+    const activity = () => { strongRoomLastActivity = Date.now(); };
+    ['pointerdown','keydown','wheel','touchstart','click'].forEach(type => document.addEventListener(type, activity, { passive:true }));
+    strongRoomIdleTimer = setInterval(() => {
+      if (!strongRoomToken) return;
+      const now = Date.now();
+      if (now - strongRoomLastActivity >= 15 * 60 * 1000) lockStrongRoom(true, 'Strong Room automatically locked after 15 minutes without activity. Enter your Strong Room password to continue.');
+      else if (now - strongRoomOpenedAt >= 60 * 60 * 1000) lockStrongRoom(true, 'The one-hour Strong Room session limit has been reached. Unlock again to continue.');
+    }, 15000);
+    strongRoomHeartbeat = setInterval(async () => {
+      if (!strongRoomToken || Date.now() - strongRoomLastActivity > 5 * 60 * 1000 || Date.now() - strongRoomLastHeartbeat < 4 * 60 * 1000) return;
+      try { const result = await client.rpc('parrothit_strong_room_touch_session', { p_strong_room_token: strongRoomToken }); if (result.error || result.data !== true) throw result.error || new Error('Strong Room session expired.'); strongRoomLastHeartbeat = Date.now(); }
+      catch (_) { lockStrongRoom(true, 'Your Strong Room unlock expired. Please enter the Strong Room password again.'); }
+    }, 60000);
+  }
+  async function lockStrongRoom(showLogin, message) {
+    const token = strongRoomToken; strongRoomToken = '';
+    clearInterval(strongRoomIdleTimer); clearInterval(strongRoomHeartbeat);
+    $('strongRiskWarning').hidden = true; $('strongChangePassword').hidden = true; $('strongApp').classList.add('hidden');
+    if (token && client) { try { await client.rpc('parrothit_strong_room_lock', { p_strong_room_token: token }); } catch (_) {} }
+    if (showLogin) {
+      $('strongGate').hidden = false; $('strongSetupForm').hidden = true; $('strongLoginForm').hidden = false;
+      $('strongGateTitle').textContent = '🔐 STRONG ROOM locked'; $('strongLoginPassword').value = ''; showGateError(message || 'The Strong Room is locked. Enter your separate Strong Room password to continue.');
+      $('lockStrongRoomBtn').hidden = true; $('changeStrongPasswordBtn').hidden = true;
+    }
+  }
+  async function unlockWithPassword(password) {
+    const response = await client.rpc('parrothit_strong_room_verify_password', { p_password: password });
+    if (response.error) throw new Error(response.error.message || 'The Strong Room password could not be verified.');
+    if (!response.data || response.data.ok !== true || !response.data.session_token) throw new Error((response.data && response.data.message) || 'The Strong Room password was not accepted.');
+    openRiskWarning(response.data.session_token);
+  }
+  function bindStrongRoomGate() {
+    $('strongSetupPassword').addEventListener('input', paintPasswordRules);
+    $('strongSetupForm').addEventListener('submit', async event => {
+      event.preventDefault(); showGateError('');
+      const password = $('strongSetupPassword').value, confirmPassword = $('strongSetupConfirm').value;
+      if (!paintPasswordRules()) { showGateError('Password must be at least 14 characters and contain a capital letter, a small letter, a number, and a special character.'); return; }
+      if (password !== confirmPassword) { showGateError('The password confirmation does not match.'); return; }
+      $('strongSetupSubmit').disabled = true;
+      try {
+        const result = await client.rpc('parrothit_strong_room_setup_password', { p_password: password, p_confirm_password: confirmPassword });
+        if (result.error) throw result.error;
+        $('strongSetupPassword').value = ''; $('strongSetupConfirm').value = ''; $('strongLoginForm').hidden = false; $('strongSetupForm').hidden = true;
+        $('strongGateTitle').textContent = '🔐 Password created — unlock STRONG ROOM'; showGateError('Strong Room password created. It is separate from your normal admin login. Enter it below to unlock the page.'); $('strongLoginPassword').focus();
+      } catch (error) { showGateError(error.message || String(error)); }
+      finally { $('strongSetupSubmit').disabled = false; }
+    });
+    $('strongLoginForm').addEventListener('submit', async event => {
+      event.preventDefault(); showGateError(''); $('strongLoginSubmit').disabled = true;
+      try { const password = $('strongLoginPassword').value; await unlockWithPassword(password); $('strongLoginPassword').value = ''; }
+      catch (error) { showGateError(error.message || String(error)); }
+      finally { $('strongLoginSubmit').disabled = false; }
+    });
+    $('strongRiskAcknowledge').addEventListener('change', () => { $('strongRiskContinue').disabled = !$('strongRiskAcknowledge').checked; });
+    $('strongRiskContinue').addEventListener('click', async () => {
+      if (!$('strongRiskAcknowledge').checked || !strongRoomToken) return;
+      $('strongRiskWarning').hidden = true; $('strongApp').classList.remove('hidden');
+      $('lockStrongRoomBtn').hidden = false; $('changeStrongPasswordBtn').hidden = false; startStrongRoomTimers();
+      try { await loadCoreRecords(); } catch (error) { status(error.message || String(error), true); $('loadingBar').classList.add('hidden'); }
+    });
+    $('strongRiskCancel').addEventListener('click', () => lockStrongRoom(true, 'Strong Room access was cancelled and the page remains locked.'));
+    $('lockStrongRoomBtn').addEventListener('click', () => lockStrongRoom(true));
+    $('changeStrongPasswordBtn').addEventListener('click', () => { $('strongChangeError').textContent = ''; $('strongChangePassword').hidden = false; });
+    $('strongChangeCancel').addEventListener('click', () => { $('strongChangePassword').hidden = true; $('strongChangeForm').reset(); });
+    $('strongChangeForm').addEventListener('submit', async event => {
+      event.preventDefault(); $('strongChangeError').textContent = '';
+      const currentPassword = $('strongCurrentPassword').value, newPassword = $('strongNewPassword').value, confirmPassword = $('strongNewConfirm').value;
+      if (!Object.values(strongPasswordRules(newPassword)).every(Boolean)) { $('strongChangeError').textContent = 'New password must be at least 14 characters and contain uppercase, lowercase, number, and special character.'; return; }
+      if (newPassword !== confirmPassword) { $('strongChangeError').textContent = 'New password confirmation does not match.'; return; }
+      $('strongChangeSubmit').disabled = true;
+      try {
+        const result = await client.rpc('parrothit_strong_room_change_password', { p_current_password: currentPassword, p_new_password: newPassword, p_confirm_password: confirmPassword });
+        if (result.error) throw result.error;
+        if (!result.data || result.data.ok !== true) throw new Error((result.data && result.data.message) || 'The Strong Room password could not be changed.');
+        $('strongChangeForm').reset(); $('strongChangePassword').hidden = true;
+        await lockStrongRoom(true, 'Your Strong Room password has been changed. All previous unlock tokens were revoked. Sign in with the new password.');
+      } catch (error) { $('strongChangeError').textContent = error.message || String(error); }
+      finally { $('strongChangeSubmit').disabled = false; }
+    });
   }
 
   async function fetchAllPublishedPosts() {
@@ -219,7 +332,8 @@
     if (title.length < 5) throw new Error('Enter a headline with at least five characters.');
     if (summary.length < 20) throw new Error('Enter a meaningful article summary (at least 20 characters).');
     if (body.length < 100) throw new Error('The article body must contain at least 100 characters.');
-    const payload = { p_post_id: current.id, p_title: title, p_summary: summary, p_body: body, p_image_url: $('editImageUrl').value.trim() || null, p_author_name: $('editAuthor').value.trim() || 'PARROTHIT News Desk', p_is_breaking: $('editBreaking').value === 'true' };
+    if (!strongRoomToken) throw new Error('Strong Room is locked. Unlock it again before editing a published article.');
+    const payload = { p_post_id: current.id, p_title: title, p_summary: summary, p_body: body, p_image_url: $('editImageUrl').value.trim() || null, p_author_name: $('editAuthor').value.trim() || 'PARROTHIT News Desk', p_is_breaking: $('editBreaking').value === 'true', p_strong_room_token: strongRoomToken };
     // The database RPC updates the post and all linked public card copies atomically.
     $('saveArticleBtn').disabled = true;
     try {
@@ -236,13 +350,14 @@
 
   async function deleteArticle(id) {
     const post = posts.find(item => String(item.id) === String(id)); if (!post) return;
+    if (!strongRoomToken) { status('Strong Room is locked. Unlock it again before deleting a published article.', true); return; }
     const first = window.confirm(`PERMANENT DELETION\n\n“${post.title}” will be removed from the public site and deleted from the Supabase posts table. All mapped category, homepage and featured card destinations will be cleared. Related comments, likes and review references may be cascade-deleted.\n\nThis cannot be undone. Continue?`);
     if (!first) return;
     const typed = window.prompt(`To confirm permanent deletion, type DELETE exactly.\n\nArticle: ${post.title}`);
     if (typed !== 'DELETE') { status('Deletion cancelled. No database records were changed.'); return; }
     const buttons = document.querySelectorAll(`[data-delete="${CSS.escape(String(id))}"]`); buttons.forEach(button => button.disabled = true);
     try {
-      const result = await client.rpc('parrothit_delete_published_article', { p_post_id: id });
+      const result = await client.rpc('parrothit_delete_published_article', { p_post_id: id, p_strong_room_token: strongRoomToken });
       if (result.error) {
         const msg = result.error.message || String(result.error);
         if (/parrothit_delete_published_article|function .* does not exist|schema cache/i.test(msg)) throw new Error('The secure delete function is not installed yet. Run supabase/strong-room-published-articles-manager.sql in the Supabase SQL Editor, then refresh this page. No article was deleted.');
@@ -282,8 +397,8 @@
   }
 
   (async () => {
-    bindFilters();
-    try { if (await initAuth()) await loadCoreRecords(); }
-    catch (error) { reveal(); $('loadingBar').classList.add('hidden'); status(error.message || String(error), true); $('articleRows').innerHTML = '<tr><td colspan="6" class="empty">Could not load published content. Check the admin session and Supabase table permissions.</td></tr>'; }
+    bindFilters(); bindStrongRoomGate();
+    try { await initAuth(); }
+    catch (error) { reveal(); showGateError(error.message || String(error)); $('strongGate').hidden = false; }
   })();
 })();
