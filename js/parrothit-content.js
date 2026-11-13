@@ -44,30 +44,43 @@
     try { return JSON.parse(localStorage.getItem(STATE_KEY) || '{}'); }
     catch (_) { return {}; }
   }
+  const PUBLIC_CACHE_TTL = 30 * 1000;
+  const PUBLIC_CACHE_KEY = 'parrothit-public-content-cache-v2';
+  function readPublicCache(cacheKey) {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+      return cached && cached.value && Number.isFinite(cached.savedAt) ? cached : null;
+    } catch (_) { return null; }
+  }
   async function loadSupabase() {
     const result = { posts: [], settings: {}, categories: [] };
     const url = window.PARROTHIT_SUPABASE_URL, key = window.PARROTHIT_SUPABASE_ANON_KEY;
     if (!window.supabase || !url || !key || String(url).includes('YOUR-PROJECT') || String(key).includes('YOUR_PUBLIC')) return result;
+    const cacheKey = PUBLIC_CACHE_KEY + ':' + String(url).replace(/[^a-z0-9]/gi, '_');
+    const cached = readPublicCache(cacheKey);
+    if (cached && Date.now() - cached.savedAt < PUBLIC_CACHE_TTL) return cached.value;
     try {
       const client = window.getParrothitPublicSupabaseClient ? window.getParrothitPublicSupabaseClient() : null;
-      if (!client) return result;
-      // Fetch independent cloud resources concurrently so news/ad cards are not delayed by serial round trips.
+      if (!client) return cached && Date.now() - cached.savedAt < 5 * 60 * 1000 ? cached.value : result;
+      // Keep public cards light: headline metadata and summaries only. Full article bodies
+      // are fetched by the article reader when a visitor opens an individual story.
       const publicationCutoff = new Date().toISOString();
       const [postsReq, categoriesReq, settingsReq] = await Promise.all([
-        // Only show public stories whose publication time has arrived. Newsroom drafts
-        // (draft/in_review/scheduled) must never be rendered on public cards.
         client.from('posts')
-          .select('id,title,slug,summary,body,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories(name,slug)')
+          .select('id,title,slug,summary,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories(name,slug)')
           .eq('status', 'published')
           .or('published_at.is.null,published_at.lte.' + publicationCutoff)
           .order('published_at', { ascending: false, nullsFirst: false })
-          .limit(60),
+          .limit(12),
         client.from('categories').select('name,slug').order('name'),
         client.from('site_settings').select('key,value').in('key', SITE_KEYS)
       ]);
+      if (postsReq.error || categoriesReq.error || settingsReq.error) {
+        if (cached && Date.now() - cached.savedAt < 5 * 60 * 1000) return cached.value;
+      }
       if (postsReq.error) console.warn('PARROTHIT published newsroom stories could not be loaded:', postsReq.error.message);
       else result.posts = (postsReq.data || []).map(p => ({
-        id: p.id, supabaseId: p.id, title: p.title, slug: p.slug, summary: p.summary || '', body: p.body || '',
+        id: p.id, supabaseId: p.id, title: p.title, slug: p.slug, summary: p.summary || '', body: '',
         image: p.image_url || '', category: p.categories && p.categories.name || '',
         categorySlug: p.categories && p.categories.slug || '', status: 'published',
         publishedAt: p.published_at || '', createdAt: p.created_at || p.published_at || '',
@@ -78,7 +91,15 @@
       else console.warn('PARROTHIT category list could not be loaded:', categoriesReq.error.message);
       if (!settingsReq.error) (settingsReq.data || []).forEach(row => { result.settings[row.key] = row.value; });
       else console.warn('PARROTHIT public site settings could not be loaded:', settingsReq.error.message);
-    } catch (err) { console.warn('PARROTHIT cloud publishing is not available on this page.', err); }
+      // Session cache reduces repeated Supabase round trips as visitors move between pages.
+      try {
+        const packed = JSON.stringify({ savedAt: Date.now(), value: result });
+        if (packed.length <= 1200000) sessionStorage.setItem(cacheKey, packed);
+      } catch (_) {}
+    } catch (err) {
+      console.warn('PARROTHIT cloud publishing is not available on this page.', err);
+      if (cached && Date.now() - cached.savedAt < 5 * 60 * 1000) return cached.value;
+    }
     return result;
   }
   function normalizeLabel(s) { return String(s || '').toLowerCase().replace(/\s+news$/i, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -181,7 +202,7 @@
     if (!client || !slugs.length) return { posts: [], error: null, available: false };
     const cutoff = new Date().toISOString();
     const { data, error } = await client.from('posts')
-      .select('id,title,slug,summary,body,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories!inner(name,slug)')
+      .select('id,title,slug,summary,image_url,published_at,created_at,updated_at,author_name,is_breaking,source_url,source_name,categories!inner(name,slug)')
       .eq('status', 'published')
       .in('categories.slug', slugs)
       .or('published_at.is.null,published_at.lte.' + cutoff)
@@ -267,7 +288,7 @@
     const featuredPostIds = new Set(Object.entries(featuredRecords).filter(([position]) => Number(position) >= 1).map(([, r]) => String(r && (r.postId || r.newsroomPostId) || '')).filter(Boolean));
     const isFeaturedOnThisPage = p => featuredPostIds.has(String(p.supabaseId || p.id || ''));
     const localCategoryPosts = localNoDuplicate.filter(p => matchesCategory(p) && !isFeaturedOnThisPage(p));
-    const pageSize = 18;
+    const pageSize = 12;
     let remoteOffset = 0;
     const rendered = [];
     const appendCards = async posts => {
@@ -618,7 +639,12 @@
     if (!visible.length) {
       const nodes = Array.from(track.querySelectorAll('.slide')); if (!nodes.length) return;
       let current = Math.max(0, nodes.findIndex(n => n.classList.contains('active'))); const dots = $('#sliderDots');
-      const show = index => { current = (index + nodes.length) % nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active',i===current)); if(dots){dots.replaceChildren();nodes.forEach((_,i)=>{const b=document.createElement('button');b.type='button';b.className='slider-dot'+(i===current?' active':'');b.setAttribute('aria-label','Show slide '+(i+1));b.onclick=()=>show(i);dots.appendChild(b);});}};
+      const activateBackground = node => {
+        if (!node || node.style.backgroundImage) return;
+        const image = node.dataset.phBgUrl;
+        if (image) { node.style.backgroundImage = 'linear-gradient(90deg,#000b,#0002),url("' + image.replace(/"/g, '%22') + '")'; node.dataset.phBgLoaded = '1'; }
+      };
+      const show = index => { current = (index + nodes.length) % nodes.length; nodes.forEach((n,i)=>n.classList.toggle('active',i===current)); activateBackground(nodes[current]); if(dots){dots.replaceChildren();nodes.forEach((_,i)=>{const b=document.createElement('button');b.type='button';b.className='slider-dot'+(i===current?' active':'');b.setAttribute('aria-label','Show slide '+(i+1));b.onclick=()=>show(i);dots.appendChild(b);});}};
       show(current); $('#prevSlide') && ($('#prevSlide').onclick=()=>show(current-1)); $('#nextSlide') && ($('#nextSlide').onclick=()=>show(current+1));
       const delay=Math.max(2,Math.min(30,Number(interval)||4))*1000; if(window.__PARROTHIT_HOME_SLIDER_TIMER)clearInterval(window.__PARROTHIT_HOME_SLIDER_TIMER); let timer=setInterval(()=>show(current+1),delay); window.__PARROTHIT_HOME_SLIDER_TIMER=timer;
       document.addEventListener('visibilitychange',()=>{clearInterval(timer);if(!document.hidden)timer=setInterval(()=>show(current+1),delay);});
@@ -632,7 +658,7 @@
       const a = document.createElement('a'); a.className = 'slide';
       a.href = cleanHref(slide.url || 'article.html') || 'article.html';
       a.setAttribute('aria-label', slide.title || 'Featured story');
-      if (image) a.style.backgroundImage = 'linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.1)),url("' + image.replace(/"/g, '%22') + '")';
+      if (image) a.dataset.phBgUrl = image;
       const span = document.createElement('span'); span.textContent = 'FEATURED';
       const h = document.createElement('h2'); h.textContent = slide.title || 'PARROTHIT News'; a.append(span, h); track.appendChild(a);
     }
@@ -640,6 +666,10 @@
     function show(index) {
       current = (index + nodes.length) % nodes.length;
       nodes.forEach((n,i) => n.classList.toggle('active', i === current));
+      const active = nodes[current];
+      if (active && !active.style.backgroundImage && active.dataset.phBgUrl) {
+        active.style.backgroundImage = 'linear-gradient(90deg,rgba(0,0,0,.72),rgba(0,0,0,.1)),url("' + active.dataset.phBgUrl.replace(/"/g, '%22') + '")';
+      }
       if (dots) { dots.replaceChildren(); nodes.forEach((_, i) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'slider-dot' + (i === current ? ' active' : ''); b.setAttribute('aria-label', 'Show slide ' + (i+1)); b.onclick = () => show(i); dots.appendChild(b); }); }
     }
     show(0);
@@ -655,7 +685,7 @@
     if (!homeVideo || !homeVideo.enabled || !youtubeEmbed(homeVideo.url)) return;
     const section = document.createElement('section'); section.className = 'parrothit-home-video';
     const h = document.createElement('h2'); h.textContent = homeVideo.title || 'Watch on PARROTHIT';
-    const iframe = document.createElement('iframe'); iframe.className = 'parrothit-home-video-frame'; iframe.src = youtubeEmbed(homeVideo.url); iframe.title = homeVideo.title || 'PARROTHIT YouTube video'; iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'; iframe.referrerPolicy = 'strict-origin-when-cross-origin'; iframe.allowFullscreen = true;
+    const iframe = document.createElement('iframe'); iframe.className = 'parrothit-home-video-frame'; iframe.src = youtubeEmbed(homeVideo.url); iframe.title = homeVideo.title || 'PARROTHIT YouTube video'; iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'; iframe.referrerPolicy = 'strict-origin-when-cross-origin'; iframe.loading = 'lazy'; iframe.allowFullscreen = true;
     section.append(h, iframe); const slider = $('.home-slider'); if (slider) slider.insertAdjacentElement('afterend', section); else { const main = $('main'); if (main) main.insertBefore(section, main.firstChild); }
   }
   async function displayManagedArticle(localState, cloud) {
