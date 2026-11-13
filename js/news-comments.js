@@ -80,7 +80,7 @@
     root.innerHTML = `
       <div class="nc-head">
         <div class="nc-brand">
-          <img class="nc-logo" src="/assets/perf-v2/parrothit-logo-256.webp" alt="PARROTHIT logo" onerror="this.style.display='none'">
+          <img class="nc-logo" src="assets/images/parrothit-logo.png" alt="PARROTHIT logo" onerror="this.style.display='none'">
           <div><div class="nc-head-title">PARROTHIT · Join the conversation</div><small>News comments</small></div>
         </div>
         <span class="nc-count-pill">💬 <span data-nc-comment-count>Comments (0)</span></span>
