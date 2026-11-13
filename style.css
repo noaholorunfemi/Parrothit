@@ -398,14 +398,3 @@ html{scroll-behavior:smooth;scroll-padding-top:1rem}
   #parrothit-live-article-alert .ph-toast-row { gap: 9px; padding: 10px; }
   #parrothit-live-article-alert .ph-toast-read-label { font-size: 10px; }
 }
-
-/* PARROTHIT mobile performance v2: reserve media geometry to reduce layout shifts. */
-.brand-image { min-width: 0; }
-.brand-image img { aspect-ratio: 1 / 1; }
-.hot-news-mascot { width:52px; height:52px; aspect-ratio:1 / 1; flex:0 0 52px; }
-.mascot-float { width:76px; height:76px; aspect-ratio:1 / 1; }
-.welcome-dialog img { width:105px; height:105px; aspect-ratio:1 / 1; }
-.parrot-notice img { width:58px; height:58px; aspect-ratio:1 / 1; flex:0 0 58px; }
-.news-grid > .news-card > .managed-story-image { aspect-ratio:16 / 9; }
-.news-grid > .news-card > .managed-story-image img { aspect-ratio:16 / 9; }
-.ad-slot, .parrothit-ad-card { contain: layout paint; }
