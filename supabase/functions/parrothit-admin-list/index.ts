@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
   let offset = 0;
   while (true) {
     const { data, error } = await admin.from("admin_profiles")
-      .select("user_id, username, email, display_name, role, is_suspended, created_at")
+      .select("user_id, admin_id, username, email, display_name, first_name, last_name, phone_number, profile_picture_url, profile_setup_completed, role, is_suspended, created_at")
       .order("created_at", { ascending: true })
       .range(offset, offset + pageSize - 1);
     if (error) {
@@ -91,10 +91,33 @@ Deno.serve(async (req: Request) => {
     offset += pageSize;
   }
 
+  const onlineByUser = new Map<string, boolean>();
+  try {
+    const { data: sessions, error: sessionError } = await admin.from("admin_active_sessions")
+      .select("user_id,last_activity_at,expires_at");
+    if (sessionError) throw sessionError;
+    const now = Date.now();
+    for (const row of sessions || []) {
+      const last = Date.parse(String(row.last_activity_at || ""));
+      const expiry = Date.parse(String(row.expires_at || ""));
+      const isOnline = Number.isFinite(last) && Number.isFinite(expiry) && expiry > now && now - last <= 90_000;
+      const userId = String(row.user_id);
+      // A user may have stale historical session rows. Any recent valid heartbeat
+      // should keep the account Online instead of a later stale row overriding it.
+      onlineByUser.set(userId, Boolean(onlineByUser.get(userId)) || isOnline);
+    }
+  } catch (presenceError) {
+    console.warn("Admin presence could not be read; all accounts will display Offline until session status is available.", presenceError);
+  }
+  const withPresence = admins.map((row) => ({
+    ...row,
+    presence_status: onlineByUser.get(String(row.user_id)) ? "online" : "offline",
+  }));
+
   return reply(200, {
     success: true,
-    count: admins.length,
-    admins,
+    count: withPresence.length,
+    admins: withPresence,
     message: "Administrator register loaded for Admin 1 (Owner).",
   });
 });
