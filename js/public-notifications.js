@@ -126,7 +126,7 @@
     row.className = 'ph-toast-row';
     const logo = document.createElement('img');
     logo.className = 'ph-toast-logo';
-    logo.src = '/assets/images/parrothit-logo.png';
+    logo.src = '/assets/perf-v2/parrothit-logo-256.webp';
     logo.alt = 'PARROTHIT';
 
     const link = document.createElement('a');
@@ -184,7 +184,7 @@
   function showPrompt(oneSignal) {
     if(isAdmin||!document.body||document.getElementById(PROMPT_ID)||Notification.permission==='denied'||dismissedRecently()||oneSignal.User.PushSubscription.optedIn===true)return;
     const iosNeedsInstall=isIOSDevice()&&!isInstalledPwa(); injectNotificationStyles(); const card=document.createElement('section'); card.id=PROMPT_ID; card.setAttribute('role','dialog'); card.setAttribute('aria-label','PARROTHIT news notifications');
-    card.innerHTML=`<button class="ph-push-close" type="button" aria-label="Close notification invitation">×</button><div class="ph-push-top"><img class="ph-push-logo" src="/assets/images/parrothit-logo.png" alt="PARROTHIT"><div><p class="ph-push-kicker">PARROTHIT NEWS ALERTS</p><h2 class="ph-push-title">Get every important headline</h2><div style="color:#aeb8c6;font-size:12px">New articles delivered to your phone's notification shade.</div></div></div><p class="ph-push-copy">Allow PARROTHIT to send article updates to this device. You can manage or turn alerts off in your browser's site notification settings.</p><div class="ph-push-actions"><button class="ph-push-enable" type="button">${iosNeedsInstall?'HOW TO ENABLE ON IPHONE':'🔔 ENABLE NEWS ALERTS'}</button><button class="ph-push-later" type="button">Maybe later</button></div><p class="ph-push-note">Only visitors who approve notifications receive system alerts. Browser users manage alerts in their browser settings. A parrot-style chirp may play while PARROTHIT is open.</p>`;
+    card.innerHTML=`<button class="ph-push-close" type="button" aria-label="Close notification invitation">×</button><div class="ph-push-top"><img class="ph-push-logo" src="/assets/perf-v2/parrothit-logo-256.webp" alt="PARROTHIT"><div><p class="ph-push-kicker">PARROTHIT NEWS ALERTS</p><h2 class="ph-push-title">Get every important headline</h2><div style="color:#aeb8c6;font-size:12px">New articles delivered to your phone's notification shade.</div></div></div><p class="ph-push-copy">Allow PARROTHIT to send article updates to this device. You can manage or turn alerts off in your browser's site notification settings.</p><div class="ph-push-actions"><button class="ph-push-enable" type="button">${iosNeedsInstall?'HOW TO ENABLE ON IPHONE':'🔔 ENABLE NEWS ALERTS'}</button><button class="ph-push-later" type="button">Maybe later</button></div><p class="ph-push-note">Only visitors who approve notifications receive system alerts. Browser users manage alerts in their browser settings. A parrot-style chirp may play while PARROTHIT is open.</p>`;
     document.body.appendChild(card); const remove=()=>card.remove(); card.querySelector('.ph-push-close').addEventListener('click',()=>{dismissFor(7);remove()}); card.querySelector('.ph-push-later').addEventListener('click',()=>{dismissFor(7);remove()});
     card.querySelector('.ph-push-enable').addEventListener('click',async()=>{
       unlockBirdSound(); const button=card.querySelector('.ph-push-enable'),copy=card.querySelector('.ph-push-copy');

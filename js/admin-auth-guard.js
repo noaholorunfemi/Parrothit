@@ -100,9 +100,9 @@
     var header = document.createElement('div');
     header.style.cssText = 'display:flex;align-items:center;gap:12px;position:relative;';
     var logo = document.createElement('img');
-    logo.alt = 'Administrator profile picture';
-    logo.src = (profile && profile.profile_picture_url) || (/\/admin\//i.test(location.pathname) ? '../assets/images/parrothit-logo.png' : 'assets/images/parrothit-logo.png');
-    logo.style.cssText = 'width:52px;height:52px;object-fit:cover;border-radius:50%;background:#fff;padding:2px;border:2px solid #d71920;flex:0 0 52px;';
+    logo.alt = 'PARROTHIT';
+    logo.src = /\/admin\//i.test(location.pathname) ? '/assets/perf-v2/parrothit-logo-256.webp' : '/assets/perf-v2/parrothit-logo-256.webp';
+    logo.style.cssText = 'width:48px;height:48px;object-fit:contain;border-radius:12px;background:#fff;padding:4px;flex:0 0 48px;';
     logo.onerror = function () { logo.style.display = 'none'; };
     header.appendChild(logo);
     var titleWrap = document.createElement('div');
@@ -141,16 +141,7 @@
     var activeBadge = document.createElement('span');
     activeBadge.textContent = '● Administrator Session Active';
     activeBadge.style.cssText = 'color:#86efac;font-size:11px;font-weight:800;';
-    var usernameBadge = document.createElement('span');
-    usernameBadge.textContent = '@' + String((profile && profile.username) || 'admin');
-    usernameBadge.style.cssText = 'color:#fff;font-size:11px;font-weight:850;';
-    var stableAdminId = String((profile && profile.admin_id) || ('PH-' + String(userId || '').replace(/-/g, '').slice(0, 10).toUpperCase()));
-    var idBadge = document.createElement('span');
-    idBadge.textContent = 'Admin ID · ' + stableAdminId;
-    idBadge.style.cssText = 'color:#e9d5ff;font-size:11px;font-weight:850;';
     meta.appendChild(roleBadge);
-    meta.appendChild(usernameBadge);
-    meta.appendChild(idBadge);
     meta.appendChild(activeBadge);
     card.appendChild(meta);
 
@@ -264,7 +255,7 @@
       var profile = await client.rpc('get_my_admin_profile');
       var adminProfile = profile && profile.data;
       if (profile.error || !adminProfile || String(adminProfile.user_id || '') !== String(userId) ||
-          !['owner', 'admin'].includes(String(adminProfile.role || '').trim().toLowerCase()) || adminProfile.is_suspended === true || adminProfile.profile_setup_completed === false) {
+          !['owner', 'admin'].includes(String(adminProfile.role || '').trim().toLowerCase()) || adminProfile.is_suspended === true) {
         try { await client.functions.invoke('parrothit-admin-session', { body: { action: 'release', session_token: deviceToken } }); } catch (_) {}
         clearToken(userId);
         clearActivity(userId);
