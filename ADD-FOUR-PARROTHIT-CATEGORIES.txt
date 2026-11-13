@@ -1,0 +1,37 @@
+PARROTHIT — ADD FOUR CATEGORIES
+
+Website patch contents
+- Adds four public category pages: 9ja STORIES, 9ja UNIVERSITIES, As-e-dey-hot and Lagos-Lifestyle.
+- Adds a subtle, slow-rotating circular PARROTHIT logo watermark behind each new category page. The effect respects reduced-motion settings and is pointer-safe.
+- Adds all four links to the public News Categories directory, desktop category navigation and mobile category selector.
+- Connects new category slugs to public newsroom feeds and category-card routes.
+- Adds named card-management shortcuts and individual ad-management shortcuts to the admin section.
+- Keeps the existing news-card and page-ad systems; each new category uses its own slug-scoped records.
+
+Required Supabase step
+1. Deploy the patch files to the same site root as the existing PARROTHIT pages. Preserve the folder paths.
+2. Open Supabase Dashboard → SQL Editor.
+3. Open and run: supabase/add-four-parrothit-categories.sql
+4. Refresh /admin/newsroom-automation.html and /admin/category-card-assignment-manager.html. The four rows will then appear in database-driven category lists, source routing and daily category drafting.
+
+Category slugs
+- 9ja STORIES 😀 → 9ja-stories
+- 9ja UNIVERSITIES 🏛️ → 9ja-universities
+- As-e-dey-hot🔥 → as-e-dey-hot
+- Lagos-Lifestyle → lagos-lifestyle
+
+The SQL uses ON CONFLICT (name) DO NOTHING, so it can be run again safely without overwriting existing category records.
+
+Admin tools covered
+- Newsroom Automation category dropdowns and daily drafting: categories load from the Supabase categories table after the SQL step.
+- Category Card Assignment Manager and the individual 1–6 news-card controls.
+- Three image-ad cards, the 10-image category advertising slider, and the two video/GIF ad allocation slots.
+- The local Control Centre category fallback list and the public PARROTHIT support assistant's page directory.
+
+Editorial and rollout recommendations
+- 9ja STORIES: prioritize first-hand accounts and human-interest reporting; obtain consent before publishing identifiable personal stories.
+- 9ja UNIVERSITIES: verify campus notices, student claims and institutional announcements with a named source where possible.
+- As-e-dey-hot: treat trending items as developing stories, clearly label unconfirmed information and update or correct posts promptly.
+- Lagos-Lifestyle: include the relevant Lagos area, event date/time and useful visitor details where applicable.
+- After the SQL migration, add trusted RSS/API sources for each new category in Newsroom Automation. The patch makes the categories selectable; it does not invent or auto-subscribe to news feeds.
+- Assign each draft to its correct category in the newsroom review flow before publishing, then manage the category's featured cards and ad placements from the corresponding Control Room pages.
