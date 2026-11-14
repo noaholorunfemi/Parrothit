@@ -14,8 +14,8 @@
   const PAGE_SIZE = 500;
   const state = {
     clientConfig: null, stations: [], settings: { enabled: true, autoplay_muted: true, auto_advance: true, default_station_id: null },
-    activeId: '', player: null, playerGeneration: 0, apiPromise: null, pauseByVisitor: readFlag(STORAGE.paused, false),
-    muted: readFlag(STORAGE.muted, true), categories: [], errorTimer: null, playerReady: false, playlistSkipCount: 0, runtimeHealth: new Map(), failedStationIds: new Set()
+    activeId: '', player: null, activeStation: null, playerGeneration: 0, apiPromise: null, pauseByVisitor: readFlag(STORAGE.paused, false),
+    muted: readFlag(STORAGE.muted, true), categories: [], errorTimer: null, playerReady: false, playbackState: 'IDLE', needsUserPlay: false, playlistSkipCount: 0, runtimeHealth: new Map(), failedStationIds: new Set()
   };
 
   function readFlag(key, fallback) {
@@ -41,9 +41,14 @@
   async function restGet(path) {
     const cfg = state.clientConfig;
     const response = await fetch(cfg.url + '/rest/v1/' + path, {
-      method: 'GET', cache: 'no-store', headers: { apikey: cfg.key, Authorization: 'Bearer ' + cfg.key }
+      method: 'GET', cache: 'no-store', headers: { apikey: cfg.key, Accept: 'application/json' }
     });
-    if (!response.ok) throw new Error('Highlights service returned ' + response.status + '.');
+    if (!response.ok) {
+      let detail = '';
+      try { const body = await response.json(); detail = body.message || body.error_description || body.error || ''; } catch (_) {}
+      const hint = response.status === 401 ? ' Check that the public Supabase key is configured as an apikey and that it is active.' : response.status === 403 ? ' Check the public SELECT grants and row-level security policies.' : response.status === 404 ? ' The Highlights TV database migration may not have been applied.' : '';
+      throw new Error('Highlights service returned HTTP ' + response.status + (detail ? ': ' + detail : '.') + hint);
+    }
     return response.json();
   }
   async function fetchStations() {
@@ -113,10 +118,17 @@
       } else thumb.textContent = '⚽';
       const copy = document.createElement('span'); copy.className = 'pl-highlights-station-copy';
       const name = document.createElement('strong'); name.textContent = stationTitle(station);
-      const detail = document.createElement('small'); const health = state.runtimeHealth.get(String(station.id)) || station.playback_status || 'NOT TESTED';
+      const detail = document.createElement('small'); let health = state.runtimeHealth.get(String(station.id)) || station.playback_status || 'NOT TESTED';
+      if (String(station.id) === String(state.activeId)) {
+        if (state.playbackState === 'PLAYING') health = 'PLAYING';
+        else if (state.needsUserPlay) health = 'TAP TO PLAY';
+        else if (state.playbackState === 'BUFFERING' || state.playbackState === 'LOADING') health = 'LOADING';
+        else if (state.playbackState === 'READY') health = 'READY';
+      }
       detail.textContent = String(station.category || 'General') + ' · ' + (station.source_type === 'youtube_playlist' ? 'Playlist' : 'Video') + ' · ' + health;
       copy.append(name, detail);
-      const stateLabel = document.createElement('span'); stateLabel.className = 'pl-highlights-station-state'; stateLabel.textContent = station.id === state.activeId ? 'PLAYING' : 'WATCH';
+      const stateLabel = document.createElement('span'); stateLabel.className = 'pl-highlights-station-state';
+      stateLabel.textContent = String(station.id) === String(state.activeId) ? (state.playbackState === 'PLAYING' ? 'PLAYING' : state.needsUserPlay ? 'TAP TO PLAY' : state.playbackState === 'LOADING' ? 'LOADING' : 'SELECTED') : 'WATCH';
       button.append(thumb, copy, stateLabel);
       button.addEventListener('click', () => selectStation(station.id, true));
       list.appendChild(button);
@@ -128,13 +140,17 @@
     $('plHighlightsNext').disabled = state.stations.length < 2;
   }
   function updateControls() {
-    $('plHighlightsPlayPause').textContent = state.pauseByVisitor ? '▶ Play' : 'Ⅱ Pause';
-    $('plHighlightsMute').textContent = state.muted ? '🔇 Muted' : '🔊 Sound on';
+    const play = $('plHighlightsPlayPause');
+    if (play) play.textContent = state.needsUserPlay ? '▶ Tap to Play' : state.playbackState === 'PLAYING' ? 'Ⅱ Pause' : '▶ Play';
+    const mute = $('plHighlightsMute'); if (mute) mute.textContent = state.muted ? '🔇 Muted' : '🔊 Sound on';
+    const link = $('plHighlightsOpenSource');
+    if (link) { const url = state.activeStation && state.activeStation.source_url; link.href = url || '#'; link.hidden = !url; }
   }
   function updateNowPlaying(station) {
-    $('plHighlightsOnAir').textContent = station ? 'NOW SELECTED' : 'READY TO WATCH';
+    $('plHighlightsOnAir').textContent = !station ? 'READY TO WATCH' : state.playbackState === 'PLAYING' ? 'NOW PLAYING' : state.needsUserPlay ? 'TAP TO PLAY' : state.playbackState === 'LOADING' ? 'LOADING' : 'SELECTED';
     $('plHighlightsNowTitle').textContent = station ? stationTitle(station) : 'Select a highlights station';
     $('plHighlightsNowCategory').textContent = station ? String(station.category || 'General') + ' · Football highlights' : 'Football highlights · Public YouTube sources';
+    updateControls();
   }
   function loadYouTubeApi() {
     if (window.YT && typeof window.YT.Player === 'function') return Promise.resolve(window.YT);
@@ -155,7 +171,7 @@
     return state.apiPromise;
   }
   function playerVars(station) {
-    const vars = { autoplay: 0, controls: 1, playsinline: 1, rel: 0, modestbranding: 1, iv_load_policy: 3, enablejsapi: 1, origin: location.origin };
+    const vars = { autoplay: 0, controls: 1, playsinline: 1, rel: 0, iv_load_policy: 3, enablejsapi: 1, origin: location.origin };
     if (station.source_type === 'youtube_playlist' && station.youtube_playlist_id) {
       vars.listType = 'playlist'; vars.list = station.youtube_playlist_id;
     }
@@ -164,13 +180,14 @@
   async function mountPlayer(station) {
     state.playerGeneration += 1;
     const generation = state.playerGeneration;
-    state.playerReady = false; state.playlistSkipCount = 0;
+    state.playerReady = false; state.playlistSkipCount = 0; state.needsUserPlay = false; state.playbackState = 'LOADING'; state.activeStation = station;
+    state.runtimeHealth.set(String(station.id), 'LOADING'); renderStationList(); updateNowPlaying(station); updateControls();
     if (state.errorTimer) clearTimeout(state.errorTimer);
     try { if (state.player && typeof state.player.destroy === 'function') state.player.destroy(); } catch (_) {}
     state.player = null;
     $('plHighlightsPlayer').replaceChildren();
     setEmpty('Loading ' + stationTitle(station), 'Connecting to the selected authorised YouTube highlights source…');
-    setStatus('Loading ' + stationTitle(station) + '. Autoplay is attempted muted where supported.');
+    setStatus('Loading ' + stationTitle(station) + '. Muted playback will be attempted; some browsers require a Play tap.');
     try {
       const YT = await loadYouTubeApi();
       if (generation !== state.playerGeneration) return;
@@ -182,32 +199,49 @@
           onReady(event) {
             if (generation !== state.playerGeneration) return;
             state.playerReady = true;
-            state.player = event.target;
-            state.runtimeHealth.set(String(station.id), 'PLAYABLE'); state.failedStationIds.delete(String(station.id)); renderStationList();
+            state.player = event.target; state.playbackState = state.pauseByVisitor ? 'PAUSED' : 'READY';
+            state.runtimeHealth.set(String(station.id), state.playbackState); state.failedStationIds.delete(String(station.id));
+            try { const frame = event.target.getIframe && event.target.getIframe(); if (frame) { frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'); frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin'); frame.setAttribute('allowfullscreen', ''); } } catch (_) {}
             if (state.muted) event.target.mute(); else event.target.unMute();
-            if (state.pauseByVisitor) event.target.pauseVideo(); else event.target.playVideo();
-            clearEmpty(); updateControls();
-            setStatus(state.pauseByVisitor ? 'Playback is paused because this device remembers your pause choice. Press Play when ready.' : 'Now playing ' + stationTitle(station) + '. You can pause or change stations at any time.');
+            if (state.pauseByVisitor) { state.needsUserPlay = false; event.target.pauseVideo(); } else { event.target.playVideo(); }
+            clearEmpty(); updateNowPlaying(station); renderStationList(); updateControls();
+            setStatus(state.pauseByVisitor ? 'Your saved pause choice was restored. Press Play when ready.' : 'Player ready. Trying muted autoplay; press Play if your browser blocks it.');
           },
           onStateChange(event) {
             if (generation !== state.playerGeneration) return;
             if (event.data === YT.PlayerState.PLAYING) {
-              state.pauseByVisitor = false; writeFlag(STORAGE.paused, false); updateControls(); clearEmpty();
-              if (state.muted) setStatus('Playing muted. Tap Sound on to hear commentary.');
+              state.playbackState = 'PLAYING'; state.needsUserPlay = false; state.pauseByVisitor = false; writeFlag(STORAGE.paused, false);
+              state.runtimeHealth.set(String(station.id), 'PLAYING'); updateNowPlaying(station); renderStationList(); clearEmpty(); updateControls();
+              setStatus(state.muted ? 'Playing muted. Tap Sound on to hear commentary.' : 'Now playing ' + stationTitle(station) + '.');
             } else if (event.data === YT.PlayerState.PAUSED) {
-              state.pauseByVisitor = true; writeFlag(STORAGE.paused, true); updateControls();
+              if (state.needsUserPlay) return;
+              state.playbackState = 'PAUSED'; state.pauseByVisitor = true; writeFlag(STORAGE.paused, true);
+              state.runtimeHealth.set(String(station.id), 'PAUSED'); updateNowPlaying(station); renderStationList(); updateControls();
               setStatus('Playback paused. Press Play to continue.');
+            } else if (event.data === YT.PlayerState.BUFFERING) {
+              state.playbackState = 'BUFFERING'; state.runtimeHealth.set(String(station.id), 'LOADING'); renderStationList(); updateNowPlaying(station);
+              setStatus('Buffering ' + stationTitle(station) + '…');
+            } else if (event.data === YT.PlayerState.CUED) {
+              if (state.playbackState !== 'PLAYING') { state.playbackState = 'READY'; state.runtimeHealth.set(String(station.id), 'READY'); renderStationList(); updateNowPlaying(station); }
             } else if (event.data === YT.PlayerState.ENDED && state.settings.auto_advance) {
+              state.playbackState = 'ENDED'; state.runtimeHealth.set(String(station.id), 'ENDED'); renderStationList();
               if (state.stations.length > 1) { setStatus('This highlights playlist has ended. Loading the next station…'); window.setTimeout(() => nextStation(), 650); }
               else { state.pauseByVisitor = true; writeFlag(STORAGE.paused, true); updateControls(); setStatus('Highlights have ended. Choose another station or press Play to replay.'); }
             }
+          },
+          onAutoplayBlocked() {
+            if (generation !== state.playerGeneration) return;
+            state.needsUserPlay = true; state.playbackState = 'AUTOPLAY_BLOCKED';
+            state.runtimeHealth.set(String(station.id), 'TAP TO PLAY'); updateNowPlaying(station); renderStationList(); updateControls();
+            setEmpty('Tap Play to start playback', 'Your browser blocked automatic playback. Use the PARROTHIT Play button below or tap Play in the video. This does not mean the station is unavailable.');
+            setStatus('Autoplay was blocked by this browser. Tap “Tap to Play” to start the highlights.');
           },
           onError(event) {
             if (generation !== state.playerGeneration) return;
             const code = Number(event.data);
             const restricted = code === 101 || code === 150;
             const reason = restricted ? 'EMBEDDING RESTRICTED' : 'UNAVAILABLE';
-            state.runtimeHealth.set(String(station.id), reason); renderStationList();
+            state.playbackState = reason; state.needsUserPlay = false; state.runtimeHealth.set(String(station.id), reason); updateNowPlaying(station); renderStationList(); updateControls();
             // A playlist may contain a blocked item followed by playable items. Try up to three next entries before abandoning the station.
             if (station.source_type === 'youtube_playlist' && state.player && state.playlistSkipCount < 3 && code !== 2 && code !== 5) {
               state.playlistSkipCount += 1;
@@ -228,14 +262,15 @@
       state.player = new YT.Player(host, options);
     } catch (error) {
       if (generation !== state.playerGeneration) return;
+      state.playbackState = 'PLAYER ERROR'; state.runtimeHealth.set(String(station.id), 'PLAYER ERROR'); renderStationList(); updateControls();
       setEmpty('Video player unavailable', error.message || 'YouTube player could not be loaded.');
-      setStatus('The video player could not start. Check your internet connection or choose another station.');
+      setStatus('The video player could not start. Check your internet connection or open the source on YouTube.');
     }
   }
   function selectStation(id, userInitiated) {
     const station = state.stations.find((row) => String(row.id) === String(id));
     if (!station) return;
-    state.activeId = station.id;
+    state.activeId = station.id; state.activeStation = station; state.playbackState = 'LOADING'; state.needsUserPlay = false;
     try { localStorage.setItem(STORAGE.station, station.id); } catch (_) {}
     if (userInitiated) { state.pauseByVisitor = false; writeFlag(STORAGE.paused, false); }
     updateNowPlaying(station); renderStationList(); updateCounters(); updateControls();
@@ -261,14 +296,16 @@
     selectStation(state.stations[(index - 1 + state.stations.length) % state.stations.length].id, true);
   }
   function togglePlayPause() {
-    if (!state.player || !state.playerReady) { state.pauseByVisitor = false; writeFlag(STORAGE.paused, false); const station = state.stations.find((s) => s.id === state.activeId); if (station) mountPlayer(station); return; }
-    if (state.pauseByVisitor) {
-      state.pauseByVisitor = false; writeFlag(STORAGE.paused, false); state.player.playVideo();
-      setStatus('Playback requested. If your browser blocks sound, keep the player muted or tap its Play control.');
+    if (!state.player || !state.playerReady) { state.pauseByVisitor = false; writeFlag(STORAGE.paused, false); const station = state.stations.find((s) => String(s.id) === String(state.activeId)); if (station) mountPlayer(station); return; }
+    if (state.needsUserPlay || state.pauseByVisitor || state.playbackState !== 'PLAYING') {
+      state.needsUserPlay = false; state.pauseByVisitor = false; writeFlag(STORAGE.paused, false);
+      if (state.muted) state.player.mute();
+      state.player.playVideo(); state.playbackState = 'LOADING'; updateControls();
+      setStatus('Playback requested. The player will confirm when video actually starts.');
     } else {
-      state.pauseByVisitor = true; writeFlag(STORAGE.paused, true); state.player.pauseVideo();
+      state.pauseByVisitor = true; state.needsUserPlay = false; writeFlag(STORAGE.paused, true); state.player.pauseVideo();
     }
-    updateControls();
+    updateNowPlaying(state.activeStation); renderStationList(); updateControls();
   }
   function toggleMute() {
     state.muted = !state.muted; writeFlag(STORAGE.muted, state.muted);
@@ -295,7 +332,7 @@
     $('plHighlightsCategory').addEventListener('change', renderStationList);
     $('plHighlightsPlayPause').addEventListener('click', togglePlayPause);
     $('plHighlightsMute').addEventListener('click', toggleMute);
-    $('plHighlightsNext').addEventListener('click', () => selectStation(state.stations[(Math.max(0, state.stations.findIndex((s) => s.id === state.activeId)) + 1) % state.stations.length]?.id, true));
+    $('plHighlightsNext').addEventListener('click', () => nextPlayableStation());
     $('plHighlightsPrevious').addEventListener('click', previousStation);
     $('plHighlightsFullscreen').addEventListener('click', () => {
       const screen = $('plHighlightsScreen');

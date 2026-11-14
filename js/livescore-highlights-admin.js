@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, profile: null, stations: [], settings: null, busy: false, previewedSource: '', previewStatus: 'UNTESTED', previewPlayer: null, previewTimer: null, previewGeneration: 0, ytPromise: null, presets: Array.isArray(window.PARROTHIT_HIGHLIGHT_PRESETS) ? window.PARROTHIT_HIGHLIGHT_PRESETS : [] };
+  const state = { client: null, profile: null, stations: [], settings: null, busy: false, previewedSource: '', previewStatus: 'UNTESTED', previewPlayer: null, previewTimer: null, previewGeneration: 0, originalSourceUrl: '', ytPromise: null, refreshTimer: null, lastRefreshAt: null, presets: Array.isArray(window.PARROTHIT_HIGHLIGHT_PRESETS) ? window.PARROTHIT_HIGHLIGHT_PRESETS : [] };
 
   function status(message, kind) {
     const node = $('hcmStatus'); if (!node) return;
@@ -63,13 +63,24 @@
     if (error) throw error;
     const row = state.stations.find(x => String(x.id) === String(stationId));
     if (row) Object.assign(row, payload);
-    renderStations();
+    updateStats(); renderStations();
   }
   function destroyPreview() {
     state.previewGeneration++;
     if (state.previewTimer) clearTimeout(state.previewTimer);
     try { state.previewPlayer?.destroy?.(); } catch (_) {}
     state.previewPlayer = null;
+  }
+  function requiresFreshPlaybackTest() {
+    if (!$('hcmStationActive')?.checked) return false;
+    const id = $('hcmStationId')?.value;
+    const existing = id ? state.stations.find((row) => String(row.id) === String(id)) : null;
+    if (!existing || !existing.is_active) return true;
+    return String($('hcmSourceUrl')?.value || '').trim() !== String(existing.source_url || '').trim();
+  }
+  function canSaveCurrentForm() {
+    if (!requiresFreshPlaybackTest()) return true;
+    return state.previewStatus === 'PLAYABLE' && state.previewedSource === String($('hcmSourceUrl')?.value || '').trim();
   }
   function finishPreview(result, message, parsed, generation) {
     if (generation !== state.previewGeneration) return;
@@ -78,10 +89,11 @@
     state.previewedSource = result === 'PLAYABLE' ? $('hcmSourceUrl').value.trim() : '';
     const stationId = $('hcmStationId').value;
     $('hcmPreviewNote').textContent = result + ' — ' + message + (parsed.source_type === 'youtube_playlist' ? ' Note: this confirms the item YouTube started; other videos in the same playlist may have different restrictions.' : '');
-    status('Preview result: ' + result + '. ' + message, result === 'PLAYABLE' ? '' : 'error');
-    if (stationId) persistHealth(stationId, result, message).catch(e => status('Preview result detected, but could not save station health: ' + (e.message || e), 'warning'));
+    const kind = result === 'PLAYABLE' ? '' : ['UNAVAILABLE','EMBEDDING RESTRICTED'].includes(result) ? 'error' : 'warning';
+    status('Preview result: ' + result + '. ' + message, kind);
+    if (stationId && ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(result)) persistHealth(stationId, result, message).catch(e => status('Preview result detected, but could not save station health: ' + (e.message || e), 'warning'));
     const save = $('hcmSaveStation');
-    if (save) save.disabled = false;
+    if (save) save.disabled = !canSaveCurrentForm();
   }
   function showAccessDenied() {
     document.body.className = 'hcm-page';
@@ -126,10 +138,19 @@
     select.value = selected && [...select.options].some((option) => option.value === selected) ? selected : '';
   }
   function updateStats() {
-    $('hcmTotal').textContent = state.stations.length;
-    $('hcmActive').textContent = state.stations.filter((s) => s.is_active).length;
-    $('hcmInactive').textContent = state.stations.filter((s) => !s.is_active).length;
+    const total = state.stations.length;
+    const active = state.stations.filter((s) => s.is_active).length;
+    const inactive = total - active;
+    const playable = state.stations.filter((s) => s.playback_status === 'PLAYABLE').length;
+    const failed = state.stations.filter((s) => ['EMBEDDING RESTRICTED','UNAVAILABLE'].includes(s.playback_status)).length;
+    const untested = state.stations.filter((s) => !s.playback_checked_at || !s.playback_status || s.playback_status === 'UNTESTED').length;
+    const stale = state.stations.filter((s) => !s.playback_checked_at || Date.now() - new Date(s.playback_checked_at).getTime() > 24 * 60 * 60 * 1000).length;
+    $('hcmTotal').textContent = total; $('hcmActive').textContent = active; $('hcmInactive').textContent = inactive;
     $('hcmCategories').textContent = new Set(state.stations.map((s) => s.category || 'General')).size;
+    if ($('hcmPlayable')) $('hcmPlayable').textContent = playable;
+    if ($('hcmFailed')) $('hcmFailed').textContent = failed;
+    if ($('hcmUntested')) $('hcmUntested').textContent = untested;
+    if ($('hcmStale')) $('hcmStale').textContent = stale;
   }
   function renderFilters() {
     const select = $('hcmFilterCategory'); const old = select.value || 'all';
@@ -159,12 +180,14 @@
       if (imageUrl) { const image = document.createElement('img'); image.src = imageUrl; image.alt = ''; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer'; image.onerror = () => { thumb.textContent = '⚽'; }; thumb.appendChild(image); } else thumb.textContent = '⚽';
       const copy = document.createElement('div'); copy.className = 'hcm-station-copy';
       const title = document.createElement('strong'); title.textContent = station.name;
-      const detail = document.createElement('small'); detail.textContent = (station.category || 'General') + ' · ' + (station.source_type === 'youtube_playlist' ? 'YouTube playlist' : 'YouTube video') + ' · Order ' + station.display_order + ' · ' + (station.is_active ? 'ACTIVE' : 'INACTIVE');
+      const checked = station.playback_checked_at ? new Date(station.playback_checked_at).toLocaleString() : 'Never';
+      const detail = document.createElement('small'); detail.textContent = (station.category || 'General') + ' · ' + (station.source_type === 'youtube_playlist' ? 'YouTube playlist' : 'YouTube video') + ' · Order ' + station.display_order + ' · ' + (station.is_active ? 'ACTIVE' : 'INACTIVE') + ' · Last test: ' + checked;
       const health = document.createElement('small'); health.className = 'hcm-health ' + String(station.playback_status || 'UNTESTED').toLowerCase().replace(/[^a-z]+/g,'-'); health.textContent = 'PLAYBACK: ' + statusLabel(station.playback_status);
       const source = document.createElement('small'); source.textContent = station.source_url;
       copy.append(title, detail, health, source);
       const actions = document.createElement('div'); actions.className = 'hcm-station-actions';
       actions.appendChild(makeButton('Edit', 'secondary', () => editStation(station)));
+      actions.appendChild(makeButton('Test playback', 'secondary', () => { editStation(station); testSource().catch(error => status(error.message || 'Could not test this source.', 'error')); }));
       actions.appendChild(makeButton(station.is_active ? 'Deactivate' : 'Activate', 'secondary', () => toggleStation(station)));
       actions.appendChild(makeButton('Delete', 'danger', () => deleteStation(station)));
       row.append(thumb, copy, actions); list.appendChild(row);
@@ -237,19 +260,20 @@
   }
 
   function clearForm() {
-    destroyPreview(); state.previewStatus = 'UNTESTED'; $('hcmSaveStation').disabled = false;
-    $('hcmStationForm').reset(); $('hcmStationId').value = ''; $('hcmPresetKey').value = ''; $('hcmOrder').value = '100'; $('hcmStationActive').checked = true; state.previewedSource = ''; 
-    $('hcmFormTitle').textContent = 'Add a highlights station'; $('hcmSaveStation').textContent = 'Save station';
+    destroyPreview(); state.previewStatus = 'UNTESTED'; state.previewedSource = ''; state.originalSourceUrl = '';
+    $('hcmStationForm').reset(); $('hcmStationId').value = ''; $('hcmPresetKey').value = ''; $('hcmOrder').value = '100'; $('hcmStationActive').checked = false; $('hcmSaveStation').disabled = false;
+    $('hcmFormTitle').textContent = 'Add a highlights station'; $('hcmSaveStation').textContent = 'Save station as inactive';
     $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').replaceChildren();
   }
   function editStation(station) {
-    destroyPreview(); $('hcmStationId').value = station.id; $('hcmPresetKey').value = station.preset_key || ''; $('hcmName').value = station.name || ''; $('hcmSourceUrl').value = station.source_url || ''; state.previewedSource = ''; state.previewStatus = 'UNTESTED';
+    destroyPreview(); state.originalSourceUrl = String(station.source_url || ''); $('hcmStationId').value = station.id; $('hcmPresetKey').value = station.preset_key || ''; $('hcmName').value = station.name || ''; $('hcmSourceUrl').value = station.source_url || ''; state.previewedSource = ''; state.previewStatus = 'UNTESTED';
     $('hcmDescription').value = station.description || ''; $('hcmThumbnail').value = station.thumbnail_url || '';
     $('hcmOrder').value = station.display_order == null ? 100 : station.display_order; $('hcmStationActive').checked = !!station.is_active;
     const categories = [...$('hcmCategory').options].map((o) => o.value);
     if (!categories.includes(station.category || '')) { $('hcmCategory').add(new Option(station.category, station.category)); }
     $('hcmCategory').value = station.category || 'Other';
     $('hcmFormTitle').textContent = 'Edit highlights station'; $('hcmSaveStation').textContent = 'Save station changes';
+    $('hcmSaveStation').disabled = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   async function testSource() {
@@ -258,22 +282,31 @@
     state.previewStatus = 'TESTING'; state.previewedSource = '';
     const host = $('hcmPreviewFrame'); host.replaceChildren();
     $('hcmPreviewWrap').classList.remove('hcm-hidden');
-    $('hcmPreviewNote').textContent = 'Loading YouTube player. Press Play inside the preview if playback does not start automatically. A successful URL parse alone is not enough.';
+    $('hcmPreviewNote').textContent = 'Loading the embedded source and attempting muted playback. If your browser blocks autoplay, tap Play inside the preview. Only an actual PLAYING event counts as a successful test.';
     $('hcmSaveStation').disabled = true;
-    status('Testing actual embedded playback. Waiting for YouTube to report PLAYING…', 'warning');
+    status('Testing embedded playback. Muted autoplay is attempted first; manual Play remains available if the browser blocks it.', 'warning');
     try {
       const YT = await loadYouTubeApi(); if (generation !== state.previewGeneration) return;
       const mount = document.createElement('div'); mount.id = 'hcmYouTubePreviewPlayer'; host.appendChild(mount);
       const vars = { autoplay: 0, controls: 1, playsinline: 1, rel: 0, enablejsapi: 1, origin: location.origin };
       if (parsed.source_type === 'youtube_playlist') { vars.listType = 'playlist'; vars.list = parsed.youtube_playlist_id; }
       const opts = { width: '100%', height: '100%', playerVars: vars, events: {
-        onReady: (event) => { if (generation !== state.previewGeneration) return; state.previewPlayer = event.target; $('hcmPreviewNote').textContent = 'Player loaded. Tap Play inside the preview and wait for moving video. The station is not approved until playback is detected.'; },
+        onReady: (event) => {
+          if (generation !== state.previewGeneration) return; state.previewPlayer = event.target; state.previewStatus = 'READY';
+          try { const frame = event.target.getIframe && event.target.getIframe(); if (frame) { frame.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'); frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin'); frame.setAttribute('allowfullscreen', ''); } } catch (_) {}
+          event.target.mute(); event.target.playVideo();
+          $('hcmPreviewNote').textContent = 'Player ready. Muted playback has been requested. If it does not start automatically, tap Play inside the preview. A station is marked PLAYABLE only after YouTube reports actual playback.';
+        },
+        onAutoplayBlocked: () => { if (generation !== state.previewGeneration) return; state.previewStatus = 'READY'; $('hcmPreviewNote').textContent = 'AUTOPLAY BLOCKED — this is a browser policy, not proof that the source is unavailable. Tap Play inside the preview to complete the test.'; status('The browser blocked automatic playback. Tap Play inside the preview; the source remains unverified until playback starts.', 'warning'); },
         onStateChange: (event) => { if (generation !== state.previewGeneration) return; if (event.data === YT.PlayerState.PLAYING) finishPreview('PLAYABLE', 'YouTube confirmed actual playback in this browser.', parsed, generation); },
-        onError: (event) => { if (generation !== state.previewGeneration) return; const code = Number(event.data); const restricted = code === 101 || code === 150; const msg = restricted ? 'The video owner blocks embedding on external websites.' : code === 100 ? 'The video is private, deleted or unavailable.' : code === 2 ? 'YouTube rejected the video or playlist ID.' : code === 153 ? 'YouTube did not receive the required HTTP referrer/client identification.' : 'YouTube player error ' + code + '. The source could not be played.'; finishPreview(restricted ? 'EMBEDDING RESTRICTED' : 'UNAVAILABLE', msg, parsed, generation); }
+        onError: (event) => { if (generation !== state.previewGeneration) return; const code = Number(event.data); const restricted = code === 101 || code === 150; const msg = restricted ? 'The video owner blocks embedding on external websites.' : code === 100 ? 'The video is private, deleted or unavailable.' : code === 2 ? 'YouTube rejected the video or playlist ID.' : code === 153 ? 'YouTube did not receive the required HTTP referrer/client identification. Make sure the website is accessed through its real HTTPS domain, not a local file preview.' : code === 5 ? 'The YouTube HTML5 player could not decode this source.' : 'YouTube player error ' + code + '. The source could not be played.'; finishPreview(restricted ? 'EMBEDDING RESTRICTED' : 'UNAVAILABLE', msg, parsed, generation); }
       }};
       if (parsed.source_type === 'youtube_video') opts.videoId = parsed.youtube_video_id;
       state.previewPlayer = new YT.Player(mount, opts);
-      state.previewTimer = setTimeout(() => { if (generation === state.previewGeneration && state.previewStatus === 'TESTING') finishPreview('UNAVAILABLE', 'No PLAYING event was received within 25 seconds. Tap Play in the preview; if it still does not play, use another authorised source.', parsed, generation); }, 25000);
+      state.previewTimer = setTimeout(() => {
+        if (generation !== state.previewGeneration || state.previewStatus === 'PLAYABLE') return;
+        finishPreview('UNTESTED', 'The player did not report PLAYING before the verification timer ended. The source is not labelled unavailable. Tap Play inside the preview and wait for playback, then run the test again.', parsed, generation);
+      }, 60000);
     } catch (error) {
       if (generation !== state.previewGeneration) return;
       finishPreview('UNAVAILABLE', error.message || 'YouTube player could not be loaded.', parsed, generation);
@@ -286,16 +319,23 @@
       const name = $('hcmName').value.trim();
       if (name.length < 2) throw new Error('Station name must contain at least two characters.');
       const parsed = parseYouTubeSource($('hcmSourceUrl').value);
-      if ($('hcmStationActive').checked && (state.previewedSource !== $('hcmSourceUrl').value.trim() || state.previewStatus !== 'PLAYABLE')) throw new Error('Activation blocked: the exact source must pass a fresh playback test and show PLAYABLE. A recognised URL is not proof of playable content.');
+      const id = $('hcmStationId').value;
+      const existing = id ? state.stations.find((row) => String(row.id) === String(id)) : null;
+      const sourceChanged = !!existing && (parsed.source_url !== existing.source_url || parsed.source_type !== existing.source_type || parsed.youtube_video_id !== existing.youtube_video_id || parsed.youtube_playlist_id !== existing.youtube_playlist_id);
+      const requiresTest = $('hcmStationActive').checked && (!existing || !existing.is_active || sourceChanged);
+      if (requiresTest && (state.previewedSource !== $('hcmSourceUrl').value.trim() || state.previewStatus !== 'PLAYABLE')) throw new Error('Activation blocked: the exact source must pass a fresh playback test and show PLAYABLE. A recognised URL is not proof of playable content.');
       const thumbnail = $('hcmThumbnail').value.trim();
       if (thumbnail && !safeImageUrl(thumbnail)) throw new Error('Thumbnail must be a valid HTTPS image URL.');
       const payload = {
         name, category: $('hcmCategory').value || 'Other', ...parsed, preset_key: $('hcmPresetKey').value || null,
         description: $('hcmDescription').value.trim(), thumbnail_url: safeImageUrl(thumbnail) || null,
         display_order: Math.max(0, Math.min(1000000, Number($('hcmOrder').value) || 100)),
-        is_active: $('hcmStationActive').checked, playback_status: ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? state.previewStatus : 'UNTESTED', playback_checked_at: ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? new Date().toISOString() : null, playback_error: state.previewStatus === 'PLAYABLE' ? null : (state.previewStatus === 'UNTESTED' ? null : 'Latest preview result: ' + state.previewStatus), updated_at: new Date().toISOString()
+        is_active: $('hcmStationActive').checked,
+        playback_status: state.previewedSource === $('hcmSourceUrl').value.trim() && ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? state.previewStatus : (!sourceChanged && existing ? (existing.playback_status || 'UNTESTED') : 'UNTESTED'),
+        playback_checked_at: state.previewedSource === $('hcmSourceUrl').value.trim() && ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? new Date().toISOString() : (!sourceChanged && existing ? (existing.playback_checked_at || null) : null),
+        playback_error: state.previewedSource === $('hcmSourceUrl').value.trim() && state.previewStatus === 'PLAYABLE' ? null : (state.previewedSource === $('hcmSourceUrl').value.trim() && ['EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? 'Latest preview result: ' + state.previewStatus : (!sourceChanged && existing ? (existing.playback_error || null) : null)),
+        updated_at: new Date().toISOString()
       };
-      const id = $('hcmStationId').value;
       let result;
       if (id) result = await state.client.from('parrothit_livescore_highlight_stations').update(payload).eq('id', id).select().single();
       else result = await state.client.from('parrothit_livescore_highlight_stations').insert(payload).select().single();
@@ -311,6 +351,7 @@
       editStation(station);
       $('hcmStationActive').checked = true;
       state.previewedSource = ''; state.previewStatus = 'UNTESTED';
+      $('hcmSaveStation').disabled = !canSaveCurrentForm();
       status('Activation is blocked until a fresh preview reports PLAYABLE. Test the source, then save station changes.', 'warning');
       return;
     }
@@ -329,6 +370,48 @@
       status('Station deleted.'); await refreshAll(); clearForm();
     } catch (error) { status(error.message || 'Could not delete station.', 'error'); }
   }
+
+  async function bulkImportSources() {
+    const raw = $('hcmBulkSources').value.trim();
+    if (!raw) { status('Paste one authorised YouTube video or playlist URL per line. You may also use Station name | URL.', 'warning'); return; }
+    const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length > 500) { status('Bulk import is limited to 500 source lines per run. Split the list into smaller batches.', 'error'); return; }
+    const existingKeys = new Set(state.stations.map(station => station.source_type + ':' + (station.youtube_playlist_id || station.youtube_video_id || '')));
+    const seen = new Set(existingKeys); const records = []; const problems = [];
+    const prefix = ($('hcmBulkNamePrefix').value || 'Football Highlights').trim().slice(0, 70) || 'Football Highlights';
+    const category = $('hcmBulkCategory').value || 'General Football';
+    let order = state.stations.reduce((max, station) => Math.max(max, Number(station.display_order) || 0), 0) + 1;
+    lines.forEach((line, index) => {
+      const parts = line.split(/\s*\|\s*/); const suppliedName = parts.length > 1 ? parts.shift().trim() : '';
+      const source = parts.join(' | ').trim();
+      try {
+        const parsed = parseYouTubeSource(source);
+        const key = parsed.source_type + ':' + (parsed.youtube_playlist_id || parsed.youtube_video_id);
+        if (seen.has(key)) return;
+        seen.add(key);
+        const name = (suppliedName || (prefix + ' ' + (records.length + 1))).slice(0, 100);
+        records.push({ name, category, ...parsed, description: 'Bulk imported source. Verify actual playback before activation.', display_order: Math.min(1000000, order++), is_active: false, playback_status: 'UNTESTED', playback_checked_at: null, playback_error: null, updated_at: new Date().toISOString() });
+      } catch (error) { problems.push('Line ' + (index + 1) + ': ' + (error.message || 'Invalid YouTube URL')); }
+    });
+    if (!records.length) { status(problems.length ? 'No valid new sources were imported. ' + problems.slice(0, 5).join(' · ') : 'All submitted sources are already configured.', problems.length ? 'error' : 'warning'); return; }
+    const button = $('hcmBulkImport'); button.disabled = true; state.busy = true;
+    try {
+      for (let i = 0; i < records.length; i += 50) {
+        const { error } = await state.client.from('parrothit_livescore_highlight_stations').insert(records.slice(i, i + 50));
+        if (error) throw error;
+      }
+      $('hcmBulkSources').value = '';
+      await refreshAll({ quiet: true });
+      status(records.length + ' source(s) imported as INACTIVE. ' + (problems.length ? problems.length + ' invalid line(s) were skipped. ' : '') + 'Test each source and activate only after PLAYABLE is confirmed.' + (problems.length ? ' First issues: ' + problems.slice(0, 3).join(' · ') : ''));
+    } catch (error) { status('Bulk import stopped: ' + (error.message || 'Database insert failed.') + '. Check the consolidated Highlights TV migration and owner permissions.', 'error'); }
+    finally { state.busy = false; button.disabled = false; }
+  }
+
+  function renderDiagnostics() {
+    if ($('hcmDbDiagnostics')) $('hcmDbDiagnostics').textContent = 'Supabase owner session verified. Highlights station and settings tables are readable.';
+    if ($('hcmLastRefresh')) $('hcmLastRefresh').textContent = 'Last successful refresh: ' + (state.lastRefreshAt ? state.lastRefreshAt.toLocaleString() : 'not yet refreshed') + ' · automatic status refresh every 60 seconds while this page is open.';
+  }
+
   async function saveSettings() {
     const payload = {
       id: 1, enabled: $('hcmEnabled').checked, autoplay_muted: $('hcmAutoplayMuted').checked,
@@ -341,14 +424,17 @@
       state.settings = payload; status('Public Highlights TV settings saved.');
     } catch (error) { status(error.message || 'Could not save public settings.', 'error'); }
   }
-  async function refreshAll() {
+  async function refreshAll(options) {
+    const quiet = !!(options && options.quiet);
     try {
       const [stations] = await Promise.all([fetchAllStations(), loadSettings()]);
-      state.stations = stations;
-      updateStats(); renderFilters(); fillSettings(); renderStations(); renderPresetFilters(); renderPresets();
+      state.stations = stations; state.lastRefreshAt = new Date();
+      updateStats(); renderFilters(); fillSettings(); renderStations(); renderPresetFilters(); renderPresets(); renderDiagnostics();
+      if (!quiet) status('Highlights TV configuration refreshed. ' + stations.length + ' station record(s) loaded.');
     } catch (error) {
-      status((error.message || 'Could not load highlights settings.') + ' Confirm that supabase/parrothit-livescore-highlights.sql has been run.', 'error');
-      $('hcmStationList').textContent = 'Database setup is incomplete.';
+      if ($('hcmDbDiagnostics')) $('hcmDbDiagnostics').textContent = 'Database check failed: ' + (error.message || 'Unknown error') + '. Run supabase/parrothit-livescore-highlights-activation-repair.sql and verify owner access.';
+      status((error.message || 'Could not load highlights settings.') + ' Apply the consolidated activation repair migration in Supabase SQL Editor.', 'error');
+      $('hcmStationList').textContent = 'Database setup is incomplete or station columns are missing.';
     }
   }
   async function init() {
@@ -358,15 +444,18 @@
       status('Owner session verified. Loading Highlights TV configuration…');
       await refreshAll();
       $('hcmStationForm').addEventListener('submit', saveStation);
-      $('hcmTestStation').addEventListener('click', () => { try { testSource(); } catch (error) { status(error.message, 'error'); } });
+      $('hcmTestStation').addEventListener('click', () => { testSource().catch(error => status(error.message || 'Could not test this source.', 'error')); });
       $('hcmClearForm').addEventListener('click', clearForm);
       $('hcmSaveSettings').addEventListener('click', saveSettings);
-      $('hcmReload').addEventListener('click', refreshAll);
+      $('hcmReload').addEventListener('click', () => refreshAll());
+      $('hcmBulkImport').addEventListener('click', bulkImportSources);
+      state.refreshTimer = window.setInterval(() => { if (!document.hidden && !state.busy) refreshAll({ quiet: true }); }, 60000);
       $('hcmSearch').addEventListener('input', renderStations);
       $('hcmFilterCategory').addEventListener('change', renderStations);
       $('hcmPresetSearch').addEventListener('input', renderPresets);
       $('hcmPresetFilter').addEventListener('change', renderPresets);
-      $('hcmSourceUrl').addEventListener('input', () => { if ($('hcmSourceUrl').value.trim() !== state.previewedSource) { destroyPreview(); state.previewStatus = 'UNTESTED'; state.previewedSource = ''; $('hcmSaveStation').disabled = false; $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').replaceChildren(); } });
+      $('hcmSourceUrl').addEventListener('input', () => { if ($('hcmSourceUrl').value.trim() !== state.previewedSource) { destroyPreview(); state.previewStatus = 'UNTESTED'; state.previewedSource = ''; $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').replaceChildren(); } $('hcmSaveStation').disabled = !canSaveCurrentForm(); });
+      $('hcmStationActive').addEventListener('change', () => { $('hcmSaveStation').disabled = !canSaveCurrentForm(); });
     } catch (error) {
       document.documentElement.classList.remove('hcm-auth-pending');
       status(error.message || 'Could not verify administrator access.', 'error');
