@@ -1345,12 +1345,26 @@ function providerPagination(raw: unknown, providerCode: string): { current: numb
 }
 
 function mergeProviderPage(base: unknown, next: unknown, providerCode: string): unknown {
+  if (Array.isArray(base) && Array.isArray(next)) return [...base, ...next];
   const baseObject = plainObject(base);
   const nextObject = plainObject(next);
-  const listKey = providerCode === "api-football" ? "response"
-    : (providerCode === "sportmonks" || providerCode === "footballapi-org") ? "data" : "";
-  if (!listKey || !Array.isArray(baseObject[listKey]) || !Array.isArray(nextObject[listKey])) return base;
-  return { ...baseObject, [listKey]: [...baseObject[listKey], ...nextObject[listKey]] };
+  const preferred = providerCode === "api-football" ? ["response"]
+    : (providerCode === "sportmonks" || providerCode === "footballapi-org") ? ["data"] : [];
+  const candidates = [...preferred, "matches", "fixtures", "response", "events", "results", "data"];
+  for (const listKey of [...new Set(candidates)]) {
+    if (Array.isArray(baseObject[listKey]) && Array.isArray(nextObject[listKey])) {
+      return { ...baseObject, [listKey]: [...(baseObject[listKey] as unknown[]), ...(nextObject[listKey] as unknown[])] };
+    }
+  }
+  // Custom providers may nest a paged result list one level below data.
+  for (const listKey of ["matches", "fixtures", "response", "events", "results"]) {
+    if (Array.isArray((baseObject.data as any)?.[listKey]) && Array.isArray((nextObject.data as any)?.[listKey])) {
+      return { ...baseObject, data: { ...(baseObject.data as Record<string, unknown>), [listKey]: [
+        ...((baseObject.data as any)[listKey] as unknown[]), ...((nextObject.data as any)[listKey] as unknown[]),
+      ] } };
+    }
+  }
+  return base;
 }
 
 async function fetchOneProvider(
@@ -1402,8 +1416,9 @@ async function fetchOneProvider(
     let pageFailure = "";
     let nextPage = nextPageStart;
 
-    // Fetch up to twelve pages per visit. Incomplete page sets are saved with a cursor so the
-    // visitor's automatic follow-up request resumes at the next page rather than starting over.
+    // Fetch up to twelve provider pages per request to keep each Edge Function execution bounded.
+    // Incomplete page sets are saved with a cursor; visitor/admin follow-up requests resume at the
+    // next provider page, and the public interface can keep extending the result set as needed.
     const firstPage = await providerRequest(provider, view, date, competition, dateFrom, dateTo, routeOverride, nextPageStart);
     raw = firstPage.raw;
     response = firstPage.response;
@@ -1871,15 +1886,17 @@ Deno.serve(async (request: Request) => {
     const view = ["live", "today", "upcoming", "results"].includes(body.view) ? String(body.view) : "live";
     const dateText = String(body.date || "");
     const date = /^\d{4}-\d{2}-\d{2}$/.test(dateText) ? dateText : todayInLagos();
-    const defaultDateFrom = todayInLagos();
-    const defaultDateTo = `${defaultDateFrom.slice(0, 4)}-12-31`;
+    const defaultDateFrom = date;
+    const defaultDateTo = date;
     const requestedDateFrom = String(body.date_from || "");
     const requestedDateTo = String(body.date_to || "");
-    const dateFrom = action === "competition_feed" && /^\d{4}-\d{2}-\d{2}$/.test(requestedDateFrom) ? requestedDateFrom : defaultDateFrom;
-    const dateTo = action === "competition_feed" && /^\d{4}-\d{2}-\d{2}$/.test(requestedDateTo) ? requestedDateTo : defaultDateTo;
+    const hasRequestedRange = /^\d{4}-\d{2}-\d{2}$/.test(requestedDateFrom)
+      && /^\d{4}-\d{2}-\d{2}$/.test(requestedDateTo);
+    const dateFrom = hasRequestedRange ? requestedDateFrom : defaultDateFrom;
+    const dateTo = hasRequestedRange ? requestedDateTo : defaultDateTo;
     const windowDays = daysBetweenInclusive(dateFrom, dateTo);
-    if (action === "competition_feed" && (dateFrom > dateTo || windowDays > 190)) {
-      return reply(400, { ok: false, error: "The selected competition date range is invalid or too large." });
+    if (dateFrom > dateTo || windowDays < 1 || windowDays > (action === "competition_feed" ? 190 : 370)) {
+      return reply(400, { ok: false, error: "The selected football date range is invalid or too large." });
     }
     const requestedCompetition = String(body.competition || "all").toLowerCase().slice(0, 40);
     const competition = /^[a-z0-9_-]+$/.test(requestedCompetition) ? requestedCompetition : "all";
@@ -1963,7 +1980,7 @@ Deno.serve(async (request: Request) => {
       const ttl = Math.max(15, Math.min(3600, Number(settings.cache_seconds || settings.public_livescore_cache_seconds || 60)));
       const targetName = normalizedName(competitionName);
       const targetCountry = normalizedName(competitionCountry);
-      const providerResults = await runWithConcurrency(activeProviders, 6, async (provider) => {
+      const providerResults: Record<string, any>[] = await runWithConcurrency(activeProviders, 6, async (provider) => {
         const startedAt = Date.now();
         try {
           const providerCatalog = await loadCatalogRowsCached(db, String(provider.id), String(provider.provider_name || "Football provider"));
@@ -2057,7 +2074,7 @@ Deno.serve(async (request: Request) => {
     const ttl = Math.max(15, Math.min(3600, Number(settings.cache_seconds || settings.public_livescore_cache_seconds || 60)));
     // All active providers are included. Requests are batched at a small concurrency level to avoid
     // sudden rate-limit spikes while still using every activated service in the same visitor response.
-    const providerResults = await runWithConcurrency(activeProviders, 6, async (provider) => {
+    const providerResults: Record<string, any>[] = await runWithConcurrency(activeProviders, 6, async (provider) => {
       const startedAt = Date.now();
       try {
         return { ...(await fetchProviderWindow(db, provider, view, date, competition, ttl, dateFrom, dateTo)), duration_ms: Date.now() - startedAt };
@@ -2099,8 +2116,10 @@ Deno.serve(async (request: Request) => {
       matches: combined.matches.map((match) => publicMatchRow(match)),
       view,
       date,
-      sync_pending: pendingProviders.length > 0,
+      sync_pending: pendingProviders.some((result) => result.sync_pending === true || result.pagination_pending === true),
+      pagination_pending: pendingProviders.some((result) => result.pagination_pending === true),
       total_returned: combined.matches.length,
+      provider_count: successfulProviders.length,
       data_state: combined.matches.length ? "available" : "empty",
       cached: providerResults.every((result) => result.cached === true),
       attributions,
