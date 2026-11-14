@@ -61,3 +61,33 @@ body.football-room-page{margin:0;background:var(--fr-bg);color:var(--fr-ink);fon
 @media(max-width:760px){.fr-provider-log-groups{grid-template-columns:1fr}.fr-provider-log-controls{display:grid;grid-template-columns:1fr}.fr-provider-log-controls .fr-field{max-width:none}.fr-provider-log-controls .fr-button{width:100%}.fr-provider-log-meta time{margin-left:0;width:100%}}
 
 .fr-provider-log-active.is-inactive{background:#604415;color:#ffe2a0}
+
+/* Selected-date fixture/result browser in the Football Automation Room. */
+.fr-feed-browser{margin-top:18px;background:#0b2116;border:1px solid #24583b;color:#effff3}
+.fr-feed-browser h3{color:#fff}
+.fr-feed-browser .fr-panel-heading p,.fr-feed-browser .fr-note{color:#c1d9ca}
+.fr-feed-browser-controls{display:grid;grid-template-columns:minmax(190px,260px) minmax(190px,1fr) minmax(310px,1.4fr) auto;align-items:end;gap:12px}
+.fr-feed-browser-controls .fr-field{color:#e7f8ec}
+.fr-feed-browser-controls .fr-field input{width:100%;box-sizing:border-box;min-height:43px;border:1px solid #4a7659;border-radius:8px;padding:9px 11px;background:#122d1e;color:#fff;font:inherit;color-scheme:dark}
+.fr-feed-date-shortcuts{display:flex;gap:6px;flex-wrap:wrap}
+.fr-feed-date-shortcuts .fr-button{padding-inline:9px;min-height:40px}
+.fr-feed-mode{display:flex;gap:5px;flex-wrap:wrap}
+.fr-feed-mode button{min-height:40px;padding:8px 10px;border:1px solid #3d674c;border-radius:8px;background:#122d1e;color:#e8f7ec;font-size:.76rem;font-weight:850;cursor:pointer}
+.fr-feed-mode button.is-active,.fr-feed-mode button:hover{border-color:#28a45c;background:#176236;color:#fff}
+.fr-feed-browser-controls>#fr-load-feed{min-height:42px;white-space:nowrap}
+.fr-feed-browser .fr-form-feedback{color:#c1d9ca}
+.fr-feed-results{margin-top:12px;min-width:0}
+.fr-feed-table-scroll{width:100%;overflow:auto;border:1px solid #2c6242;border-radius:9px}
+.fr-feed-table{width:100%;min-width:690px;border-collapse:collapse;color:#effff3}
+.fr-feed-table th,.fr-feed-table td{padding:10px 12px;text-align:left;vertical-align:middle;border-bottom:1px solid #294e36;font-size:.78rem}
+.fr-feed-table th{position:sticky;top:0;background:#17482b;color:#aaf0be;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em}
+.fr-feed-table td:nth-child(2){font-weight:800;color:#fff}
+.fr-feed-table td:nth-child(3){font-weight:900;white-space:nowrap;color:#aaf0be}
+.fr-feed-table tr:last-child td{border-bottom:0}
+.fr-feed-pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+.fr-feed-page-info{color:#c1d9ca;font-size:.76rem}
+.fr-feed-page-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fr-feed-page-controls .fr-button{min-height:35px;padding:7px 9px;font-size:.72rem}
+.fr-feed-page-controls .fr-button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:1050px){.fr-feed-browser-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.fr-feed-mode{grid-column:1/-1}.fr-feed-browser-controls>#fr-load-feed{justify-self:start}}
+@media(max-width:650px){.fr-feed-browser-controls{grid-template-columns:1fr}.fr-feed-mode{grid-column:auto}.fr-feed-browser-controls>#fr-load-feed{width:100%}.fr-feed-date-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.fr-feed-pagination{align-items:flex-start}.fr-feed-page-controls{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.fr-feed-page-controls .fr-button{width:100%}}

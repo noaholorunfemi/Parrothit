@@ -346,7 +346,7 @@ body.pl-body {
 }
 
 
-/* Result paging: 50 provider matches per screen with explicit navigation. */
+/* Result paging with explicit navigation for the 500-match display window. */
 .pl-pagination {
   margin: 18px 0 12px; padding: 14px; display: flex; align-items: center;
   justify-content: space-between; gap: 12px; flex-wrap: wrap;
@@ -601,4 +601,14 @@ body.pl-body {
   #plPanelLineups .pl-pitch-player{width:20%;max-width:68px}
   #plPanelLineups .pl-pitch-player span{width:32px;height:32px;font-size:12px}
   #plPanelLineups .pl-pitch-player b{font-size:8px}
+}
+
+/* Expanded 500-match paging with clear first/last navigation. */
+.pl-pagination-controls { flex-wrap: wrap; }
+.pl-page-number { min-width: 82px; text-align: center; }
+.pl-page-btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+@media (max-width: 520px) {
+  .pl-pagination-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .pl-page-number { grid-column: 1 / -1; grid-row: 1; padding: 4px 0; }
+  .pl-page-btn { width: 100%; }
 }
