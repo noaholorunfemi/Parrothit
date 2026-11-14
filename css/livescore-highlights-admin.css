@@ -24,3 +24,12 @@
 .hcm-preset-actions .hcm-btn.primary{background:#12683a;border-color:#357d4e;color:#fff}
 @media(max-width:850px){.hcm-preset-toolbar{grid-template-columns:minmax(0,1fr) 190px}.hcm-preset-count{grid-column:1/-1;text-align:left}}
 @media(max-width:600px){.hcm-preset-toolbar{grid-template-columns:1fr}.hcm-preset-count{grid-column:auto}.hcm-preset-list{grid-template-columns:1fr}.hcm-preset-card{padding:11px}.hcm-preset-state{max-width:112px;font-size:7px}.hcm-preset-actions .hcm-btn{flex:1}}
+
+/* Playback verification and station health labels */
+.hcm-preview-player{display:block;width:100%;aspect-ratio:16/9;min-height:190px;border-radius:7px;overflow:hidden;background:#000}
+.hcm-preview-player iframe{display:block;width:100%;height:100%;border:0}
+.hcm-health{display:inline-flex!important;width:max-content;max-width:100%;padding:3px 7px;border:1px solid #526052;border-radius:999px;background:#202820;color:#e5e7eb!important;font-size:9px!important;font-weight:900;letter-spacing:.04em}
+.hcm-health.playable{border-color:#23834c;background:#0b2a18;color:#86efac!important}
+.hcm-health.embedding-restricted{border-color:#a16207;background:#34240b;color:#fde68a!important}
+.hcm-health.unavailable{border-color:#991b1b;background:#351315;color:#fecaca!important}
+.hcm-health.untested{border-color:#526052;background:#202820;color:#d1d5db!important}
