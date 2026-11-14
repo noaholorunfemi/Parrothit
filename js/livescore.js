@@ -32,7 +32,7 @@
   let catalogLoaded = false;
   let catalogRequest = null;
   let currentPage = 1;
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 500;
   let activeRequest = null;
   let requestSequence = 0;
   let refreshTimer = null;
@@ -342,11 +342,13 @@
     const start = total ? ((currentPage - 1) * PAGE_SIZE) + 1 : 0;
     const end = Math.min(total, currentPage * PAGE_SIZE);
     root.innerHTML = `
-      <div class="pl-pagination-info">Showing <b>${start}–${end}</b> of <b>${total}</b> matches <span>· up to 50 per page</span></div>
+      <div class="pl-pagination-info">Showing <b>${start}–${end}</b> of <b>${total}</b> matches <span>· up to 500 per page</span></div>
       <div class="pl-pagination-controls">
-        <button type="button" class="pl-page-btn" data-page-action="prev" ${currentPage <= 1 ? 'disabled' : ''}>Previous page</button>
+        <button type="button" class="pl-page-btn" data-page-action="first" ${currentPage <= 1 ? 'disabled' : ''}>First</button>
+        <button type="button" class="pl-page-btn" data-page-action="prev" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>
         <span class="pl-page-number">Page ${currentPage} of ${pages}</span>
-        <button type="button" class="pl-page-btn pl-page-next" data-page-action="next" ${currentPage >= pages ? 'disabled' : ''}>Next page</button>
+        <button type="button" class="pl-page-btn pl-page-next" data-page-action="next" ${currentPage >= pages ? 'disabled' : ''}>Next</button>
+        <button type="button" class="pl-page-btn" data-page-action="last" ${currentPage >= pages ? 'disabled' : ''}>Last</button>
       </div>`;
   }
 
@@ -370,7 +372,12 @@
       return;
     }
 
-    const pageMatches = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+    const ordered = filtered.slice().sort((a, b) => {
+      const aTime = kickoff(a)?.getTime() || 0;
+      const bTime = kickoff(b)?.getTime() || 0;
+      return selectedView === 'results' ? bTime - aTime : aTime - bTime;
+    });
+    const pageMatches = ordered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
     const groups = new Map();
     pageMatches.forEach((match) => {
       const name = leagueName(match);
@@ -445,9 +452,9 @@
         body: JSON.stringify({
           view: selectedView,
           date: safeDate(dateInput.value),
-          date_from: lagosDate(),
-          date_to: `${lagosDate().slice(0, 4)}-12-31`,
-          range_scope: 'rest-of-current-year',
+          date_from: safeDate(dateInput.value),
+          date_to: safeDate(dateInput.value),
+          range_scope: 'selected-day',
           competition: 'all'
         })
       });
@@ -458,7 +465,6 @@
 
       currentMatches = payload.matches;
       updateRequiredAttributions(payload.attributions);
-      currentPage = 1;
       lastSuccessfulLoad = Date.now();
       competitionOptions(currentMatches);
       setFeedStatus('Football scores and fixtures');
@@ -469,15 +475,17 @@
       } else {
         renderMatches();
       }
-      // Continue date-only feeds in small batches. Range-capable and season feeds are already
-      // fetched in one request; the browser only polls again while additional dates remain.
-      if (payload.sync_pending === true && windowSyncPasses < 15 && selectedView !== 'live') {
+      // Continue paged provider responses in bounded follow-up requests. The current page is
+      // retained while the cached result set grows toward the full 500-record display page.
+      if (payload.sync_pending === true && windowSyncPasses < 30 && selectedView !== 'live') {
         windowSyncPasses += 1;
         windowSyncTimer = setTimeout(() => {
           windowSyncTimer = null;
           fetchMatches(true);
         }, 850);
-      } else if (payload.sync_pending !== true) {
+      } else if (payload.sync_pending === true) {
+        setFeedStatus('More provider results remain. Use Refresh to continue loading the available records.');
+      } else {
         windowSyncPasses = 0;
       }
     } catch (error) {
@@ -553,9 +561,13 @@
     const button = event.target.closest('[data-page-action]');
     if (!button || button.disabled) return;
     const action = button.dataset.pageAction;
-    currentPage = Math.max(1, currentPage + (action === 'next' ? 1 : -1));
+    const totalPages = Math.max(1, Math.ceil(filterMatches().length / PAGE_SIZE));
+    if (action === 'first') currentPage = 1;
+    else if (action === 'last') currentPage = totalPages;
+    else currentPage = Math.max(1, Math.min(totalPages, currentPage + (action === 'next' ? 1 : -1)));
     renderMatches();
-    $('plDatebar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const firstMatch = matchRoot.querySelector('.pl-competition');
+    (firstMatch || $('plDatebar'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   $('plMenuBtn').addEventListener('click', () => setMenu(!menuOpen));
   document.addEventListener('click', (event) => { if (menuOpen && !event.target.closest('.pl-header')) setMenu(false); });

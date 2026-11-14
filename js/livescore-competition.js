@@ -11,7 +11,7 @@
   const competitionName = String(query.get('name') || '').trim().slice(0, 120);
   const competitionCountry = String(query.get('country') || 'International').trim().slice(0, 100);
   const LAGOS = 'Africa/Lagos';
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 500;
   const MAX_SYNC_PASSES = 16;
   let catalogEntry = null;
   let fixtures = [];
@@ -310,7 +310,7 @@
     const filtered = filterStage(rows); const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     if (pages <= 1) return;
     $('pcPagination').hidden = false;
-    $('pcPagination').innerHTML = `<span class="pl-pagination-info">Showing ${Math.min(filtered.length, (currentPage - 1) * PAGE_SIZE + 1)}–${Math.min(filtered.length, currentPage * PAGE_SIZE)} of ${filtered.length}</span><div class="pl-pagination-controls"><button class="pl-page-btn" data-page="prev" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button><span class="pl-page-number">Page ${currentPage} of ${pages}</span><button class="pl-page-btn pl-page-next" data-page="next" ${currentPage >= pages ? 'disabled' : ''}>Next</button></div>`;
+    $('pcPagination').innerHTML = `<span class="pl-pagination-info">Showing ${Math.min(filtered.length, (currentPage - 1) * PAGE_SIZE + 1)}–${Math.min(filtered.length, currentPage * PAGE_SIZE)} of ${filtered.length} · 500 per page</span><div class="pl-pagination-controls"><button class="pl-page-btn" data-page="first" ${currentPage <= 1 ? 'disabled' : ''}>First</button><button class="pl-page-btn" data-page="prev" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button><span class="pl-page-number">Page ${currentPage} of ${pages}</span><button class="pl-page-btn pl-page-next" data-page="next" ${currentPage >= pages ? 'disabled' : ''}>Next</button><button class="pl-page-btn" data-page="last" ${currentPage >= pages ? 'disabled' : ''}>Last</button></div>`;
   }
   function bindContentActions() {
     document.querySelectorAll('[data-jump-tab]').forEach((button) => button.addEventListener('click', () => setTab(button.dataset.jumpTab)));
@@ -389,7 +389,13 @@
   $('pcStageSelect').addEventListener('change', () => { selectedStage = $('pcStageSelect').value; currentPage = 1; renderActiveTab(); });
   $('pcPagination').addEventListener('click', (event) => {
     const button = event.target.closest('[data-page]'); if (!button || button.disabled) return;
-    currentPage = Math.max(1, currentPage + (button.dataset.page === 'next' ? 1 : -1)); renderActiveTab();
+    const rows = activeTab === 'fixtures' ? fixtures : results;
+    const pages = Math.max(1, Math.ceil(filterStage(rows).length / PAGE_SIZE));
+    if (button.dataset.page === 'first') currentPage = 1;
+    else if (button.dataset.page === 'last') currentPage = pages;
+    else currentPage = Math.max(1, Math.min(pages, currentPage + (button.dataset.page === 'next' ? 1 : -1)));
+    renderActiveTab();
+    $('pcCompetitionContent')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   (async () => {

@@ -4,7 +4,7 @@
   window.__PARROTHIT_FOOTBALL_ROOM__ = true;
 
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, configs: [], settings: null, recentLogs: [], logsAvailable: true, toastTimer: null };
+  const state = { client: null, configs: [], settings: null, recentLogs: [], logsAvailable: true, toastTimer: null, feedMatches: [], feedPage: 1, feedPageSize: 500, feedView: 'results', feedPending: false, feedLoading: false };
   function lagosToday() { const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()); const get = (k) => parts.find((p) => p.type === k)?.value || ''; return `${get('year')}-${get('month')}-${get('day')}`; }
   const presets = {
     openligadb: {
@@ -235,6 +235,125 @@
     }
     if (!result.data || result.data.ok === false) throw new Error((result.data && result.data.error) || 'The football service returned an unexpected response.');
     return result.data;
+  }
+
+  function shiftFeedDate(value, amount) {
+    const date = new Date(String(value || lagosToday()) + 'T12:00:00Z');
+    date.setUTCDate(date.getUTCDate() + amount);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function feedMatchName(match, side) {
+    const value = match && (match[side] ?? match[side + '_team']);
+    if (typeof value === 'string') return value;
+    return String(value && (value.name || value.team_name || value.TeamName) || (side === 'home' ? 'Home team' : 'Away team'));
+  }
+
+  function feedMatchTime(match) {
+    const value = match && (match.kickoff || match.date || match.match_time || match.start_time);
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return 'Time TBC';
+    return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Lagos' }).format(date);
+  }
+
+  function renderFeedPreview() {
+    const root = $('fr-feed-results');
+    const pager = $('fr-feed-pagination');
+    if (!root || !pager) return;
+    const total = state.feedMatches.length;
+    const pages = Math.max(1, Math.ceil(total / state.feedPageSize));
+    state.feedPage = Math.max(1, Math.min(pages, state.feedPage));
+    const from = total ? (state.feedPage - 1) * state.feedPageSize : 0;
+    const rows = state.feedMatches.slice(from, from + state.feedPageSize);
+    root.replaceChildren();
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'fr-log-empty';
+      empty.textContent = 'No matches were returned for this date and selection. Try another date, select All matches, or check the provider logs and API coverage.';
+      root.appendChild(empty);
+    } else {
+      const scroll = document.createElement('div'); scroll.className = 'fr-feed-table-scroll';
+      const table = document.createElement('table'); table.className = 'fr-feed-table';
+      const head = document.createElement('thead'); const header = document.createElement('tr');
+      ['Competition', 'Match', 'Score / status', 'Kick-off (Lagos)'].forEach((label) => { const th = document.createElement('th'); th.textContent = label; header.appendChild(th); });
+      head.appendChild(header); table.appendChild(head);
+      const body = document.createElement('tbody');
+      rows.forEach((match) => {
+        const tr = document.createElement('tr');
+        const competition = String(match.league || match.competition || match.league_name || 'Football');
+        const country = String(match.country || match.league_country || '');
+        const teams = `${feedMatchName(match, 'home')} vs ${feedMatchName(match, 'away')}`;
+        const homeScore = match.home_score ?? (match.score && match.score.home);
+        const awayScore = match.away_score ?? (match.score && match.score.away);
+        const score = homeScore !== null && homeScore !== undefined || awayScore !== null && awayScore !== undefined
+          ? `${homeScore ?? '–'} : ${awayScore ?? '–'}` : String(match.status || match.state || 'Scheduled');
+        [country ? `${competition} · ${country}` : competition, teams, score, feedMatchTime(match)].forEach((value) => appendCell(tr, value));
+        body.appendChild(tr);
+      });
+      table.appendChild(body); scroll.appendChild(table); root.appendChild(scroll);
+    }
+    pager.replaceChildren();
+    const info = document.createElement('span'); info.className = 'fr-feed-page-info';
+    info.textContent = total ? `Showing ${from + 1}–${Math.min(total, from + rows.length)} of ${total.toLocaleString()} matches · 500 per page` : '0 matches';
+    pager.appendChild(info);
+    const controls = document.createElement('div'); controls.className = 'fr-feed-page-controls';
+    [['First', 'first', state.feedPage <= 1], ['Previous', 'prev', state.feedPage <= 1], [`Page ${state.feedPage} of ${pages}`, 'label', true], ['Next', 'next', state.feedPage >= pages], ['Last', 'last', state.feedPage >= pages]].forEach(([label, action, disabled]) => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'fr-button fr-button-quiet'; button.textContent = label;
+      if (action === 'label') button.disabled = true;
+      else { button.dataset.frFeedPage = action; button.disabled = Boolean(disabled); }
+      controls.appendChild(button);
+    });
+    if (state.feedPending) {
+      const more = document.createElement('button'); more.type = 'button'; more.className = 'fr-button fr-button-primary'; more.id = 'fr-feed-load-more';
+      more.textContent = 'Load next provider batch'; more.disabled = state.feedLoading; controls.appendChild(more);
+    }
+    pager.appendChild(controls);
+  }
+
+  async function loadFeedPreview(continueLoading) {
+    if (!state.client || state.feedLoading) return;
+    const date = $('fr-feed-date')?.value || lagosToday();
+    const view = state.feedView || 'results';
+    const button = $('fr-load-feed');
+    state.feedLoading = true;
+    if (!continueLoading) {
+      state.feedPage = 1;
+      state.feedMatches = [];
+      state.feedPending = false;
+      renderFeedPreview();
+    }
+    if (button) { button.disabled = true; button.textContent = continueLoading ? 'Loading next batch…' : 'Loading football data…'; }
+    feedback('fr-feed-status', `${continueLoading ? 'Continuing' : 'Loading'} ${view === 'results' ? 'completed results' : view === 'upcoming' ? 'scheduled fixtures' : 'all matches'} for ${date} from the active public provider pool…`);
+    try {
+      const result = await state.client.functions.invoke('parrothit-football-public', {
+        body: { view, date, date_from: date, date_to: date, competition: 'all' }
+      });
+      if (result.error) {
+        let extra = '';
+        try { if (result.error.context && typeof result.error.context.json === 'function') { const body = await result.error.context.json(); extra = body?.error || body?.message || ''; } } catch (_) {}
+        throw new Error(extra || result.error.message || 'Could not load the public football feed.');
+      }
+      const payload = result.data || {};
+      if (payload.ok === false) throw new Error(payload.error || 'Football data request failed.');
+      state.feedMatches = Array.isArray(payload.matches) ? payload.matches : [];
+      state.feedPending = payload.sync_pending === true || payload.pagination_pending === true;
+      state.feedPage = continueLoading ? state.feedPage : 1;
+      state.feedMatches.sort((a, b) => {
+        const at = Date.parse(a.kickoff || a.date || a.match_time || '') || 0;
+        const bt = Date.parse(b.kickoff || b.date || b.match_time || '') || 0;
+        return view === 'results' ? bt - at : at - bt;
+      });
+      renderFeedPreview();
+      const pendingText = state.feedPending ? ' More provider pages/date batches are available; use “Load next provider batch” to continue.' : '';
+      feedback('fr-feed-status', `${state.feedMatches.length.toLocaleString()} ${view === 'results' ? 'completed result(s)' : view === 'upcoming' ? 'scheduled fixture(s)' : 'match(es)'} loaded for ${date}. ${Number(payload.provider_count || 0)} provider(s) responded.${pendingText}`, state.feedMatches.length || payload.data_state === 'empty' ? 'ok' : '');
+    } catch (error) {
+      feedback('fr-feed-status', error.message || 'Football data could not be loaded. Check provider activation, API coverage and logs.', 'error');
+      if (!continueLoading) { state.feedMatches = []; state.feedPending = false; renderFeedPreview(); }
+    } finally {
+      state.feedLoading = false;
+      if (button) { button.disabled = false; button.textContent = '↻ Load football data'; }
+      renderFeedPreview();
+    }
   }
 
   function appendCell(row, content, className) {
@@ -928,6 +1047,31 @@
       const button = event.target.closest('[data-fr-action]');
       if (button) handleAction(button);
     });
+    $('fr-load-feed')?.addEventListener('click', () => loadFeedPreview(false));
+    $('fr-feed-pagination')?.addEventListener('click', (event) => {
+      if (event.target.closest('#fr-feed-load-more')) { loadFeedPreview(true); return; }
+      const button = event.target.closest('[data-fr-feed-page]');
+      if (!button || button.disabled) return;
+      const pages = Math.max(1, Math.ceil(state.feedMatches.length / state.feedPageSize));
+      const action = button.dataset.frFeedPage;
+      if (action === 'first') state.feedPage = 1;
+      else if (action === 'last') state.feedPage = pages;
+      else state.feedPage = Math.max(1, Math.min(pages, state.feedPage + (action === 'next' ? 1 : -1)));
+      renderFeedPreview();
+      $('fr-feed-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    document.querySelectorAll('[data-fr-feed-view]').forEach((button) => button.addEventListener('click', () => {
+      state.feedView = button.dataset.frFeedView || 'results';
+      document.querySelectorAll('[data-fr-feed-view]').forEach((item) => {
+        const active = item === button;
+        item.classList.toggle('is-active', active); item.setAttribute('aria-pressed', String(active));
+      });
+      loadFeedPreview(false);
+    }));
+    $('fr-feed-prev-date')?.addEventListener('click', () => { $('fr-feed-date').value = shiftFeedDate($('fr-feed-date').value, -1); loadFeedPreview(false); });
+    $('fr-feed-today')?.addEventListener('click', () => { $('fr-feed-date').value = lagosToday(); loadFeedPreview(false); });
+    $('fr-feed-next-date')?.addEventListener('click', () => { $('fr-feed-date').value = shiftFeedDate($('fr-feed-date').value, 1); loadFeedPreview(false); });
+    $('fr-feed-date')?.addEventListener('change', () => loadFeedPreview(false));
     $('fr-provider-code').addEventListener('change', () => {
       const code = $('fr-provider-code').value;
       if (presets[code]) applyPreset(code); else if (providerDirectory.some((item) => item.code === code)) applyDirectoryEntry(code);
@@ -939,6 +1083,8 @@
     bindEvents();
     renderProviderDirectory();
     if ($('fr-diagnostics-date') && !$('fr-diagnostics-date').value) $('fr-diagnostics-date').value = lagosToday();
+    if ($('fr-feed-date') && !$('fr-feed-date').value) $('fr-feed-date').value = lagosToday();
+    renderFeedPreview();
     try {
       state.client = await waitForAdminClient();
       await loadAll();
