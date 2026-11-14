@@ -6,14 +6,14 @@
   <meta name="theme-color" content="#08110b">
   <meta name="description" content="Owner-only administration for PARROTHIT LiveScore Highlights TV stations and playback settings.">
   <title>PARROTHIT LIVESCORE: Highlights Control Management</title>
-  <link rel="stylesheet" href="../css/livescore-highlights-admin.css?v=highlights-tv-20261114">
+  <link rel="stylesheet" href="../css/livescore-highlights-admin.css?v=highlights-activation-repair-20261114">
   <script>document.documentElement.classList.add('hcm-auth-pending');</script>
   <style>html.hcm-auth-pending body{visibility:hidden}html.hcm-auth-pending body:before{content:'Verifying PARROTHIT owner session…';visibility:visible;display:block;position:fixed;inset:0;background:#080f0b;color:#d1fae5;padding:40vh 18px;text-align:center;font:800 14px Arial;z-index:99999}</style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
   <script src="../js/livescore-highlight-presets.js?v=highlights-presets-20261114"></script>
-  <script src="../js/livescore-highlights-admin.js?v=highlights-healthcheck-20261114" defer></script>
+  <script src="../js/livescore-highlights-admin.js?v=highlights-activation-repair-20261114" defer></script>
 </head>
 <body class="hcm-page admin-auth-pending">
   <main class="hcm-shell">
@@ -39,6 +39,21 @@
       <article class="hcm-stat"><span>Active public stations</span><strong id="hcmActive">—</strong></article>
       <article class="hcm-stat"><span>Inactive stations</span><strong id="hcmInactive">—</strong></article>
       <article class="hcm-stat"><span>Station categories</span><strong id="hcmCategories">—</strong></article>
+    </section>
+
+    <section class="hcm-panel" aria-labelledby="hcmDiagnosticsHeading">
+      <div class="hcm-panel-head">
+        <div><h2 id="hcmDiagnosticsHeading">Playback health monitor & connection diagnostics</h2><p>Shows the last owner-side playback verification saved for each station. Database status refreshes automatically every 60 seconds while this page is open; actual video playback is verified by the Test playback control.</p></div>
+        <span class="hcm-badge">AUTO-REFRESH · 60 SECONDS</span>
+      </div>
+      <div class="hcm-health-grid">
+        <article class="hcm-health-stat"><span>Confirmed playable</span><strong id="hcmPlayable">—</strong></article>
+        <article class="hcm-health-stat"><span>Restricted / unavailable</span><strong id="hcmFailed">—</strong></article>
+        <article class="hcm-health-stat"><span>Not yet tested</span><strong id="hcmUntested">—</strong></article>
+        <article class="hcm-health-stat"><span>Untested or older than 24h</span><strong id="hcmStale">—</strong></article>
+      </div>
+      <p class="hcm-diagnostics-line" id="hcmDbDiagnostics" role="status">Checking Supabase connection…</p>
+      <p class="hcm-note" id="hcmLastRefresh">Last successful refresh: not yet refreshed.</p>
     </section>
 
     <section class="hcm-panel">
@@ -77,6 +92,23 @@
       <div class="hcm-preset-list" id="hcmPresetList"><div class="hcm-state">Loading 50 starter presets…</div></div>
     </section>
 
+    <section class="hcm-panel" aria-labelledby="hcmBulkHeading">
+      <div class="hcm-panel-head">
+        <div><h2 id="hcmBulkHeading">Bulk station configuration</h2><p>Import multiple direct YouTube video or playlist URLs in one operation. Imported sources are deliberately saved as inactive until each one passes an actual playback test.</p></div>
+        <span class="hcm-badge">UP TO 500 SOURCES PER BATCH</span>
+      </div>
+      <label class="hcm-field">Source list — one URL per line, or Station name | URL
+        <textarea id="hcmBulkSources" class="hcm-bulk-textarea" rows="7" placeholder="https://www.youtube.com/playlist?list=...&#10;Champions League | https://www.youtube.com/watch?v=...&#10;https://youtu.be/..."></textarea>
+        <small>Use official or otherwise authorised sources only. Channel homepages and YouTube search-result links cannot be added as playable stations. Duplicate video and playlist IDs are skipped.</small>
+      </label>
+      <div class="hcm-bulk-options">
+        <label class="hcm-field">Name prefix for URL-only lines<input id="hcmBulkNamePrefix" type="text" maxlength="70" value="Football Highlights"></label>
+        <label class="hcm-field">Category<select id="hcmBulkCategory"><option>General Football</option><option>International Football</option><option>UEFA Football</option><option>English Football</option><option>Spanish Football</option><option>German Football</option><option>Italian Football</option><option>African Football</option><option>Nigerian Football</option><option>Club Highlights</option><option>Other</option></select></label>
+      </div>
+      <div class="hcm-form-actions"><button class="hcm-btn" type="button" id="hcmBulkImport">Import sources as inactive</button></div>
+      <p class="hcm-note">Bulk import does not activate unverified sources, bypass the playback check, or create unofficial video links.</p>
+    </section>
+
     <div class="hcm-grid">
       <section class="hcm-panel">
         <div class="hcm-panel-head">
@@ -109,10 +141,10 @@
               <input id="hcmOrder" type="number" min="0" max="1000000" value="100">
               <small>Lower numbers appear first.</small>
             </label>
-            <label class="hcm-check"><input id="hcmStationActive" type="checkbox" checked><span><b>Make this station active</b><br><small>Active stations appear in the public station selector.</small></span></label>
+            <label class="hcm-check"><input id="hcmStationActive" type="checkbox"><span><b>Make this station active</b><br><small>Active stations appear in the public station selector.</small></span></label>
           </div>
           <div class="hcm-form-actions">
-            <button class="hcm-btn" type="submit" id="hcmSaveStation">Save station</button>
+            <button class="hcm-btn" type="submit" id="hcmSaveStation">Save station as inactive</button>
             <button class="hcm-btn secondary" type="button" id="hcmTestStation">Test source / preview</button>
             <button class="hcm-btn secondary" type="button" id="hcmClearForm">Clear form</button>
           </div>
