@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, profile: null, stations: [], settings: null, busy: false };
+  const state = { client: null, profile: null, stations: [], settings: null, busy: false, previewedSource: '', presets: Array.isArray(window.PARROTHIT_HIGHLIGHT_PRESETS) ? window.PARROTHIT_HIGHLIGHT_PRESETS : [] };
 
   function status(message, kind) {
     const node = $('hcmStatus'); if (!node) return;
@@ -124,13 +124,79 @@
       row.append(thumb, copy, actions); list.appendChild(row);
     });
   }
+  function presetSearchUrl(preset) {
+    const raw = String(preset.discovery_url || '').trim();
+    try { const url = new URL(raw); return url.protocol === 'https:' && (url.hostname === 'youtube.com' || url.hostname.endsWith('.youtube.com')) ? url.href : 'https://www.youtube.com/results?search_query=' + encodeURIComponent(preset.name + ' official football highlights'); }
+    catch (_) { return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(preset.name + ' official football highlights'); }
+  }
+  function configurePreset(preset) {
+    clearForm();
+    $('hcmPresetKey').value = preset.key;
+    $('hcmName').value = preset.name;
+    $('hcmDescription').value = preset.description || 'Public football highlights from the official publisher channel. Confirm rights and embed availability before activation.';
+    const categories = [...$('hcmCategory').options].map((o) => o.value);
+    if (!categories.includes(preset.category)) $('hcmCategory').add(new Option(preset.category, preset.category));
+    $('hcmCategory').value = preset.category || 'General Football';
+    $('hcmOrder').value = String(10 + state.presets.findIndex((item) => item.key === preset.key));
+    $('hcmStationActive').checked = false;
+    $('hcmFormTitle').textContent = 'Configure preset: ' + preset.name;
+    $('hcmSaveStation').textContent = 'Save station as inactive';
+    $('hcmSourceUrl').value = '';
+    $('hcmSourceUrl').placeholder = 'Paste a direct public YouTube video or playlist URL';
+    $('hcmSourceUrl').focus({ preventScroll: true });
+    status('Preset loaded: ' + preset.name + '. Open its YouTube source, choose an individual highlights video or playlist, paste its direct URL, test the preview, then activate it.');
+    const form = $('hcmStationForm');
+    window.scrollTo({ top: Math.max(0, form.getBoundingClientRect().top + window.scrollY - 90), behavior: 'smooth' });
+  }
+  function renderPresets() {
+    const list = $('hcmPresetList');
+    if (!list) return;
+    const search = ($('hcmPresetSearch')?.value || '').trim().toLowerCase();
+    const category = $('hcmPresetFilter')?.value || 'all';
+    const presets = state.presets.filter((preset) => (category === 'all' || preset.category === category) && (!search || [preset.name, preset.category, preset.description].join(' ').toLowerCase().includes(search)));
+    const configuredCount = state.presets.filter((preset) => state.stations.some((station) => station.preset_key === preset.key)).length;
+    $('hcmPresetCount').textContent = String(state.presets.length);
+    $('hcmPresetConfigured').textContent = String(configuredCount);
+    list.replaceChildren();
+    if (!presets.length) { const empty = document.createElement('div'); empty.className = 'hcm-state'; empty.textContent = 'No starter presets match this search.'; list.appendChild(empty); return; }
+    const fragment = document.createDocumentFragment();
+    presets.forEach((preset) => {
+      const existing = state.stations.find((station) => station.preset_key === preset.key);
+      const card = document.createElement('article'); card.className = 'hcm-preset-card';
+      const head = document.createElement('div'); head.className = 'hcm-preset-card-head';
+      const titleWrap = document.createElement('div'); titleWrap.className = 'hcm-preset-copy';
+      const title = document.createElement('strong'); title.textContent = preset.name;
+      const meta = document.createElement('small'); meta.textContent = preset.category;
+      const desc = document.createElement('p'); desc.textContent = preset.description || 'Open publisher source and choose a public highlights video or playlist.';
+      titleWrap.append(title, meta, desc);
+      const badge = document.createElement('span'); badge.className = 'hcm-preset-state' + (existing ? ' configured' : ' pending');
+      badge.textContent = existing ? (existing.is_active ? 'CONFIGURED · ACTIVE' : 'CONFIGURED · INACTIVE') : 'NEEDS VIDEO / PLAYLIST';
+      head.append(titleWrap, badge);
+      const actions = document.createElement('div'); actions.className = 'hcm-preset-actions';
+      const discovery = document.createElement('a'); discovery.className = 'hcm-btn secondary'; discovery.href = presetSearchUrl(preset); discovery.target = '_blank'; discovery.rel = 'noopener noreferrer'; discovery.textContent = 'Find official videos ↗';
+      actions.appendChild(discovery);
+      if (existing) actions.appendChild(makeButton('Edit station', 'secondary', () => editStation(existing)));
+      else actions.appendChild(makeButton('Configure station', 'primary', () => configurePreset(preset)));
+      card.append(head, actions); fragment.appendChild(card);
+    });
+    list.appendChild(fragment);
+  }
+  function renderPresetFilters() {
+    const select = $('hcmPresetFilter'); if (!select) return;
+    const previous = select.value || 'all';
+    const categories = [...new Set(state.presets.map((preset) => preset.category))].sort((a, b) => a.localeCompare(b));
+    select.replaceChildren(new Option('All preset categories', 'all'));
+    categories.forEach((value) => select.add(new Option(value, value)));
+    select.value = categories.includes(previous) ? previous : 'all';
+  }
+
   function clearForm() {
-    $('hcmStationForm').reset(); $('hcmStationId').value = ''; $('hcmOrder').value = '100'; $('hcmStationActive').checked = true;
+    $('hcmStationForm').reset(); $('hcmStationId').value = ''; $('hcmPresetKey').value = ''; $('hcmOrder').value = '100'; $('hcmStationActive').checked = true; state.previewedSource = ''; 
     $('hcmFormTitle').textContent = 'Add a highlights station'; $('hcmSaveStation').textContent = 'Save station';
     $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').src = 'about:blank';
   }
   function editStation(station) {
-    $('hcmStationId').value = station.id; $('hcmName').value = station.name || ''; $('hcmSourceUrl').value = station.source_url || '';
+    $('hcmStationId').value = station.id; $('hcmPresetKey').value = station.preset_key || ''; $('hcmName').value = station.name || ''; $('hcmSourceUrl').value = station.source_url || ''; state.previewedSource = station.source_url || '';
     $('hcmDescription').value = station.description || ''; $('hcmThumbnail').value = station.thumbnail_url || '';
     $('hcmOrder').value = station.display_order == null ? 100 : station.display_order; $('hcmStationActive').checked = !!station.is_active;
     const categories = [...$('hcmCategory').options].map((o) => o.value);
@@ -141,7 +207,7 @@
   }
   async function testSource() {
     const parsed = parseYouTubeSource($('hcmSourceUrl').value);
-    const preview = $('hcmPreviewFrame'); preview.src = embedUrl(parsed, false);
+    const preview = $('hcmPreviewFrame'); preview.src = embedUrl(parsed, false); state.previewedSource = $('hcmSourceUrl').value.trim();
     $('hcmPreviewWrap').classList.remove('hcm-hidden');
     $('hcmPreviewNote').textContent = parsed.source_type === 'youtube_playlist' ? 'Recognised YouTube playlist. Test the preview above; YouTube may restrict embeds or availability by region.' : 'Recognised YouTube video. Test the preview above; the video owner may have disabled embedding.';
     status('Source URL format is valid. Preview playback and regional availability must be checked in the embedded player.', 'warning');
@@ -153,10 +219,11 @@
       const name = $('hcmName').value.trim();
       if (name.length < 2) throw new Error('Station name must contain at least two characters.');
       const parsed = parseYouTubeSource($('hcmSourceUrl').value);
+      if ($('hcmStationActive').checked && state.previewedSource !== $('hcmSourceUrl').value.trim()) throw new Error('Before activating a station, press Test source / preview and confirm that the embedded video or playlist plays.');
       const thumbnail = $('hcmThumbnail').value.trim();
       if (thumbnail && !safeImageUrl(thumbnail)) throw new Error('Thumbnail must be a valid HTTPS image URL.');
       const payload = {
-        name, category: $('hcmCategory').value || 'Other', ...parsed,
+        name, category: $('hcmCategory').value || 'Other', ...parsed, preset_key: $('hcmPresetKey').value || null,
         description: $('hcmDescription').value.trim(), thumbnail_url: safeImageUrl(thumbnail) || null,
         display_order: Math.max(0, Math.min(1000000, Number($('hcmOrder').value) || 100)),
         is_active: $('hcmStationActive').checked, updated_at: new Date().toISOString()
@@ -166,17 +233,24 @@
       if (id) result = await state.client.from('parrothit_livescore_highlight_stations').update(payload).eq('id', id).select().single();
       else result = await state.client.from('parrothit_livescore_highlight_stations').insert(payload).select().single();
       if (result.error) throw result.error;
-      status(id ? 'Station updated successfully.' : 'Station added successfully. You can now set it as the default station.');
+      status(id ? 'Station updated successfully.' : 'Station added successfully. Review the preview and activate it only if the video is available and embedding is permitted.');
       clearForm(); await refreshAll();
     } catch (error) { status(error.message || 'Could not save station. Check the migration and owner permissions.', 'error'); }
     finally { state.busy = false; button.disabled = false; }
   }
   async function toggleStation(station) {
     const nextActive = !station.is_active;
+    if (nextActive) {
+      editStation(station);
+      $('hcmStationActive').checked = true;
+      state.previewedSource = '';
+      status('Activation requires a fresh preview. Press Test source / preview, confirm the player works, then save station changes.', 'warning');
+      return;
+    }
     try {
-      const { error } = await state.client.from('parrothit_livescore_highlight_stations').update({ is_active: nextActive, updated_at: new Date().toISOString() }).eq('id', station.id);
+      const { error } = await state.client.from('parrothit_livescore_highlight_stations').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', station.id);
       if (error) throw error;
-      status(station.name + (nextActive ? ' activated.' : ' deactivated.'));
+      status(station.name + ' deactivated.');
       await refreshAll();
     } catch (error) { status(error.message || 'Could not update station status.', 'error'); }
   }
@@ -204,7 +278,7 @@
     try {
       const [stations] = await Promise.all([fetchAllStations(), loadSettings()]);
       state.stations = stations;
-      updateStats(); renderFilters(); fillSettings(); renderStations();
+      updateStats(); renderFilters(); fillSettings(); renderStations(); renderPresetFilters(); renderPresets();
     } catch (error) {
       status((error.message || 'Could not load highlights settings.') + ' Confirm that supabase/parrothit-livescore-highlights.sql has been run.', 'error');
       $('hcmStationList').textContent = 'Database setup is incomplete.';
@@ -223,6 +297,9 @@
       $('hcmReload').addEventListener('click', refreshAll);
       $('hcmSearch').addEventListener('input', renderStations);
       $('hcmFilterCategory').addEventListener('change', renderStations);
+      $('hcmPresetSearch').addEventListener('input', renderPresets);
+      $('hcmPresetFilter').addEventListener('change', renderPresets);
+      $('hcmSourceUrl').addEventListener('input', () => { if ($('hcmSourceUrl').value.trim() !== state.previewedSource) { state.previewedSource = ''; $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').src = 'about:blank'; } });
     } catch (error) {
       document.documentElement.classList.remove('hcm-auth-pending');
       status(error.message || 'Could not verify administrator access.', 'error');
