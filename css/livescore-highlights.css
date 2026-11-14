@@ -1,0 +1,56 @@
+/* PARROTHIT LiveScore Highlights TV — light, mobile-first client UI. */
+.pl-highlights{--plh-green:#0b5b34;--plh-green-2:#124f31;--plh-red:#d71920;position:relative;margin:14px 0 18px;padding:13px;border:1px solid rgba(75,190,125,.3);border-radius:16px;background:radial-gradient(circle at 78% 0%,rgba(28,130,73,.17),transparent 34%),linear-gradient(145deg,#101c18 0%,#080d0b 70%);color:#f8fafc;box-shadow:0 12px 34px rgba(0,0,0,.2);overflow:hidden}
+.pl-highlights:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.12;background:linear-gradient(90deg,transparent 49.8%,#fff 50%,transparent 50.2%),radial-gradient(circle at 50% 50%,transparent 0 12%,#fff 12.2% 12.4%,transparent 12.6%),linear-gradient(0deg,transparent 49.8%,#fff 50%,transparent 50.2%);background-size:100% 100%;}
+.pl-highlights>*{position:relative;z-index:1}
+.pl-highlights-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.pl-highlights-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.pl-highlights-mark{display:grid;place-items:center;width:39px;height:39px;flex:0 0 39px;border-radius:12px;background:linear-gradient(145deg,#1a8b4a,#07552f);box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);font-size:22px}
+.pl-highlights-eyebrow{display:block;color:#86efac;font-size:9px;font-weight:950;letter-spacing:.16em;text-transform:uppercase;margin-bottom:3px}
+.pl-highlights-title{margin:0;color:#fff;font-size:clamp(15px,2.2vw,20px);line-height:1.15;font-weight:950;letter-spacing:.01em}
+.pl-highlights-subtitle{display:block;color:#a7b7ad;font-size:10px;font-weight:650;margin-top:4px}
+.pl-highlights-head-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pl-highlights-count{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid rgba(134,239,172,.2);border-radius:999px;background:rgba(7,40,23,.6);color:#c9f7d8;font-size:10px;font-weight:850;white-space:nowrap}
+.pl-highlights-count:before{content:"";width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 9px #4ade80}
+.pl-highlights-toggle{border:1px solid rgba(255,255,255,.18);border-radius:8px;background:rgba(255,255,255,.07);color:#e8f2eb;padding:7px 10px;font-size:10px;font-weight:850;cursor:pointer}
+.pl-highlights-layout{display:grid;grid-template-columns:minmax(0,1.72fr) minmax(220px,.78fr);gap:12px;align-items:stretch}
+.pl-highlights-player-col,.pl-highlights-stations{min-width:0;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(3,9,6,.72);overflow:hidden}
+.pl-highlights-screen{position:relative;width:100%;aspect-ratio:16/9;min-height:190px;background:#020604;overflow:hidden}
+#plHighlightsPlayer,#plHighlightsPlayer iframe{display:block;width:100%;height:100%;min-height:190px;border:0}
+.pl-highlights-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:20px;text-align:center;background:radial-gradient(circle at 50% 45%,rgba(25,108,61,.2),transparent 42%),#030805;color:#fff}
+.pl-highlights-empty[hidden]{display:none!important}
+.pl-highlights-empty-icon{display:grid;place-items:center;width:54px;height:54px;border-radius:50%;background:rgba(27,119,66,.23);border:1px solid rgba(134,239,172,.28);font-size:27px}
+.pl-highlights-empty strong{font-size:14px;font-weight:900}
+.pl-highlights-empty p{max-width:420px;margin:0;color:#aabbb0;font-size:11px;line-height:1.5}
+.pl-highlights-player-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 11px;background:linear-gradient(90deg,#0d2116,#111b15);border-top:1px solid rgba(134,239,172,.13)}
+.pl-highlights-now{display:flex;flex-direction:column;gap:3px;min-width:0}
+.pl-highlights-now small{color:#86efac;font-size:8px;letter-spacing:.13em;font-weight:950}
+.pl-highlights-now strong{display:block;color:#fff;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+.pl-highlights-now span{color:#a8b6ac;font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+.pl-highlights-controls{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex-wrap:wrap}
+.pl-highlights-control{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:31px;padding:7px 9px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:#1a2a20;color:#f8fafc;font-size:10px;font-weight:850;cursor:pointer}
+.pl-highlights-control.primary{background:#0d793f;border-color:#24a45e;color:#fff}
+.pl-highlights-control:disabled{opacity:.38;cursor:not-allowed}
+.pl-highlights-control:focus-visible,.pl-highlights-toggle:focus-visible,.pl-highlights-station:focus-visible{outline:2px solid #facc15;outline-offset:2px}
+.pl-highlights-status{margin:0;padding:8px 11px;color:#9caea2;font-size:9px;line-height:1.45;border-top:1px solid rgba(255,255,255,.07)}
+.pl-highlights-stations-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 11px 8px;border-bottom:1px solid rgba(255,255,255,.08)}
+.pl-highlights-stations-head strong{font-size:11px;color:#fff;font-weight:950}
+.pl-highlights-stations-head span{font-size:9px;color:#91a597}
+.pl-highlights-station-tools{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:6px;padding:8px 9px}
+.pl-highlights-station-tools input,.pl-highlights-station-tools select{min-width:0;width:100%;height:32px;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:#0b1510;color:#ecfdf5;padding:0 8px;font-size:10px;outline:none}
+.pl-highlights-station-tools input::placeholder{color:#82958a}
+.pl-highlights-station-list{display:grid;gap:5px;max-height:300px;overflow:auto;padding:0 8px 9px;overscroll-behavior:contain;scrollbar-color:#286542 #0b1510;scrollbar-width:thin}
+.pl-highlights-station{display:flex;align-items:center;gap:8px;width:100%;min-width:0;padding:7px;border:1px solid transparent;border-radius:8px;background:rgba(255,255,255,.045);color:#e5eee8;text-align:left;cursor:pointer}
+.pl-highlights-station:hover{background:rgba(30,130,72,.16);border-color:rgba(134,239,172,.18)}
+.pl-highlights-station.is-active{background:rgba(20,122,63,.25);border-color:rgba(74,222,128,.48);box-shadow:inset 3px 0 #4ade80}
+.pl-highlights-station-thumb{display:grid;place-items:center;width:42px;height:33px;flex:0 0 42px;overflow:hidden;border-radius:6px;background:linear-gradient(135deg,#17472b,#09180f);color:#c3f6d1;font-size:16px}
+.pl-highlights-station-thumb img{width:100%;height:100%;object-fit:cover}
+.pl-highlights-station-copy{display:block;min-width:0;flex:1}
+.pl-highlights-station-copy strong{display:block;color:#fff;font-size:10px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-highlights-station-copy small{display:block;margin-top:3px;color:#9cad9f;font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-highlights-station-state{color:#86efac;font-size:8px;font-weight:900;white-space:nowrap}
+.pl-highlights-empty-list{padding:18px 12px;text-align:center;color:#a6b5aa;font-size:10px;line-height:1.5}
+.pl-highlights.is-collapsed .pl-highlights-layout{display:none}
+.pl-highlights.is-collapsed{padding-bottom:11px}
+@media(max-width:760px){.pl-highlights-layout{grid-template-columns:1fr}.pl-highlights-screen{min-height:0}.pl-highlights-station-list{max-height:210px}.pl-highlights-player-bar{align-items:flex-start;flex-direction:column}.pl-highlights-controls{justify-content:flex-start;width:100%}.pl-highlights-now strong,.pl-highlights-now span{max-width:calc(100vw - 70px)}}
+@media(max-width:420px){.pl-highlights{padding:9px;margin:10px 0 14px;border-radius:12px}.pl-highlights-mark{width:34px;height:34px;flex-basis:34px;font-size:19px}.pl-highlights-title{font-size:15px}.pl-highlights-subtitle{font-size:9px}.pl-highlights-head-actions{width:100%;justify-content:space-between}.pl-highlights-screen{aspect-ratio:16/10}.pl-highlights-control{flex:1;padding:7px 6px;font-size:9px}.pl-highlights-station-tools{grid-template-columns:minmax(0,1fr) 96px}}
+@media(prefers-reduced-motion:reduce){.pl-highlights *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
