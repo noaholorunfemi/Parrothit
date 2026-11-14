@@ -6,13 +6,13 @@
   <meta name="description" content="PARROTHIT dedicated football API and LiveScore automation administration room.">
   <title>Football Automation Room | PARROTHIT</title>
   <link rel="stylesheet" href="../css/style.css">
-  <link rel="stylesheet" href="../css/football-automation-room.css?v=provider-logs-private-20261110">
+  <link rel="stylesheet" href="../css/football-automation-room.css?v=feed-browser-500-results-20261114">
   <script>document.documentElement.classList.add('football-room-auth-pending');</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
   <script src="../js/football-api-directory.js?v=33-match-detail-routes-20261108"></script>
-  <script src="../js/football-automation-room.js?v=provider-logs-private-20261110" defer></script>
+  <script src="../js/football-automation-room.js?v=feed-browser-500-results-20261114" defer></script>
 </head>
 <body class="football-room-page">
   <main class="fr-shell">
@@ -199,6 +199,27 @@
         </article>
         <article class="fr-panel"><h3>Data integrity</h3><ul class="fr-integrity-list"><li>Public scores must come from a successful provider response.</li><li>Unavailable or stale provider data must be labelled, not presented as current live scores.</li><li>Provider responses are cached server-side for the configured interval to reduce unnecessary API requests.</li><li>All activated providers are queried together; provider priority helps decide which source version is preferred when two feeds report the same fixture.</li><li>Duplicate fixtures from different providers are merged, and provider-specific failures do not hide data returned by healthy providers.</li></ul></article>
       </div>
+      <article class="fr-panel fr-feed-browser" aria-labelledby="fr-feed-browser-title">
+        <div class="fr-panel-heading"><div><h3 id="fr-feed-browser-title">Football Results &amp; Fixture Loader</h3><p>Load real provider-backed fixtures for a selected Lagos date. Choose previous results, all matches for the day, or scheduled fixtures.</p></div><span class="fr-pill fr-pill-stage">LIVE PROVIDER DATA</span></div>
+        <div class="fr-feed-browser-controls">
+          <label class="fr-field">Match date<input type="date" id="fr-feed-date"><small>Choose any past, current or future date.</small></label>
+          <div class="fr-feed-date-shortcuts" aria-label="Quick date selection">
+            <button type="button" class="fr-button fr-button-quiet" id="fr-feed-prev-date">Yesterday</button>
+            <button type="button" class="fr-button fr-button-quiet" id="fr-feed-today">Today</button>
+            <button type="button" class="fr-button fr-button-quiet" id="fr-feed-next-date">Tomorrow</button>
+          </div>
+          <div class="fr-feed-mode" role="group" aria-label="Choose matches to load">
+            <button type="button" class="is-active" data-fr-feed-view="results" aria-pressed="true">Previous results</button>
+            <button type="button" data-fr-feed-view="today" aria-pressed="false">All matches</button>
+            <button type="button" data-fr-feed-view="upcoming" aria-pressed="false">Scheduled fixtures</button>
+          </div>
+          <button type="button" class="fr-button fr-button-primary" id="fr-load-feed">↻ Load football data</button>
+        </div>
+        <p id="fr-feed-status" class="fr-form-feedback" role="status" aria-live="polite">Choose a date and match type, then load the active public provider pool.</p>
+        <div id="fr-feed-results" class="fr-feed-results"><div class="fr-log-empty">No match data loaded yet.</div></div>
+        <div id="fr-feed-pagination" class="fr-feed-pagination" aria-label="Football data pages"></div>
+        <p class="fr-note">This browser uses the same verified public provider pool as the visitor LiveScore page. A provider's coverage, API quota, plan and historical access still determine which records it can return.</p>
+      </article>
       <article class="fr-panel fr-data-diagnostics">
         <div class="fr-panel-heading"><div><h3>LiveScore Data Diagnostics</h3><p>Checks one configured provider's live, today, upcoming and results endpoints plus its match-list response structure. A provider can pass when no fixture is scheduled on the diagnostic date; the public feed synchronizes the full current-date-to-year-end window.</p></div><span class="fr-pill fr-pill-stage">REAL DATA TEST</span></div>
         <div class="fr-diagnostics-controls"><label class="fr-field">Sample date <input type="date" id="fr-diagnostics-date"><small>Choose a day known to contain fixtures/results when today's schedule is quiet.</small></label><div class="fr-form-actions"><button type="button" class="fr-button fr-button-primary" id="fr-run-diagnostics">Run fresh diagnostics</button><button type="button" class="fr-button fr-button-quiet" id="fr-clear-livescore-cache">Clear all provider caches</button></div></div>
