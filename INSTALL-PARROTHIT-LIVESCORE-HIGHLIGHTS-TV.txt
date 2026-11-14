@@ -1,0 +1,72 @@
+PARROTHIT LIVESCORE — HIGHLIGHTS TV PATCH
+Build: 14 November 2026
+
+WHAT THIS PATCH ADDS
+1. A responsive PARROTHIT HIGHLIGHTS TV area at the top of livescore.html, above the date selector and match filters.
+2. A single YouTube embedded player that loads only the selected active station (not dozens of players at once).
+3. Visitor controls for play/pause, mute/unmute, previous/next station, full screen, station search, category filter and collapse/expand.
+4. Muted autoplay by default where the browser allows it. Browsers may block audible autoplay; a visitor can press Play or unmute after interacting with the page.
+5. A remembered station choice, pause preference, mute preference and collapsed/expanded preference on the visitor's device.
+6. Optional automatic station advance after a playlist/video ends or when an embed is unavailable.
+7. A new owner-only page: admin/livescore-highlights-control-management.html.
+8. Owner-only station create/edit/activate/deactivate/delete, unlimited database station records, categories, ordering, thumbnail/description fields, default station and global player settings.
+9. Source URL validation and an embedded preview for YouTube video and playlist URLs.
+10. Supabase Row Level Security: public visitors can read only active station metadata; only Admin 1 (Owner) can change stations and public settings.
+11. Control Room navigation link and dashboard shortcut for the new management page.
+12. This patch also carries forward the previous Animated Football-Pitch LiveScore access link updates from the immediately preceding PARROTHIT patch, so those small CTA changes are not lost if that patch has not yet been deployed.
+
+IMPORTANT ABOUT THE STATIONS
+- The manager supports 50, 100 or more station records; no hard 50-station cap is imposed by this patch.
+- It starts with an empty station list rather than inventing channel names or inserting unofficial/unverified video sources.
+- Admin 1 should add official or otherwise authorised YouTube highlights video URLs or playlist URLs. A YouTube playlist is the recommended format for a station that should play a series of highlights.
+- A valid URL is not a guarantee that the rights holder permits embedding. YouTube may block a video, age-restrict it, show its own advertising, or restrict it in some countries. The Test source / preview button opens a preview, but the administrator must confirm the video actually plays.
+- This is a football highlights embed feature, not a rebroadcasting system for paid live football channels. The patch does not download, store, or re-upload third-party videos.
+
+INSTALLATION
+STEP 1 — BACK UP
+Keep a copy of your deployed PARROTHIT project before replacing any files.
+
+STEP 2 — RUN THE DATABASE MIGRATION
+1. Open Supabase Dashboard → SQL Editor.
+2. Open this patch file: supabase/parrothit-livescore-highlights.sql.
+3. Copy the complete SQL into a new SQL Editor query and run it.
+4. Confirm the two tables are created:
+   - public.parrothit_livescore_highlight_stations
+   - public.parrothit_livescore_highlights_settings
+5. The SQL inserts the single default settings row. It does not pre-create any TV station.
+
+STEP 3 — COPY THE PATCH FILES
+1. Extract this ZIP into your existing project folder so that the supplied Parrothit-main folder merges with your Parrothit-main folder.
+2. Allow matching files to be overwritten.
+3. Preserve all supplied folder paths (admin, css, js and supabase).
+4. This ZIP is a patch, not a full website replacement. Do not delete other project files.
+
+STEP 4 — DEPLOY
+Upload/deploy the changed files using your existing PARROTHIT deployment process. No Edge Function deployment, new API key, service-role key or video storage bucket is required for this feature.
+
+STEP 5 — ADD YOUR FIRST STATION
+1. Sign in as Admin 1 (Owner).
+2. Open Control Room → PARROTHIT LIVESCORE: Highlights Control Management.
+3. Paste a YouTube video URL or playlist URL that is authorised for embedding.
+4. Click Test source / preview and confirm it plays in the preview frame.
+5. Add a station name/category, choose display order, then Save station.
+6. Add more stations as required. Set one as the default and save Public Highlights TV settings.
+7. Open public LiveScore and test on both Android and desktop.
+
+ACCESS AND SECURITY
+- Management is intended for Admin 1 (Owner) only.
+- The page also checks the verified admin session via the existing admin-auth-guard.js.
+- Supabase RLS is the actual security boundary; hiding the link alone is not relied on.
+- Other administrators and public visitors cannot insert, update, or delete stations, even if they know the table name.
+- Never put a Supabase service_role key in a browser file.
+
+PLAYBACK NOTES
+- Browsers commonly restrict autoplay with sound. The player attempts muted autoplay by default. Visitors can turn sound on after page interaction.
+- If a visitor pauses, the page remembers that choice on that device and does not immediately restart on a refresh.
+- Selecting another station is treated as a visitor action and starts that station.
+- The player loads one station at a time to protect mobile data, memory and page speed.
+
+VALIDATION PERFORMED
+- JavaScript syntax checks and ZIP integrity checks were run on the patch files.
+- Local source inspection was performed against the PARROTHIT project archive available for this task.
+- Supabase migration execution, live owner/non-owner RLS tests, real YouTube embeds, autoplay behaviour on live Android devices, and deployed-site checks have not been performed from this environment. Complete those checks after deployment.
