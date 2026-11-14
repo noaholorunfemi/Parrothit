@@ -15,7 +15,7 @@
   const state = {
     clientConfig: null, stations: [], settings: { enabled: true, autoplay_muted: true, auto_advance: true, default_station_id: null },
     activeId: '', player: null, playerGeneration: 0, apiPromise: null, pauseByVisitor: readFlag(STORAGE.paused, false),
-    muted: readFlag(STORAGE.muted, true), categories: [], errorTimer: null, playerReady: false
+    muted: readFlag(STORAGE.muted, true), categories: [], errorTimer: null, playerReady: false, playlistSkipCount: 0, runtimeHealth: new Map(), failedStationIds: new Set()
   };
 
   function readFlag(key, fallback) {
@@ -50,7 +50,7 @@
     const rows = [];
     for (let offset = 0; ; offset += PAGE_SIZE) {
       const params = new URLSearchParams({
-        select: 'id,name,category,source_type,source_url,youtube_video_id,youtube_playlist_id,thumbnail_url,description,display_order,is_active',
+        select: 'id,name,category,source_type,source_url,youtube_video_id,youtube_playlist_id,thumbnail_url,description,display_order,is_active,playback_status,playback_checked_at,playback_error',
         is_active: 'eq.true', order: 'display_order.asc,name.asc', limit: String(PAGE_SIZE), offset: String(offset)
       });
       const page = await restGet('parrothit_livescore_highlight_stations?' + params.toString());
@@ -113,7 +113,8 @@
       } else thumb.textContent = '⚽';
       const copy = document.createElement('span'); copy.className = 'pl-highlights-station-copy';
       const name = document.createElement('strong'); name.textContent = stationTitle(station);
-      const detail = document.createElement('small'); detail.textContent = String(station.category || 'General') + ' · ' + (station.source_type === 'youtube_playlist' ? 'Playlist' : 'Video');
+      const detail = document.createElement('small'); const health = state.runtimeHealth.get(String(station.id)) || station.playback_status || 'NOT TESTED';
+      detail.textContent = String(station.category || 'General') + ' · ' + (station.source_type === 'youtube_playlist' ? 'Playlist' : 'Video') + ' · ' + health;
       copy.append(name, detail);
       const stateLabel = document.createElement('span'); stateLabel.className = 'pl-highlights-station-state'; stateLabel.textContent = station.id === state.activeId ? 'PLAYING' : 'WATCH';
       button.append(thumb, copy, stateLabel);
@@ -163,7 +164,7 @@
   async function mountPlayer(station) {
     state.playerGeneration += 1;
     const generation = state.playerGeneration;
-    state.playerReady = false;
+    state.playerReady = false; state.playlistSkipCount = 0;
     if (state.errorTimer) clearTimeout(state.errorTimer);
     try { if (state.player && typeof state.player.destroy === 'function') state.player.destroy(); } catch (_) {}
     state.player = null;
@@ -182,6 +183,7 @@
             if (generation !== state.playerGeneration) return;
             state.playerReady = true;
             state.player = event.target;
+            state.runtimeHealth.set(String(station.id), 'PLAYABLE'); state.failedStationIds.delete(String(station.id)); renderStationList();
             if (state.muted) event.target.mute(); else event.target.unMute();
             if (state.pauseByVisitor) event.target.pauseVideo(); else event.target.playVideo();
             clearEmpty(); updateControls();
@@ -202,11 +204,22 @@
           },
           onError(event) {
             if (generation !== state.playerGeneration) return;
-            const reason = event.data === 101 || event.data === 150 ? 'This video owner has disabled embedding.' : 'This video or playlist is unavailable.';
-            setEmpty('Station unavailable', reason + ' PARROTHIT will skip to another active station when possible.');
-            setStatus(reason + (state.settings.auto_advance && state.stations.length > 1 ? ' Switching stations…' : ' Select another station to continue.'));
+            const code = Number(event.data);
+            const restricted = code === 101 || code === 150;
+            const reason = restricted ? 'EMBEDDING RESTRICTED' : 'UNAVAILABLE';
+            state.runtimeHealth.set(String(station.id), reason); renderStationList();
+            // A playlist may contain a blocked item followed by playable items. Try up to three next entries before abandoning the station.
+            if (station.source_type === 'youtube_playlist' && state.player && state.playlistSkipCount < 3 && code !== 2 && code !== 5) {
+              state.playlistSkipCount += 1;
+              setStatus('A playlist item is ' + reason + '. Trying the next playlist video (' + state.playlistSkipCount + '/3)…');
+              state.errorTimer = window.setTimeout(() => { if (generation === state.playerGeneration) { try { state.player.nextVideo(); } catch (_) {} } }, 900);
+              return;
+            }
+            state.failedStationIds.add(String(station.id));
+            setEmpty('Station ' + reason.toLowerCase(), (restricted ? 'The publisher blocks embedding.' : 'YouTube could not play this source.') + ' PARROTHIT is looking for another station.');
+            setStatus(reason + (state.settings.auto_advance && state.stations.length > 1 ? ' — moving to the next station.' : ' — choose another station.'));
             if (state.settings.auto_advance && state.stations.length > 1) {
-              state.errorTimer = window.setTimeout(() => { if (generation === state.playerGeneration) nextStation(); }, 3500);
+              state.errorTimer = window.setTimeout(() => { if (generation === state.playerGeneration) nextPlayableStation(); }, 1200);
             }
           }
         }
@@ -231,7 +244,16 @@
   function nextStation() {
     if (state.stations.length < 2) return;
     const index = state.stations.findIndex((s) => String(s.id) === String(state.activeId));
-    selectStation(state.stations[(index + 1 + state.stations.length) % state.stations.length].id, false);
+    nextPlayableStation();
+  }
+  function nextPlayableStation() {
+    if (state.stations.length < 2) return;
+    const index = state.stations.findIndex((s) => String(s.id) === String(state.activeId));
+    for (let step = 1; step <= state.stations.length; step++) {
+      const candidate = state.stations[(index + step + state.stations.length) % state.stations.length];
+      if (!state.failedStationIds.has(String(candidate.id))) { selectStation(candidate.id, false); return; }
+    }
+    setStatus('No other station has confirmed playback in this visit. Choose a station or try again later.');
   }
   function previousStation() {
     if (state.stations.length < 2) return;

@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, profile: null, stations: [], settings: null, busy: false, previewedSource: '', presets: Array.isArray(window.PARROTHIT_HIGHLIGHT_PRESETS) ? window.PARROTHIT_HIGHLIGHT_PRESETS : [] };
+  const state = { client: null, profile: null, stations: [], settings: null, busy: false, previewedSource: '', previewStatus: 'UNTESTED', previewPlayer: null, previewTimer: null, previewGeneration: 0, ytPromise: null, presets: Array.isArray(window.PARROTHIT_HIGHLIGHT_PRESETS) ? window.PARROTHIT_HIGHLIGHT_PRESETS : [] };
 
   function status(message, kind) {
     const node = $('hcmStatus'); if (!node) return;
@@ -37,6 +37,51 @@
     const params = new URLSearchParams({ autoplay: autoplay ? '1' : '0', mute: '1', controls: '1', playsinline: '1', rel: '0', modestbranding: '1' });
     if (parsed.source_type === 'youtube_playlist') return 'https://www.youtube-nocookie.com/embed/videoseries?' + new URLSearchParams({ ...Object.fromEntries(params), list: parsed.youtube_playlist_id }).toString();
     return 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(parsed.youtube_video_id) + '?' + params.toString();
+  }
+  function loadYouTubeApi() {
+    if (window.YT && typeof window.YT.Player === 'function') return Promise.resolve(window.YT);
+    if (state.ytPromise) return state.ytPromise;
+    state.ytPromise = new Promise((resolve, reject) => {
+      const old = window.onYouTubeIframeAPIReady;
+      const timer = setTimeout(() => reject(new Error('YouTube player API did not load. Check the connection and retry.')), 16000);
+      window.onYouTubeIframeAPIReady = () => { try { if (typeof old === 'function') old(); } catch (_) {} clearTimeout(timer); resolve(window.YT); };
+      if (!document.querySelector('script[data-parrothit-youtube-api]')) {
+        const script = document.createElement('script'); script.src = 'https://www.youtube.com/iframe_api'; script.async = true; script.dataset.parrothitYoutubeApi = 'true';
+        script.onerror = () => { clearTimeout(timer); reject(new Error('YouTube player API could not be loaded.')); };
+        document.head.appendChild(script);
+      }
+    });
+    return state.ytPromise;
+  }
+  function statusLabel(value) {
+    return ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(value) ? value : 'NOT TESTED';
+  }
+  async function persistHealth(stationId, health, detail) {
+    if (!stationId) return;
+    const payload = { playback_status: health, playback_checked_at: new Date().toISOString(), playback_error: String(detail || '').slice(0, 300), updated_at: new Date().toISOString(), ...(health === 'PLAYABLE' ? {} : { is_active: false }) };
+    const { error } = await state.client.from('parrothit_livescore_highlight_stations').update(payload).eq('id', stationId);
+    if (error) throw error;
+    const row = state.stations.find(x => String(x.id) === String(stationId));
+    if (row) Object.assign(row, payload);
+    renderStations();
+  }
+  function destroyPreview() {
+    state.previewGeneration++;
+    if (state.previewTimer) clearTimeout(state.previewTimer);
+    try { state.previewPlayer?.destroy?.(); } catch (_) {}
+    state.previewPlayer = null;
+  }
+  function finishPreview(result, message, parsed, generation) {
+    if (generation !== state.previewGeneration) return;
+    if (state.previewTimer) clearTimeout(state.previewTimer);
+    state.previewStatus = result;
+    state.previewedSource = result === 'PLAYABLE' ? $('hcmSourceUrl').value.trim() : '';
+    const stationId = $('hcmStationId').value;
+    $('hcmPreviewNote').textContent = result + ' — ' + message + (parsed.source_type === 'youtube_playlist' ? ' Note: this confirms the item YouTube started; other videos in the same playlist may have different restrictions.' : '');
+    status('Preview result: ' + result + '. ' + message, result === 'PLAYABLE' ? '' : 'error');
+    if (stationId) persistHealth(stationId, result, message).catch(e => status('Preview result detected, but could not save station health: ' + (e.message || e), 'warning'));
+    const save = $('hcmSaveStation');
+    if (save) save.disabled = false;
   }
   function showAccessDenied() {
     document.body.className = 'hcm-page';
@@ -115,8 +160,9 @@
       const copy = document.createElement('div'); copy.className = 'hcm-station-copy';
       const title = document.createElement('strong'); title.textContent = station.name;
       const detail = document.createElement('small'); detail.textContent = (station.category || 'General') + ' · ' + (station.source_type === 'youtube_playlist' ? 'YouTube playlist' : 'YouTube video') + ' · Order ' + station.display_order + ' · ' + (station.is_active ? 'ACTIVE' : 'INACTIVE');
+      const health = document.createElement('small'); health.className = 'hcm-health ' + String(station.playback_status || 'UNTESTED').toLowerCase().replace(/[^a-z]+/g,'-'); health.textContent = 'PLAYBACK: ' + statusLabel(station.playback_status);
       const source = document.createElement('small'); source.textContent = station.source_url;
-      copy.append(title, detail, source);
+      copy.append(title, detail, health, source);
       const actions = document.createElement('div'); actions.className = 'hcm-station-actions';
       actions.appendChild(makeButton('Edit', 'secondary', () => editStation(station)));
       actions.appendChild(makeButton(station.is_active ? 'Deactivate' : 'Activate', 'secondary', () => toggleStation(station)));
@@ -191,12 +237,13 @@
   }
 
   function clearForm() {
+    destroyPreview(); state.previewStatus = 'UNTESTED'; $('hcmSaveStation').disabled = false;
     $('hcmStationForm').reset(); $('hcmStationId').value = ''; $('hcmPresetKey').value = ''; $('hcmOrder').value = '100'; $('hcmStationActive').checked = true; state.previewedSource = ''; 
     $('hcmFormTitle').textContent = 'Add a highlights station'; $('hcmSaveStation').textContent = 'Save station';
-    $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').src = 'about:blank';
+    $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').replaceChildren();
   }
   function editStation(station) {
-    $('hcmStationId').value = station.id; $('hcmPresetKey').value = station.preset_key || ''; $('hcmName').value = station.name || ''; $('hcmSourceUrl').value = station.source_url || ''; state.previewedSource = station.source_url || '';
+    destroyPreview(); $('hcmStationId').value = station.id; $('hcmPresetKey').value = station.preset_key || ''; $('hcmName').value = station.name || ''; $('hcmSourceUrl').value = station.source_url || ''; state.previewedSource = ''; state.previewStatus = 'UNTESTED';
     $('hcmDescription').value = station.description || ''; $('hcmThumbnail').value = station.thumbnail_url || '';
     $('hcmOrder').value = station.display_order == null ? 100 : station.display_order; $('hcmStationActive').checked = !!station.is_active;
     const categories = [...$('hcmCategory').options].map((o) => o.value);
@@ -207,10 +254,30 @@
   }
   async function testSource() {
     const parsed = parseYouTubeSource($('hcmSourceUrl').value);
-    const preview = $('hcmPreviewFrame'); preview.src = embedUrl(parsed, false); state.previewedSource = $('hcmSourceUrl').value.trim();
+    destroyPreview(); const generation = state.previewGeneration;
+    state.previewStatus = 'TESTING'; state.previewedSource = '';
+    const host = $('hcmPreviewFrame'); host.replaceChildren();
     $('hcmPreviewWrap').classList.remove('hcm-hidden');
-    $('hcmPreviewNote').textContent = parsed.source_type === 'youtube_playlist' ? 'Recognised YouTube playlist. Test the preview above; YouTube may restrict embeds or availability by region.' : 'Recognised YouTube video. Test the preview above; the video owner may have disabled embedding.';
-    status('Source URL format is valid. Preview playback and regional availability must be checked in the embedded player.', 'warning');
+    $('hcmPreviewNote').textContent = 'Loading YouTube player. Press Play inside the preview if playback does not start automatically. A successful URL parse alone is not enough.';
+    $('hcmSaveStation').disabled = true;
+    status('Testing actual embedded playback. Waiting for YouTube to report PLAYING…', 'warning');
+    try {
+      const YT = await loadYouTubeApi(); if (generation !== state.previewGeneration) return;
+      const mount = document.createElement('div'); mount.id = 'hcmYouTubePreviewPlayer'; host.appendChild(mount);
+      const vars = { autoplay: 0, controls: 1, playsinline: 1, rel: 0, enablejsapi: 1, origin: location.origin };
+      if (parsed.source_type === 'youtube_playlist') { vars.listType = 'playlist'; vars.list = parsed.youtube_playlist_id; }
+      const opts = { width: '100%', height: '100%', playerVars: vars, events: {
+        onReady: (event) => { if (generation !== state.previewGeneration) return; state.previewPlayer = event.target; $('hcmPreviewNote').textContent = 'Player loaded. Tap Play inside the preview and wait for moving video. The station is not approved until playback is detected.'; },
+        onStateChange: (event) => { if (generation !== state.previewGeneration) return; if (event.data === YT.PlayerState.PLAYING) finishPreview('PLAYABLE', 'YouTube confirmed actual playback in this browser.', parsed, generation); },
+        onError: (event) => { if (generation !== state.previewGeneration) return; const code = Number(event.data); const restricted = code === 101 || code === 150; const msg = restricted ? 'The video owner blocks embedding on external websites.' : code === 100 ? 'The video is private, deleted or unavailable.' : code === 2 ? 'YouTube rejected the video or playlist ID.' : code === 153 ? 'YouTube did not receive the required HTTP referrer/client identification.' : 'YouTube player error ' + code + '. The source could not be played.'; finishPreview(restricted ? 'EMBEDDING RESTRICTED' : 'UNAVAILABLE', msg, parsed, generation); }
+      }};
+      if (parsed.source_type === 'youtube_video') opts.videoId = parsed.youtube_video_id;
+      state.previewPlayer = new YT.Player(mount, opts);
+      state.previewTimer = setTimeout(() => { if (generation === state.previewGeneration && state.previewStatus === 'TESTING') finishPreview('UNAVAILABLE', 'No PLAYING event was received within 25 seconds. Tap Play in the preview; if it still does not play, use another authorised source.', parsed, generation); }, 25000);
+    } catch (error) {
+      if (generation !== state.previewGeneration) return;
+      finishPreview('UNAVAILABLE', error.message || 'YouTube player could not be loaded.', parsed, generation);
+    }
   }
   async function saveStation(event) {
     event.preventDefault(); if (state.busy) return;
@@ -219,14 +286,14 @@
       const name = $('hcmName').value.trim();
       if (name.length < 2) throw new Error('Station name must contain at least two characters.');
       const parsed = parseYouTubeSource($('hcmSourceUrl').value);
-      if ($('hcmStationActive').checked && state.previewedSource !== $('hcmSourceUrl').value.trim()) throw new Error('Before activating a station, press Test source / preview and confirm that the embedded video or playlist plays.');
+      if ($('hcmStationActive').checked && (state.previewedSource !== $('hcmSourceUrl').value.trim() || state.previewStatus !== 'PLAYABLE')) throw new Error('Activation blocked: the exact source must pass a fresh playback test and show PLAYABLE. A recognised URL is not proof of playable content.');
       const thumbnail = $('hcmThumbnail').value.trim();
       if (thumbnail && !safeImageUrl(thumbnail)) throw new Error('Thumbnail must be a valid HTTPS image URL.');
       const payload = {
         name, category: $('hcmCategory').value || 'Other', ...parsed, preset_key: $('hcmPresetKey').value || null,
         description: $('hcmDescription').value.trim(), thumbnail_url: safeImageUrl(thumbnail) || null,
         display_order: Math.max(0, Math.min(1000000, Number($('hcmOrder').value) || 100)),
-        is_active: $('hcmStationActive').checked, updated_at: new Date().toISOString()
+        is_active: $('hcmStationActive').checked, playback_status: ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? state.previewStatus : 'UNTESTED', playback_checked_at: ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? new Date().toISOString() : null, playback_error: state.previewStatus === 'PLAYABLE' ? null : (state.previewStatus === 'UNTESTED' ? null : 'Latest preview result: ' + state.previewStatus), updated_at: new Date().toISOString()
       };
       const id = $('hcmStationId').value;
       let result;
@@ -243,8 +310,8 @@
     if (nextActive) {
       editStation(station);
       $('hcmStationActive').checked = true;
-      state.previewedSource = '';
-      status('Activation requires a fresh preview. Press Test source / preview, confirm the player works, then save station changes.', 'warning');
+      state.previewedSource = ''; state.previewStatus = 'UNTESTED';
+      status('Activation is blocked until a fresh preview reports PLAYABLE. Test the source, then save station changes.', 'warning');
       return;
     }
     try {
@@ -299,7 +366,7 @@
       $('hcmFilterCategory').addEventListener('change', renderStations);
       $('hcmPresetSearch').addEventListener('input', renderPresets);
       $('hcmPresetFilter').addEventListener('change', renderPresets);
-      $('hcmSourceUrl').addEventListener('input', () => { if ($('hcmSourceUrl').value.trim() !== state.previewedSource) { state.previewedSource = ''; $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').src = 'about:blank'; } });
+      $('hcmSourceUrl').addEventListener('input', () => { if ($('hcmSourceUrl').value.trim() !== state.previewedSource) { destroyPreview(); state.previewStatus = 'UNTESTED'; state.previewedSource = ''; $('hcmSaveStation').disabled = false; $('hcmPreviewWrap').classList.add('hcm-hidden'); $('hcmPreviewFrame').replaceChildren(); } });
     } catch (error) {
       document.documentElement.classList.remove('hcm-auth-pending');
       status(error.message || 'Could not verify administrator access.', 'error');
