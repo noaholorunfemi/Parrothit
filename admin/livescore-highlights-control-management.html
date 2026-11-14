@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08110b">
+  <meta name="description" content="Owner-only administration for PARROTHIT LiveScore Highlights TV stations and playback settings.">
+  <title>PARROTHIT LIVESCORE: Highlights Control Management</title>
+  <link rel="stylesheet" href="../css/livescore-highlights-admin.css?v=highlights-tv-20261114">
+  <script>document.documentElement.classList.add('hcm-auth-pending');</script>
+  <style>html.hcm-auth-pending body{visibility:hidden}html.hcm-auth-pending body:before{content:'Verifying PARROTHIT owner session…';visibility:visible;display:block;position:fixed;inset:0;background:#080f0b;color:#d1fae5;padding:40vh 18px;text-align:center;font:800 14px Arial;z-index:99999}</style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <script src="../js/admin-auth-guard.js"></script>
+  <script src="../js/livescore-highlights-admin.js?v=highlights-tv-20261114" defer></script>
+</head>
+<body class="hcm-page admin-auth-pending">
+  <main class="hcm-shell">
+    <header class="hcm-header">
+      <div class="hcm-brand">
+        <img src="../assets/images/parrothit-logo.png" alt="PARROTHIT logo" onerror="this.style.display='none'">
+        <div>
+          <p class="hcm-eyebrow">PARROTHIT · FOOTBALL ENTERTAINMENT</p>
+          <h1>PARROTHIT LIVESCORE: Highlights Control Management</h1>
+          <p>Configure authorised football highlights stations, choose the default channel and manage public player behaviour.</p>
+        </div>
+      </div>
+      <div class="hcm-actions">
+        <a class="hcm-btn secondary" href="dashboard.html">← Control Room</a>
+        <a class="hcm-btn secondary" href="../livescore.html" target="_blank" rel="noopener">Open public LiveScore ↗</a>
+      </div>
+    </header>
+
+    <div id="hcmStatus" class="hcm-status" role="status" aria-live="polite">Verifying owner access and connecting to Highlights TV…</div>
+
+    <section class="hcm-stats" aria-label="Highlights TV overview">
+      <article class="hcm-stat"><span>Total configured stations</span><strong id="hcmTotal">—</strong></article>
+      <article class="hcm-stat"><span>Active public stations</span><strong id="hcmActive">—</strong></article>
+      <article class="hcm-stat"><span>Inactive stations</span><strong id="hcmInactive">—</strong></article>
+      <article class="hcm-stat"><span>Station categories</span><strong id="hcmCategories">—</strong></article>
+    </section>
+
+    <section class="hcm-panel">
+      <div class="hcm-panel-head">
+        <div><h2>Public Highlights TV settings</h2><p>These settings affect the player at the top of the public LiveScore webpage.</p></div>
+        <span class="hcm-badge">OWNER CONTROL</span>
+      </div>
+      <div class="hcm-grid">
+        <div class="hcm-checks">
+          <label class="hcm-check"><input type="checkbox" id="hcmEnabled" checked><span><b>Show Highlights TV on LiveScore</b><br><small>Turn the complete highlights area on or off for public visitors.</small></span></label>
+          <label class="hcm-check"><input type="checkbox" id="hcmAutoplayMuted" checked><span><b>Start autoplay muted by default</b><br><small>Recommended for Android and desktop browser autoplay rules. Visitors can turn sound on.</small></span></label>
+          <label class="hcm-check"><input type="checkbox" id="hcmAutoAdvance" checked><span><b>Automatically continue to the next station</b><br><small>When a selected video or playlist ends or cannot be embedded, move to the next active station.</small></span></label>
+        </div>
+        <div>
+          <label class="hcm-field">Default station when a visitor opens LiveScore
+            <select id="hcmDefaultStation"><option value="">First active station by display order</option></select>
+            <small>Visitors who have already selected a station on that device will return to their last station.</small>
+          </label>
+          <div class="hcm-form-actions"><button type="button" class="hcm-btn" id="hcmSaveSettings">Save public settings</button></div>
+          <p class="hcm-note">Autoplay with sound is commonly blocked by browsers. The public player starts muted by default; visitors can unmute or pause playback at any time.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="hcm-grid">
+      <section class="hcm-panel">
+        <div class="hcm-panel-head">
+          <div><h2 id="hcmFormTitle">Add a highlights station</h2><p>No fixed station cap. Add 50, 100 or more independent station records.</p></div>
+          <span class="hcm-badge">UNLIMITED STATIONS</span>
+        </div>
+        <form id="hcmStationForm" autocomplete="off">
+          <input type="hidden" id="hcmStationId">
+          <div class="hcm-form-grid">
+            <label class="hcm-field">Station name
+              <input id="hcmName" type="text" maxlength="100" required placeholder="e.g. UEFA Champions League Highlights">
+            </label>
+            <label class="hcm-field">Station category
+              <select id="hcmCategory">
+                <option>International Football</option><option>UEFA Football</option><option>English Football</option><option>Spanish Football</option><option>German Football</option><option>Italian Football</option><option>African Football</option><option>Nigerian Football</option><option>Club Highlights</option><option>General Football</option><option>Other</option>
+              </select>
+            </label>
+            <label class="hcm-field full">YouTube video or playlist URL
+              <input id="hcmSourceUrl" type="url" inputmode="url" required placeholder="https://www.youtube.com/playlist?list=... or https://youtu.be/...">
+              <small>Supported sources: YouTube video URLs and YouTube playlist URLs. Playlist links are best for a continuous highlights station. Channel pages and paid live-TV streams are not accepted.</small>
+            </label>
+            <label class="hcm-field full">Station description (optional)
+              <textarea id="hcmDescription" maxlength="500" placeholder="Describe the competitions or clubs featured on this station."></textarea>
+            </label>
+            <label class="hcm-field full">Thumbnail image URL (optional)
+              <input id="hcmThumbnail" type="url" inputmode="url" placeholder="https://example.com/highlights-thumbnail.jpg">
+            </label>
+            <label class="hcm-field">Display order
+              <input id="hcmOrder" type="number" min="0" max="1000000" value="100">
+              <small>Lower numbers appear first.</small>
+            </label>
+            <label class="hcm-check"><input id="hcmStationActive" type="checkbox" checked><span><b>Make this station active</b><br><small>Active stations appear in the public station selector.</small></span></label>
+          </div>
+          <div class="hcm-form-actions">
+            <button class="hcm-btn" type="submit" id="hcmSaveStation">Save station</button>
+            <button class="hcm-btn secondary" type="button" id="hcmTestStation">Test source / preview</button>
+            <button class="hcm-btn secondary" type="button" id="hcmClearForm">Clear form</button>
+          </div>
+        </form>
+        <div class="hcm-preview hcm-hidden" id="hcmPreviewWrap">
+          <iframe id="hcmPreviewFrame" title="Highlights source test preview" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+          <p id="hcmPreviewNote">Source preview. This does not guarantee that the video owner allows embedding in every country or on every device.</p>
+        </div>
+      </section>
+
+      <section class="hcm-panel">
+        <div class="hcm-panel-head"><div><h2>Station management guide</h2><p>Use official or otherwise authorised highlights sources only.</p></div></div>
+        <div class="hcm-checks">
+          <div class="hcm-check"><span>⚽ <b>Video or playlist</b><br><small>A playlist is recommended because it can contain a sequence of highlights and continues within YouTube's player.</small></span></div>
+          <div class="hcm-check"><span>🛡️ <b>Rights and availability</b><br><small>Only add sources you are allowed to embed. Some videos are blocked in certain countries or have embedding disabled.</small></span></div>
+          <div class="hcm-check"><span>📱 <b>Mobile performance</b><br><small>PARROTHIT loads only the selected player, not 50 separate video frames. This saves visitor data and memory.</small></span></div>
+          <div class="hcm-check"><span>🔐 <b>Owner-only changes</b><br><small>Only Admin 1 (Owner) can add, edit, activate, deactivate or delete station records. Supabase policies enforce this.</small></span></div>
+        </div>
+        <p class="hcm-note">“Test source / preview” validates the URL format and opens an embedded preview. YouTube controls actual playback, advertising, age restrictions, embed permission and geographic access.</p>
+      </section>
+    </div>
+
+    <section class="hcm-panel">
+      <div class="hcm-panel-head"><div><h2>All configured highlights stations</h2><p>Search, filter, edit, activate, deactivate or remove any configured station.</p></div><button type="button" class="hcm-btn secondary" id="hcmReload">↻ Refresh stations</button></div>
+      <div class="hcm-search-row">
+        <input id="hcmSearch" type="search" placeholder="Search station name, category or description…" aria-label="Search stations">
+        <select id="hcmFilterCategory" aria-label="Filter by category"><option value="all">All categories</option></select>
+      </div>
+      <div class="hcm-station-list" id="hcmStationList"><div class="hcm-state">Loading configured stations…</div></div>
+    </section>
+  </main>
+</body>
+</html>
