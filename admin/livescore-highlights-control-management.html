@@ -13,7 +13,7 @@
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
   <script src="../js/livescore-highlight-presets.js?v=highlights-presets-20261114"></script>
-  <script src="../js/livescore-highlights-admin.js?v=highlights-tv-presets-20261114" defer></script>
+  <script src="../js/livescore-highlights-admin.js?v=highlights-healthcheck-20261114" defer></script>
 </head>
 <body class="hcm-page admin-auth-pending">
   <main class="hcm-shell">
@@ -118,7 +118,7 @@
           </div>
         </form>
         <div class="hcm-preview hcm-hidden" id="hcmPreviewWrap">
-          <iframe id="hcmPreviewFrame" title="Highlights source test preview" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+          <div id="hcmPreviewFrame" class="hcm-preview-player" role="region" aria-label="YouTube playback verification preview"></div>
           <p id="hcmPreviewNote">Source preview. This does not guarantee that the video owner allows embedding in every country or on every device.</p>
         </div>
       </section>
@@ -131,7 +131,7 @@
           <div class="hcm-check"><span>📱 <b>Mobile performance</b><br><small>PARROTHIT loads only the selected player, not 50 separate video frames. This saves visitor data and memory.</small></span></div>
           <div class="hcm-check"><span>🔐 <b>Owner-only changes</b><br><small>Only Admin 1 (Owner) can add, edit, activate, deactivate or delete station records. Supabase policies enforce this.</small></span></div>
         </div>
-        <p class="hcm-note">“Test source / preview” validates the URL format and opens an embedded preview. YouTube controls actual playback, advertising, age restrictions, embed permission and geographic access.</p>
+        <p class="hcm-note">“Test source / preview” now uses the YouTube player API. A station is marked PLAYABLE only after YouTube reports actual playback; embedding restrictions and unavailable videos are recorded separately. Some playlist items may still have different restrictions.</p>
       </section>
     </div>
 
