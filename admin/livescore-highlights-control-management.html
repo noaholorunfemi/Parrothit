@@ -12,7 +12,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
-  <script src="../js/livescore-highlights-admin.js?v=highlights-tv-20261114" defer></script>
+  <script src="../js/livescore-highlight-presets.js?v=highlights-presets-20261114"></script>
+  <script src="../js/livescore-highlights-admin.js?v=highlights-tv-presets-20261114" defer></script>
 </head>
 <body class="hcm-page admin-auth-pending">
   <main class="hcm-shell">
@@ -62,14 +63,29 @@
       </div>
     </section>
 
+    <section class="hcm-panel hcm-presets-panel" aria-labelledby="hcmPresetHeading">
+      <div class="hcm-panel-head">
+        <div><h2 id="hcmPresetHeading">50 Free Football Highlights Station Starter Catalogue</h2><p>Preloaded official football publisher and club-channel discovery shortcuts. Use these presets to set up stations quickly; your station list remains unlimited.</p></div>
+        <span class="hcm-badge">50 STARTER PRESETS · UNLIMITED ADDITIONS</span>
+      </div>
+      <div class="hcm-preset-notice"><strong>Important setup rule:</strong> YouTube channel pages are not direct video-player sources. To activate a preset, open its publisher channel, select a public highlights video or playlist that permits embedding, copy the direct YouTube video/playlist URL, then use <b>Configure station</b>, paste the URL and test the preview. Presets are not shown publicly until a working direct video or playlist is saved. Availability, free access and embedding can vary by country and by video owner.</div>
+      <div class="hcm-preset-toolbar">
+        <input id="hcmPresetSearch" type="search" placeholder="Search the 50 football presets…" aria-label="Search starter station presets">
+        <select id="hcmPresetFilter" aria-label="Filter starter presets"><option value="all">All preset categories</option></select>
+        <div class="hcm-preset-count"><b id="hcmPresetCount">50</b> presets · <b id="hcmPresetConfigured">0</b> configured</div>
+      </div>
+      <div class="hcm-preset-list" id="hcmPresetList"><div class="hcm-state">Loading 50 starter presets…</div></div>
+    </section>
+
     <div class="hcm-grid">
       <section class="hcm-panel">
         <div class="hcm-panel-head">
-          <div><h2 id="hcmFormTitle">Add a highlights station</h2><p>No fixed station cap. Add 50, 100 or more independent station records.</p></div>
+          <div><h2 id="hcmFormTitle">Add a highlights station</h2><p>No fixed station cap. Use a preset above or add any additional authorised station. A source must pass the preview check before you activate it.</p></div>
           <span class="hcm-badge">UNLIMITED STATIONS</span>
         </div>
         <form id="hcmStationForm" autocomplete="off">
           <input type="hidden" id="hcmStationId">
+          <input type="hidden" id="hcmPresetKey">
           <div class="hcm-form-grid">
             <label class="hcm-field">Station name
               <input id="hcmName" type="text" maxlength="100" required placeholder="e.g. UEFA Champions League Highlights">
@@ -81,7 +97,7 @@
             </label>
             <label class="hcm-field full">YouTube video or playlist URL
               <input id="hcmSourceUrl" type="url" inputmode="url" required placeholder="https://www.youtube.com/playlist?list=... or https://youtu.be/...">
-              <small>Supported sources: YouTube video URLs and YouTube playlist URLs. Playlist links are best for a continuous highlights station. Channel pages and paid live-TV streams are not accepted.</small>
+              <small>Required for activation: paste a direct YouTube video URL or playlist URL. A channel homepage/search link is not playable here. Playlist URLs are recommended for continuous highlights. Do not use paid live-TV streams or sources you are not authorised to embed.</small>
             </label>
             <label class="hcm-field full">Station description (optional)
               <textarea id="hcmDescription" maxlength="500" placeholder="Describe the competitions or clubs featured on this station."></textarea>
