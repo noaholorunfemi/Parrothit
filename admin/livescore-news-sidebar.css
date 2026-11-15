@@ -1,0 +1,148 @@
+/* PARROTHIT LiveScore newsroom rail — additive and responsive. */
+.pl-main { width: min(100%, 1480px); }
+.pl-main-layout { display: block; min-width: 0; }
+.pl-main-content { min-width: 0; }
+.pl-sports-news-rail { display: none; }
+
+.pl-news-display-note {
+  margin: 2px 0 13px; padding: 13px 15px; display: flex; align-items: center;
+  justify-content: space-between; gap: 15px; border: 1px solid #332326;
+  border-left: 3px solid #e21d2b; border-radius: 11px;
+  background: linear-gradient(115deg, #171012, #0e0e0e 68%); color: #fff;
+}
+.pl-news-note-copy { min-width: 0; }
+.pl-news-note-kicker { display: block; color: #f0bd28; font-size: 8px; font-weight: 950; letter-spacing: .13em; line-height: 1.5; }
+.pl-news-display-note h2 { margin: 3px 0 4px; color: #fff; font-size: 15px; font-weight: 950; letter-spacing: -.02em; }
+.pl-news-display-note p { max-width: 680px; margin: 0; color: #bdb5b6; font-size: 10px; line-height: 1.55; }
+.pl-news-layout-diagram { flex: 0 0 auto; display: flex; align-items: flex-end; gap: 12px; }
+.pl-news-diagram-device { position: relative; width: 83px; height: 49px; padding: 6px; display: grid; grid-template-columns: 1fr 28px; gap: 4px; overflow: hidden; border: 2px solid #757575; border-radius: 5px; background: #080808; box-shadow: 0 2px 8px #0008; }
+.pl-news-diagram-device b { position: absolute; right: 1px; bottom: -1px; left: 1px; color: #efc43b; font-size: 6px; letter-spacing: .1em; text-align: center; }
+.pl-news-diagram-bar { position: absolute; top: 3px; right: 5px; left: 5px; height: 2px; border-radius: 3px; background: #e21d2b; }
+.pl-news-diagram-score { margin-top: 5px; border: 1px solid #444; border-radius: 2px; background: repeating-linear-gradient(0deg, #171717 0 5px, #262626 5px 7px); }
+.pl-news-diagram-rail { margin-top: 5px; display: grid; align-content: start; gap: 4px; }
+.pl-news-diagram-rail i { height: 8px; border: 1px solid #3c2527; border-left: 2px solid #e21d2b; border-radius: 2px; background: #171112; }
+.pl-news-diagram-phone { width: 80px; height: 42px; border-width: 3px; border-radius: 8px; }
+.pl-news-diagram-phone .pl-news-diagram-score,
+.pl-news-diagram-phone .pl-news-diagram-rail { margin-top: 0; }
+
+.pl-sports-news-rail {
+  min-width: 0; align-self: start; overflow: hidden; border: 1px solid #302326;
+  border-top: 3px solid #e21d2b; border-radius: 12px; background: #0d0d0e;
+  box-shadow: 0 10px 25px #0005; color: #fff;
+}
+.pl-sports-news-head { min-height: 65px; padding: 12px 13px 10px; display: flex; align-items: center; justify-content: space-between; gap: 9px; background: linear-gradient(115deg, #1b0d10, #101010); border-bottom: 1px solid #332326; }
+.pl-sports-news-head h2 { margin: 2px 0 0; color: #fff; font-size: 14px; font-weight: 950; letter-spacing: .02em; }
+.pl-sports-news-refresh { width: 34px; height: 34px; flex: 0 0 34px; border: 1px solid #633038; border-radius: 50%; background: #231014; color: #f4c63b; font: 23px/1 system-ui, sans-serif; cursor: pointer; }
+.pl-sports-news-refresh:hover { border-color: #f4c63b; background: #38141a; }
+.pl-sports-news-refresh.is-loading { animation: pl-news-rotate .7s linear infinite; }
+@keyframes pl-news-rotate { to { transform: rotate(360deg); } }
+.pl-sports-news-refresh:disabled { opacity: .55; cursor: wait; }
+.pl-sports-news-summary { padding: 8px 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid #242424; color: #aaa; font-size: 9px; }
+.pl-news-live-indicator { display: inline-flex; align-items: center; gap: 5px; color: #e8c344; font-size: 8px; font-weight: 900; letter-spacing: .1em; white-space: nowrap; }
+.pl-news-live-indicator i { width: 6px; height: 6px; border-radius: 50%; background: #e21d2b; box-shadow: 0 0 0 3px #e21d2b2e; }
+.pl-sports-news-list { max-height: calc(100vh - 205px); min-height: 180px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #6a343a #171717; }
+.pl-sports-news-card { padding: 10px; display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 10px; border-bottom: 1px solid #242424; color: inherit; text-decoration: none; transition: background .15s ease, border-color .15s ease; }
+.pl-sports-news-card:hover, .pl-sports-news-card:focus-visible { outline: none; background: #1a1012; border-left: 3px solid #e21d2b; padding-left: 7px; }
+.pl-sports-news-image { width: 82px; height: 66px; display: grid; place-items: center; overflow: hidden; border: 1px solid #343434; border-radius: 6px; background: linear-gradient(145deg, #281317, #111); color: #eec33c; font-size: 23px; }
+.pl-sports-news-image img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.pl-sports-news-copy { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.pl-sports-news-category { max-width: 100%; padding: 3px 6px; overflow: hidden; border: 1px solid #4d292e; border-radius: 3px; background: #211014; color: #f1c43d; font-size: 7px; font-weight: 950; letter-spacing: .08em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.pl-sports-news-card-title { display: -webkit-box; overflow: hidden; color: #f5f5f5; font-size: 11px; font-weight: 780; line-height: 1.42; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.pl-sports-news-meta { margin-top: auto; color: #888; font-size: 8px; line-height: 1.35; }
+.pl-sports-news-state { min-height: 150px; padding: 22px 14px; display: grid; align-content: center; justify-items: center; gap: 8px; color: #f3f3f3; text-align: center; }
+.pl-sports-news-state strong { font-size: 12px; }
+.pl-sports-news-state small { max-width: 250px; color: #999; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.pl-sports-news-state.is-error strong { color: #ff858d; }
+.pl-news-mini-spinner { width: 21px; height: 21px; border: 2px solid #444; border-top-color: #e21d2b; border-radius: 50%; animation: pl-news-spin .8s linear infinite; }
+@keyframes pl-news-spin { to { transform: rotate(360deg); } }
+.pl-sports-news-more { width: calc(100% - 20px); min-height: 37px; margin: 10px; border: 1px solid #5a3035; border-radius: 7px; background: #211014; color: #f4ca3f; font-size: 10px; font-weight: 900; cursor: pointer; }
+.pl-sports-news-more:hover { background: #3a151b; border-color: #e21d2b; }
+.pl-sports-news-more:disabled { opacity: .6; cursor: wait; }
+.pl-sports-news-more[hidden] { display: none !important; }
+.pl-sports-news-foot { padding: 9px 12px 11px; border-top: 1px solid #242424; color: #777; font-size: 9px; line-height: 1.5; }
+
+/* Desktop: retain the full LiveScore content and add the newsroom to its right. */
+@media (min-width: 1024px) {
+  .pl-main-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; align-items: start; }
+  .pl-sports-news-rail { display: block; position: sticky; top: 12px; max-height: calc(100vh - 24px); }
+  .pl-sports-news-list { max-height: calc(100vh - 185px); }
+  .pl-main-content { min-width: 0; }
+}
+
+/* A rotated phone/tablet also gets the right-hand rail. Portrait mobile is unchanged. */
+@media (min-width: 620px) and (max-width: 1023px) and (orientation: landscape) and (max-height: 700px) {
+  .pl-main { width: 100%; padding-right: 12px; padding-left: 12px; }
+  .pl-main-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(218px, 31%); gap: 12px; align-items: start; }
+  .pl-sports-news-rail { display: block; position: sticky; top: 7px; max-height: calc(100vh - 14px); }
+  .pl-sports-news-list { max-height: calc(100vh - 175px); min-height: 120px; }
+  .pl-sports-news-card { grid-template-columns: 68px minmax(0, 1fr); gap: 7px; padding: 8px; }
+  .pl-sports-news-image { width: 68px; height: 54px; }
+  .pl-sports-news-card-title { font-size: 10px; -webkit-line-clamp: 2; }
+  .pl-news-display-note { padding: 9px 11px; gap: 9px; }
+  .pl-news-display-note h2 { font-size: 13px; }
+  .pl-news-display-note p { font-size: 9px; }
+  .pl-news-diagram-device { transform: scale(.88); transform-origin: right center; margin-left: -8px; }
+  .pl-highlights-layout { grid-template-columns: minmax(0, 1fr); }
+  .pl-highlights-stations { max-height: 190px; }
+  .pl-highlights-station-list { max-height: 125px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-sports-news-refresh.is-loading, .pl-news-mini-spinner { animation: none; }
+}
+
+
+/* Edge-mounted help toggle for the desktop / landscape news-display guide. */
+.pl-news-display-note.is-collapsed {
+  display: none !important;
+}
+.pl-news-note-side-toggle {
+  position: fixed;
+  z-index: 120;
+  left: max(0px, env(safe-area-inset-left));
+  top: 46%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 34px;
+  min-height: 104px;
+  max-height: 150px;
+  padding: 12px 8px;
+  border: 1px solid #a92a35;
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
+  background: linear-gradient(180deg, #2a0d12, #090909 75%);
+  box-shadow: 4px 5px 18px #0009, inset -2px 0 0 #e21d2b;
+  color: #f5cf42;
+  font: 900 9px/1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: .09em;
+  text-align: center;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.pl-news-note-side-toggle:hover {
+  border-color: #f5cf42;
+  background: linear-gradient(180deg, #49121b, #101010 75%);
+  box-shadow: 4px 5px 22px #000b, inset -2px 0 0 #f5cf42;
+}
+.pl-news-note-side-toggle:focus-visible {
+  outline: 2px solid #f5cf42;
+  outline-offset: 3px;
+}
+.pl-news-note-side-toggle .pl-news-note-toggle-arrow {
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
+}
+@media (min-width: 1024px), (min-width: 620px) and (max-width: 1023px) and (orientation: landscape) and (max-height: 700px) {
+  .pl-news-note-side-toggle { display: inline-flex; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-news-note-side-toggle { transition: none; }
+}
