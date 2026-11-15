@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = (id) => document.getElementById(id);
-  const state = { client: null, profile: null, stations: [], settings: null, busy: false, previewedSource: '', previewStatus: 'UNTESTED', previewPlayer: null, previewTimer: null, previewGeneration: 0, originalSourceUrl: '', ytPromise: null, refreshTimer: null, lastRefreshAt: null, presets: Array.isArray(window.PARROTHIT_HIGHLIGHT_PRESETS) ? window.PARROTHIT_HIGHLIGHT_PRESETS : [] };
+  const state = { client: null, profile: null, stations: [], settings: null, busy: false, previewedSource: '', previewStatus: 'UNTESTED', previewPlayer: null, previewTimer: null, previewGeneration: 0, originalSourceUrl: '', ytPromise: null, refreshTimer: null, lastRefreshAt: null, presets: Array.isArray(window.PARROTHIT_HIGHLIGHT_PRESETS) ? window.PARROTHIT_HIGHLIGHT_PRESETS : [], discoveryResults: [], discoveryCheckedAt: null };
 
   function status(message, kind) {
     const node = $('hcmStatus'); if (!node) return;
@@ -185,6 +185,12 @@
       const health = document.createElement('small'); health.className = 'hcm-health ' + String(station.playback_status || 'UNTESTED').toLowerCase().replace(/[^a-z]+/g,'-'); health.textContent = 'PLAYBACK: ' + statusLabel(station.playback_status);
       const source = document.createElement('small'); source.textContent = station.source_url;
       copy.append(title, detail, health, source);
+      if (station.youtube_api_verification_status && station.youtube_api_verification_status !== 'NOT_CHECKED') {
+        const api = document.createElement('small');
+        api.className = 'hcm-api-health';
+        api.textContent = 'YOUTUBE API: ' + station.youtube_api_verification_status + ' · ' + Number(station.youtube_api_embeddable_count || 0) + '/' + Number(station.youtube_api_sampled_count || 0) + ' sampled items marked embeddable';
+        copy.appendChild(api);
+      }
       const actions = document.createElement('div'); actions.className = 'hcm-station-actions';
       actions.appendChild(makeButton('Edit', 'secondary', () => editStation(station)));
       actions.appendChild(makeButton('Test playback', 'secondary', () => { editStation(station); testSource().catch(error => status(error.message || 'Could not test this source.', 'error')); }));
@@ -257,6 +263,133 @@
     select.replaceChildren(new Option('All preset categories', 'all'));
     categories.forEach((value) => select.add(new Option(value, value)));
     select.value = categories.includes(previous) ? previous : 'all';
+  }
+
+  function renderPlaylistDiscovery() {
+    const host = $('hcmPlaylistResults');
+    if (!host) return;
+    host.replaceChildren();
+    if (!state.discoveryResults.length) {
+      const empty = document.createElement('div'); empty.className = 'hcm-state';
+      empty.textContent = 'No playlist scan has been run yet. The scan searches YouTube for direct playlists for the 50 starter presets, then checks up to 50 first public playlist items in the current playlist order per candidate.';
+      host.appendChild(empty); return;
+    }
+    const fragment = document.createDocumentFragment();
+    state.discoveryResults.forEach((result) => {
+      const group = document.createElement('section'); group.className = 'hcm-discovery-group';
+      const heading = document.createElement('div'); heading.className = 'hcm-discovery-group-head';
+      const name = document.createElement('strong'); name.textContent = result.preset_name || result.preset_key || 'Football preset';
+      const meta = document.createElement('small'); meta.textContent = result.status === 'SEARCHED' ? ((result.candidates || []).length + ' candidate(s) found') : (result.note || result.status || 'No result');
+      heading.append(name, meta); group.appendChild(heading);
+      const candidates = Array.isArray(result.candidates) ? result.candidates : [];
+      if (!candidates.length) {
+        const empty = document.createElement('p'); empty.className = 'hcm-discovery-empty'; empty.textContent = result.note || 'No public playlist candidate found for this preset.';
+        group.appendChild(empty);
+      }
+      candidates.forEach((candidate) => {
+        const row = document.createElement('article'); row.className = 'hcm-discovery-row';
+        const copy = document.createElement('div'); copy.className = 'hcm-discovery-copy';
+        const title = document.createElement('strong'); title.textContent = candidate.playlist_title || 'Untitled YouTube playlist';
+        const publisher = document.createElement('small'); publisher.textContent = 'Publisher: ' + (candidate.publisher_title || 'Unknown') + ' · Name match: ' + Number(candidate.publisher_match_percent || 0) + '%';
+        const stats = document.createElement('small'); stats.textContent = 'YouTube API: ' + (candidate.status || 'NOT CHECKED') + ' · ' + Number(candidate.embeddable_count || 0) + '/' + Number(candidate.sampled_count || 0) + ' sampled items embeddable' + (Number(candidate.blocked_count || 0) ? ' · ' + Number(candidate.blocked_count) + ' block embedding' : '');
+        const note = document.createElement('small'); note.textContent = candidate.note || 'Review the publisher and confirm the playlist is an authorised source.';
+        copy.append(title, publisher, stats, note);
+        const actions = document.createElement('div'); actions.className = 'hcm-discovery-actions';
+        const open = document.createElement('a'); open.className = 'hcm-btn secondary'; open.href = candidate.playlist_url || '#'; open.target = '_blank'; open.rel = 'noopener noreferrer'; open.textContent = 'Open playlist ↗';
+        actions.appendChild(open);
+        const existing = state.stations.find((station) => station.youtube_playlist_id && station.youtube_playlist_id === candidate.playlist_id);
+        const canAdd = !!candidate.playlist_id && candidate.status === 'ALL_SAMPLED_EMBEDDABLE' && Number(candidate.sampled_count || 0) > 0 && Number(candidate.publisher_match_percent || 0) >= 50;
+        const addLabel = existing ? 'Already configured' : canAdd ? 'Add as inactive' : (candidate.status === 'PARTIALLY_EMBEDDABLE' ? 'Mixed — not selected' : 'Not eligible');
+        const add = makeButton(addLabel, existing ? 'secondary' : canAdd ? 'primary' : 'secondary', () => addDiscoveredPlaylist(candidate));
+        add.disabled = !!existing || !canAdd;
+        if (!canAdd && !existing) add.title = 'Auto-add requires every sampled item to be embeddable and the publisher title to match the preset by at least 50%. Admin 1 must still review the channel.';
+        actions.appendChild(add);
+        row.append(copy, actions); group.appendChild(row);
+      });
+      fragment.appendChild(group);
+    });
+    host.appendChild(fragment);
+  }
+
+  async function verifyPresetPlaylists() {
+    if (state.busy) return;
+    if (!state.presets.length) { status('The 50-preset catalogue did not load. Refresh the page and try again.', 'error'); return; }
+    const button = $('hcmDiscoverVerify');
+    button.disabled = true; state.busy = true;
+    const resultHost = $('hcmPlaylistResults');
+    if (resultHost) resultHost.textContent = 'Searching YouTube for official-channel playlist candidates and checking video embedding settings. This can take a little while.';
+    status('Starting the 50-preset YouTube playlist scan. The server will check publisher names and up to 50 first public playlist items in the current playlist order per candidate…', 'warning');
+    try {
+      const presets = state.presets.map((preset) => ({ key: preset.key, name: preset.name, category: preset.category }));
+      const { data, error } = await state.client.functions.invoke('parrothit-youtube-playlist-verifier', { body: { presets } });
+      if (error) {
+        let message = error.message || 'Playlist verifier function failed.';
+        try { const body = await error.context?.json?.(); if (body?.error) message = body.error; } catch (_) {}
+        throw new Error(message + ' Deploy parrothit-youtube-playlist-verifier and set YOUTUBE_DATA_API_KEY as a Supabase function secret.');
+      }
+      if (!data?.success) throw new Error(data?.error || 'The playlist verifier did not return a successful result.');
+      state.discoveryResults = Array.isArray(data.results) ? data.results : [];
+      state.discoveryCheckedAt = data.checked_at || new Date().toISOString();
+      renderPlaylistDiscovery();
+      const resultCount = state.discoveryResults.reduce((n, row) => n + (Array.isArray(row.candidates) ? row.candidates.length : 0), 0);
+      const full = Number(data.all_sampled_embeddable_count || 0);
+      status('Playlist scan completed: ' + state.discoveryResults.length + ' presets checked, ' + resultCount + ' playlist candidate(s), ' + full + ' candidate(s) had every sampled item marked embeddable. Add only sources you recognise and are authorised to use, then run the actual IFrame playback test.', full ? '' : 'warning');
+    } catch (error) {
+      if (resultHost) resultHost.textContent = error.message || 'Playlist scan failed.';
+      status(error.message || 'Could not run the playlist scan.', 'error');
+    } finally {
+      state.busy = false; button.disabled = false;
+    }
+  }
+
+  async function addDiscoveredPlaylist(candidate) {
+    if (state.busy) return;
+    const preset = state.presets.find((item) => item.key === candidate.preset_key);
+    if (!preset || !candidate.playlist_id || candidate.status !== 'ALL_SAMPLED_EMBEDDABLE' || Number(candidate.sampled_count || 0) < 1 || Number(candidate.embeddable_count || 0) !== Number(candidate.sampled_count || 0) || Number(candidate.publisher_match_percent || 0) < 50) {
+      status('This candidate did not pass the strict screen: every sampled playlist item must be marked embeddable and the publisher title must match the preset by at least 50% before it can be added automatically.', 'warning'); return;
+    }
+    const duplicate = state.stations.find((station) => station.youtube_playlist_id === candidate.playlist_id);
+    if (duplicate) { status('This playlist is already configured as ' + duplicate.name + '.', 'warning'); return; }
+    const button = $('hcmDiscoverVerify'); if (button) button.disabled = true;
+    state.busy = true;
+    try {
+      const order = state.stations.reduce((max, row) => Math.max(max, Number(row.display_order) || 0), 0) + 1;
+      const apiStatus = String(candidate.status || 'CHECK_ERROR');
+      const payload = {
+        name: (preset.name + ' Highlights').slice(0, 100),
+        category: preset.category || 'Club Highlights',
+        source_type: 'youtube_playlist',
+        source_url: candidate.playlist_url,
+        youtube_video_id: null,
+        youtube_playlist_id: candidate.playlist_id,
+        description: ('YouTube-discovered playlist: ' + (candidate.playlist_title || '') + ' · Publisher: ' + (candidate.publisher_title || '') + '. Added inactive after Data API screening; complete the IFrame player test before activation.').slice(0, 500),
+        display_order: Math.min(1000000, order),
+        is_active: false,
+        playback_status: 'UNTESTED',
+        playback_checked_at: null,
+        playback_error: null,
+        preset_key: preset.key,
+        youtube_api_verification_status: apiStatus,
+        youtube_api_verified_at: state.discoveryCheckedAt || new Date().toISOString(),
+        youtube_api_sampled_count: Number(candidate.sampled_count || 0),
+        youtube_api_embeddable_count: Number(candidate.embeddable_count || 0),
+        youtube_api_blocked_count: Number(candidate.blocked_count || 0),
+        youtube_api_unavailable_count: Number(candidate.unavailable_count || 0),
+        youtube_api_publisher_title: String(candidate.publisher_title || '').slice(0, 200),
+        youtube_api_playlist_title: String(candidate.playlist_title || '').slice(0, 200),
+        youtube_api_note: String(candidate.note || '').slice(0, 500),
+        updated_at: new Date().toISOString()
+      };
+      const { error } = await state.client.from('parrothit_livescore_highlight_stations').insert(payload);
+      if (error) throw error;
+      await refreshAll({ quiet: true });
+      renderPlaylistDiscovery();
+      status(preset.name + ' playlist added as INACTIVE. Open its station card, run Test playback, and activate only if YouTube confirms PLAYING.', '');
+    } catch (error) {
+      status('Could not add the discovered playlist: ' + (error.message || error) + '. Confirm the YouTube verifier SQL migration has been run.', 'error');
+    } finally {
+      state.busy = false; if (button) button.disabled = false;
+    }
   }
 
   function clearForm() {
@@ -334,6 +467,15 @@
         playback_status: state.previewedSource === $('hcmSourceUrl').value.trim() && ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? state.previewStatus : (!sourceChanged && existing ? (existing.playback_status || 'UNTESTED') : 'UNTESTED'),
         playback_checked_at: state.previewedSource === $('hcmSourceUrl').value.trim() && ['PLAYABLE','EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? new Date().toISOString() : (!sourceChanged && existing ? (existing.playback_checked_at || null) : null),
         playback_error: state.previewedSource === $('hcmSourceUrl').value.trim() && state.previewStatus === 'PLAYABLE' ? null : (state.previewedSource === $('hcmSourceUrl').value.trim() && ['EMBEDDING RESTRICTED','UNAVAILABLE'].includes(state.previewStatus) ? 'Latest preview result: ' + state.previewStatus : (!sourceChanged && existing ? (existing.playback_error || null) : null)),
+        youtube_api_verification_status: sourceChanged ? 'NOT_CHECKED' : (existing?.youtube_api_verification_status || 'NOT_CHECKED'),
+        youtube_api_verified_at: sourceChanged ? null : (existing?.youtube_api_verified_at || null),
+        youtube_api_sampled_count: sourceChanged ? 0 : Number(existing?.youtube_api_sampled_count || 0),
+        youtube_api_embeddable_count: sourceChanged ? 0 : Number(existing?.youtube_api_embeddable_count || 0),
+        youtube_api_blocked_count: sourceChanged ? 0 : Number(existing?.youtube_api_blocked_count || 0),
+        youtube_api_unavailable_count: sourceChanged ? 0 : Number(existing?.youtube_api_unavailable_count || 0),
+        youtube_api_publisher_title: sourceChanged ? null : (existing?.youtube_api_publisher_title || null),
+        youtube_api_playlist_title: sourceChanged ? null : (existing?.youtube_api_playlist_title || null),
+        youtube_api_note: sourceChanged ? null : (existing?.youtube_api_note || null),
         updated_at: new Date().toISOString()
       };
       let result;
@@ -429,7 +571,7 @@
     try {
       const [stations] = await Promise.all([fetchAllStations(), loadSettings()]);
       state.stations = stations; state.lastRefreshAt = new Date();
-      updateStats(); renderFilters(); fillSettings(); renderStations(); renderPresetFilters(); renderPresets(); renderDiagnostics();
+      updateStats(); renderFilters(); fillSettings(); renderStations(); renderPresetFilters(); renderPresets(); renderPlaylistDiscovery(); renderDiagnostics();
       if (!quiet) status('Highlights TV configuration refreshed. ' + stations.length + ' station record(s) loaded.');
     } catch (error) {
       if ($('hcmDbDiagnostics')) $('hcmDbDiagnostics').textContent = 'Database check failed: ' + (error.message || 'Unknown error') + '. Run supabase/parrothit-livescore-highlights-activation-repair.sql and verify owner access.';
@@ -449,6 +591,7 @@
       $('hcmSaveSettings').addEventListener('click', saveSettings);
       $('hcmReload').addEventListener('click', () => refreshAll());
       $('hcmBulkImport').addEventListener('click', bulkImportSources);
+      $('hcmDiscoverVerify').addEventListener('click', verifyPresetPlaylists);
       state.refreshTimer = window.setInterval(() => { if (!document.hidden && !state.busy) refreshAll({ quiet: true }); }, 60000);
       $('hcmSearch').addEventListener('input', renderStations);
       $('hcmFilterCategory').addEventListener('change', renderStations);
