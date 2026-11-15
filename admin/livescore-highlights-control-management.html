@@ -6,14 +6,14 @@
   <meta name="theme-color" content="#08110b">
   <meta name="description" content="Owner-only administration for PARROTHIT LiveScore Highlights TV stations and playback settings.">
   <title>PARROTHIT LIVESCORE: Highlights Control Management</title>
-  <link rel="stylesheet" href="../css/livescore-highlights-admin.css?v=highlights-activation-repair-20261114">
+  <link rel="stylesheet" href="../css/livescore-highlights-admin.css?v=unlimited-publish-red-20261115">
   <script>document.documentElement.classList.add('hcm-auth-pending');</script>
   <style>html.hcm-auth-pending body{visibility:hidden}html.hcm-auth-pending body:before{content:'Verifying PARROTHIT owner session…';visibility:visible;display:block;position:fixed;inset:0;background:#080f0b;color:#d1fae5;padding:40vh 18px;text-align:center;font:800 14px Arial;z-index:99999}</style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="../js/admin-auth-guard.js"></script>
   <script src="../js/livescore-highlight-presets.js?v=highlights-presets-20261114"></script>
-  <script src="../js/livescore-highlights-admin.js?v=highlights-playlist-verifier-20261115" defer></script>
+  <script src="../js/livescore-highlights-admin.js?v=unlimited-publish-red-20261115" defer></script>
 </head>
 <body class="hcm-page admin-auth-pending">
   <main class="hcm-shell">
@@ -103,7 +103,7 @@
     <section class="hcm-panel" aria-labelledby="hcmBulkHeading">
       <div class="hcm-panel-head">
         <div><h2 id="hcmBulkHeading">Bulk station configuration</h2><p>Import multiple direct YouTube video or playlist URLs in one operation. Imported sources are deliberately saved as inactive until each one passes an actual playback test.</p></div>
-        <span class="hcm-badge">UP TO 500 SOURCES PER BATCH</span>
+        <span class="hcm-badge">UNLIMITED STATION CATALOGUE</span>
       </div>
       <label class="hcm-field">Source list — one URL per line, or Station name | URL
         <textarea id="hcmBulkSources" class="hcm-bulk-textarea" rows="7" placeholder="https://www.youtube.com/playlist?list=...&#10;Champions League | https://www.youtube.com/watch?v=...&#10;https://youtu.be/..."></textarea>
@@ -114,13 +114,13 @@
         <label class="hcm-field">Category<select id="hcmBulkCategory"><option>General Football</option><option>International Football</option><option>UEFA Football</option><option>English Football</option><option>Spanish Football</option><option>German Football</option><option>Italian Football</option><option>African Football</option><option>Nigerian Football</option><option>Club Highlights</option><option>Other</option></select></label>
       </div>
       <div class="hcm-form-actions"><button class="hcm-btn" type="button" id="hcmBulkImport">Import sources as inactive</button></div>
-      <p class="hcm-note">Bulk import does not activate unverified sources, bypass the playback check, or create unofficial video links.</p>
+      <p class="hcm-note">Bulk import has no fixed station-count cap. Large imports are sent in small database batches. Sources remain inactive until a successful preview test; then click Activate to publish each station automatically.</p>
     </section>
 
     <div class="hcm-grid">
       <section class="hcm-panel">
         <div class="hcm-panel-head">
-          <div><h2 id="hcmFormTitle">Add a highlights station</h2><p>No fixed station cap. Use a preset above or add any additional authorised station. A source must pass the preview check before you activate it.</p></div>
+          <div><h2 id="hcmFormTitle">Add a highlights station</h2><p>No fixed station cap. Use a preset above or add any additional authorised station. A source must pass the preview check before activation. After a successful test, click Activate in the station list to publish it automatically.</p></div>
           <span class="hcm-badge">UNLIMITED STATIONS</span>
         </div>
         <form id="hcmStationForm" autocomplete="off">
@@ -176,7 +176,7 @@
     </div>
 
     <section class="hcm-panel">
-      <div class="hcm-panel-head"><div><h2>All configured highlights stations</h2><p>Search, filter, edit, activate, deactivate or remove any configured station.</p></div><button type="button" class="hcm-btn secondary" id="hcmReload">↻ Refresh stations</button></div>
+      <div class="hcm-panel-head"><div><h2>All configured highlights stations</h2><p>Search, filter, edit, test, activate, deactivate or remove any configured station. Activate publishes a recently tested PLAYABLE station to the public page automatically.</p></div><button type="button" class="hcm-btn secondary" id="hcmReload">↻ Refresh stations</button></div>
       <div class="hcm-search-row">
         <input id="hcmSearch" type="search" placeholder="Search station name, category or description…" aria-label="Search stations">
         <select id="hcmFilterCategory" aria-label="Filter by category"><option value="all">All categories</option></select>
