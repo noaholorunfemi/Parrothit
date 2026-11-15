@@ -490,17 +490,36 @@
   async function toggleStation(station) {
     const nextActive = !station.is_active;
     if (nextActive) {
-      editStation(station);
-      $('hcmStationActive').checked = true;
-      state.previewedSource = ''; state.previewStatus = 'UNTESTED';
-      $('hcmSaveStation').disabled = !canSaveCurrentForm();
-      status('Activation is blocked until a fresh preview reports PLAYABLE. Test the source, then save station changes.', 'warning');
+      const checkedAt = station.playback_checked_at ? new Date(station.playback_checked_at).getTime() : 0;
+      const age = Date.now() - checkedAt;
+      const freshPlayableTest = station.playback_status === 'PLAYABLE' && Number.isFinite(checkedAt) && checkedAt > 0 && age >= -60000 && age <= 30 * 60 * 1000;
+      if (!freshPlayableTest) {
+        editStation(station);
+        $('hcmStationActive').checked = true;
+        state.previewedSource = ''; state.previewStatus = 'UNTESTED';
+        $('hcmSaveStation').disabled = true;
+        status('This station is not ready to publish. Run Test playback and wait for PLAYABLE, then click Activate. Successful playback tests are accepted for 30 minutes.', 'warning');
+        $('hcmPreviewWrap').classList.remove('hcm-hidden');
+        return;
+      }
+      try {
+        const { data, error } = await state.client.from('parrothit_livescore_highlight_stations')
+          .update({ is_active: true, updated_at: new Date().toISOString() })
+          .eq('id', station.id).select().single();
+        if (error) throw error;
+        if (!data || data.is_active !== true) throw new Error('Supabase did not confirm that the station became active.');
+        status('✓ ' + station.name + ' is now ACTIVE and published to the public Highlights TV station list. Visitors will see it on the next automatic refresh (within about 30 seconds).');
+        clearForm();
+        await refreshAll({ quiet: true });
+      } catch (error) {
+        status(error.message || 'Could not publish this station. Make sure its PLAYABLE test is less than 30 minutes old.', 'error');
+      }
       return;
     }
     try {
       const { error } = await state.client.from('parrothit_livescore_highlight_stations').update({ is_active: false, updated_at: new Date().toISOString() }).eq('id', station.id);
       if (error) throw error;
-      status(station.name + ' deactivated.');
+      status(station.name + ' deactivated and removed from the public Highlights TV station list.');
       await refreshAll();
     } catch (error) { status(error.message || 'Could not update station status.', 'error'); }
   }
@@ -517,7 +536,6 @@
     const raw = $('hcmBulkSources').value.trim();
     if (!raw) { status('Paste one authorised YouTube video or playlist URL per line. You may also use Station name | URL.', 'warning'); return; }
     const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (lines.length > 500) { status('Bulk import is limited to 500 source lines per run. Split the list into smaller batches.', 'error'); return; }
     const existingKeys = new Set(state.stations.map(station => station.source_type + ':' + (station.youtube_playlist_id || station.youtube_video_id || '')));
     const seen = new Set(existingKeys); const records = []; const problems = [];
     const prefix = ($('hcmBulkNamePrefix').value || 'Football Highlights').trim().slice(0, 70) || 'Football Highlights';

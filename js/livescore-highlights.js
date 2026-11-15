@@ -15,7 +15,7 @@
   const state = {
     clientConfig: null, stations: [], settings: { enabled: true, autoplay_muted: true, auto_advance: true, default_station_id: null },
     activeId: '', player: null, activeStation: null, playerGeneration: 0, apiPromise: null, pauseByVisitor: readFlag(STORAGE.paused, false),
-    muted: readFlag(STORAGE.muted, true), categories: [], errorTimer: null, playerReady: false, playbackState: 'IDLE', needsUserPlay: false, playlistSkipCount: 0, runtimeHealth: new Map(), failedStationIds: new Set()
+    muted: readFlag(STORAGE.muted, true), categories: [], errorTimer: null, playerReady: false, playbackState: 'IDLE', needsUserPlay: false, playlistSkipCount: 0, runtimeHealth: new Map(), failedStationIds: new Set(), stationRefreshTimer: null, refreshingStations: false
   };
 
   function readFlag(key, fallback) {
@@ -319,6 +319,52 @@
     $('plHighlightsToggle').textContent = collapsed ? 'Show player +' : 'Hide player −';
     $('plHighlightsToggle').setAttribute('aria-expanded', collapsed ? 'false' : 'true');
   }
+  async function refreshPublicStations() {
+    if (state.refreshingStations || document.hidden || !state.clientConfig) return;
+    state.refreshingStations = true;
+    try {
+      const rows = await fetchStations();
+      const active = rows.filter((station) => station && station.id && station.is_active !== false && (station.youtube_video_id || station.youtube_playlist_id));
+      const previousIds = state.stations.map((station) => String(station.id)).join('|');
+      const nextIds = active.map((station) => String(station.id)).join('|');
+      const previousCurrent = state.activeStation;
+      const nextCurrent = active.find((station) => String(station.id) === String(state.activeId));
+      const currentSourceChanged = !!(previousCurrent && nextCurrent && previousCurrent.source_url !== nextCurrent.source_url);
+      state.stations = active;
+      renderCategories(); updateCounters(); renderStationList();
+      if (!active.length) {
+        if (state.activeId) {
+          state.playerGeneration++;
+          try { state.player?.destroy?.(); } catch (_) {}
+          state.player = null; state.playerReady = false; state.activeId = ''; state.activeStation = null; state.playbackState = 'IDLE';
+          $('plHighlightsPlayer').replaceChildren();
+          setEmpty('No stations available yet', 'PARROTHIT Highlights TV is ready. Active, authorised YouTube videos and playlists will appear here after Admin 1 activates them.');
+          updateNowPlaying(null);
+        }
+        setStatus('Waiting for Admin 1 to activate a highlights station. This station list refreshes automatically.');
+      } else if (!active.some((station) => String(station.id) === String(state.activeId))) {
+        selectStation(active[0].id, false);
+        setStatus('Highlights station list updated. Playing the first available active station.');
+      } else if (currentSourceChanged) {
+        selectStation(nextCurrent.id, false);
+        setStatus('The selected station source was updated by Admin 1. The refreshed source is now loaded.');
+      } else {
+        state.activeStation = nextCurrent || state.activeStation;
+        updateNowPlaying(state.activeStation);
+        if (previousIds !== nextIds) setStatus(active.length + ' active highlights stations available. New stations are ready in the selector.');
+      }
+    } catch (error) {
+      console.warn('PARROTHIT Highlights TV refresh:', error);
+    } finally {
+      state.refreshingStations = false;
+    }
+  }
+
+  function startStationAutoRefresh() {
+    if (state.stationRefreshTimer) clearInterval(state.stationRefreshTimer);
+    state.stationRefreshTimer = window.setInterval(refreshPublicStations, 30000);
+  }
+
   async function init() {
     state.clientConfig = getConfig();
     updateControls(); applyCollapsedState();
@@ -352,13 +398,14 @@
       } catch (_) { state.muted = state.settings.autoplay_muted !== false; }
       updateControls();
       if (!state.settings.enabled) { root.hidden = true; return; }
+      startStationAutoRefresh();
       state.stations = await fetchStations();
       state.stations = state.stations.filter((s) => s && s.id && s.is_active !== false && (s.youtube_video_id || s.youtube_playlist_id));
       renderCategories(); updateCounters(); renderStationList();
       if (!state.stations.length) {
         $('plHighlightsNowTitle').textContent = 'Stations are being configured';
         setEmpty('No stations available yet', 'PARROTHIT Highlights TV is ready. Active, authorised YouTube videos and playlists will appear here after Admin 1 adds them in Highlights Control Management.');
-        setStatus('No active highlights stations are configured yet.'); return;
+        setStatus('No active highlights stations are configured yet. This section checks for new activations automatically every 30 seconds.'); return;
       }
       const saved = (() => { try { return localStorage.getItem(STORAGE.station) || ''; } catch (_) { return ''; } })();
       const initial = state.stations.find((s) => s.id === saved)?.id || state.stations.find((s) => s.id === state.settings.default_station_id)?.id || state.stations[0].id;
