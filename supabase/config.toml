@@ -43,3 +43,8 @@ verify_jwt = false
 # by the existing PARROTHIT_PUSH_WEBHOOK_SECRET header.
 [functions.parrothit-homepage-ad-notification]
 verify_jwt = false
+
+# Owner-only YouTube playlist discovery and embeddability verifier.
+# The function validates the owner JWT and active session internally.
+[functions.parrothit-youtube-playlist-verifier]
+verify_jwt = false
