@@ -21,6 +21,7 @@
   const loadingDetailSections = new Set();
   let menuOpen = false;
   let activeTab = 'info';
+  let activeMomentumView = getStored('parrothit_ls_momentum_view', 'graph') === 'pitch' ? 'pitch' : 'graph';
   let standingsFilter = 'all';
   let h2hFilter = 'all';
 
@@ -297,6 +298,107 @@
     const away = numericStat(row.away);
     return home === null || away === null ? null : { home, away };
   }
+  function momentumHistoryKey(match) {
+    const fingerprint = matchKey(match).toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 110) || 'match';
+    return `parrothit_ls_momentum_samples_${fingerprint}`;
+  }
+  function matchMinuteNumber(match) {
+    const direct = textValue(match?.minute ?? match?.elapsed ?? match?.elapsed_time ?? '');
+    const clock = direct || statusText(match, false);
+    const found = String(clock).match(/^\s*(\d{1,3})(?:\+(\d{1,2}))?(?:\s*[:′'])?/);
+    if (found) return Math.min(130, Number(found[1]) + Number(found[2] || 0));
+    const kickoff = Date.parse(match?.kickoff || match?.date || match?.match_time || '');
+    if (Number.isFinite(kickoff) && isLive(match)) return Math.min(130, Math.max(0, Math.floor((Date.now() - kickoff) / 60000)));
+    return null;
+  }
+  function readMomentumHistory(match) {
+    try {
+      const parsed = JSON.parse(getStored(momentumHistoryKey(match), '[]'));
+      return Array.isArray(parsed) ? parsed.filter((item) => Number.isFinite(Number(item?.at)) &&
+        Number.isFinite(Number(item?.home)) && Number.isFinite(Number(item?.away))) : [];
+    } catch { return []; }
+  }
+  function recordMomentumSample(match, homePercent, awayPercent) {
+    if (!isLive(match) && !isFinished(match)) return readMomentumHistory(match);
+    const history = readMomentumHistory(match);
+    const now = Date.now();
+    const last = history[history.length - 1];
+    // Avoid duplicate samples when several panels re-render after the same provider response.
+    if (!last || now - Number(last.at) >= 40000) {
+      history.push({ at: now, minute: matchMinuteNumber(match), home: homePercent, away: awayPercent });
+    }
+    const bounded = history.slice(-120);
+    setStored(momentumHistoryKey(match), JSON.stringify(bounded));
+    return bounded;
+  }
+  function renderMomentumGraph(history, match) {
+    if (!history.length) return emptyState('Momentum graph not available yet', 'The connected provider has not supplied comparable attacking statistics. The graph will appear when reliable data becomes available.');
+    const W = 700, H = 245, left = 44, right = 686, top = 20, bottom = 188;
+    const maxMinute = 120;
+    const points = history.slice(-120).map((sample, index, all) => {
+      let minute = sample.minute !== null && sample.minute !== undefined && Number.isFinite(Number(sample.minute)) ? Number(sample.minute) : null;
+      if (minute === null) minute = all.length > 1 ? (index / (all.length - 1)) * 90 : 0;
+      minute = Math.max(0, Math.min(maxMinute, minute));
+      const x = left + (minute / maxMinute) * (right - left);
+      const home = Math.max(0, Math.min(100, Number(sample.home)));
+      const away = Math.max(0, Math.min(100, Number(sample.away)));
+      return { x, homeY: bottom - (home / 100) * (bottom - top), awayY: bottom - (away / 100) * (bottom - top), home, away, minute };
+    });
+    const line = (key) => points.map((point, index) => `${index ? 'L' : 'M'}${point.x.toFixed(1)},${point[key].toFixed(1)}`).join(' ');
+    const ticks = [0, 15, 30, 45, 60, 75, 90, 105, 120].map((minute) => {
+      const x = left + (minute / maxMinute) * (right - left);
+      return `<g><line x1="${x}" y1="${top}" x2="${x}" y2="${bottom}" stroke="#ffffff16" stroke-width="1"/><text x="${x}" y="214" text-anchor="middle" fill="#96969b" font-size="11">${minute}′</text></g>`;
+    }).join('');
+    const latest = points[points.length - 1];
+    const homePath = line('homeY');
+    const awayPath = line('awayY');
+    const dots = points.length > 1 ? '' : `<circle cx="${latest.x}" cy="${latest.homeY}" r="6" fill="#f22e49" stroke="#fff" stroke-width="2"/><circle cx="${latest.x}" cy="${latest.awayY}" r="6" fill="#36a9f5" stroke="#fff" stroke-width="2"/>`;
+    const sampledNote = points.length < 2
+      ? 'One verified snapshot is available. Keep this Match Centre open during the match; new provider snapshots are added during automatic refreshes.'
+      : `Based on ${points.length} verified snapshots captured on this device while the Match Centre was open. Gaps indicate periods without a captured snapshot.`;
+    return `<div class="pl-momentum-chart-wrap">
+      <div class="pl-momentum-chart-legend"><span class="is-home"><i></i>${esc(teamName(match, 'home'))}</span><span class="is-away"><i></i>${esc(teamName(match, 'away'))}</span></div>
+      <svg class="pl-momentum-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Estimated attacking momentum snapshots for ${esc(teamName(match, 'home'))} and ${esc(teamName(match, 'away'))} across the match">
+        <defs><linearGradient id="plMomentumHomeFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#f12d49" stop-opacity=".30"/><stop offset="1" stop-color="#f12d49" stop-opacity="0"/></linearGradient><linearGradient id="plMomentumAwayFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#269fe9" stop-opacity=".25"/><stop offset="1" stop-color="#269fe9" stop-opacity="0"/></linearGradient></defs>
+        <g>${[0,50,100].map((v) => { const y = bottom - (v/100)*(bottom-top); return `<g><line x1="${left}" y1="${y}" x2="${right}" y2="${y}" stroke="#ffffff20" stroke-dasharray="4 5"/><text x="${left-9}" y="${y+4}" text-anchor="end" fill="#a8a8ad" font-size="11">${v}%</text></g>`; }).join('')}${ticks}</g>
+        ${points.length > 1 ? `<path d="${homePath} L${points[points.length-1].x},${bottom} L${points[0].x},${bottom} Z" fill="url(#plMomentumHomeFill)"/><path d="${awayPath} L${points[points.length-1].x},${bottom} L${points[0].x},${bottom} Z" fill="url(#plMomentumAwayFill)"/>` : ''}
+        <path d="${homePath}" fill="none" stroke="#ff4058" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="${awayPath}" fill="none" stroke="#39adf5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>${dots}
+        <text x="${left}" y="238" fill="#777" font-size="9">MATCH MINUTE</text>
+      </svg>
+      <div class="pl-momentum-latest"><span><i class="is-home"></i>${esc(teamName(match, 'home'))} <b>${latest.home}%</b></span><span><i class="is-away"></i>${esc(teamName(match, 'away'))} <b>${latest.away}%</b></span></div>
+      <p class="pl-momentum-view-note">${esc(sampledNote)} The graph connects observed snapshots; it does not invent minute-by-minute events.</p>
+    </div>`;
+  }
+  function renderMomentumPitch(history, match) {
+    if (!history.length) return emptyState('Attacking pressure map not available yet', 'A pitch view needs comparable attacking statistics from the connected provider.');
+    const latest = history[history.length - 1];
+    const home = Math.max(0, Math.min(100, Number(latest.home)));
+    const away = Math.max(0, Math.min(100, Number(latest.away)));
+    const homeOpacity = (0.26 + (home / 100) * 0.62).toFixed(2);
+    const awayOpacity = (0.26 + (away / 100) * 0.62).toFixed(2);
+    return `<div class="pl-pressure-map-wrap">
+      <div class="pl-pressure-map-labels"><span class="is-home">${esc(teamName(match, 'home'))} · ATTACK →</span><span class="is-away">← ATTACK · ${esc(teamName(match, 'away'))}</span></div>
+      <svg class="pl-pressure-pitch" viewBox="0 0 680 300" role="img" aria-label="Schematic pitch showing aggregate attacking momentum share: ${esc(teamName(match, 'home'))} ${home} percent and ${esc(teamName(match, 'away'))} ${away} percent">
+        <defs>
+          <radialGradient id="plPressureHomeGlow"><stop offset="0" stop-color="#ff263f" stop-opacity=".95"/><stop offset=".48" stop-color="#f02a43" stop-opacity=".52"/><stop offset="1" stop-color="#f02a43" stop-opacity="0"/></radialGradient>
+          <radialGradient id="plPressureAwayGlow"><stop offset="0" stop-color="#18a9ff" stop-opacity=".95"/><stop offset=".48" stop-color="#168fe2" stop-opacity=".52"/><stop offset="1" stop-color="#168fe2" stop-opacity="0"/></radialGradient>
+          <linearGradient id="plPitchGrass" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#17482f"/><stop offset="1" stop-color="#103822"/></linearGradient>
+        </defs>
+        <rect x="8" y="8" width="664" height="284" rx="8" fill="url(#plPitchGrass)" stroke="#b7d2bd" stroke-width="2"/>
+        <path d="M340 8V292 M8 150H672 M8 76H93V224H8 M672 76H587V224H672 M93 108H8 M587 108H672" stroke="#d0e2d4" stroke-width="2" fill="none" opacity=".8"/>
+        <circle cx="340" cy="150" r="48" fill="none" stroke="#d0e2d4" stroke-width="2" opacity=".8"/><circle cx="340" cy="150" r="3" fill="#eaf5ec"/>
+        <circle cx="93" cy="150" r="4" fill="#eaf5ec"/><circle cx="587" cy="150" r="4" fill="#eaf5ec"/>
+        <ellipse cx="520" cy="150" rx="174" ry="132" fill="url(#plPressureHomeGlow)" opacity="${homeOpacity}"/>
+        <ellipse cx="160" cy="150" rx="174" ry="132" fill="url(#plPressureAwayGlow)" opacity="${awayOpacity}"/>
+        <rect x="8" y="76" width="85" height="148" fill="none" stroke="#d0e2d4" stroke-width="2"/><rect x="587" y="76" width="85" height="148" fill="none" stroke="#d0e2d4" stroke-width="2"/>
+        <rect x="8" y="116" width="28" height="68" fill="none" stroke="#d0e2d4" stroke-width="2"/><rect x="644" y="116" width="28" height="68" fill="none" stroke="#d0e2d4" stroke-width="2"/>
+        <path d="M93 122 Q126 150 93 178 M587 122 Q554 150 587 178" stroke="#d0e2d4" stroke-width="2" fill="none"/>
+        <text x="340" y="282" text-anchor="middle" fill="#ffffffc9" font-size="10" font-weight="700" letter-spacing="2">SCHEMATIC ATTACKING PRESSURE VIEW</text>
+      </svg>
+      <div class="pl-pressure-map-score"><span class="is-home"><i></i>${esc(teamName(match, 'home'))} <b>${home}%</b></span><span class="is-away"><i></i>${esc(teamName(match, 'away'))} <b>${away}%</b></span></div>
+      <p class="pl-momentum-view-note">The shaded ends illustrate each team's share of aggregate attacking output. This is a directional projection from match statistics—not actual shot coordinates, player positions, ball tracking or a provider-supplied spatial heatmap.</p>
+    </div>`;
+  }
   function renderMomentum(match) {
     const rows = statRows(match);
     const metrics = [
@@ -326,20 +428,45 @@
     const matchIsLive = isLive(match);
     state.textContent = matchIsLive ? 'LIVE DATA' : (isFinished(match) ? 'FULL-TIME DATA' : 'MATCH DATA');
     state.classList.toggle('is-live', matchIsLive);
-    if (!usable.length || total <= 0) {
-      target.innerHTML = emptyState('Attacking momentum not available yet', 'The connected provider has not supplied enough comparable attacking statistics for a reliable estimate.');
-    } else {
-      const homePercent = Math.round((homePoints / total) * 100);
-      const awayPercent = 100 - homePercent;
-      let verdict = 'Attacking output is currently balanced between both teams.';
+
+    let homePercent = null;
+    let awayPercent = null;
+    let verdict = 'Attacking output is currently balanced between both teams.';
+    let history = readMomentumHistory(match);
+    if (usable.length && total > 0) {
+      homePercent = Math.round((homePoints / total) * 100);
+      awayPercent = 100 - homePercent;
       if (homePercent >= 58) verdict = `${teamName(match, 'home')} have produced more attacking output in the available match statistics.`;
       else if (awayPercent >= 58) verdict = `${teamName(match, 'away')} have produced more attacking output in the available match statistics.`;
-      target.innerHTML = `<div class="pl-momentum-teamline"><b>${esc(teamName(match, 'home'))}</b><strong>${homePercent}%</strong></div>
-        <div class="pl-momentum-track" role="img" aria-label="Estimated attacking momentum: ${homePercent}% ${esc(teamName(match, 'home'))}, ${awayPercent}% ${esc(teamName(match, 'away'))}"><span class="is-home" style="width:${homePercent}%"></span><span class="is-away" style="width:${awayPercent}%"></span></div>
-        <div class="pl-momentum-teamline is-away"><strong>${awayPercent}%</strong><b>${esc(teamName(match, 'away'))}</b></div>
-        <p class="pl-momentum-verdict">${esc(verdict)}</p>
-        <div class="pl-momentum-metrics">${usable.map((metric) => `<span><small>${esc(metric.label)}</small><b>${esc(metric.home)} – ${esc(metric.away)}</b></span>`).join('')}</div>`;
+      history = recordMomentumSample(match, homePercent, awayPercent);
     }
+    const latest = history.length ? history[history.length - 1] : null;
+    const displayHome = homePercent ?? (latest ? Number(latest.home) : null);
+    const displayAway = awayPercent ?? (latest ? Number(latest.away) : null);
+    const summaryMarkup = displayHome !== null && displayAway !== null
+      ? `<div class="pl-momentum-current"><div class="pl-momentum-teamline"><b>${esc(teamName(match, 'home'))}</b><strong>${displayHome}%</strong></div>
+          <div class="pl-momentum-track" role="img" aria-label="Estimated attacking momentum share: ${displayHome}% ${esc(teamName(match, 'home'))}, ${displayAway}% ${esc(teamName(match, 'away'))}"><span class="is-home" style="width:${displayHome}%"></span><span class="is-away" style="width:${displayAway}%"></span></div>
+          <div class="pl-momentum-teamline is-away"><strong>${displayAway}%</strong><b>${esc(teamName(match, 'away'))}</b></div>
+          <p class="pl-momentum-verdict">${esc(verdict)}</p>
+          ${usable.length ? `<div class="pl-momentum-metrics">${usable.map((metric) => `<span><small>${esc(metric.label)}</small><b>${esc(metric.home)} – ${esc(metric.away)}</b></span>`).join('')}</div>` : ''}</div>`
+      : `<div class="pl-momentum-unavailable">${emptyState('Attacking momentum not available yet', 'The connected provider has not supplied enough comparable attacking statistics for a reliable estimate.')}</div>`;
+
+    const viewMarkup = activeMomentumView === 'pitch'
+      ? renderMomentumPitch(history, match)
+      : renderMomentumGraph(history, match);
+    target.innerHTML = `${summaryMarkup}
+      <div class="pl-momentum-switch" role="group" aria-label="Choose match momentum visualization">
+        <button type="button" data-momentum-view="graph" aria-pressed="${activeMomentumView === 'graph'}" class="${activeMomentumView === 'graph' ? 'active' : ''}"><span aria-hidden="true">↗</span> MOMENTUM GRAPH</button>
+        <button type="button" data-momentum-view="pitch" aria-pressed="${activeMomentumView === 'pitch'}" class="${activeMomentumView === 'pitch' ? 'active' : ''}"><span aria-hidden="true">⚽</span> ATTACKING PITCH MAP</button>
+      </div>
+      <div class="pl-momentum-view" id="plMomentumView" aria-live="polite">${viewMarkup}</div>`;
+    target.querySelectorAll('[data-momentum-view]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activeMomentumView = button.dataset.momentumView === 'pitch' ? 'pitch' : 'graph';
+        setStored('parrothit_ls_momentum_view', activeMomentumView);
+        renderMomentum(currentMatch || match);
+      });
+    });
 
     const observations = [];
     const addComparison = (label, patterns, metricName = label) => {
@@ -351,10 +478,11 @@
     addComparison('shots on target', [/shots on target/, /shots on goal/, /on target/]);
     addComparison('dangerous attacks', [/dangerous attacks?/, /danger attacks?/]);
     addComparison('corner count', [/corner kicks?/, /^corners?$/], 'corners');
-    const possession = statPair(findStat(rows, [/ball possession/, /^possession$/]));
+    const possessionRow = findStat(rows, [/ball possession/, /^possession$/]);
+    const possession = statPair(possessionRow);
     if (possession) {
       const leader = possession.home > possession.away ? teamName(match, 'home') : (possession.away > possession.home ? teamName(match, 'away') : 'Both teams');
-      if (possession.home !== possession.away) observations.push(`<li><b>${esc(leader)}</b> have more possession (${esc(valueLabel(findStat(rows, [/ball possession/, /^possession$/])?.home))}–${esc(valueLabel(findStat(rows, [/ball possession/, /^possession$/])?.away))}). Possession alone does not establish attacking pressure.</li>`);
+      if (possession.home !== possession.away) observations.push(`<li><b>${esc(leader)}</b> have more possession (${esc(valueLabel(possessionRow?.home))}–${esc(valueLabel(possessionRow?.away))}). Possession alone does not establish attacking pressure.</li>`);
     }
     insights.innerHTML = observations.length
       ? `<h3>What the available numbers suggest</h3><ul>${observations.slice(0, 4).join('')}</ul>`
