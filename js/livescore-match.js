@@ -98,7 +98,7 @@
   }
   function isLive(match) {
     const source = `${match?.status_code || ''} ${match?.status_detail || ''} ${match?.status || ''}`;
-    return /LIVE|IN.?PLAY|HALF.?TIME|FIRST_HALF|SECOND_HALF|1ST.?HALF|2ND.?HALF|(^|\b)(1H|2H|HT|ET|BT|P|PAUSED)(\b|$)/i.test(source) && !isFinished(match);
+    return /LIVE|IN.?PLAY|IN_PROGRESS|HALF.?TIME|FIRST_HALF|SECOND_HALF|1ST.?HALF|2ND.?HALF|(^|\b)(1H|2H|HT|ET|BT|P|PAUSED)(\b|$)/i.test(source) && !isFinished(match);
   }
   function statusText(match, detailed = true) {
     const clock = window.PARROTHIT_LIVESCORE_CLOCK;
@@ -207,7 +207,13 @@
       const assist = textValue(row.assist || row.assist_name || row.assistant, '');
       const team = textValue(row.team || row.team_name || row.participant, '');
       return { minute: minute ? `${minute}${extra ? `+${extra}` : ''}′` : '', type, detail, player, assist, team };
-    }).filter((event) => event.type || event.detail || event.player);
+    }).filter((event) => event.type || event.detail || event.player).sort((a, b) => {
+      const minuteValue = (value) => {
+        const match = String(value || '').match(/(\d+)(?:\+(\d+))?/);
+        return match ? Number(match[1]) + (Number(match[2] || 0) / 100) : 999;
+      };
+      return minuteValue(a.minute) - minuteValue(b.minute);
+    });
   }
   function renderSummary(match) {
     const events = eventRows(match);
@@ -218,8 +224,8 @@
       $('plSummaryContent').innerHTML = `${emptyState('No event timeline available', 'Goals, cards and substitutions will appear here when match events are available.')}<div class="pl-summary-score"><span>${esc(teamName(match, 'home'))}</span><b>${esc(match?.home_score ?? '–')} – ${esc(match?.away_score ?? '–')}</b><span>${esc(teamName(match, 'away'))}</span></div>`;
       return;
     }
-    const iconFor = (type) => /goal|score/i.test(type) ? '⚽' : /yellow/i.test(type) ? '🟨' : /red|dismiss/i.test(type) ? '🟥' : /sub/i.test(type) ? '↕' : '•';
-    $('plSummaryContent').innerHTML = `<div class="pl-event-list">${events.map((event) => `<article class="pl-event-row"><time>${esc(event.minute || '—')}</time><span class="pl-event-icon">${iconFor(event.type)}</span><div><b>${esc(event.player || event.type)}</b><small>${esc([event.type, event.detail, event.assist ? `Assist: ${event.assist}` : '', event.team].filter(Boolean).join(' · '))}</small></div></article>`).join('')}</div>${notes.length ? `<p class="pl-data-footnote">${esc(notes.join(' · '))}</p>` : ''}`;
+    const iconFor = (type, detail = '') => /var/i.test(`${type} ${detail}`) ? '📺' : /miss|off.?target/i.test(`${type} ${detail}`) && /penalty|spot.?kick/i.test(`${type} ${detail}`) ? '✖' : /goal|score|penalty/i.test(type) ? '⚽' : /yellow/i.test(type) ? '🟨' : /red|dismiss/i.test(type) ? '🟥' : /sub/i.test(type) ? '↕' : /save|goalkeeper/i.test(`${type} ${detail}`) ? '🧤' : /half.?time|full.?time|kick.?off/i.test(`${type} ${detail}`) ? '⏱' : '•';
+    $('plSummaryContent').innerHTML = `<div class="pl-event-list">${events.map((event) => `<article class="pl-event-row"><time>${esc(event.minute || '—')}</time><span class="pl-event-icon">${iconFor(event.type, event.detail)}</span><div><b>${esc(event.player || event.type)}</b><small>${esc([event.type, event.detail, event.assist ? `Assist: ${event.assist}` : '', event.team].filter(Boolean).join(' · '))}</small></div></article>`).join('')}</div>${notes.length ? `<p class="pl-data-footnote">${esc(notes.join(' · '))}</p>` : ''}`;
   }
   function valueLabel(value) {
     if (value === null || value === undefined || value === '') return '—';
@@ -272,10 +278,100 @@
     });
     return [...merged.values()].filter((row) => row.home !== undefined || row.away !== undefined);
   }
+  function numericStat(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const match = String(value).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+    if (!match) return null;
+    const number = Number(match[0]);
+    return Number.isFinite(number) ? number : null;
+  }
+  function statLabelKey(value) {
+    return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function findStat(rows, patterns) {
+    return rows.find((row) => patterns.some((pattern) => pattern.test(statLabelKey(row.label)))) || null;
+  }
+  function statPair(row) {
+    if (!row) return null;
+    const home = numericStat(row.home);
+    const away = numericStat(row.away);
+    return home === null || away === null ? null : { home, away };
+  }
+  function renderMomentum(match) {
+    const rows = statRows(match);
+    const metrics = [
+      { label: 'Shots on target', patterns: [/shots on target/, /shots on goal/, /on target/], weight: 2.2 },
+      { label: 'Total shots', patterns: [/^total shots$/, /^shots$/, /total attempts/], weight: 1.0 },
+      { label: 'Corners', patterns: [/corner kicks?/, /^corners?$/], weight: 0.65 },
+      { label: 'Dangerous attacks', patterns: [/dangerous attacks?/, /danger attacks?/], weight: 0.35 },
+      { label: 'Big chances', patterns: [/big chances?/], weight: 1.5 },
+      { label: 'High turnovers', patterns: [/high turnovers?/, /final third recoveries/, /pressing actions/], weight: 0.55 }
+    ];
+    const usable = [];
+    let homePoints = 0;
+    let awayPoints = 0;
+    metrics.forEach((metric) => {
+      const row = findStat(rows, metric.patterns);
+      const pair = statPair(row);
+      if (!pair) return;
+      usable.push({ label: metric.label, ...pair });
+      homePoints += Math.max(0, pair.home) * metric.weight;
+      awayPoints += Math.max(0, pair.away) * metric.weight;
+    });
+    const total = homePoints + awayPoints;
+    const state = $('plMomentumState');
+    const target = $('plMomentumContent');
+    const insights = $('plInsightsContent');
+    if (!state || !target || !insights) return;
+    const matchIsLive = isLive(match);
+    state.textContent = matchIsLive ? 'LIVE DATA' : (isFinished(match) ? 'FULL-TIME DATA' : 'MATCH DATA');
+    state.classList.toggle('is-live', matchIsLive);
+    if (!usable.length || total <= 0) {
+      target.innerHTML = emptyState('Attacking momentum not available yet', 'The connected provider has not supplied enough comparable attacking statistics for a reliable estimate.');
+    } else {
+      const homePercent = Math.round((homePoints / total) * 100);
+      const awayPercent = 100 - homePercent;
+      let verdict = 'Attacking output is currently balanced between both teams.';
+      if (homePercent >= 58) verdict = `${teamName(match, 'home')} have produced more attacking output in the available match statistics.`;
+      else if (awayPercent >= 58) verdict = `${teamName(match, 'away')} have produced more attacking output in the available match statistics.`;
+      target.innerHTML = `<div class="pl-momentum-teamline"><b>${esc(teamName(match, 'home'))}</b><strong>${homePercent}%</strong></div>
+        <div class="pl-momentum-track" role="img" aria-label="Estimated attacking momentum: ${homePercent}% ${esc(teamName(match, 'home'))}, ${awayPercent}% ${esc(teamName(match, 'away'))}"><span class="is-home" style="width:${homePercent}%"></span><span class="is-away" style="width:${awayPercent}%"></span></div>
+        <div class="pl-momentum-teamline is-away"><strong>${awayPercent}%</strong><b>${esc(teamName(match, 'away'))}</b></div>
+        <p class="pl-momentum-verdict">${esc(verdict)}</p>
+        <div class="pl-momentum-metrics">${usable.map((metric) => `<span><small>${esc(metric.label)}</small><b>${esc(metric.home)} – ${esc(metric.away)}</b></span>`).join('')}</div>`;
+    }
+
+    const observations = [];
+    const addComparison = (label, patterns, metricName = label) => {
+      const pair = statPair(findStat(rows, patterns));
+      if (!pair || pair.home === pair.away) return;
+      const leader = pair.home > pair.away ? teamName(match, 'home') : teamName(match, 'away');
+      observations.push(`<li><b>${esc(leader)}</b> lead ${esc(metricName)} (${esc(pair.home)}–${esc(pair.away)}).</li>`);
+    };
+    addComparison('shots on target', [/shots on target/, /shots on goal/, /on target/]);
+    addComparison('dangerous attacks', [/dangerous attacks?/, /danger attacks?/]);
+    addComparison('corner count', [/corner kicks?/, /^corners?$/], 'corners');
+    const possession = statPair(findStat(rows, [/ball possession/, /^possession$/]));
+    if (possession) {
+      const leader = possession.home > possession.away ? teamName(match, 'home') : (possession.away > possession.home ? teamName(match, 'away') : 'Both teams');
+      if (possession.home !== possession.away) observations.push(`<li><b>${esc(leader)}</b> have more possession (${esc(valueLabel(findStat(rows, [/ball possession/, /^possession$/])?.home))}–${esc(valueLabel(findStat(rows, [/ball possession/, /^possession$/])?.away))}). Possession alone does not establish attacking pressure.</li>`);
+    }
+    insights.innerHTML = observations.length
+      ? `<h3>What the available numbers suggest</h3><ul>${observations.slice(0, 4).join('')}</ul>`
+      : `<div class="pl-insight-empty">Match insights will appear when the provider supplies comparable shots, corners, possession or attacking data.</div>`;
+  }
   function renderStats(match) {
     const rows = statRows(match);
-    if (!rows.length) { $('plStatsContent').innerHTML = emptyState('Statistics not available', 'Possession, shots, shots on target, corners and other statistics will appear here when available.'); return; }
-    $('plStatsContent').innerHTML = `<div class="pl-stats-head"><span>${esc(teamName(match, 'home'))}</span><span>STATISTICS</span><span>${esc(teamName(match, 'away'))}</span></div><div class="pl-stats-list">${rows.map((row) => `<div class="pl-stat-row"><b>${esc(valueLabel(row.home))}</b><span>${esc(row.label)}</span><b>${esc(valueLabel(row.away))}</b></div>`).join('')}</div>`;
+    if (!rows.length) { $('plStatsContent').innerHTML = emptyState('Statistics not available', 'Possession, shots, shots on target, corners and other statistics will appear here when available from the connected provider.'); return; }
+    const metricMarkup = rows.map((row) => {
+      const homeNumber = numericStat(row.home);
+      const awayNumber = numericStat(row.away);
+      const total = homeNumber !== null && awayNumber !== null ? Math.max(0, homeNumber) + Math.max(0, awayNumber) : 0;
+      const homeWidth = total > 0 ? Math.max(0, homeNumber) / total * 100 : 50;
+      const awayWidth = total > 0 ? Math.max(0, awayNumber) / total * 100 : 50;
+      return `<div class="pl-stat-row"><b>${esc(valueLabel(row.home))}</b><span>${esc(row.label)}</span><b>${esc(valueLabel(row.away))}</b><div class="pl-stat-bar" aria-hidden="true"><i class="is-home" style="width:${homeWidth}%"></i><i class="is-away" style="width:${awayWidth}%"></i></div></div>`;
+    }).join('');
+    $('plStatsContent').innerHTML = `<div class="pl-stats-head"><span>${esc(teamName(match, 'home'))}</span><span>STATISTICS</span><span>${esc(teamName(match, 'away'))}</span></div><div class="pl-stats-list">${metricMarkup}</div><p class="pl-data-footnote">Comparison bars show each team's share of the reported value. All numbers are supplied by the connected football data provider.</p>`;
   }
   function lineupTeams(raw, match) {
     if (!raw) return [];
@@ -331,7 +427,9 @@
     const person = asObject(player.player || player);
     const number = textValue(player.number ?? player.shirt_number ?? player.jersey_number ?? person.number ?? person.shirt_number, '');
     const position = textValue(player.pos || player.position || player.role || person.pos || person.position, '');
-    return `<li><span>${esc(number || '•')}</span><b>${esc(playerName(player))}</b>${position ? `<small>${esc(position)}</small>` : ''}</li>`;
+    const rating = textValue(player.rating || player.performance?.rating || person.rating, '');
+    const detail = [position, rating ? `Rating ${rating}` : ''].filter(Boolean).join(' · ');
+    return `<li><span>${esc(number || '•')}</span><b>${esc(playerName(player))}</b>${detail ? `<small>${esc(detail)}</small>` : ''}</li>`;
   }
   function lineupFormationSlots(team) {
     const parts = String(team.formation || '').match(/\d+/g)?.map(Number).filter((value) => value > 0 && value <= 6) || [];
@@ -385,7 +483,8 @@
       const person = asObject(player.player || player);
       const number = textValue(player.number ?? player.shirt_number ?? player.jersey_number ?? person.number ?? person.shirt_number, '•');
       const name = playerName(player);
-      return `<div class="pl-pitch-player ${side === 'away' ? 'is-away' : 'is-home'}" style="left:${left}%;top:${top}%" title="${esc(name)}"><span>${esc(number)}</span><b>${esc(name)}</b></div>`;
+      const rating = textValue(player.rating || player.performance?.rating || person.rating, '');
+      return `<div class="pl-pitch-player ${side === 'away' ? 'is-away' : 'is-home'}" style="left:${left}%;top:${top}%" title="${esc(name + (rating ? ` · Rating ${rating}` : ''))}"><span>${esc(number)}</span><b>${esc(name)}${rating ? `<small class="pl-pitch-rating">${esc(rating)}</small>` : ''}</b></div>`;
     }).join('');
   }
   function pitchTeamIdentity(team, side) {
@@ -614,6 +713,7 @@
   }
   function renderDataPanels(match) {
     renderInfo(match);
+    renderMomentum(match);
     renderSummary(match);
     renderStats(match);
     renderLineups(match);
@@ -650,13 +750,24 @@
       panel.hidden = !active;
       panel.classList.toggle('active', active);
     });
-    if (currentMatch && tab !== 'info') void loadMatchDetails(matchId, tab);
+    if (currentMatch && tab === 'info') void loadOverviewDetails();
+    else if (currentMatch && tab !== 'info') void loadMatchDetails(matchId, tab);
   }
   function show(match) {
-    currentMatch = match;
+    const previous = currentMatch;
+    const next = asObject(match);
+    const previousId = String(previous?.public_match_key ?? previous?.match_id ?? previous?.id ?? '');
+    const nextId = String(next.public_match_key ?? next.match_id ?? next.id ?? '');
+    if (previous && previousId && previousId === nextId) {
+      ['events', 'incidents', 'timeline', 'event_list', 'statistics', 'stats', 'match_statistics', 'lineups', 'formations', 'team_lineups', 'standings', 'table', 'league_table', 'head_to_head', 'h2h', 'previous_matches'].forEach((key) => {
+        if (!hasUsefulDetail(next[key]) && hasUsefulDetail(previous[key])) next[key] = previous[key];
+      });
+    }
+    currentMatch = next;
     // Reveal the match view before rendering optional fields so malformed optional
     // data cannot leave the visitor trapped on the initial loading screen.
     $('plMatchLoading').hidden = true;
+    $('plMatchLoading').classList.remove('is-error');
     $('plMatchContent').hidden = false;
     try { if (window.PARROTHIT_LIVESCORE_CLOCK) window.PARROTHIT_LIVESCORE_CLOCK.register(match); }
     catch { /* match rendering must not depend on the optional live clock */ }
@@ -674,9 +785,13 @@
     restartClockTicker();
   }
   function showError(message) {
+    $('plMatchContent').hidden = true;
+    $('plMatchLoading').hidden = false;
+    $('plMatchLoading').classList.add('is-error');
     $('plMatchLoading').innerHTML = `<strong>Match data unavailable</strong><p>${esc(message)}</p><div class="pl-state-actions"><button class="pl-primary-btn" id="plMatchRetry" type="button">Try again</button><a class="pl-primary-btn pl-secondary-btn" href="livescore.html">Return to LiveScore</a></div>`;
     const retry = $('plMatchRetry');
     if (retry) retry.addEventListener('click', () => {
+      $('plMatchLoading').classList.remove('is-error');
       $('plMatchLoading').innerHTML = '<span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Checking the saved football match cache.</p>';
       void load();
     }, { once: true });
@@ -728,7 +843,7 @@
 
     if (!endpoint || !anonKey || /YOUR_PROJECT|YOUR_SUPABASE/i.test(`${baseUrl} ${anonKey}`)) {
       if (!currentMatch) showError('Match information is temporarily unavailable. Please try again shortly.');
-      else $('plEventsNote').textContent = 'Showing the saved match information. Live updates are temporarily unavailable.';
+      else $('plEventsNote').textContent = 'Showing the saved fixture. Live updates and detailed match data are temporarily unavailable because the public football service is not configured.';
       return;
     }
 
@@ -745,9 +860,9 @@
       const identity = String(fresh.public_match_key ?? fresh.match_id ?? fresh.id ?? '');
       if (identity !== String(matchId)) throw new Error('Match information is temporarily unavailable. Please reopen this match from LiveScore.');
       show(fresh);
-      $('plEventsNote').textContent = 'Match information is ready. Additional match sections load when opened.';
-      // Optional detail sections are loaded only when a visitor opens their tab.
-      // This keeps the score, competition and Info panel independent of slower routes.
+      $('plEventsNote').textContent = 'Match information is ready. Overview insights and other match sections load when the provider supplies them.';
+      // Overview requests events and statistics after the fixture has rendered.
+      // Line-ups, standings and head-to-head remain lazy-loaded when their tabs open.
     } catch (error) {
       const message = 'Match information is temporarily unavailable. Please try again shortly.';
       if (currentMatch && $('plMatchContent') && !$('plMatchContent').hidden) {
@@ -764,10 +879,14 @@
     if (typeof value === 'object') return Object.keys(value).length > 0;
     return true;
   }
-  async function loadMatchDetails(key, tab) {
+  async function loadOverviewDetails(force = false) {
+    if (!currentMatch || !endpoint || !anonKey) return;
+    await Promise.all([loadMatchDetails(matchId, 'stats', force), loadMatchDetails(matchId, 'summary', force)]);
+  }
+  async function loadMatchDetails(key, tab, force = false) {
     const detailField = ({ summary: 'events', stats: 'statistics', lineups: 'lineups', table: 'standings', h2h: 'head_to_head' })[tab];
-    if (!detailField || !key || !endpoint || !anonKey || loadedDetailSections.has(tab) || loadingDetailSections.has(tab)) return;
-    if (currentMatch && hasUsefulDetail(currentMatch[detailField])) { loadedDetailSections.add(tab); return; }
+    if (!detailField || !key || !endpoint || !anonKey || (!force && loadedDetailSections.has(tab)) || loadingDetailSections.has(tab)) return;
+    if (!force && currentMatch && hasUsefulDetail(currentMatch[detailField])) { loadedDetailSections.add(tab); return; }
     loadingDetailSections.add(tab);
     const targetId = ({ summary: 'plSummaryContent', stats: 'plStatsContent', lineups: 'plLineupsContent', table: 'plStandingsContent', h2h: 'plH2HContent' })[tab];
     if (targetId && $(targetId)) $(targetId).innerHTML = '<div class="pl-detail-empty"><span class="pl-spinner"></span><strong>Loading this match section…</strong><p>Checking for the latest match information.</p></div>';
@@ -805,7 +924,19 @@
 
   function restartLiveRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
-    if (currentMatch && isLive(currentMatch)) refreshTimer = setInterval(() => { if (!document.hidden) load(); }, 60000);
+    if (!currentMatch || isFinished(currentMatch)) return;
+    const stateText = `${currentMatch.status || ''} ${currentMatch.status_detail || ''} ${currentMatch.status_code || ''}`;
+    if (/POSTPON|CANCEL|ABANDON|AWARDED|WALK.?OVER/i.test(stateText)) return;
+    const kickoff = Date.parse(currentMatch.kickoff || currentMatch.date || currentMatch.match_time || '');
+    const comfortablyBeforeKickoff = Number.isFinite(kickoff) && kickoff - Date.now() > 30 * 60 * 1000;
+    const refreshEvery = !isLive(currentMatch) && comfortablyBeforeKickoff ? 5 * 60 * 1000 : 60 * 1000;
+    refreshTimer = setInterval(async () => {
+      if (document.hidden || busy) return;
+      await load();
+      if (!currentMatch || isFinished(currentMatch)) return;
+      if (activeTab === 'info') await loadOverviewDetails(true);
+      else if (activeTab === 'summary' || activeTab === 'stats' || activeTab === 'lineups') await loadMatchDetails(matchId, activeTab, true);
+    }, refreshEvery);
   }
   function restartClockTicker() {
     if (clockTickerTimer) clearInterval(clockTickerTimer);
