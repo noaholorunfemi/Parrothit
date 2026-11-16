@@ -107,7 +107,7 @@ function cleanEndpoints(value: unknown): Record<string, string> {
   if (typeof value !== "object" || Array.isArray(value)) throw new Error("Match endpoints must be a JSON object.");
   const output: Record<string, string> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (!["live", "today", "upcoming", "results", "competitions", "match_details", "events", "statistics", "lineups", "standings", "table", "head_to_head", "h2h", "match_events", "match_statistics", "match_lineups", "competition_table", "previous_meetings"].includes(key)) throw new Error("Endpoint keys must be feed views, competitions, or supported match-centre detail routes (events, statistics, lineups, standings, head_to_head or match_details).");
+    if (!["live", "today", "upcoming", "results", "upcoming_range", "results_range", "competitions", "match_details", "events", "statistics", "lineups", "standings", "table", "head_to_head", "h2h", "match_events", "match_statistics", "match_lineups", "competition_table", "previous_meetings"].includes(key)) throw new Error("Endpoint keys must be supported feed views (live, today, upcoming, results, upcoming_range or results_range), competitions, or match-centre detail routes (events, statistics, lineups, standings, head_to_head or match_details).");
     const route = cleanText(raw, 700);
     if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || /^[a-z]+:\/\//i.test(route)) {
       throw new Error(`The ${key} endpoint must be a relative path beginning with one slash.`);
