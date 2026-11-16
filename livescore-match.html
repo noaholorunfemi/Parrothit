@@ -7,6 +7,7 @@
   <meta name="description" content="PARROTHIT football match centre: live score, match information, events, statistics, line-ups, standings and head-to-head. ">
   <title>Match Centre | PARROTHIT LiveScore</title>
   <link rel="stylesheet" href="css/livescore.css?v=lineups-full-pitch-20261111">
+  <link rel="stylesheet" href="css/livescore-match-centre.css?v=20261116-live-intelligence-v1">
 
   <style>
     /* H2H layout follows the competition-grouped, scorecard view in the approved reference. */
@@ -83,7 +84,7 @@
 
     <main class="pl-main pl-match-centre">
       <a class="pl-back-link" href="livescore.html">‹ Back to all scores</a>
-      <div id="plMatchLoading" class="pl-state-card"><span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Retrieving the latest match information.</p></div>
+      <div id="plMatchLoading" class="pl-state-card" role="status" aria-live="polite"><span class="pl-spinner"></span><strong>Loading match centre…</strong><p>Retrieving the latest match information.</p></div>
       <section id="plMatchContent" class="pl-match-view" hidden>
         <div class="pl-match-competition-bar">
           <div class="pl-match-competition" id="plMatchCompetition">
@@ -104,24 +105,33 @@
         <div class="pl-match-meta"><span id="plMatchInfoLabel">Match information</span><span id="plMatchDataUpdated" aria-live="polite"></span></div>
 
         <nav class="pl-detail-tabs" aria-label="Match details" role="tablist">
-          <button class="active" id="plTabInfo" data-detail-tab="info" role="tab" aria-selected="true" aria-controls="plPanelInfo" type="button">Info</button>
-          <button id="plTabSummary" data-detail-tab="summary" role="tab" aria-selected="false" aria-controls="plPanelSummary" type="button">Summary</button>
-          <button id="plTabStats" data-detail-tab="stats" role="tab" aria-selected="false" aria-controls="plPanelStats" type="button">Stats</button>
+          <button class="active" id="plTabInfo" data-detail-tab="info" role="tab" aria-selected="true" aria-controls="plPanelInfo" type="button">Overview</button>
+          <button id="plTabSummary" data-detail-tab="summary" role="tab" aria-selected="false" aria-controls="plPanelSummary" type="button">Commentary</button>
+          <button id="plTabStats" data-detail-tab="stats" role="tab" aria-selected="false" aria-controls="plPanelStats" type="button">Statistics</button>
           <button id="plTabLineups" data-detail-tab="lineups" role="tab" aria-selected="false" aria-controls="plPanelLineups" type="button">Line-ups</button>
           <button id="plTabTable" data-detail-tab="table" role="tab" aria-selected="false" aria-controls="plPanelTable" type="button">Table</button>
           <button id="plTabH2H" data-detail-tab="h2h" role="tab" aria-selected="false" aria-controls="plPanelH2H" type="button">H2H</button>
         </nav>
 
         <section class="pl-detail-panel active" id="plPanelInfo" data-detail-panel="info" role="tabpanel" aria-labelledby="plTabInfo">
+          <section class="pl-intelligence-card" aria-labelledby="plMomentumTitle">
+            <div class="pl-intelligence-heading">
+              <div><small>PARROTHIT MATCH INSIGHTS</small><h2 id="plMomentumTitle">Attacking momentum</h2></div>
+              <span id="plMomentumState" class="pl-intelligence-state">AWAITING MATCH DATA</span>
+            </div>
+            <div id="plMomentumContent" class="pl-momentum-content" aria-live="polite"></div>
+            <div id="plInsightsContent" class="pl-insights-content"></div>
+            <p class="pl-intelligence-footnote">Momentum is an estimate based on provider-supplied attacking statistics. It is not direct player-tracking or measured pressing data.</p>
+          </section>
           <h2>Match information</h2>
           <div class="pl-info-grid" id="plInfoGrid"></div>
           <p class="pl-provider-limits" id="plEventsNote">Available match information is shown in each section.</p>
         </section>
         <section class="pl-detail-panel" id="plPanelSummary" data-detail-panel="summary" role="tabpanel" aria-labelledby="plTabSummary" hidden>
-          <h2>Match summary</h2><div id="plSummaryContent"></div>
+          <h2>Live commentary &amp; match timeline</h2><div id="plSummaryContent"></div>
         </section>
         <section class="pl-detail-panel" id="plPanelStats" data-detail-panel="stats" role="tabpanel" aria-labelledby="plTabStats" hidden>
-          <h2>Match statistics</h2><div id="plStatsContent"></div>
+          <h2>Detailed match statistics</h2><div id="plStatsContent"></div>
         </section>
         <section class="pl-detail-panel" id="plPanelLineups" data-detail-panel="lineups" role="tabpanel" aria-labelledby="plTabLineups" hidden>
           <h2>Team line-ups</h2><div id="plLineupsContent"></div>
@@ -145,7 +155,7 @@
   <script src="js/livescore-config.js?v=match-centre-fix-20261108"></script>
   <script src="js/livescore-clock.js?v=match-centre-fix-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
-  <script src="js/livescore-match.js?v=lineups-full-pitch-20261111" defer></script>
+  <script src="js/livescore-match.js?v=20261116-live-match-centre-v1" defer></script>
 <script src="/js/public-notifications.js?v=20261112-read-article-only-v1"></script>
 </body>
 </html>
