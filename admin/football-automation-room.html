@@ -150,7 +150,7 @@
             </label>
             <label class="fr-field fr-field-wide">Match endpoints (JSON)
               <textarea id="fr-endpoints" rows="5" spellcheck="false">{}</textarea>
-              <small>Define routes per feed view. Optional Match Centre routes: match_details (one combined response), events, statistics, lineups, standings and head_to_head (aliases: h2h, table, match_events, match_statistics, match_lineups, competition_table, previous_meetings). Use placeholders such as {match_id}, {fixture_id}, {competition_id}, {home_id}, {away_id}, {season} and {date}. Date-range feeds may use {from}/{to}; date-only feeds sync in resumable 7-day batches. Add only routes documented by your API provider.</small>
+              <small>Define routes per feed view: live, today, upcoming, results, and optional upcoming_range/results_range for date-range feeds. Optional Match Centre routes: match_details (one combined response), events, statistics, lineups, standings and head_to_head (aliases: h2h, table, match_events, match_statistics, match_lineups, competition_table, previous_meetings). Use placeholders such as {match_id}, {fixture_id}, {competition_id}, {home_id}, {away_id}, {season}, {date}, {from} and {to}. Date-only feeds sync in resumable 7-day batches. Add only routes documented by your API provider.</small>
             </label>
             <label class="fr-field fr-field-wide">Response mapping (JSON)
               <textarea id="fr-response-mapping" rows="7" spellcheck="false">{}</textarea>
