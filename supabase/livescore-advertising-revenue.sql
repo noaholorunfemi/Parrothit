@@ -165,7 +165,7 @@ revoke all on public.livescore_ad_events from anon;
 grant select on public.livescore_public_ad_slots to anon,authenticated;
 grant select on public.livescore_public_ads to anon,authenticated;
 grant select on public.livescore_ad_campaign_performance to authenticated;
-revoke all on public.livescore_track_ad_event(uuid,text,text,text) from public;
+revoke all on function public.livescore_track_ad_event(uuid,text,text,text) from public;
 grant execute on function public.livescore_track_ad_event(uuid,text,text,text) to anon,authenticated;
 
 -- Public creative files; only PARROTHIT admins can upload/change/remove them.
