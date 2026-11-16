@@ -34,42 +34,158 @@
     }
   }
   const voterToken = uuidToken('parrothit-news-comment-voter-v1');
-  const GOOGLE_PHOTO_KEY = 'parrothit-news-comment-google-photo-v1';
-  function savedGooglePhoto() { try { const item = JSON.parse(localStorage.getItem(GOOGLE_PHOTO_KEY) || 'null'); return item && item.url ? item.url : ''; } catch (_) { return ''; } }
+  const GOOGLE_PHOTO_KEY = 'parrothit-news-comment-google-photo-v2';
+  const GOOGLE_PENDING_KEY = 'parrothit-news-comment-google-pending-v2';
   function validGooglePhoto(value) {
     try {
       const url = new URL(String(value || ''));
       return url.protocol === 'https:' && (url.hostname === 'googleusercontent.com' || url.hostname.endsWith('.googleusercontent.com')) ? url.href : '';
     } catch (_) { return ''; }
   }
-  async function googleProfilePhoto(session) {
+  function readGooglePhoto() {
+    try {
+      let item = JSON.parse(localStorage.getItem(GOOGLE_PHOTO_KEY) || 'null');
+      // Migrate the earlier optional-photo preference without making visitors reconnect.
+      if (!item) {
+        const legacy = JSON.parse(localStorage.getItem('parrothit-news-comment-google-photo-v1') || 'null');
+        if (legacy && legacy.url && legacy.googleEmail) {
+          item = { url: legacy.url, email: legacy.googleEmail, provider: 'google', connectedAt: new Date().toISOString() };
+          localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify(item));
+        }
+      }
+      const url = item && validGooglePhoto(item.url);
+      const email = String(item && item.email || item && item.googleEmail || '').trim().toLowerCase();
+      return url && email ? { url, email } : null;
+    } catch (_) { return null; }
+  }
+  function savedGooglePhoto(email) {
+    const item = readGooglePhoto();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    return item && normalizedEmail && item.email === normalizedEmail ? item.url : '';
+  }
+  function isGoogleSession(session) {
     const user = session && session.user;
-    if (!user) return '';
-    const candidates = [user.user_metadata && user.user_metadata.avatar_url, user.user_metadata && user.user_metadata.picture];
+    if (!user) return false;
+    return String(user.app_metadata && user.app_metadata.provider || '').toLowerCase() === 'google' ||
+      (Array.isArray(user.identities) && user.identities.some(identity => identity && identity.provider === 'google'));
+  }
+  function googleProfilePhoto(session) {
+    const user = session && session.user;
+    if (!user || !isGoogleSession(session)) return '';
+    const candidates = [];
     (user.identities || []).forEach(identity => {
       if (identity && identity.provider === 'google' && identity.identity_data) {
         candidates.push(identity.identity_data.picture, identity.identity_data.avatar_url);
       }
     });
-    for (const candidate of candidates) { const valid = validGooglePhoto(candidate); if (valid) return valid; }
-    // Supabase may not copy Google's picture into user_metadata. Ask Google's
-    // user-info endpoint using the OAuth provider token when it is available.
-    if (session.provider_token) {
-      try {
-        const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: 'Bearer ' + session.provider_token }
-        });
-        if (response.ok) {
-          const profile = await response.json();
-          const valid = validGooglePhoto(profile.picture);
-          if (valid) return valid;
-        }
-      } catch (error) { console.warn('Google user profile photo lookup failed:', error); }
+    candidates.push(user.user_metadata && user.user_metadata.avatar_url, user.user_metadata && user.user_metadata.picture);
+    for (const candidate of candidates) {
+      const valid = validGooglePhoto(candidate);
+      if (valid) return valid;
     }
     return '';
   }
-  function avatarMarkup(url, fallback) { const safe = /^https:\/\/(lh3\.googleusercontent\.com|googleusercontent\.com)\//i.test(String(url || '')) ? esc(url) : ''; return safe ? `<img class="nc-avatar-img" src="${safe}" alt="Commenter profile picture" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nc-avatar-fallback',textContent:'${fallback}'}))">` : `<span class="nc-avatar-fallback">${fallback}</span>`; }
-  const client = () => typeof window.getParrothitSupabaseClient === 'function' ? window.getParrothitSupabaseClient() : null;
+  function commentsClient() {
+    if (window.PARROTHIT_NEWS_COMMENTS_CLIENT) return window.PARROTHIT_NEWS_COMMENTS_CLIENT;
+    if (!window.supabase || typeof window.supabase.createClient !== 'function' ||
+        !window.PARROTHIT_SUPABASE_URL || !window.PARROTHIT_SUPABASE_ANON_KEY) return null;
+    // Use a dedicated auth storage key so a reader connecting Google for comments
+    // cannot replace an administrator's or another PARROTHIT feature's session.
+    window.PARROTHIT_NEWS_COMMENTS_CLIENT = window.supabase.createClient(
+      window.PARROTHIT_SUPABASE_URL,
+      window.PARROTHIT_SUPABASE_ANON_KEY,
+      { auth: {
+        storageKey: 'parrothit-news-comments-google-auth-v1',
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      } }
+    );
+    return window.PARROTHIT_NEWS_COMMENTS_CLIENT;
+  }
+  function updateGoogleConnectionUI(root) {
+    const profile = readGooglePhoto();
+    const status = $(root, '[data-nc-google-status]');
+    const preview = $(root, '[data-nc-google-preview]');
+    const remove = $(root, '[data-nc-google-remove]');
+    const emailField = $(root, '[data-nc-compose] [name="email"]');
+    if (profile) {
+      const matches = emailField && String(emailField.value || '').trim().toLowerCase() === profile.email;
+      if (status) status.textContent = matches
+        ? 'Google photo connected for ' + profile.email + '. It will appear beside comments posted with this email.'
+        : 'Google photo connected for ' + profile.email + '. Use this same email in the comment form to attach the photo.';
+      if (preview) { preview.src = profile.url; preview.hidden = false; }
+      if (remove) remove.hidden = false;
+    } else {
+      if (status) status.textContent = 'Commenting by email works without Google sign-in.';
+      if (preview) { preview.removeAttribute('src'); preview.hidden = true; }
+      if (remove) remove.hidden = true;
+    }
+  }
+  function oauthErrorFromUrl() {
+    try {
+      const params = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+      return params.get('error_description') || params.get('error') || params.get('error_code') || '';
+    } catch (_) { return ''; }
+  }
+  function oauthReturnUrl() {
+    const url = new URL(window.location.href);
+    ['code', 'state', 'error', 'error_code', 'error_description'].forEach(key => url.searchParams.delete(key));
+    const fragment = new URLSearchParams(String(url.hash || '').replace(/^#/, ''));
+    if (fragment.has('access_token') || fragment.has('refresh_token') || fragment.has('error') || fragment.has('error_description')) url.hash = '';
+    return url.toString();
+  }
+  async function completeGooglePhotoConnection(root, db) {
+    let pending = false;
+    try { pending = !!localStorage.getItem(GOOGLE_PENDING_KEY); } catch (_) {}
+    if (!pending) {
+      updateGoogleConnectionUI(root);
+      return;
+    }
+    const authError = oauthErrorFromUrl();
+    if (authError) {
+      setMessage(root, 'Google connection was not completed: ' + authError, 'error');
+      try { localStorage.removeItem(GOOGLE_PENDING_KEY); } catch (_) {}
+      updateGoogleConnectionUI(root);
+      return;
+    }
+    try {
+      const sessionResult = await db.auth.getSession();
+      if (sessionResult.error) throw sessionResult.error;
+      const session = sessionResult.data && sessionResult.data.session;
+      if (!session || !isGoogleSession(session)) {
+        setMessage(root, 'Google connection was cancelled or did not finish. You can still comment using your email.', 'info');
+        return;
+      }
+      const picture = googleProfilePhoto(session);
+      const email = String(session.user.email || '').trim().toLowerCase();
+      if (!picture || !email) {
+        setMessage(root, 'Google sign-in succeeded, but a usable public profile photo or email was not provided. Email-only commenting is still available.', 'info');
+        return;
+      }
+      try { localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ email, url: picture, provider: 'google', connectedAt: new Date().toISOString() })); } catch (_) {
+        throw new Error('Your browser could not save the Google photo preference. Check that site storage is enabled.');
+      }
+      const emailField = $(root, '[data-nc-compose] [name="email"]');
+      if (emailField && !String(emailField.value || '').trim()) emailField.value = email;
+      updateGoogleConnectionUI(root);
+      setMessage(root, 'Google profile photo connected. Your photo will be saved with your future comments and replies. Your email remains private.', 'success');
+    } catch (error) {
+      console.warn('PARROTHIT Google photo callback could not be completed:', error);
+      setMessage(root, error.message || 'Google profile photo could not be connected. Email-only commenting remains available.', 'error');
+    } finally {
+      try { localStorage.removeItem(GOOGLE_PENDING_KEY); } catch (_) {}
+      updateGoogleConnectionUI(root);
+    }
+  }
+  const client = commentsClient;
+  function avatarMarkup(url, fallback) {
+    const safe = validGooglePhoto(url) ? esc(validGooglePhoto(url)) : '';
+    const safeFallback = esc(fallback);
+    return safe
+      ? `<img class="nc-avatar-img" src="${safe}" alt="Commenter profile picture" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nc-avatar-fallback',textContent:'${safeFallback}'}))">`
+      : `<span class="nc-avatar-fallback">${safeFallback}</span>`;
+  }
 
   function mountMarkup() {
     const root = document.querySelector('.visitor-interactions');
@@ -92,7 +208,7 @@
       <form class="nc-compose" data-nc-compose>
         <div class="nc-compose-fields">
           <input class="nc-input" name="email" type="email" required maxlength="254" autocomplete="email" placeholder="Your email address">
-          <div class="nc-google-connect"><button class="nc-google-btn" type="button" data-nc-google>G&nbsp; Connect Google profile photo (optional)</button><span data-nc-google-status>Commenting by email works without Google sign-in.</span></div>
+          <div class="nc-google-connect"><div class="nc-google-controls"><button class="nc-google-btn" type="button" data-nc-google>G&nbsp; Connect Google profile photo (optional)</button><button class="nc-google-remove" type="button" data-nc-google-remove hidden>Remove photo</button></div><img class="nc-google-preview" data-nc-google-preview alt="Connected Google profile photo preview" hidden><span data-nc-google-status role="status" aria-live="polite">Commenting by email works without Google sign-in.</span></div>
           <textarea class="nc-textarea" name="body" required minlength="2" maxlength="2000" placeholder="Write a comment…"></textarea>
           <span class="nc-email-note">🔒 Your email is private and will never appear publicly. Your comment displays as “Reader”.</span>
         </div>
@@ -156,25 +272,7 @@
     root.dataset.postTitle = title || '';
     const db = client();
     if (!db) { setMessage(root, 'The comment service is not connected. Please try again later.', 'error'); return; }
-    try {
-      const pendingEmail = localStorage.getItem('parrothit-news-comment-google-pending-email');
-      if (pendingEmail) {
-        const sessionResult = await db.auth.getSession();
-        const session = sessionResult.data && sessionResult.data.session;
-        if (session && session.user) {
-          const picture = await googleProfilePhoto(session);
-          if (picture) {
-            localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ googleEmail: String(session.user.email || '').toLowerCase(), url: picture }));
-            const status = $(root, '[data-nc-google-status]');
-            if (status) status.textContent = 'Google profile photo connected for ' + pendingEmail + '.';
-          } else {
-            const status = $(root, '[data-nc-google-status]');
-            if (status) status.textContent = 'Google sign-in completed, but no public profile photo was available. Email-only commenting still works.';
-          }
-        }
-        localStorage.removeItem('parrothit-news-comment-google-pending-email');
-      }
-    } catch (oauthError) { console.warn('Google photo callback could not be completed:', oauthError); }
+    await completeGooglePhotoConnection(root, db);
 
     async function load() {
       setMessage(root, 'Loading comments…', 'info');
@@ -232,6 +330,10 @@
 
     root.addEventListener('change', event => {
       if (event.target.matches('[data-nc-sort]')) load();
+      if (event.target.matches('[data-nc-compose] [name="email"]')) updateGoogleConnectionUI(root);
+    });
+    root.addEventListener('input', event => {
+      if (event.target.matches('[data-nc-compose] [name="email"]')) updateGoogleConnectionUI(root);
     });
     root.addEventListener('click', async event => {
       const replyButton = event.target.closest('[data-nc-reply]');
@@ -256,34 +358,55 @@
         } finally { reactButton.disabled = false; }
         return;
       }
+      const removeGoogleButton = event.target.closest('[data-nc-google-remove]');
+      if (removeGoogleButton) {
+        try { localStorage.removeItem(GOOGLE_PHOTO_KEY); } catch (_) {}
+        updateGoogleConnectionUI(root);
+        setMessage(root, 'Google profile photo removed from this browser. Previously posted comments keep their saved photos.', 'success');
+        return;
+      }
       const googleButton = event.target.closest('[data-nc-google]');
       if (googleButton) {
-        const status = $(root, '[data-nc-google-status]');
-        const emailField = $(root, '[data-nc-compose] [name="email"]');
-        const email = String(emailField && emailField.value || '').trim().toLowerCase();
-        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          setMessage(root, 'Please enter a valid email address, or leave it blank and connect your Google profile photo.', 'error');
-          if (emailField) emailField.focus();
-          return;
-        }
         try {
-          const sessionResult = await db.auth.getSession();
-          if (sessionResult.error) throw sessionResult.error;
-          const session = sessionResult.data && sessionResult.data.session;
-          if (session && session.user) {
-            const picture = await googleProfilePhoto(session);
-            if (!picture) throw new Error('Google sign-in is connected, but this account has no accessible profile photo. You can still comment by email; try another Google account with a profile picture.');
-            localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ googleEmail: String(session.user.email || '').toLowerCase(), url: picture }));
-            if (status) status.textContent = 'Google profile photo connected. It can be used with any comment email.';
-            setMessage(root, 'Google profile photo connected. Your email remains private.', 'success');
-            return;
+          const currentSession = await db.auth.getSession();
+          if (currentSession.error) throw currentSession.error;
+          const active = currentSession.data && currentSession.data.session;
+          if (active && isGoogleSession(active)) {
+            const picture = googleProfilePhoto(active);
+            const email = String(active.user.email || '').trim().toLowerCase();
+            if (picture && email) {
+              localStorage.setItem(GOOGLE_PHOTO_KEY, JSON.stringify({ email, url: picture, provider: 'google', connectedAt: new Date().toISOString() }));
+              const emailField = $(root, '[data-nc-compose] [name="email"]');
+              if (emailField && !String(emailField.value || '').trim()) emailField.value = email;
+              updateGoogleConnectionUI(root);
+              setMessage(root, 'Google profile photo is connected and ready to use.', 'success');
+              return;
+            }
           }
-          localStorage.setItem('parrothit-news-comment-google-pending-email', email || 'optional');
-          const result = await db.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href, scopes: 'openid email profile', queryParams: { access_type: 'online', prompt: 'select_account' } } });
+          try { localStorage.setItem(GOOGLE_PENDING_KEY, String(Date.now())); } catch (_) {
+            throw new Error('Your browser is blocking site storage. Enable cookies/site data to connect your Google photo.');
+          }
+          googleButton.disabled = true;
+          googleButton.textContent = 'Connecting to Google…';
+          const result = await db.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: oauthReturnUrl(),
+              scopes: 'openid email profile',
+              queryParams: { access_type: 'online', prompt: 'select_account' }
+            }
+          });
           if (result.error) throw result.error;
+          // In browser mode Supabase redirects automatically. This status is useful
+          // for environments where the redirect is blocked or opened externally.
+          const status = $(root, '[data-nc-google-status]');
+          if (status) status.textContent = 'Opening your Google account…';
         } catch (error) {
-          console.error('Google profile photo connection failed:', error);
-          setMessage(root, error.message || 'Could not connect your Google profile photo. Email-only comments remain available.', 'error');
+          try { localStorage.removeItem(GOOGLE_PENDING_KEY); } catch (_) {}
+          console.error('PARROTHIT Google photo connection failed:', error);
+          setMessage(root, error.message || 'Could not open Google sign-in. Confirm Google is enabled in Supabase Auth.', 'error');
+          googleButton.disabled = false;
+          googleButton.textContent = 'G  Connect Google profile photo (optional)';
         }
         return;
       }
@@ -317,7 +440,7 @@
           p_body: body,
           p_parent_comment_id: parentId,
           p_honeypot: honeypot,
-          p_avatar_url: savedGooglePhoto()
+          p_avatar_url: savedGooglePhoto(email)
         });
         if (response.error) throw response.error;
         form.reset();
