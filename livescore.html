@@ -8,7 +8,8 @@
   <title>PARROTHIT LiveScore — Football Scores</title>
   <link rel="stylesheet" href="css/livescore.css?v=competition-link-20261111">
   <link rel="stylesheet" href="css/livescore-highlights.css?v=plasma-red-black-20261115">
-  <link rel="stylesheet" href="css/livescore-news-sidebar.css?v=20261115-v1">
+  <link rel="stylesheet" href="css/livescore-news-sidebar.css?v=20261115-guide-toggle-v2">
+  <link rel="stylesheet" href="css/livescore-description-toggle.css?v=20261116-full-card-toggle-v2">
 </head>
 <body class="pl-body">
   <div class="pl-app">
@@ -39,7 +40,7 @@
     <main class="pl-main">
       <div class="pl-main-layout">
         <div class="pl-main-content">
-      <section class="pl-news-display-note" aria-labelledby="plNewsDisplayNoteTitle">
+      <section class="pl-news-display-note" id="plNewsDisplayNote" aria-labelledby="plNewsDisplayNoteTitle">
         <div class="pl-news-note-copy">
           <span class="pl-news-note-kicker">LIVE SCORE · NEWSROOM CONNECTION</span>
           <h2 id="plNewsDisplayNoteTitle">Sports news beside your scores</h2>
@@ -192,7 +193,8 @@
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
   <script src="js/livescore.js?v=500-results-selected-date-20261114" defer></script>
   <script src="js/livescore-highlights.js?v=plasma-red-black-20261115" defer></script>
-  <script src="js/livescore-news-sidebar.js?v=20261115-v1" defer></script>
+  <script src="js/livescore-news-sidebar.js?v=20261115-guide-toggle-v2" defer></script>
+  <script src="js/livescore-description-toggle.js?v=20261116-full-card-toggle-v2" defer></script>
 <script src="/js/parrothit-ai-assistant.js" defer></script>
 <script src="/js/public-notifications.js?v=20261112-read-article-only-v1"></script>
 </body>
