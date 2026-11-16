@@ -203,3 +203,66 @@
   .pl-momentum-track span { transition: none; }
 }
 .pl-pitch-rating { display:inline-block; margin-left:3px; padding:1px 3px; border-radius:4px; background:#f2c54d; color:#151515; font-size:7px; font-weight:950; text-shadow:none; }
+
+
+/* Switchable Match Momentum: graph (Option 2) and attacking pitch map (Option 3). */
+.pl-momentum-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 12px;
+}
+.pl-momentum-switch button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 11px;
+  border: 1px solid #464044;
+  border-radius: 10px;
+  background: #191719;
+  color: #c7c2c4;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1.25;
+  letter-spacing: .035em;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+.pl-momentum-switch button span { margin-right: 5px; color: #f3c64d; font-size: 14px; }
+.pl-momentum-switch button.active,
+.pl-momentum-switch button[aria-pressed="true"] {
+  border-color: #ed2b43;
+  background: linear-gradient(135deg, #49121d, #241216);
+  color: #fff;
+}
+.pl-momentum-switch button:focus-visible { outline: 2px solid #f2c84d; outline-offset: 2px; }
+.pl-momentum-view { min-width: 0; padding: 12px; border: 1px solid #342a2d; border-radius: 12px; background: #101011; }
+.pl-momentum-chart-wrap, .pl-pressure-map-wrap { min-width: 0; }
+.pl-momentum-chart-legend, .pl-momentum-latest, .pl-pressure-map-labels, .pl-pressure-map-score {
+  display: flex; align-items: center; justify-content: space-between; gap: 9px; flex-wrap: wrap;
+}
+.pl-momentum-chart-legend { margin: 1px 2px 8px; color: #ddd; font-size: 10px; font-weight: 800; }
+.pl-momentum-chart-legend span, .pl-momentum-latest span, .pl-pressure-map-score span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.pl-momentum-chart-legend i, .pl-momentum-latest i, .pl-pressure-map-score i { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #f12e49; }
+.pl-momentum-chart-legend .is-away i, .pl-momentum-latest .is-away i, .pl-pressure-map-score .is-away i { background: #36a9f5; }
+.pl-momentum-chart-legend .is-home, .pl-momentum-latest .is-home, .pl-pressure-map-score .is-home, .pl-pressure-map-labels .is-home { color: #ff6577; }
+.pl-momentum-chart-legend .is-away, .pl-momentum-latest .is-away, .pl-pressure-map-score .is-away, .pl-pressure-map-labels .is-away { color: #72c5ff; }
+.pl-momentum-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.pl-momentum-latest { padding-top: 6px; color: #ddd; font-size: 10px; }
+.pl-momentum-latest b, .pl-pressure-map-score b { color: #fff; font-size: 12px; }
+.pl-momentum-view-note { margin: 10px 0 0; color: #929096; font-size: 9px; line-height: 1.55; }
+.pl-pressure-map-labels { margin: 0 1px 9px; font-size: 9px; font-weight: 900; letter-spacing: .035em; }
+.pl-pressure-pitch { display: block; width: 100%; height: auto; border-radius: 9px; background: #153b28; }
+.pl-pressure-map-score { margin-top: 10px; color: #ddd; font-size: 10px; font-weight: 800; }
+.pl-momentum-current { margin-bottom: 8px; }
+.pl-momentum-unavailable { margin-bottom: 10px; }
+@media (max-width: 420px) {
+  .pl-momentum-switch { gap: 6px; }
+  .pl-momentum-switch button { padding: 9px 6px; font-size: 8px; }
+  .pl-momentum-view { padding: 8px 6px; }
+  .pl-momentum-chart-legend, .pl-momentum-latest, .pl-pressure-map-score { font-size: 9px; }
+  .pl-pressure-map-labels { font-size: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-momentum-switch button { transition: none; }
+}
