@@ -1,14 +1,11 @@
--- PARROTHIT News Comments: optional Google profile photo + public avatar URL.
--- Run AFTER news-comments-email-only.sql. Ordinary email-only commenting remains available.
+-- PARROTHIT News Comments: secure optional Google profile photo support.
+-- Run this once in Supabase SQL Editor AFTER news-comments-email-only.sql.
+-- It is safe to rerun. Existing comments remain unchanged and email-only comments continue to work.
 
-alter table public.comments
-  add column if not exists avatar_url text;
-
--- Replace the original five-argument function so the browser can pass an optional,
--- validated Google-hosted profile image URL. Email remains in the private table.
+alter table public.comments add column if not exists avatar_url text;
 drop function if exists public.submit_news_comment(uuid, text, text, uuid, text);
 
-create function public.submit_news_comment(
+create or replace function public.submit_news_comment(
   p_post_id uuid,
   p_email text,
   p_body text,
@@ -27,6 +24,8 @@ declare
   v_limit public.news_comment_submission_limits%rowtype;
   v_comment_id uuid;
   v_avatar text := nullif(trim(coalesce(p_avatar_url,'')), '');
+  v_google_email text;
+  v_verified_avatar text;
 begin
   if nullif(trim(coalesce(p_honeypot,'')), '') is not null then
     raise exception 'Submission could not be accepted.';
@@ -37,9 +36,30 @@ begin
   if length(v_body) < 2 or length(v_body) > 2000 then
     raise exception 'Comment must contain between 2 and 2000 characters.';
   end if;
-  if v_avatar is not null and (length(v_avatar) > 1000 or v_avatar !~* '^https://(lh3\.googleusercontent\.com|googleusercontent\.com)/') then
-    raise exception 'Only a Google-hosted profile photo can be used.';
+
+  if v_avatar is not null then
+    if length(v_avatar) > 1000 or v_avatar !~* '^https://([a-z0-9-]+\.)*googleusercontent\.com/' then
+      raise exception 'Only a Google-hosted profile photo can be used.';
+    end if;
+    select lower(u.email), coalesce(
+      nullif(i.identity_data->>'picture',''),
+      nullif(i.identity_data->>'avatar_url',''),
+      nullif(u.raw_user_meta_data->>'avatar_url',''),
+      nullif(u.raw_user_meta_data->>'picture','')
+    )
+    into v_google_email, v_verified_avatar
+    from auth.users u
+    join auth.identities i on i.user_id=u.id and i.provider='google'
+    where u.id=auth.uid()
+    limit 1;
+    if v_google_email is null or v_google_email <> v_email then
+      raise exception 'To use this Google photo, comment with the same email address as your connected Google account.';
+    end if;
+    if v_verified_avatar is null or v_avatar <> v_verified_avatar then
+      raise exception 'The profile photo could not be verified against your connected Google account. Reconnect Google and try again.';
+    end if;
   end if;
+
   if not exists(
     select 1 from public.posts p where p.id=p_post_id and p.status='published'
       and (p.published_at is null or p.published_at <= now())
@@ -79,5 +99,6 @@ begin
   return jsonb_build_object('id', v_comment_id, 'status', 'approved');
 end;
 $$;
+
 revoke all on function public.submit_news_comment(uuid,text,text,uuid,text,text) from public;
 grant execute on function public.submit_news_comment(uuid,text,text,uuid,text,text) to anon, authenticated;
