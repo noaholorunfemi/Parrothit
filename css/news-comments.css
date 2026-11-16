@@ -99,3 +99,16 @@
   .news-comments { padding-left:16px; padding-right:16px; }
   .news-comments .nc-compose-fields { grid-template-columns:minmax(180px,.8fr) minmax(0,2fr); }
 }
+
+
+/* Optional Google profile photo connection: preview, status and safe local disconnect. */
+.nc-google-connect{grid-column:1/-1;display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-width:0}
+.nc-google-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.nc-google-btn,.nc-google-remove{min-height:40px;border:1px solid #d71928;border-radius:8px;background:#1a1a1a;color:#fff;padding:8px 12px;font-weight:800;cursor:pointer}
+.nc-google-btn:hover,.nc-google-remove:hover{background:#4a0b11}
+.nc-google-btn:disabled{opacity:.65;cursor:wait}
+.nc-google-remove{border-color:#666;background:#242424;font-size:.78rem}
+.nc-google-preview{width:34px;height:34px;flex:0 0 34px;object-fit:cover;border-radius:50%;border:2px solid #d71928;background:#222}
+.nc-google-preview[hidden],.nc-google-remove[hidden]{display:none!important}
+.nc-google-connect [data-nc-google-status]{font-size:.76rem;line-height:1.4;color:#dedede;min-width:0;overflow-wrap:anywhere}
+@media(max-width:650px){.nc-google-connect{align-items:flex-start;flex-direction:column}.nc-google-controls{width:100%}.nc-google-btn{min-height:44px}.nc-google-connect [data-nc-google-status]{font-size:.74rem}}
