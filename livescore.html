@@ -8,7 +8,6 @@
   <title>PARROTHIT LiveScore — Football Scores</title>
   <link rel="stylesheet" href="css/livescore.css?v=competition-link-20261111">
   <link rel="stylesheet" href="css/livescore-highlights.css?v=plasma-red-black-20261115">
-  <link rel="stylesheet" href="css/livescore-news-sidebar.css?v=20261115-guide-toggle-v2">
 </head>
 <body class="pl-body">
   <div class="pl-app">
@@ -37,19 +36,6 @@
     </header>
 
     <main class="pl-main">
-      <div class="pl-main-layout">
-        <div class="pl-main-content">
-      <section class="pl-news-display-note" id="plNewsDisplayNote" aria-labelledby="plNewsDisplayNoteTitle">
-        <div class="pl-news-note-copy">
-          <span class="pl-news-note-kicker">LIVE SCORE · NEWSROOM CONNECTION</span>
-          <h2 id="plNewsDisplayNoteTitle">Sports news beside your scores</h2>
-          <p>On desktop, and when you rotate your phone to landscape, published Sports and Football stories appear in the right-hand news panel. Portrait mode keeps the familiar full-width LiveScore view.</p>
-        </div>
-        <div class="pl-news-layout-diagram" role="img" aria-label="Illustration: scores on the left and sports news on the right on a desktop screen and a phone turned sideways">
-          <div class="pl-news-diagram-device pl-news-diagram-desktop"><span class="pl-news-diagram-bar"></span><span class="pl-news-diagram-score"></span><span class="pl-news-diagram-rail"><i></i><i></i><i></i></span><b>DESKTOP</b></div>
-          <div class="pl-news-diagram-device pl-news-diagram-phone"><span class="pl-news-diagram-score"></span><span class="pl-news-diagram-rail"><i></i><i></i></span><b>LANDSCAPE</b></div>
-        </div>
-      </section>
       <nav class="pl-sports" aria-label="Sports">
         <button class="pl-sport active" type="button" aria-current="true"><span aria-hidden="true">⚽</span> Football</button>
         <button class="pl-sport" type="button" disabled title="Hockey will be added in a future phase"><span aria-hidden="true">◉</span> Hockey</button>
@@ -152,20 +138,6 @@
       </section>
       <nav id="plPagination" class="pl-pagination" aria-label="Match result pages" aria-live="polite"></nav>
       <div class="pl-footer-note">Follow live football scores, upcoming fixtures and completed results from competitions around the world.</div><div id="plDataAttribution" class="pl-provider-attribution" aria-label="Sports data attribution"></div>
-        </div>
-        <aside class="pl-sports-news-rail" id="plSportsNewsRail" aria-labelledby="plSportsNewsTitle">
-          <div class="pl-sports-news-head">
-            <div><span class="pl-news-note-kicker">FROM THE PARROTHIT NEWSROOM</span><h2 id="plSportsNewsTitle">SPORTS &amp; FOOTBALL NEWS</h2></div>
-            <button type="button" class="pl-sports-news-refresh" id="plSportsNewsRefresh" aria-label="Refresh sports and football news" title="Refresh news">↻</button>
-          </div>
-          <div class="pl-sports-news-summary"><span id="plSportsNewsCount">Loading published stories…</span><span class="pl-news-live-indicator"><i></i> LIVE FEED</span></div>
-          <div class="pl-sports-news-list" id="plSportsNewsList" aria-live="polite" aria-busy="true">
-            <div class="pl-sports-news-state"><span class="pl-news-mini-spinner"></span><strong>Loading Sports &amp; Football news</strong><small>Connecting to the PARROTHIT newsroom…</small></div>
-          </div>
-          <button type="button" class="pl-sports-news-more" id="plSportsNewsMore" hidden>Load more news</button>
-          <div class="pl-sports-news-foot">Select a story to open its main Sports or Football category page on PARROTHIT.</div>
-        </aside>
-      </div>
     </main>
 
     <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
@@ -185,15 +157,12 @@
     </form>
   </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
   <script src="js/livescore-config.js?v=match-centre-fix-20261108"></script>
   <script src="js/livescore-clock.js?v=match-centre-clock-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
   <script src="js/livescore.js?v=500-results-selected-date-20261114" defer></script>
   <script src="js/livescore-highlights.js?v=plasma-red-black-20261115" defer></script>
-  <script src="js/livescore-news-sidebar.js?v=20261115-guide-toggle-v2" defer></script>
-  <script src="js/livescore-description-toggle.js?v=20261116-side-toggle-v1" defer></script>
 <script src="/js/parrothit-ai-assistant.js" defer></script>
 <script src="/js/public-notifications.js?v=20261112-read-article-only-v1"></script>
 </body>
