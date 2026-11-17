@@ -8,6 +8,7 @@
     db: null, user: null, profile: null, mode: 'login', activeTab: 'home',
     posts: [], offset: 0, hasMore: false, loading: false, pendingFile: null,
     commentReplyTo: {}, savedIds: new Set(), followingIds: new Set(), realtime: null,
+    commentHoldTimer: null, activeCommentMenu: null, dashboardTab: 'overview',
     notificationsOpen: false, lastNotifications: []
   };
 
@@ -78,13 +79,13 @@
 
   async function loadProfile(user) {
     const { data, error } = await state.db.from('wazobia_profiles')
-      .select('user_id,display_name,username,avatar_url,bio,created_at')
+      .select('user_id,display_name,username,avatar_url,cover_url,bio,created_at')
       .eq('user_id', user.id).maybeSingle();
     if (error) throw error;
     if (data) {
       const avatar = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
       if (!data.avatar_url && avatar) {
-        const update = await state.db.from('wazobia_profiles').update({ avatar_url: avatar }).eq('user_id', user.id).select('user_id,display_name,username,avatar_url,bio,created_at').single();
+        const update = await state.db.from('wazobia_profiles').update({ avatar_url: avatar }).eq('user_id', user.id).select('user_id,display_name,username,avatar_url,cover_url,bio,created_at').single();
         if (!update.error) return update.data;
       }
       return data;
@@ -102,7 +103,7 @@
     if (availability.error) throw new Error('The Wazobia database setup is incomplete. Apply supabase/wazobia-trends.sql. ' + availability.error.message);
     if (availability.data !== true) candidate = `${candidate.slice(0, 14)}_${user.id.slice(0, 8)}`;
     const displayName = String(user.user_metadata?.display_name || user.user_metadata?.full_name || community?.display_name || user.email?.split('@')[0] || 'Wazobia member').slice(0, 60);
-    const inserted = await state.db.from('wazobia_profiles').insert({ user_id: user.id, display_name: displayName, username: candidate, avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null }).select('user_id,display_name,username,avatar_url,bio,created_at').single();
+    const inserted = await state.db.from('wazobia_profiles').insert({ user_id: user.id, display_name: displayName, username: candidate, avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null }).select('user_id,display_name,username,avatar_url,cover_url,bio,created_at').single();
     if (inserted.error) throw inserted.error;
     return inserted.data;
   }
@@ -119,6 +120,10 @@
     $('wz-account-btn').title = state.user ? 'Your account and profile' : 'Log in or create account';
     $('wz-post-avatar').innerHTML = avatarMarkup(p).replace(/^<div[^>]*>|<\/div>$/g, '');
     $('wz-post-author-name').textContent = name;
+    if ($('wz-dashboard-avatar')) $('wz-dashboard-avatar').innerHTML = avatarMarkup(p, 'wz-dashboard-avatar').replace(/^<div[^>]*>|<\/div>$/g, '');
+    if ($('wz-dashboard-name')) $('wz-dashboard-name').textContent = name;
+    if ($('wz-dashboard-handle')) $('wz-dashboard-handle').textContent = handle;
+    if ($('wz-dashboard-cover')) { const cover = safeUrl(p?.cover_url); $('wz-dashboard-cover').style.backgroundImage = cover ? `linear-gradient(0deg,rgba(0,0,0,.15),rgba(0,0,0,.15)),url("${cover.replace(/"/g, '%22')}")` : ''; }
     if (state.user) {
       $('wz-edit-display-name').value = p?.display_name || '';
       $('wz-edit-username').value = p?.username || '';
@@ -198,7 +203,7 @@
           }
         });
         if (error) throw error;
-        if (data.session) await updateAuthSession(data.session);
+        if (data.session) { await updateAuthSession(data.session); await showProfile(); }
         else authStatus('Account created. Check your email for the verification link, then log in to Wazobia Trends.');
       }
     } catch (error) { authStatus(error.message || 'Authentication failed. Please try again.', true); }
@@ -369,36 +374,63 @@
 
   async function loadCommentCounts(postIds) {
     if (!postIds.length) return;
-    const { data } = await state.db.from('wazobia_comments').select('post_id').in('post_id', postIds).eq('is_deleted', false);
-    const counts = {};
-    (data || []).forEach(row => { counts[row.post_id] = (counts[row.post_id] || 0) + 1; });
-    postIds.forEach(id => { const node = document.querySelector(`[data-comments-total="${CSS.escape(id)}"]`); if (node) node.textContent = `${counts[id] || 0} comments`; });
+    await Promise.all(postIds.map(async id => {
+      const { count, error } = await state.db.from('wazobia_comments').select('id', { count: 'exact', head: true }).eq('post_id', id).eq('is_deleted', false);
+      const node = document.querySelector(`[data-comments-total="${CSS.escape(id)}"]`);
+      if (node && !error) node.textContent = `${count || 0} comments`;
+    }));
+  }
+
+  async function fetchAllComments(postId) {
+    const all = []; const batchSize = 800; let from = 0;
+    while (true) {
+      const { data, error } = await state.db.from('wazobia_comments')
+        .select('id,post_id,parent_comment_id,author_id,body,created_at,updated_at,is_deleted,author:wazobia_profiles!wazobia_comments_author_id_fkey(user_id,display_name,username,avatar_url)')
+        .eq('post_id', postId).eq('is_deleted', false).order('created_at', { ascending: true }).range(from, from + batchSize - 1);
+      if (error) throw error;
+      const batch = data || []; all.push(...batch);
+      if (batch.length < batchSize) break;
+      from += batch.length;
+    }
+    return all;
   }
 
   async function loadComments(postId, area) {
     const list = area.querySelector('[data-comment-list]');
     list.innerHTML = '<p class="wz-muted">Loading comments…</p>';
-    const { data, error } = await state.db.from('wazobia_comments')
-      .select('id,post_id,parent_comment_id,author_id,body,created_at,author:wazobia_profiles!wazobia_comments_author_id_fkey(display_name,username,avatar_url)')
-      .eq('post_id', postId).eq('is_deleted', false).order('created_at', { ascending: true }).limit(300);
-    if (error) { list.innerHTML = `<p class="wz-muted">${escapeHtml(error.message)}</p>`; return; }
-    const comments = data || [];
+    let comments = [];
+    try { comments = await fetchAllComments(postId); }
+    catch (error) { list.innerHTML = `<p class="wz-muted">${escapeHtml(error.message)}</p>`; return; }
     let commentReactions = [];
-    if (comments.length) {
-      const reactionResult = await state.db.from('wazobia_comment_reactions').select('comment_id,user_id,reaction').in('comment_id', comments.map(c => c.id));
-      if (!reactionResult.error) commentReactions = reactionResult.data || [];
+    for (let i = 0; i < comments.length; i += 500) {
+      const ids = comments.slice(i, i + 500).map(c => c.id);
+      if (!ids.length) continue;
+      const reactionResult = await state.db.from('wazobia_comment_reactions').select('comment_id,user_id,reaction').in('comment_id', ids);
+      if (!reactionResult.error) commentReactions.push(...(reactionResult.data || []));
     }
-    if (!comments.length) { list.innerHTML = '<p class="wz-muted">No comments yet. Start the conversation.</p>'; }
+    const reactionsByComment = new Map();
+    commentReactions.forEach(r => { if (!reactionsByComment.has(r.comment_id)) reactionsByComment.set(r.comment_id, []); reactionsByComment.get(r.comment_id).push(r); });
+    if (!comments.length) list.innerHTML = '<p class="wz-muted">No comments yet. Start the conversation.</p>';
     else {
-      const map = new Map(); comments.forEach(c => { if (!map.has(c.parent_comment_id || 'root')) map.set(c.parent_comment_id || 'root', []); map.get(c.parent_comment_id || 'root').push(c); });
-      const build = (parent, depth) => (map.get(parent) || []).map(comment => {
-        const likes = commentReactions.filter(r => r.comment_id === comment.id);
+      const children = new Map();
+      comments.forEach(c => { const key = c.parent_comment_id || 'root'; if (!children.has(key)) children.set(key, []); children.get(key).push(c); });
+      const visited = new Set(); const output = [];
+      const queue = (children.get('root') || []).slice().reverse().map(c => ({ comment: c, depth: 0 }));
+      while (queue.length) {
+        const item = queue.pop(); const comment = item.comment; if (visited.has(comment.id)) continue; visited.add(comment.id);
+        const likes = reactionsByComment.get(comment.id) || [];
         const liked = likes.some(r => r.user_id === state.user?.id);
-        return `<div class="wz-comment ${depth ? 'nested' : ''}">${avatarMarkup(comment.author)}<div class="wz-comment-main"><div class="wz-comment-bubble"><strong>${escapeHtml(comment.author?.display_name || 'Wazobia member')} · @${escapeHtml(comment.author?.username || 'member')}</strong><p>${escapeHtml(comment.body)}</p></div><div class="wz-comment-tools"><span>${escapeHtml(relativeTime(comment.created_at))}</span><button type="button" data-action="react-comment" data-comment-id="${escapeHtml(comment.id)}" data-post-id="${escapeHtml(postId)}" class="${liked ? 'is-active' : ''}">${liked ? 'Liked' : 'Like'}${likes.length ? ` · ${likes.length}` : ''}</button><button type="button" data-action="reply-comment" data-comment-id="${escapeHtml(comment.id)}">Reply</button></div>${build(comment.id, depth + 1)}</div></div>`;
-      }).join('');
-      list.innerHTML = build('root', 0) || '<p class="wz-muted">No comments yet.</p>';
-      const orphaned = comments.filter(c => c.parent_comment_id && !comments.some(p => p.id === c.parent_comment_id));
-      if (orphaned.length) list.insertAdjacentHTML('beforeend', orphaned.map(c => `<div class="wz-comment">${avatarMarkup(c.author)}<div class="wz-comment-main"><div class="wz-comment-bubble"><strong>${escapeHtml(c.author?.display_name || 'Wazobia member')}</strong><p>${escapeHtml(c.body)}</p></div></div></div>`).join(''));
+        const own = state.user?.id === comment.author_id;
+        output.push(`<div class="wz-comment" data-comment-id="${escapeHtml(comment.id)}" data-author-id="${escapeHtml(comment.author_id)}" data-comment-body="${escapeHtml(comment.body)}" style="--wz-comment-depth:${Math.min(item.depth, 5)}">${avatarMarkup(comment.author)}<div class="wz-comment-main"><div class="wz-comment-bubble"><strong>${escapeHtml(comment.author?.display_name || 'Wazobia member')} · @${escapeHtml(comment.author?.username || 'member')}${own ? ' · You' : ''}</strong><p>${escapeHtml(comment.body)}</p></div><div class="wz-comment-tools"><span>${escapeHtml(relativeTime(comment.created_at))}${comment.updated_at && comment.updated_at !== comment.created_at ? ' · edited' : ''}</span><button type="button" data-action="react-comment" data-comment-id="${escapeHtml(comment.id)}" data-post-id="${escapeHtml(postId)}" class="${liked ? 'is-active' : ''}">${liked ? 'Liked' : 'Like'}${likes.length ? ` · ${likes.length}` : ''}</button><button type="button" data-action="reply-comment" data-comment-id="${escapeHtml(comment.id)}">Reply</button>${own ? '<span class="wz-comment-hold-hint">Hold comment for options</span>' : ''}</div></div></div>`);
+        const descendants = (children.get(comment.id) || []).slice().reverse();
+        descendants.forEach(child => queue.push({ comment: child, depth: item.depth + 1 }));
+      }
+      // If a parent is deleted or missing, keep its remaining replies visible as standalone comments.
+      comments.filter(c => !visited.has(c.id)).forEach(c => {
+        const likes = reactionsByComment.get(c.id) || []; const own = state.user?.id === c.author_id;
+        output.push(`<div class="wz-comment" data-comment-id="${escapeHtml(c.id)}" data-author-id="${escapeHtml(c.author_id)}" data-comment-body="${escapeHtml(c.body)}">${avatarMarkup(c.author)}<div class="wz-comment-main"><div class="wz-comment-bubble"><strong>${escapeHtml(c.author?.display_name || 'Wazobia member')}${own ? ' · You' : ''}</strong><p>${escapeHtml(c.body)}</p></div><div class="wz-comment-tools"><span>${escapeHtml(relativeTime(c.created_at))}</span><button type="button" data-action="react-comment" data-comment-id="${escapeHtml(c.id)}" data-post-id="${escapeHtml(postId)}">Like${likes.length ? ` · ${likes.length}` : ''}</button><button type="button" data-action="reply-comment" data-comment-id="${escapeHtml(c.id)}">Reply</button></div></div></div>`);
+      });
+      list.innerHTML = output.join('');
     }
     const replyId = state.commentReplyTo[postId] || '';
     const replying = area.querySelector('[data-replying]');
@@ -465,6 +497,41 @@
     }
     const post = document.querySelector(`[data-post-id="${CSS.escape(postId)}"]`);
     if (post) await loadComments(postId, post.querySelector('[data-comment-area]'));
+  }
+
+  function hideCommentMenu() {
+    const menu = $('wz-comment-context-menu'); if (menu) menu.hidden = true;
+    state.activeCommentMenu = null;
+  }
+  function showCommentMenu(commentNode, x, y) {
+    if (!commentNode) return;
+    const menu = $('wz-comment-context-menu'); state.activeCommentMenu = commentNode;
+    const isOwner = !!state.user && commentNode.dataset.authorId === state.user.id;
+    menu.querySelectorAll('[data-comment-action="edit"], [data-comment-action="delete"]').forEach(button => { button.hidden = !isOwner; });
+    menu.hidden = false;
+    const width = 190, height = 150;
+    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - height - 8))}px`;
+  }
+  async function editComment(commentNode) {
+    const id = commentNode?.dataset.commentId; if (!id || commentNode.dataset.authorId !== state.user?.id) return;
+    const oldBody = commentNode.dataset.commentBody || '';
+    const nextBody = prompt('Edit your comment:', oldBody);
+    if (nextBody === null) return;
+    const body = nextBody.trim(); if (!body) return status('A comment cannot be empty.', true);
+    if (body.length > 2000) return status('Comments can contain up to 2,000 characters.', true);
+    const { error } = await state.db.from('wazobia_comments').update({ body, updated_at: new Date().toISOString() }).eq('id', id).eq('author_id', state.user.id);
+    if (error) return status(error.message || 'Could not edit this comment.', true);
+    const post = commentNode.closest('[data-post-id]'); if (post) await loadComments(post.dataset.postId, post.querySelector('[data-comment-area]'));
+    status('Comment updated.');
+  }
+  async function deleteComment(commentNode) {
+    const id = commentNode?.dataset.commentId; if (!id || commentNode.dataset.authorId !== state.user?.id) return;
+    if (!confirm('Delete this comment? Its replies will remain visible in the discussion.')) return;
+    const { error } = await state.db.from('wazobia_comments').update({ is_deleted: true, body: '[This comment was deleted]', updated_at: new Date().toISOString() }).eq('id', id).eq('author_id', state.user.id);
+    if (error) return status(error.message || 'Could not delete this comment.', true);
+    const post = commentNode.closest('[data-post-id]'); if (post) { await loadComments(post.dataset.postId, post.querySelector('[data-comment-area]')); await loadCommentCounts([post.dataset.postId]); }
+    status('Comment deleted.');
   }
 
   async function addComment(form, postId) {
@@ -577,7 +644,7 @@
       if (available.data !== true) return profileStatus('That username is already taken.', true);
     }
     const { data, error } = await state.db.from('wazobia_profiles').update({ display_name, username, bio }).eq('user_id', state.user.id)
-      .select('user_id,display_name,username,avatar_url,bio,created_at').single();
+      .select('user_id,display_name,username,avatar_url,cover_url,bio,created_at').single();
     if (error) return profileStatus(error.message, true);
     state.profile = data; refreshProfileUI(); profileStatus('Your Wazobia profile has been updated.');
     loadFeed(true); loadPeopleSuggestions();
@@ -585,7 +652,57 @@
 
   async function showProfile() {
     if (!state.user) { openModal('wz-auth-modal'); return; }
-    refreshProfileUI(); profileStatus(''); openModal('wz-profile-modal');
+    refreshProfileUI(); profileStatus(''); openModal('wz-profile-modal'); await loadDashboardStats(); await renderDashboard('overview');
+  }
+
+  async function uploadProfileImage(file, kind) {
+    if (!requireUser()) return;
+    if (!file || !/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return profileStatus('Choose a JPG, PNG, WebP or GIF image.', true);
+    if (file.size > 10 * 1024 * 1024) return profileStatus('Profile and cover photos must be 10 MB or smaller.', true);
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `${state.user.id}/profile/${kind}-${Date.now()}-${crypto.randomUUID()}.${ext}`;
+    profileStatus(`Uploading ${kind === 'avatar' ? 'profile picture' : 'cover photo'}…`);
+    const { error: uploadError } = await state.db.storage.from('wazobia-media').upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false });
+    if (uploadError) return profileStatus(uploadError.message, true);
+    const { data } = state.db.storage.from('wazobia-media').getPublicUrl(path);
+    const field = kind === 'avatar' ? 'avatar_url' : 'cover_url';
+    const { data: updated, error } = await state.db.from('wazobia_profiles').update({ [field]: data.publicUrl }).eq('user_id', state.user.id)
+      .select('user_id,display_name,username,avatar_url,cover_url,bio,created_at').single();
+    if (error) return profileStatus(error.message, true);
+    state.profile = updated; refreshProfileUI(); profileStatus(`${kind === 'avatar' ? 'Profile picture' : 'Cover photo'} updated.`);
+    await loadFeed(true);
+  }
+
+  async function loadDashboardStats() {
+    if (!state.user) return;
+    const id = state.user.id;
+    const [posts, comments, followers, following] = await Promise.all([
+      state.db.from('wazobia_posts').select('id', { count: 'exact', head: true }).eq('author_id', id).eq('is_deleted', false),
+      state.db.from('wazobia_comments').select('id', { count: 'exact', head: true }).eq('author_id', id).eq('is_deleted', false),
+      state.db.from('wazobia_follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id),
+      state.db.from('wazobia_follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id)
+    ]);
+    $('wz-dashboard-stats').innerHTML = [posts,comments,followers,following].map((r,i) => `<div><strong>${r.error ? '—' : Number(r.count || 0).toLocaleString()}</strong><small>${['Posts','Comments','Followers','Following'][i]}</small></div>`).join('');
+  }
+
+  async function renderDashboard(tab = state.dashboardTab) {
+    if (!state.user) return;
+    state.dashboardTab = tab;
+    document.querySelectorAll('[data-dashboard-tab]').forEach(b => b.classList.toggle('active', b.dataset.dashboardTab === tab));
+    const content = $('wz-dashboard-content'); content.innerHTML = '<p class="wz-muted">Loading your dashboard…</p>';
+    if (tab === 'posts') {
+      const { data, error } = await state.db.from('wazobia_posts').select('id,body,media_url,media_type,created_at,is_deleted').eq('author_id', state.user.id).eq('is_deleted', false).order('created_at', { ascending: false }).limit(30);
+      if (error) { content.textContent = error.message; return; }
+      content.innerHTML = data?.length ? data.map(post => `<article class="wz-dashboard-post"><small>${escapeHtml(relativeTime(post.created_at))}</small><p>${escapeHtml(post.body || (post.media_type === 'video' ? 'Video post' : 'Photo post'))}</p><button type="button" data-dashboard-post="${escapeHtml(post.id)}">View in feed</button></article>`).join('') : '<p class="wz-muted">You have not shared a post yet. Your posts will appear here.</p>';
+    } else if (tab === 'about') {
+      content.innerHTML = `<div class="wz-dashboard-about"><strong>About ${escapeHtml(state.profile?.display_name || 'you')}</strong><p>${escapeHtml(state.profile?.bio || 'You have not added an introduction yet.')}</p><small>Member since ${escapeHtml(new Date(state.profile?.created_at || Date.now()).toLocaleDateString())}</small><p>Your profile belongs to your Wazobia account. Only you can change your profile details, profile picture and cover photo.</p></div>`;
+    } else {
+      const [recent, saved] = await Promise.all([
+        state.db.from('wazobia_posts').select('id,body,created_at').eq('author_id', state.user.id).eq('is_deleted', false).order('created_at', { ascending: false }).limit(4),
+        state.db.from('wazobia_bookmarks').select('post_id', { count: 'exact', head: true }).eq('user_id', state.user.id)
+      ]);
+      content.innerHTML = `<div class="wz-dashboard-welcome"><strong>Welcome back, ${escapeHtml(state.profile?.display_name || 'member')}.</strong><p>Your personal Wazobia dashboard keeps your posts, conversations and account details together.</p><div class="wz-dashboard-quick"><button type="button" data-dashboard-tab="posts">My posts</button><button type="button" data-dashboard-tab="about">Profile details</button><button type="button" id="wz-dashboard-saved">Saved posts (${Number(saved.count || 0)})</button></div></div><h3>Recent posts</h3>${recent.error ? `<p class="wz-muted">${escapeHtml(recent.error.message)}</p>` : recent.data?.length ? recent.data.map(p => `<article class="wz-dashboard-post"><small>${escapeHtml(relativeTime(p.created_at))}</small><p>${escapeHtml(p.body || 'Shared media')}</p><button type="button" data-dashboard-post="${escapeHtml(p.id)}">View in feed</button></article>`).join('') : '<p class="wz-muted">Your first post will appear here.</p>'}`;
+    }
   }
 
   async function signOut() {
@@ -642,7 +759,14 @@
     });
     $('wz-theme-btn').addEventListener('click', () => { localStorage.setItem('parrothit-wazobia-theme', document.body.classList.contains('wz-dark') ? 'light' : 'dark'); setTheme(); });
     $('wz-account-btn').addEventListener('click', showProfile);
+    document.querySelectorAll('[data-open-dashboard]').forEach(button => button.addEventListener('click', showProfile));
+    $('wz-profile-mini').addEventListener('click', showProfile);
+    $('wz-profile-mini').style.cursor = 'pointer';
     $('wz-save-profile').addEventListener('click', saveProfile);
+    $('wz-avatar-file').addEventListener('change', e => { const file = e.target.files?.[0]; if (file) uploadProfileImage(file, 'avatar'); e.target.value = ''; });
+    $('wz-cover-file').addEventListener('change', e => { const file = e.target.files?.[0]; if (file) uploadProfileImage(file, 'cover'); e.target.value = ''; });
+    $('wz-dashboard-content').addEventListener('click', e => { const tab = e.target.closest('[data-dashboard-tab]'); if (tab) return renderDashboard(tab.dataset.dashboardTab); const post = e.target.closest('[data-dashboard-post]'); if (post) { closeModal('wz-profile-modal'); state.activeTab='home'; setActiveTabButtons(); loadFeed(true).then(() => setTimeout(() => document.querySelector(`[data-post-id="${CSS.escape(post.dataset.dashboardPost)}"]`)?.scrollIntoView({behavior:'smooth',block:'center'}), 150)); } const saved = e.target.closest('#wz-dashboard-saved'); if (saved) { closeModal('wz-profile-modal'); state.activeTab='saved'; setActiveTabButtons(); loadFeed(true); } });
+    document.querySelectorAll('[data-dashboard-tab]').forEach(b => { if (b.closest('.wz-dashboard-tabs')) b.addEventListener('click', () => renderDashboard(b.dataset.dashboardTab)); });
     $('wz-sign-out').addEventListener('click', signOut);
     document.querySelectorAll('[data-wz-close]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.wzClose === 'auth' ? 'wz-auth-modal' : btn.dataset.wzClose === 'post' ? 'wz-post-modal' : 'wz-profile-modal')));
     document.querySelectorAll('.wz-modal-backdrop').forEach(backdrop => backdrop.addEventListener('click', e => { if (e.target === backdrop) { backdrop.hidden = true; document.body.style.overflow = ''; } }));
@@ -656,6 +780,30 @@
       state.activeTab = btn.dataset.wzTab; setActiveTabButtons(); loadFeed(true);
     }));
     $('wz-home-btn').addEventListener('click', () => { state.activeTab = 'home'; setActiveTabButtons(); loadFeed(true); });
+    const feed = $('wz-feed');
+    feed.addEventListener('pointerdown', e => {
+      const comment = e.target.closest('.wz-comment[data-comment-id]'); if (!comment) return;
+      clearTimeout(state.commentHoldTimer);
+      state.commentHoldTimer = setTimeout(() => showCommentMenu(comment, e.clientX || comment.getBoundingClientRect().left, e.clientY || comment.getBoundingClientRect().bottom), 560);
+    });
+    ['pointerup','pointercancel','pointermove'].forEach(type => feed.addEventListener(type, () => clearTimeout(state.commentHoldTimer), { passive: true }));
+    feed.addEventListener('contextmenu', e => {
+      const comment = e.target.closest('.wz-comment[data-comment-id]'); if (!comment) return;
+      e.preventDefault(); showCommentMenu(comment, e.clientX, e.clientY);
+    });
+    $('wz-comment-context-menu').addEventListener('click', async e => {
+      const action = e.target.closest('[data-comment-action]')?.dataset.commentAction;
+      const comment = state.activeCommentMenu; hideCommentMenu(); if (!action || !comment) return;
+      if ((action === 'edit' || action === 'delete') && comment.dataset.authorId !== state.user?.id) return status('You can only edit or delete your own comments.', true);
+      if (action === 'edit') return editComment(comment);
+      if (action === 'delete') return deleteComment(comment);
+      if (action === 'copy') {
+        try { await navigator.clipboard.writeText(comment.dataset.commentBody || ''); status('Comment copied.'); }
+        catch (_) { const input = document.createElement('textarea'); input.value = comment.dataset.commentBody || ''; document.body.append(input); input.select(); document.execCommand('copy'); input.remove(); status('Comment copied.'); }
+      }
+    });
+    document.addEventListener('click', e => { if (!e.target.closest('#wz-comment-context-menu')) hideCommentMenu(); });
+
     $('wz-feed').addEventListener('click', async (e) => {
       const hashtag = e.target.closest('[data-hashtag]');
       if (hashtag) { e.preventDefault(); $('wz-search').value = hashtag.dataset.hashtag; state.activeTab = 'home'; setActiveTabButtons(); return loadFeed(true); }
