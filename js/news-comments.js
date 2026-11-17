@@ -120,22 +120,23 @@
     (totals || []).forEach(row => { if (row.comment_id === comment.id && map[row.reaction] !== undefined) map[row.reaction] = Number(row.reaction_count) || 0; });
     return map;
   }
-  function commentMarkup(comment, childMap, totals, mine) {
+  function commentMarkup(comment, childMap, totals, mine, depth = 0) {
+    const safeDepth = Math.max(0, Math.min(10000, Number.isFinite(Number(depth)) ? Math.floor(Number(depth)) : 0));
     const counts = reactionCountMap(comment, totals);
     const reactions = EMOJIS.map(item => `<button type="button" class="nc-action nc-react" data-nc-react="${item.value}" data-comment-id="${comment.id}" aria-label="${item.label} ${counts[item.value]}">${item.value} ${counts[item.value]}</button>`).join('');
     const children = childMap.get(comment.id) || [];
     const tag = comment.reader_tag || 'Reader';
     const deleted = !!comment.is_deleted;
     const ownActions = mine.has(comment.id) && !deleted ? `<button type="button" class="nc-action" data-nc-edit="${comment.id}">Edit</button><button type="button" class="nc-action nc-report" data-nc-delete="${comment.id}">Delete</button>` : '';
-    return `<article class="nc-comment" data-comment-card="${comment.id}"><div class="nc-avatar">${avatarMarkup(comment.avatar_url, '🦜')}</div><div class="nc-comment-main">
+    return `<article class="nc-comment" data-comment-card="${comment.id}" data-nc-depth="${safeDepth}"><div class="nc-avatar">${avatarMarkup(comment.avatar_url, '🦜')}</div><div class="nc-comment-main">
       <div class="nc-comment-meta"><button type="button" class="nc-reader nc-profile-trigger" data-nc-profile="${comment.id}">${esc(tag)}</button><span class="nc-reader-badge">PARROTHIT reader</span><time class="nc-time" datetime="${esc(comment.created_at)}">${relativeTime(comment.created_at)}</time>${comment.edited_at && !deleted ? '<span class="nc-edited">Edited</span>' : ''}</div>
       <div class="nc-profile-card nc-hidden" data-nc-profile-card="${comment.id}"><strong>${esc(tag)}</strong><span>Anonymous PARROTHIT reader</span><small>${Number(comment.reader_comment_count || 0)} comment(s) in this article</small></div>
       <p class="nc-comment-text ${deleted ? 'nc-deleted-text' : ''}" data-nc-comment-body="${comment.id}">${deleted ? 'This comment was deleted by its author.' : esc(comment.body)}</p>
       <div class="nc-actions">${deleted ? '' : reactions}<button type="button" class="nc-action" data-nc-reply="${comment.id}">💬 Reply</button><button type="button" class="nc-action" data-nc-mention="${comment.id}">@ Mention</button>${ownActions}${deleted ? '' : `<button type="button" class="nc-action nc-report" data-nc-report="${comment.id}">Report</button>`}</div>
       <form class="nc-edit-form nc-hidden" data-nc-edit-form="${comment.id}"><textarea class="nc-textarea" name="body" minlength="2" maxlength="2000" required>${deleted ? '' : esc(comment.body)}</textarea><div class="nc-edit-actions"><button type="submit" class="nc-reply-send">Save edit</button><button type="button" class="nc-action" data-nc-cancel-edit="${comment.id}">Cancel</button></div></form>
       <form class="nc-reply-form nc-hidden" data-nc-reply-form="${comment.id}"><input class="nc-reply-input" type="email" name="email" required maxlength="254" autocomplete="email" placeholder="Your email"><textarea class="nc-reply-input" name="body" required minlength="2" maxlength="2000" placeholder="Write a reply… Use @ to mention a reader."></textarea><div class="nc-mention-suggestions nc-hidden" data-nc-mention-suggestions></div><div class="nc-honeypot" aria-hidden="true"><label>Leave this field empty<input name="website_url" tabindex="-1" autocomplete="off"></label></div><button class="nc-reply-send" type="submit">Reply</button></form>
-      ${children.length ? `<button type="button" class="nc-view-replies" data-nc-expand="${comment.id}" aria-expanded="false">▸ View ${children.length} ${children.length === 1 ? 'reply' : 'replies'}</button><div class="nc-replies nc-hidden" data-nc-children="${comment.id}"></div>` : `<div class="nc-replies nc-hidden" data-nc-children="${comment.id}"></div>`}
-    </div></article>`;
+      ${children.length ? `<button type="button" class="nc-view-replies" data-nc-expand="${comment.id}" aria-expanded="false">▸ View ${children.length} ${children.length === 1 ? 'reply' : 'replies'}</button>` : ''}
+    </div><div class="nc-replies nc-hidden" data-nc-children="${comment.id}" data-depth="${safeDepth}"></div></article>`;
   }
   async function init(postId, title) {
     const root = mountMarkup(); if (!root) return;
@@ -195,7 +196,7 @@
       EMOJIS.forEach(item => { const node = $(root, `[data-nc-total="${item.value}"]`); if (node) node.textContent = totalReactions[item.value]; });
       const list = $(root, '[data-nc-list]');
       const page = roots.slice(0, visibleRoots);
-      list.innerHTML = page.length ? page.map(c => commentMarkup(c, childMap, totals, mine)).join('') : '<div class="nc-empty">No comments yet. Be the first to share your thoughts.</div>';
+      list.innerHTML = page.length ? page.map(c => commentMarkup(c, childMap, totals, mine, 0)).join('') : '<div class="nc-empty">No comments yet. Be the first to share your thoughts.</div>';
       if (roots.length > visibleRoots) list.insertAdjacentHTML('beforeend', `<button type="button" class="nc-load-more" data-nc-load-more>Load more comments (${roots.length-visibleRoots} remaining)</button>`);
     }
     async function load() {
@@ -233,7 +234,7 @@
       const children=(childMap.get(parentId)||[]).slice().sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
       const offset=Number(container.dataset.offset||0), page=children.slice(offset,offset+THREAD_PAGE_SIZE);
       const more=container.querySelector('[data-nc-load-replies]'); if(more)more.remove();
-      if(page.length)container.insertAdjacentHTML('beforeend',page.map(c=>commentMarkup(c,childMap,totals,mine)).join(''));
+      if(page.length){const depth=Number(container.dataset.depth||0)+1;container.insertAdjacentHTML('beforeend',page.map(c=>commentMarkup(c,childMap,totals,mine,depth)).join(''));}
       const next=offset+page.length;container.dataset.offset=String(next);container.dataset.loaded='true';
       if(next<children.length)container.insertAdjacentHTML('beforeend',`<button type="button" class="nc-load-more nc-load-more-replies" data-nc-load-replies="${parentId}">Load more replies (${children.length-next} remaining)</button>`);
     }
