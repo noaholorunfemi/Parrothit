@@ -16,6 +16,32 @@ create table if not exists public.livescore_advertisers (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.livescore_ad_inquiries (
+  id uuid primary key default gen_random_uuid(),
+  business_name text not null,
+  contact_name text not null,
+  email text not null,
+  phone text not null,
+  website text not null default '',
+  requested_placements text[] not null default '{}',
+  preferred_format text not null default 'image',
+  duration text not null default '',
+  budget_range text not null default '',
+  message text not null default '',
+  status text not null default 'new' check (status in ('new','reviewing','contacted','converted','rejected')),
+  admin_notes text not null default '',
+  advertiser_id uuid references public.livescore_advertisers(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (char_length(business_name) between 2 and 140),
+  check (char_length(contact_name) between 2 and 120),
+  check (char_length(email) between 5 and 180),
+  check (char_length(phone) between 5 and 60),
+  check (website = '' or website ~* '^https://'),
+  check (cardinality(requested_placements) between 1 and 6),
+  check (char_length(message) <= 2000)
+);
+
 create table if not exists public.livescore_ad_placements (
   id text primary key,
   label text not null,
@@ -149,13 +175,31 @@ $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['livescore_advertisers','livescore_ad_placements','livescore_ad_campaigns','livescore_ad_revenue_entries','livescore_ad_events'] loop
+  foreach t in array array['livescore_advertisers','livescore_ad_inquiries','livescore_ad_placements','livescore_ad_campaigns','livescore_ad_revenue_entries','livescore_ad_events'] loop
     execute format('alter table public.%I enable row level security',t);
     execute format('drop policy if exists %I on public.%I','parrothit admins manage '||t,t);
     execute format('create policy %I on public.%I for all to authenticated using (public.is_parrothit_admin()) with check (public.is_parrothit_admin())','parrothit admins manage '||t,t);
     execute format('grant select,insert,update,delete on public.%I to authenticated',t);
   end loop;
 end $$;
+
+-- Public visitors may submit an advertising enquiry, but cannot read or manage enquiries.
+drop policy if exists "public can submit LiveScore ad enquiries" on public.livescore_ad_inquiries;
+create policy "public can submit LiveScore ad enquiries" on public.livescore_ad_inquiries
+for insert to anon
+with check (
+  status='new' and advertiser_id is null
+  and char_length(business_name) between 2 and 140
+  and char_length(contact_name) between 2 and 120
+  and char_length(email) between 5 and 180
+  and email ~* '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+  and char_length(phone) between 5 and 60
+  and (website = '' or website ~* '^https://')
+  and cardinality(requested_placements) between 1 and 6
+  and char_length(message) <= 2000
+);
+revoke all on public.livescore_ad_inquiries from anon;
+grant insert (business_name,contact_name,email,phone,website,requested_placements,preferred_format,duration,budget_range,message,status) on public.livescore_ad_inquiries to anon;
 
 revoke all on public.livescore_advertisers from anon;
 revoke all on public.livescore_ad_placements from anon;
@@ -165,6 +209,36 @@ revoke all on public.livescore_ad_events from anon;
 grant select on public.livescore_public_ad_slots to anon,authenticated;
 grant select on public.livescore_public_ads to anon,authenticated;
 grant select on public.livescore_ad_campaign_performance to authenticated;
+-- Admin-only advertiser removal. Campaign events cascade; income rows survive with campaign_id set to NULL.
+create or replace function public.livescore_delete_advertiser(p_advertiser_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_campaigns integer := 0;
+  v_deleted integer := 0;
+begin
+  if not public.is_parrothit_admin() then
+    raise exception 'Only PARROTHIT administrators can delete LiveScore advertisers.' using errcode = '42501';
+  end if;
+  update public.livescore_ad_inquiries
+  set advertiser_id = null, status = 'reviewing', updated_at = now()
+  where advertiser_id = p_advertiser_id;
+  delete from public.livescore_ad_campaigns where advertiser_id = p_advertiser_id;
+  get diagnostics v_campaigns = row_count;
+  delete from public.livescore_advertisers where id = p_advertiser_id;
+  get diagnostics v_deleted = row_count;
+  if v_deleted = 0 then
+    raise exception 'Advertiser was not found.' using errcode = 'P0002';
+  end if;
+  return jsonb_build_object('deleted', true, 'campaigns_removed', v_campaigns);
+end;
+$$;
+revoke all on function public.livescore_delete_advertiser(uuid) from public;
+grant execute on function public.livescore_delete_advertiser(uuid) to authenticated;
+
 revoke all on function public.livescore_track_ad_event(uuid,text,text,text) from public;
 grant execute on function public.livescore_track_ad_event(uuid,text,text,text) to anon,authenticated;
 
@@ -193,3 +267,5 @@ comment on table public.livescore_advertisers is 'Advertisers for PARROTHIT Live
 comment on table public.livescore_ad_campaigns is 'LiveScore-only advertising campaigns and placements.';
 comment on table public.livescore_ad_revenue_entries is 'Dedicated LiveScore revenue ledger; direct advertiser, AdSense, affiliate and sponsorship income.';
 comment on table public.livescore_ad_events is 'Deduplicated LiveScore ad impressions and clicks; browser session keys are hashed.';
+
+comment on table public.livescore_ad_inquiries is 'Public advertising requests submitted from the PARROTHIT LiveScore webpage; visible only to PARROTHIT admins.';
