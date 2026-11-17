@@ -13,6 +13,9 @@
   const THREAD_PAGE_SIZE = 30;
   const FETCH_PAGE_SIZE = 500;
   const REACTION_HOLD_MS = 430;
+  const COMMENT_MEDIA_BUCKET = 'parrothit-comment-media';
+  const COMMENT_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+  const COMMENT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
   const $ = (root, selector) => root.querySelector(selector);
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -97,6 +100,10 @@
       ? `<img class="nc-avatar-img" src="${safe}" alt="Reader profile photo" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nc-avatar-fallback',textContent:'${esc(fallback)}'}))">`
       : `<span class="nc-avatar-fallback">${esc(fallback)}</span>`;
   }
+  function mediaComposerTools() {
+    return `<div class="nc-composer-toolbar"><div class="nc-composer-actions"><button type="button" class="nc-media-button" data-nc-pick-image aria-label="Attach a photo" title="Attach a photo"><span aria-hidden="true">▧</span><span>Photo</span></button><button type="button" class="nc-media-button nc-gif-button" data-nc-pick-gif aria-label="Attach an animated GIF" title="Attach an animated GIF">GIF</button></div><div class="nc-media-preview nc-hidden" data-nc-media-preview aria-live="polite"></div></div><input class="nc-media-file nc-hidden" type="file" data-nc-media-input="image" accept="image/jpeg,image/png,image/webp,image/avif"><input class="nc-media-file nc-hidden" type="file" data-nc-media-input="gif" accept="image/gif">`;
+  }
+
   function mountMarkup(root, threadPage) {
     if (!root || root.dataset.ncMounted === 'true') return root;
     root.dataset.ncMounted = 'true';
@@ -107,7 +114,7 @@
       ? `<div class="nc-thread-identity" data-nc-identity><div class="nc-thread-identity-copy"><strong>Join this conversation</strong><small>Your email stays private. You appear as a PARROTHIT Reader.</small></div><input class="nc-input" name="email" type="email" required maxlength="254" autocomplete="email" placeholder="Your email address"><div class="nc-google-connect"><div class="nc-google-controls"><button class="nc-google-btn" type="button" data-nc-google>G&nbsp; Connect Google profile photo (optional)</button><button class="nc-google-remove" type="button" data-nc-google-remove hidden>Remove photo</button></div><img class="nc-google-preview" data-nc-google-preview alt="Connected Google profile photo preview" hidden><span data-nc-google-status role="status" aria-live="polite">Commenting by email works without Google sign-in.</span></div></div>`
       : `<form class="nc-compose" data-nc-compose><div class="nc-compose-fields"><input class="nc-input" name="email" type="email" required maxlength="254" autocomplete="email" placeholder="Your email address">
         <div class="nc-google-connect"><div class="nc-google-controls"><button class="nc-google-btn" type="button" data-nc-google>G&nbsp; Connect Google profile photo (optional)</button><button class="nc-google-remove" type="button" data-nc-google-remove hidden>Remove photo</button></div><img class="nc-google-preview" data-nc-google-preview alt="Connected Google profile photo preview" hidden><span data-nc-google-status role="status" aria-live="polite">Commenting by email works without Google sign-in.</span></div>
-        <textarea class="nc-textarea" name="body" required minlength="2" maxlength="2000" placeholder="Write a comment… Use @ to mention a reader."></textarea><div class="nc-mention-suggestions nc-hidden" data-nc-mention-suggestions></div><span class="nc-email-note">🔒 Your email stays private. You appear publicly with a pseudonymous PARROTHIT Reader tag.</span></div>
+        <div class="nc-composer-box" data-nc-composer-box><textarea class="nc-textarea" name="body" maxlength="2000" placeholder="Write a comment… Use @ to mention a reader."></textarea>${mediaComposerTools()}</div><div class="nc-mention-suggestions nc-hidden" data-nc-mention-suggestions></div><span class="nc-email-note">🔒 Your email stays private. You appear publicly with a pseudonymous PARROTHIT Reader tag.</span></div>
         <div class="nc-honeypot" aria-hidden="true"><label>Leave this field empty<input name="website_url" tabindex="-1" autocomplete="off"></label></div><button class="nc-post-btn" type="submit">Post Comment ➤</button></form>`;
     root.innerHTML = `
       <div class="nc-head"><div class="nc-brand"><img class="nc-logo" src="assets/images/parrothit-logo.png" alt="PARROTHIT logo" onerror="this.style.display='none'"><div><div class="nc-head-title">PARROTHIT · ${threadPage ? 'Reply conversation' : 'Join the conversation'}</div><small>${threadPage ? 'A dedicated page for this reply thread' : 'Article discussion'}</small></div></div>
@@ -158,6 +165,7 @@
 
     let allComments = [], totals = [], childMap = new Map(), commentById = new Map();
     let rootCache = new Map(), threadStats = new Map();
+    const selectedMedia = new Map();
     let visibleRoots = ROOT_PAGE_SIZE, visibleThreadReplies = THREAD_PAGE_SIZE;
     let threadRootId = requestedRootId;
     let notificationTimer = null;
@@ -332,6 +340,23 @@
       });
       return roots;
     }
+    function commentMediaUrl(path) {
+      if (!path || !/^article-comments\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(String(path))) return '';
+      try {
+        const result = db.storage.from(COMMENT_MEDIA_BUCKET).getPublicUrl(path);
+        return result && result.data && result.data.publicUrl ? result.data.publicUrl : '';
+      } catch (_) { return ''; }
+    }
+    function commentMediaMarkup(comment) {
+      const url = commentMediaUrl(comment.media_path);
+      if (!url) return '';
+      const isGif = comment.media_type === 'gif';
+      return `<div class="nc-comment-media ${isGif ? 'is-gif' : ''}"><a href="${esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${isGif ? 'GIF' : 'comment image'} in a new tab"><img src="${esc(url)}" alt="${isGif ? 'Animated GIF attached to comment' : 'Image attached to comment'}" loading="lazy" decoding="async">${isGif ? '<span class="nc-media-badge">GIF</span>' : ''}</a></div>`;
+    }
+    function mediaPlaceholderBody(comment) {
+      return !!(comment && comment.media_path && ['[Photo]', '[GIF]'].includes(String(comment.body || '').trim()));
+    }
+
     function commentMarkup(comment, settings) {
       settings = settings || {};
       if (!isActiveComment(comment)) return '';
@@ -361,7 +386,7 @@
           : '<div class="nc-reply-context">↳ Reply in this conversation</div>')
         : '';
       const context = isReply ? parentContext : '';
-      const threadForm = threadPage ? `<form class="nc-reply-form nc-hidden" data-nc-reply-form="${comment.id}"><input class="nc-reply-input" type="email" name="email" required maxlength="254" autocomplete="email" placeholder="Your email"><textarea class="nc-reply-input" name="body" required minlength="2" maxlength="2000" placeholder="Write a reply… Use @ to mention a reader."></textarea><div class="nc-mention-suggestions nc-hidden" data-nc-mention-suggestions></div><div class="nc-honeypot" aria-hidden="true"><label>Leave this field empty<input name="website_url" tabindex="-1" autocomplete="off"></label></div><button class="nc-reply-send" type="submit">Reply</button></form>` : '';
+      const threadForm = threadPage ? `<form class="nc-reply-form nc-hidden" data-nc-reply-form="${comment.id}"><input class="nc-reply-input" type="email" name="email" required maxlength="254" autocomplete="email" placeholder="Your email"><div class="nc-composer-box nc-reply-composer-box" data-nc-composer-box><textarea class="nc-reply-input" name="body" maxlength="2000" placeholder="Write a reply… Use @ to mention a reader."></textarea>${mediaComposerTools()}</div><div class="nc-mention-suggestions nc-hidden" data-nc-mention-suggestions></div><div class="nc-honeypot" aria-hidden="true"><label>Leave this field empty<input name="website_url" tabindex="-1" autocomplete="off"></label></div><button class="nc-reply-send" type="submit">Reply</button></form>` : '';
       let threadPreview = '';
       if (!threadPage && !isReply) {
         const stat = threadStats.get(comment.id) || { count: 0, latest: null };
@@ -369,7 +394,8 @@
           const latest = stat.latest;
           const latestTag = latest.reader_tag || 'Reader';
           const latestBody = String(latest.body || '');
-          const snippet = latestBody.slice(0, 110);
+          const previewBody = mediaPlaceholderBody(latest) ? (latest.media_type === 'gif' ? 'GIF' : 'Photo') : latestBody;
+          const snippet = previewBody.slice(0, 110);
           threadPreview = `<a class="nc-thread-preview" href="${esc(buildThreadUrl(comment.id))}"><span class="nc-thread-preview-count">↳ ${stat.count} ${stat.count === 1 ? 'reply' : 'replies'} · View conversation</span><span class="nc-thread-preview-latest"><b>${esc(latestTag)}</b> ${esc(snippet)}${latestBody.length > 110 ? '…' : ''}</span></a>`;
         } else {
           threadPreview = `<a class="nc-thread-preview nc-thread-preview-empty" href="${esc(buildThreadUrl(comment.id, { replyTo: true }))}">Be the first to reply · Open conversation</a>`;
@@ -381,9 +407,10 @@
           ${context}
           <div class="nc-comment-meta"><button type="button" class="nc-reader nc-profile-trigger" data-nc-profile="${comment.id}">${esc(tag)}</button><span class="nc-reader-badge">PARROTHIT reader</span><time class="nc-time" datetime="${esc(comment.created_at)}">${relativeTime(comment.created_at)}</time>${comment.edited_at ? '<span class="nc-edited">Edited</span>' : ''}</div>
           <div class="nc-profile-card nc-hidden" data-nc-profile-card="${comment.id}"><strong>${esc(tag)}</strong><span>Anonymous PARROTHIT reader</span><small>${Number(comment.reader_comment_count || 0)} comment(s) in this article</small></div>
-          <p class="nc-comment-text" data-nc-comment-body="${comment.id}">${esc(comment.body)}</p>
+          ${comment.body && !mediaPlaceholderBody(comment) ? `<p class="nc-comment-text" data-nc-comment-body="${comment.id}">${esc(comment.body)}</p>` : ''}
+          ${commentMediaMarkup(comment)}
           <div class="nc-actions">${reactions}<button type="button" class="nc-action" data-nc-reply="${comment.id}">💬 Reply</button><button type="button" class="nc-action" data-nc-mention="${comment.id}">@ Mention</button>${ownActions}<button type="button" class="nc-action nc-report" data-nc-report="${comment.id}">Report</button></div>
-          <form class="nc-edit-form nc-hidden" data-nc-edit-form="${comment.id}"><textarea class="nc-textarea" name="body" minlength="2" maxlength="2000" required>${esc(comment.body)}</textarea><div class="nc-edit-actions"><button type="submit" class="nc-reply-send">Save edit</button><button type="button" class="nc-action" data-nc-cancel-edit="${comment.id}">Cancel</button></div></form>
+          <form class="nc-edit-form nc-hidden" data-nc-edit-form="${comment.id}"><textarea class="nc-textarea" name="body" minlength="2" maxlength="2000" required>${esc(mediaPlaceholderBody(comment) ? '' : comment.body)}</textarea><div class="nc-edit-actions"><button type="submit" class="nc-reply-send">Save edit</button><button type="button" class="nc-action" data-nc-cancel-edit="${comment.id}">Cancel</button></div></form>
           ${threadForm}
           ${threadPreview}
         </div>
@@ -439,7 +466,7 @@
         const rows = [];
         let from = 0;
         while (true) {
-          const result = await db.from('comments').select('id,post_id,visitor_name,body,parent_comment_id,created_at,status,avatar_url,reader_tag,edited_at,is_deleted').eq('post_id', postId).eq('status', 'approved').order('created_at', { ascending: true }).range(from, from + FETCH_PAGE_SIZE - 1);
+          const result = await db.from('comments').select('id,post_id,visitor_name,body,parent_comment_id,created_at,status,avatar_url,reader_tag,edited_at,is_deleted,media_path,media_type').eq('post_id', postId).eq('status', 'approved').order('created_at', { ascending: true }).range(from, from + FETCH_PAGE_SIZE - 1);
           if (result.error) throw result.error;
           const batch = result.data || [];
           rows.push(...batch);
@@ -616,6 +643,48 @@
         heldLikeTrigger = null;
       }
     }
+    function clearSelectedMedia(form) {
+      const selected = selectedMedia.get(form);
+      if (selected && selected.previewUrl) URL.revokeObjectURL(selected.previewUrl);
+      selectedMedia.delete(form);
+      form.querySelectorAll('[data-nc-media-input]').forEach(input => { input.value = ''; });
+      const preview = form.querySelector('[data-nc-media-preview]');
+      if (preview) { preview.classList.add('nc-hidden'); preview.innerHTML = ''; }
+    }
+    function setSelectedMedia(form, file, mediaType) {
+      clearSelectedMedia(form);
+      const previewUrl = URL.createObjectURL(file);
+      selectedMedia.set(form, { file, mediaType, previewUrl });
+      const preview = form.querySelector('[data-nc-media-preview]');
+      if (!preview) return;
+      const thumb = document.createElement('img');
+      thumb.src = previewUrl; thumb.alt = 'Selected attachment preview';
+      const name = document.createElement('span');
+      name.textContent = file.name + ' · ' + (file.size / 1024 / 1024).toFixed(2) + ' MB';
+      const remove = document.createElement('button');
+      remove.type = 'button'; remove.className = 'nc-media-remove'; remove.dataset.ncRemoveMedia = 'true';
+      remove.setAttribute('aria-label', 'Remove attachment'); remove.textContent = '×';
+      preview.replaceChildren(thumb, name, remove);
+      preview.classList.remove('nc-hidden');
+    }
+    async function uploadCommentMedia(file, mediaType) {
+      if (!file) return null;
+      if (file.size > COMMENT_MEDIA_MAX_BYTES) throw new Error('Images and GIFs must be 5 MB or smaller.');
+      const isGif = mediaType === 'gif';
+      if (isGif ? file.type !== 'image/gif' : !COMMENT_IMAGE_TYPES.includes(file.type)) {
+        throw new Error(isGif ? 'Choose a valid animated GIF file.' : 'Choose a JPG, PNG, WebP or AVIF image.');
+      }
+      const extensionByType = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif', 'image/gif': 'gif' };
+      const extension = extensionByType[file.type];
+      const id = window.crypto && typeof window.crypto.randomUUID === 'function'
+        ? window.crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2);
+      const path = `article-comments/${postId}/${id}.${extension}`;
+      const result = await db.storage.from(COMMENT_MEDIA_BUCKET).upload(path, file, {
+        cacheControl: '31536000', upsert: false, contentType: file.type
+      });
+      if (result.error) throw result.error;
+      return { path: result.data && result.data.path || path, type: mediaType };
+    }
     function showMentionSuggestions(textarea) {
       const form = textarea.closest('form');
       const box = form && form.querySelector('[data-nc-mention-suggestions]');
@@ -634,6 +703,16 @@
     root.addEventListener('change', event => {
       if (event.target.matches('[data-nc-sort]')) { visibleRoots = ROOT_PAGE_SIZE; renderRoots(); }
       if (event.target.matches('[data-nc-compose] [name="email"],[data-nc-identity] [name="email"]')) updateGoogleConnectionUI();
+      if (event.target.matches('[data-nc-media-input]')) {
+        const input = event.target, form = input.closest('form'), file = input.files && input.files[0];
+        if (!form || !file) return;
+        const kind = input.dataset.ncMediaInput === 'gif' ? 'gif' : 'image';
+        if (file.size > COMMENT_MEDIA_MAX_BYTES) { input.value = ''; clearSelectedMedia(form); setMessage(root, 'Images and GIFs must be 5 MB or smaller.', 'error'); return; }
+        const valid = kind === 'gif' ? file.type === 'image/gif' : COMMENT_IMAGE_TYPES.includes(file.type);
+        if (!valid) { input.value = ''; clearSelectedMedia(form); setMessage(root, kind === 'gif' ? 'Choose an animated GIF file.' : 'Choose a JPG, PNG, WebP or AVIF image.', 'error'); return; }
+        setSelectedMedia(form, file, kind);
+        setMessage(root, '', 'info');
+      }
     });
     root.addEventListener('input', event => {
       if (event.target.matches('[name="body"]')) showMentionSuggestions(event.target);
@@ -684,6 +763,12 @@
     document.addEventListener('pointerdown', closePickersWhenClickingOutside);
 
     root.addEventListener('click', async event => {
+      const pickImage = event.target.closest('[data-nc-pick-image]');
+      if (pickImage) { const form = pickImage.closest('form'); form && form.querySelector('[data-nc-media-input="image"]')?.click(); return; }
+      const pickGif = event.target.closest('[data-nc-pick-gif]');
+      if (pickGif) { const form = pickGif.closest('form'); form && form.querySelector('[data-nc-media-input="gif"]')?.click(); return; }
+      const removeMedia = event.target.closest('[data-nc-remove-media]');
+      if (removeMedia) { const form = removeMedia.closest('form'); if (form) clearSelectedMedia(form); return; }
       const likeTrigger = event.target.closest('[data-nc-like-trigger]');
       if (likeTrigger) {
         if (holdTriggered && heldLikeTrigger === likeTrigger) {
@@ -827,32 +912,50 @@
       const body = String(data.get('body') || '').trim();
       const honeypot = String(data.get('website_url') || '');
       const parentId = form.dataset.ncReplyForm || null;
+      const attachment = selectedMedia.get(form) || null;
       if (parentId && !isActiveComment(parentId)) {
         setMessage(root, 'This comment has been deleted or is no longer available. You cannot reply to it.', 'error');
         return;
       }
+      if (body.length < 2 && !attachment) {
+        setMessage(root, 'Write a message or attach a photo/GIF before posting.', 'error');
+        const bodyInput = form.querySelector('[name="body"]'); if (bodyInput) bodyInput.focus();
+        return;
+      }
       const button = form.querySelector('button[type="submit"]');
-      if (button) { button.disabled = true; button.textContent = parentId ? 'Sending…' : 'Posting…'; }
+      let uploadedMedia = null;
+      if (button) { button.disabled = true; button.textContent = attachment ? 'Uploading…' : (parentId ? 'Sending…' : 'Posting…'); }
       try {
-        const result = await db.rpc('submit_news_comment', {
+        uploadedMedia = attachment ? await uploadCommentMedia(attachment.file, attachment.mediaType) : null;
+        if (button && uploadedMedia) button.textContent = parentId ? 'Sending reply…' : 'Posting comment…';
+        const result = await db.rpc('submit_news_comment_with_media', {
           p_post_id: postId,
           p_email: email,
           p_body: body,
           p_parent_comment_id: parentId,
           p_honeypot: honeypot,
           p_avatar_url: savedGooglePhoto(email),
-          p_author_token: authorToken
+          p_author_token: authorToken,
+          p_media_path: uploadedMedia ? uploadedMedia.path : null,
+          p_media_type: uploadedMedia ? uploadedMedia.type : null
         });
         if (result.error) throw result.error;
         const created = result.data && result.data.id;
         if (created) { rememberOwned(created); mine.add(created); }
         form.reset();
+        clearSelectedMedia(form);
         if (parentId) form.classList.add('nc-hidden');
         await load();
         if (created) await revealComment(created);
         setMessage(root, parentId ? 'Your reply has been posted.' : 'Your comment has been posted.', 'success');
         await loadNotifications(false);
       } catch (error) {
+        if (uploadedMedia && uploadedMedia.path) {
+          try {
+            const cleanup = await db.storage.from(COMMENT_MEDIA_BUCKET).remove([uploadedMedia.path]);
+            if (cleanup && cleanup.error) console.warn('Unlinked comment media cleanup was blocked:', cleanup.error);
+          } catch (cleanupError) { console.warn('Unlinked comment media cleanup failed:', cleanupError); }
+        }
         console.error('PARROTHIT comment submission failed:', error);
         setMessage(root, error.message || 'Your comment could not be posted. Please try again.', 'error');
       } finally {
