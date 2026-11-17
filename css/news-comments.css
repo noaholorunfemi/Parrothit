@@ -396,3 +396,134 @@
   .news-comments .nc-reaction-option { width: 34px; height: 36px; flex-basis: 34px; font-size: 1.42rem; }
   .news-comments .nc-actions { column-gap: 3px; }
 }
+
+/* PARROTHIT photo + animated GIF composer — icons live inside the text box. */
+.news-comments .nc-composer-box {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #565656;
+  border-radius: 12px;
+  background: #151515;
+}
+.news-comments .nc-composer-box:focus-within {
+  border-color: #e52a39;
+  box-shadow: 0 0 0 3px #d7192830;
+}
+.news-comments .nc-composer-box textarea.nc-textarea,
+.news-comments .nc-composer-box textarea.nc-reply-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 86px;
+  height: 96px;
+  margin: 0;
+  padding: 12px 13px 9px;
+  border: 0 !important;
+  border-radius: 0;
+  outline: 0;
+  background: #151515 !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  font: inherit;
+  font-size: 16px;
+  resize: vertical;
+}
+.news-comments .nc-composer-box textarea::placeholder { color: #bcbcbc !important; opacity: 1; }
+.news-comments .nc-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 9px 8px;
+  border-top: 1px solid #383838;
+  background: #111;
+}
+.news-comments .nc-composer-actions { display: inline-flex; align-items: center; gap: 8px; }
+.news-comments .nc-media-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 11px;
+  border: 1px solid #414141;
+  border-radius: 18px;
+  background: #202020;
+  color: #f4f4f4;
+  font: 800 .78rem/1 Arial, sans-serif;
+  cursor: pointer;
+}
+.news-comments .nc-media-button > span:first-child { color: #72c78e; font-size: 1.2rem; }
+.news-comments .nc-media-button:hover,
+.news-comments .nc-media-button:focus-visible { border-color: #e52a39; background: #351116; outline: none; }
+.news-comments .nc-gif-button { min-width: 43px; color: #fff; letter-spacing: .04em; }
+.news-comments .nc-media-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: min(65%, 310px);
+  color: #ddd;
+  font-size: .72rem;
+}
+.news-comments .nc-media-preview > img {
+  width: 35px;
+  height: 35px;
+  flex: 0 0 35px;
+  object-fit: cover;
+  border: 1px solid #565656;
+  border-radius: 6px;
+}
+.news-comments .nc-media-preview > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.news-comments .nc-media-remove {
+  flex: 0 0 auto;
+  width: 25px;
+  height: 25px;
+  border: 1px solid #6a3439;
+  border-radius: 50%;
+  background: #351116;
+  color: #fff;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.news-comments .nc-media-file { display: none !important; }
+.news-comments .nc-comment-media { position: relative; width: fit-content; max-width: min(100%, 560px); margin: 8px 0 11px; }
+.news-comments .nc-comment-media a { position: relative; display: block; max-width: 100%; text-decoration: none; }
+.news-comments .nc-comment-media img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 540px;
+  object-fit: contain;
+  border: 1px solid #383838;
+  border-radius: 12px;
+  background: #101010;
+}
+.news-comments .nc-media-badge {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  padding: 4px 7px;
+  border: 1px solid #ffffff45;
+  border-radius: 5px;
+  background: #000c;
+  color: #fff;
+  font-size: .66rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.news-comments .nc-comment-media a:focus-visible { outline: 2px solid #ed2635; outline-offset: 3px; border-radius: 12px; }
+.news-comments .nc-reply-composer-box textarea.nc-reply-input { min-height: 76px; height: 82px; }
+.news-comments .nc-reply-form .nc-composer-box { margin: 0; }
+@media (max-width: 650px) {
+  .news-comments .nc-composer-box textarea.nc-textarea { min-height: 82px; height: 88px; }
+  .news-comments .nc-composer-toolbar { padding: 6px 7px; }
+  .news-comments .nc-media-button { min-height: 36px; padding: 5px 10px; }
+  .news-comments .nc-media-preview { max-width: 56%; }
+  .news-comments .nc-comment-media { max-width: 100%; }
+  .news-comments .nc-comment-media img { max-height: 420px; }
+}
