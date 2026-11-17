@@ -10,11 +10,11 @@
   <link rel="stylesheet" href="css/livescore-highlights.css?v=plasma-red-black-20261115">
   <link rel="stylesheet" href="css/livescore-news-sidebar.css?v=20261115-guide-toggle-v2">
   <link rel="stylesheet" href="css/livescore-description-toggle.css?v=20261116-full-card-toggle-v2">
-  <link rel="stylesheet" href="css/livescore-advertising.css?v=20261116">
+  <link rel="stylesheet" href="css/livescore-advertising.css?v=20261116-submission-v1">
 </head>
 <body class="pl-body">
   <div class="pl-app">
-    <div class="pl-topline"><span>FOOTBALL SCORES</span><a href="index.html">Back to PARROTHIT News</a></div>
+    <div class="pl-topline"><span>FOOTBALL SCORES</span><span class="pl-topline-links"><a href="#plAdInquiry">Advertise on LiveScore</a><a href="index.html">Back to PARROTHIT News</a></span></div>
 
     <header class="pl-header">
       <div class="pl-header-inner">
@@ -168,6 +168,25 @@
           <div class="pl-sports-news-foot">Select a story to open its main Sports or Football category page on PARROTHIT.</div>
         </aside>
       </div>
+      <section class="ls-advertise-section" id="plAdInquiry" aria-labelledby="plAdInquiryTitle">
+        <div class="ls-advertise-heading"><span class="ls-advertise-kicker">PARROTHIT LIVE SCORE PARTNERSHIPS</span><h2 id="plAdInquiryTitle">Advertise on LiveScore</h2><p>Promote your business to football fans following live matches, fixtures, results and competitions. Submit your advertising request and our team will contact you to discuss availability and pricing.</p></div>
+        <form id="lsAdInquiryForm" class="ls-advertise-form">
+          <div class="ls-ad-form-grid">
+            <label>Business / brand name<input name="business_name" required maxlength="140" autocomplete="organization" placeholder="Your company or brand"></label>
+            <label>Contact person<input name="contact_name" required maxlength="120" autocomplete="name" placeholder="Full name"></label>
+            <label>Email address<input name="email" required type="email" maxlength="180" autocomplete="email" placeholder="you@example.com"></label>
+            <label>Phone / WhatsApp<input name="phone" required maxlength="60" autocomplete="tel" placeholder="+234…"></label>
+            <label>Website (optional)<input name="website" type="url" maxlength="300" placeholder="https://yourwebsite.com"></label>
+            <label>Preferred advert format<select name="preferred_format"><option value="image">Image banner</option><option value="gif">GIF advert</option><option value="video">Video advert</option><option value="sponsorship">Competition / match sponsorship</option><option value="not_sure">Not sure yet</option></select></label>
+            <label>Campaign duration<select name="duration"><option value="7 days">7 days</option><option value="14 days">14 days</option><option value="30 days" selected>30 days</option><option value="60 days">60 days</option><option value="90 days">90 days</option><option value="flexible">Flexible / discuss with me</option></select></label>
+            <label>Estimated budget<select name="budget_range"><option value="Not decided">Not decided</option><option value="Below ₦10,000">Below ₦10,000</option><option value="₦10,000–₦25,000">₦10,000–₦25,000</option><option value="₦25,000–₦50,000">₦25,000–₦50,000</option><option value="₦50,000–₦100,000">₦50,000–₦100,000</option><option value="Above ₦100,000">Above ₦100,000</option></select></label>
+            <fieldset class="ls-ad-location-field"><legend>Where would you like your advert to appear? <span>Select all that apply.</span></legend><div id="lsAdPlacementChoices" class="ls-ad-placement-options"><p>Loading available campaign locations…</p></div></fieldset>
+            <label class="ls-ad-message-field">Tell us about your campaign<textarea name="message" required maxlength="2000" rows="4" placeholder="Describe your advert, campaign goals, target football audience or preferred match / competition."></textarea></label>
+          </div>
+          <label class="ls-ad-honeypot" aria-hidden="true">Leave this field empty<input name="company_fax" tabindex="-1" autocomplete="off"></label>
+          <div class="ls-ad-submit-row"><p id="lsAdInquiryStatus" role="status" aria-live="polite">Your request will be reviewed by the PARROTHIT LiveScore advertising team.</p><button type="submit" id="lsAdInquirySubmit">Submit advertising request</button></div>
+        </form>
+      </section>
     </main>
 
     <footer class="site-footer pl-site-footer"><div class="wrap"><div class="footer-grid">
@@ -189,6 +208,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js"></script>
+  <script src="js/livescore-ad-submit.js?v=20261116-submission-v1" defer></script>
   <script src="js/livescore-config.js?v=match-centre-fix-20261108"></script>
   <script src="js/livescore-clock.js?v=match-centre-clock-20261108"></script>
   <script>document.getElementById('year')?.append(String(new Date().getFullYear()));</script>
