@@ -1,3 +1,13 @@
+/* Load the independent Wazobia Trends header shortcut on public pages. */
+(() => {
+  if (document.querySelector('script[data-wazobia-header-loader]')) return;
+  const script = document.createElement('script');
+  script.src = '/js/wazobia-header-link.js?v=1';
+  script.async = true;
+  script.setAttribute('data-wazobia-header-loader', '1');
+  document.head.appendChild(script);
+})();
+
 /* PARROTHIT OneSignal Web Push — site-wide, top-alert edition.
    The native Android companion app uses the Android OneSignal SDK instead of
    creating a second Web Push subscription in its embedded WebView. */
