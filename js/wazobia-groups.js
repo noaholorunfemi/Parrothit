@@ -1,6 +1,8 @@
-/* PARROTHIT Wazobia Trends — member-created Groups. */
+/* PARROTHIT Wazobia Trends — Groups. Build: 2026-11-17-rpc-owner-v3. */
 (() => {
   'use strict';
+  window.__WAZOBIA_GROUPS_BUILD__ = 'v4-group-rls-owner-aligned-20261117';
+  console.info('[Wazobia Groups] build v4-group-rls-owner-aligned-20261117 loaded');
   const $ = (id) => document.getElementById(id);
   const state = { db: null, user: null, profile: null, view: 'discover', groups: [], memberships: [], currentGroup: null, search: '', requests: [] };
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -163,9 +165,25 @@
     if(name.length<3) return showCreateStatus('Group name must contain at least 3 characters.',true);
     const button=$('wg-create-submit'); button.disabled=true; showCreateStatus('Creating your group…');
     try {
-      const {data,error}=await state.db.from('wazobia_groups').insert({name,description,privacy,created_by:state.user.id}).select('*').single(); if(error) throw error;
-      if(file){ const url=await uploadGroupCover(file,data.id); const updated=await state.db.from('wazobia_groups').update({cover_url:url}).eq('id',data.id).select('*').single(); if(updated.error) throw updated.error; }
-      $('wg-create-form').reset(); $('wg-create-modal').hidden=true; document.body.style.overflow=''; await loadMemberships(); await openGroup(data.id); say('Your group has been created. You are its owner.');
+      // Confirm that this browser has a real Supabase Auth session before invoking RPC.
+      const {data:sessionData,error:sessionError}=await state.db.auth.getSession();
+      if(sessionError) throw sessionError;
+      const authUser=sessionData?.session?.user;
+      if(!authUser?.id) throw new Error('No active Supabase login was found. Sign out and sign in again, then retry group creation.');
+      if(state.user?.id && state.user.id!==authUser.id) throw new Error('Your Wazobia page session is out of sync with Supabase. Sign out and sign in again.');
+      // V4 creates rows only through the SECURITY DEFINER database RPC.
+      const {data:groupId,error}=await state.db.rpc('wazobia_create_group',{p_name:name,p_description:description,p_privacy:privacy});
+      if(error) {
+        const parts=[error.message, error.details, error.hint, error.code].filter(Boolean);
+        throw new Error(`Secure group-creation function failed: ${parts.join(' | ')}. Confirm that supabase/wazobia-groups-create-fix-v4.sql ran successfully and that this page loaded the V4 script.`);
+      }
+      if(!groupId) throw new Error('The database function returned no group ID. Confirm that wazobia_create_group was installed and granted to authenticated users.');
+      if(file){
+        const url=await uploadGroupCover(file,groupId);
+        const {error:coverError}=await state.db.rpc('wazobia_set_group_cover',{p_group_id:groupId,p_cover_url:url});
+        if(coverError) throw new Error(`Group was created, but its cover photo could not be saved: ${coverError.message||'Unknown Supabase error'}`);
+      }
+      $('wg-create-form').reset(); $('wg-create-modal').hidden=true; document.body.style.overflow=''; await loadMemberships(); await openGroup(groupId); say('Your group has been created. You are its owner.');
     } catch(error) { showCreateStatus(error.message||'Could not create group.',true); }
     finally { button.disabled=false; }
   }
