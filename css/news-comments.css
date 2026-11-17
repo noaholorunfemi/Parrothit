@@ -165,3 +165,104 @@
 .nc-notification-item{text-decoration:none}
 .nc-notification-item:hover{border-color:#e52a39;background:#241014}
 .nc-reply-form,.nc-edit-form{grid-template-columns:minmax(0,1fr)}
+
+/* PARROTHIT reply-thread layout repair (2026-11-17).
+   Reply containers span the whole comment card instead of being trapped inside
+   the text column. Only the first reply level indents; deeper replies stay aligned. */
+.news-comments .nc-comment {
+  display:grid;
+  grid-template-columns:40px minmax(0,1fr);
+  align-items:start;
+  width:100%;
+  min-width:0;
+  overflow:visible;
+}
+.news-comments .nc-comment > .nc-avatar {
+  grid-column:1;
+  grid-row:1;
+  min-width:0;
+}
+.news-comments .nc-comment > .nc-comment-main {
+  grid-column:2;
+  grid-row:1;
+  min-width:0;
+  width:100%;
+}
+.news-comments .nc-comment > .nc-replies {
+  grid-column:1 / -1;
+  grid-row:2;
+  display:block;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  margin:8px 0 0;
+  padding:0;
+  border:0;
+  box-sizing:border-box;
+}
+.news-comments .nc-comment[data-nc-depth="0"] > .nc-replies {
+  margin-top:10px;
+  padding-left:12px;
+  border-left:2px solid #bd1725;
+}
+.news-comments .nc-replies > .nc-comment {
+  grid-template-columns:32px minmax(0,1fr);
+  gap:8px;
+  width:100%;
+  min-width:0;
+  padding:9px 0 7px;
+  border-bottom:1px solid #303030;
+}
+.news-comments .nc-replies > .nc-comment:last-of-type { border-bottom:0; }
+.news-comments .nc-replies > .nc-comment > .nc-avatar {
+  width:30px;
+  height:30px;
+  font-size:.85rem;
+}
+.news-comments .nc-replies > .nc-comment > .nc-comment-main { min-width:0; }
+.news-comments .nc-comment[data-nc-depth]:not([data-nc-depth="0"]) .nc-profile-trigger::before {
+  content:"↳ ";
+  color:#ff6570;
+  font-weight:900;
+}
+.news-comments .nc-replies .nc-replies { margin-top:7px; }
+.news-comments .nc-replies .nc-load-more-replies { margin:7px 0; }
+.news-comments .nc-comment-main,
+.news-comments .nc-comment-text,
+.news-comments .nc-comment-meta,
+.news-comments .nc-actions { min-width:0; max-width:100%; }
+.news-comments .nc-comment-meta { overflow-wrap:anywhere; }
+.news-comments .nc-actions { row-gap:5px; }
+@media (max-width:650px) {
+  .news-comments .nc-comment {
+    grid-template-columns:32px minmax(0,1fr);
+    gap:7px;
+    padding:11px 0;
+  }
+  .news-comments .nc-comment > .nc-avatar {
+    width:30px;
+    height:30px;
+    font-size:.95rem;
+  }
+  .news-comments .nc-comment[data-nc-depth="0"] > .nc-replies {
+    margin-top:7px;
+    padding-left:8px;
+  }
+  .news-comments .nc-replies > .nc-comment {
+    grid-template-columns:28px minmax(0,1fr);
+    gap:7px;
+    padding:8px 0 6px;
+  }
+  .news-comments .nc-replies > .nc-comment > .nc-avatar {
+    width:27px;
+    height:27px;
+  }
+  .news-comments .nc-comment .nc-action { padding:5px 6px; }
+  .news-comments .nc-comment .nc-reply-form,
+  .news-comments .nc-comment .nc-edit-form { width:100%; min-width:0; }
+}
+.news-comments .nc-profile-trigger {
+  white-space:normal;
+  overflow-wrap:anywhere;
+  text-align:left;
+}
