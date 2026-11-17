@@ -48,3 +48,8 @@ verify_jwt = false
 # The function validates the owner JWT and active session internally.
 [functions.parrothit-youtube-playlist-verifier]
 verify_jwt = false
+
+# Wazobia username sign-in is a public login endpoint. The function resolves a
+# username privately with the service-role key and delegates password checks to Auth.
+[functions.wazobia-username-login]
+verify_jwt = false
