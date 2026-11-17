@@ -16,3 +16,9 @@
 .wz-icon-btn .wz-badge{border-color:#fff}
 .wz-avatar-btn{background:var(--wz-green);color:#fff}
 .wz-comment-tools button[data-action="react-comment"].is-active{color:var(--wz-red)}
+
+/* Official circular Wazobia Trends logo (user-supplied artwork). */
+.wz-logo-image{display:block;width:46px;height:46px;flex:none;object-fit:contain;border-radius:50%;background:#fff;border:2px solid var(--wz-green);box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.wz-mobile-heading .wz-logo-image{width:42px;height:42px}
+.wz-auth-brand .wz-logo-image{width:48px;height:48px}
+@media(max-width:720px){.wz-brand .wz-logo-image{width:38px;height:38px}}
