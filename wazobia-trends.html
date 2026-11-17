@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Parrothit Wazobia Trends — share ideas, pictures, videos and conversations with the PARROTHIT community.">
+  <meta name="theme-color" content="#d71920">
+  <title>Parrothit Wazobia Trends | PARROTHIT</title>
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=1">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+  <script src="js/wazobia-trends.js?v=1" defer></script>
+  <script src="/js/public-notifications.js?v=20261117-wazobia-header"></script>
+</head>
+<body class="wz-page">
+  <a class="wz-skip" href="#wz-feed">Skip to feed</a>
+  <header class="wz-topbar">
+    <a class="wz-brand" href="wazobia-trends.html" aria-label="Parrothit Wazobia Trends home">
+      <span class="wz-brand-mark">P</span><span class="wz-brand-copy"><strong>PARROTHIT</strong><small>WAZOBIA TRENDS</small></span>
+    </a>
+    <label class="wz-search"><span aria-hidden="true">⌕</span><input id="wz-search" type="search" placeholder="Search posts and trends" aria-label="Search posts and trends"></label>
+    <nav class="wz-top-actions" aria-label="Wazobia navigation">
+      <button class="wz-icon-btn active" id="wz-home-btn" type="button" aria-label="Home feed" title="Home">⌂</button>
+      <button class="wz-icon-btn" id="wz-notifications-btn" type="button" aria-label="Notifications" title="Notifications">♧<b id="wz-notification-badge" class="wz-badge" hidden>0</b></button>
+      <button class="wz-icon-btn" id="wz-theme-btn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+      <button class="wz-avatar-btn" id="wz-account-btn" type="button" aria-label="Account">?</button>
+    </nav>
+  </header>
+
+  <div class="wz-mobile-tabs" role="navigation" aria-label="Quick navigation">
+    <button class="selected" data-wz-tab="home" type="button">⌂<span>Home</span></button>
+    <button data-wz-tab="following" type="button">♧<span>Following</span></button>
+    <button data-wz-tab="saved" type="button">▣<span>Saved</span></button>
+    <button data-wz-tab="notifications" type="button">♢<span>Alerts</span><b id="wz-mobile-badge" class="wz-badge" hidden>0</b></button>
+  </div>
+
+  <main class="wz-layout">
+    <aside class="wz-left-rail" aria-label="Your shortcuts">
+      <section class="wz-profile-mini" id="wz-profile-mini">
+        <div class="wz-avatar wz-avatar-large" id="wz-mini-avatar">P</div>
+        <div><strong id="wz-mini-name">Welcome to Wazobia</strong><small id="wz-mini-handle">Join the conversation</small></div>
+      </section>
+      <nav class="wz-side-nav">
+        <button class="selected" data-wz-tab="home" type="button"><span>⌂</span> Home feed</button>
+        <button data-wz-tab="following" type="button"><span>♧</span> Following</button>
+        <button data-wz-tab="saved" type="button"><span>▣</span> Saved posts</button>
+        <button data-wz-tab="notifications" type="button"><span>♢</span> Notifications <b id="wz-side-badge" class="wz-badge" hidden>0</b></button>
+        <a href="about.html"><span>ⓘ</span> About PARROTHIT</a>
+      </nav>
+      <section class="wz-community-note">
+        <strong>Wazobia community</strong>
+        <p>Share ideas. Celebrate culture. Discuss what is happening now. Respect every voice.</p>
+        <a href="#wz-guidelines">Community guidelines →</a>
+      </section>
+    </aside>
+
+    <section class="wz-center-column" aria-label="Community feed">
+      <div class="wz-mobile-heading"><span class="wz-brand-mark">P</span><div><strong>Wazobia Trends</strong><small>People • Ideas • Naija gist</small></div></div>
+      <div class="wz-feed-tabs" role="tablist" aria-label="Feed selection">
+        <button class="active" type="button" data-wz-tab="home">For you</button>
+        <button type="button" data-wz-tab="following">Following</button>
+        <button type="button" data-wz-tab="saved">Saved</button>
+      </div>
+
+      <section class="wz-composer wz-card" aria-label="Create a post">
+        <div class="wz-composer-top">
+          <div class="wz-avatar" id="wz-composer-avatar">?</div>
+          <button class="wz-composer-prompt" id="wz-open-composer" type="button">What's happening? Share it with Wazobia…</button>
+        </div>
+        <div class="wz-composer-tools">
+          <button type="button" id="wz-add-photo">▧ <span>Photo</span></button>
+          <button type="button" id="wz-add-video">▷ <span>Video</span></button>
+          <button type="button" id="wz-add-idea">✎ <span>Idea / Trend</span></button>
+          <button class="wz-post-open" id="wz-post-open" type="button">Create post</button>
+        </div>
+        <input id="wz-media-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" hidden>
+        <div class="wz-media-preview" id="wz-media-preview" hidden></div>
+      </section>
+
+      <div class="wz-status" id="wz-status" role="status" aria-live="polite" hidden></div>
+      <section id="wz-feed" class="wz-feed" aria-live="polite"><div class="wz-loading"><span class="wz-spinner"></span> Loading Wazobia conversations…</div></section>
+      <button class="wz-load-more" id="wz-load-more" type="button" hidden>Load more posts</button>
+    </section>
+
+    <aside class="wz-right-rail" aria-label="Community highlights">
+      <section class="wz-card wz-trending-card">
+        <div class="wz-panel-heading"><h2>Trending in Wazobia</h2><span>↗</span></div>
+        <p class="wz-panel-subtitle">Topics people are talking about</p>
+        <div id="wz-trends-list" class="wz-trends-list"><p class="wz-muted">Trends will appear as people post.</p></div>
+      </section>
+      <section class="wz-card wz-people-card">
+        <div class="wz-panel-heading"><h2>People to follow</h2><span>◎</span></div>
+        <div id="wz-people-list"><p class="wz-muted">Sign in to discover active members.</p></div>
+      </section>
+      <section class="wz-guidelines" id="wz-guidelines">
+        <strong>Keep Wazobia welcoming</strong>
+        <p>Be respectful, share responsibly, credit creators and do not post private information, threats or harmful content.</p>
+        <small>PARROTHIT · News That Speaks!</small>
+      </section>
+    </aside>
+  </main>
+
+  <div class="wz-notification-popover" id="wz-notification-popover" hidden>
+    <div class="wz-popover-head"><strong>Notifications</strong><button type="button" id="wz-mark-all-read">Mark all as read</button></div>
+    <div id="wz-notification-list" class="wz-notification-list"><p class="wz-muted">Sign in to see your notifications.</p></div>
+  </div>
+
+  <div class="wz-modal-backdrop" id="wz-auth-modal" hidden>
+    <section class="wz-modal wz-auth-modal" role="dialog" aria-modal="true" aria-labelledby="wz-auth-title">
+      <button class="wz-modal-close" type="button" data-wz-close="auth" aria-label="Close">×</button>
+      <div class="wz-auth-brand"><span class="wz-brand-mark">P</span><div><strong>Parrothit Wazobia Trends</strong><small>Join the conversation</small></div></div>
+      <h2 id="wz-auth-title">Welcome to Wazobia</h2>
+      <p class="wz-auth-intro">Connect with people, share ideas and follow the conversations that matter.</p>
+      <div class="wz-auth-tabs"><button type="button" id="wz-login-tab" class="active">Log in</button><button type="button" id="wz-signup-tab">Create account</button></div>
+      <form id="wz-auth-form">
+        <div id="wz-signup-fields" hidden>
+          <label class="wz-field">Display name<input id="wz-display-name" type="text" maxlength="60" autocomplete="name" placeholder="How people will know you"></label>
+          <label class="wz-field">Username<input id="wz-username" type="text" minlength="3" maxlength="24" autocomplete="username" placeholder="3–24 letters, numbers or underscores"></label>
+        </div>
+        <label class="wz-field" id="wz-identity-label">Email or username<input id="wz-login-identity" type="text" required autocomplete="username" placeholder="Email address or username"></label>
+        <label class="wz-field">Password<input id="wz-password" type="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters"></label>
+        <label class="wz-field" id="wz-confirm-field" hidden>Confirm password<input id="wz-confirm-password" type="password" minlength="8" autocomplete="new-password"></label>
+        <label class="wz-remember"><input id="wz-rules-check" type="checkbox" hidden><span id="wz-rules-label" hidden>I agree to the Wazobia community guidelines.</span></label>
+        <button class="wz-primary-btn wz-auth-submit" id="wz-auth-submit" type="submit">Log in</button>
+        <button class="wz-forgot-btn" id="wz-forgot-password" type="button">Forgot password?</button>
+      </form>
+      <div class="wz-auth-divider"><span>or continue with</span></div>
+      <div class="wz-oauth-buttons"><button type="button" id="wz-google-auth"><b class="wz-google-g">G</b> Google</button><button type="button" id="wz-facebook-auth"><b class="wz-facebook-f">f</b> Facebook</button></div>
+      <p id="wz-auth-status" class="wz-auth-status" role="status" aria-live="polite"></p>
+      <p class="wz-auth-foot">Your account is protected by PARROTHIT sign-in. Your email address is not displayed publicly.</p>
+    </section>
+  </div>
+
+  <div class="wz-modal-backdrop" id="wz-post-modal" hidden>
+    <section class="wz-modal wz-post-modal" role="dialog" aria-modal="true" aria-labelledby="wz-post-modal-title">
+      <div class="wz-modal-heading"><h2 id="wz-post-modal-title">Create post</h2><button class="wz-modal-close inline" type="button" data-wz-close="post" aria-label="Close">×</button></div>
+      <div class="wz-post-author"><div class="wz-avatar" id="wz-post-avatar">?</div><div><strong id="wz-post-author-name">Your profile</strong><small>Posting to everyone</small></div></div>
+      <textarea id="wz-post-text" maxlength="5000" placeholder="What's on your mind? Share an idea, a trend or a conversation…"></textarea>
+      <div class="wz-post-modal-tools"><label for="wz-modal-media">▧ Add photo or video</label><input id="wz-modal-media" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" hidden><span id="wz-post-charcount">0 / 5,000</span></div>
+      <div class="wz-modal-media-preview" id="wz-modal-media-preview" hidden></div>
+      <button class="wz-primary-btn wz-publish-btn" id="wz-publish-post" type="button">Post</button>
+      <p id="wz-post-status" class="wz-auth-status" role="status" aria-live="polite"></p>
+    </section>
+  </div>
+
+  <div class="wz-modal-backdrop" id="wz-profile-modal" hidden>
+    <section class="wz-modal wz-profile-modal" role="dialog" aria-modal="true" aria-labelledby="wz-profile-title">
+      <button class="wz-modal-close" type="button" data-wz-close="profile" aria-label="Close">×</button>
+      <h2 id="wz-profile-title">Your Wazobia profile</h2>
+      <label class="wz-field">Display name<input id="wz-edit-display-name" maxlength="60"></label>
+      <label class="wz-field">Username<input id="wz-edit-username" minlength="3" maxlength="24"></label>
+      <label class="wz-field">About you<textarea id="wz-edit-bio" maxlength="240" rows="3" placeholder="A little about yourself"></textarea></label>
+      <button class="wz-primary-btn" id="wz-save-profile" type="button">Save profile</button>
+      <button class="wz-text-btn" id="wz-sign-out" type="button">Sign out</button>
+      <p id="wz-profile-status" class="wz-auth-status" role="status"></p>
+    </section>
+  </div>
+
+  <footer class="wz-footer">© <span id="wz-year"></span> PARROTHIT · Wazobia Trends <span>Share responsibly. Respect every voice.</span></footer>
+</body>
+</html>
