@@ -325,15 +325,15 @@ on conflict (id) do update set
 drop policy if exists "Wazobia media are publicly readable" on storage.objects;
 create policy "Wazobia media are publicly readable" on storage.objects
 for select to anon,authenticated using (bucket_id='wazobia-media');
-drop policy if exists "Members upload their own Wazobia media" on storage.objects;
-create policy "Members upload their own Wazobia media" on storage.objects
+drop policy if exists "Wazobia media upload own" on storage.objects;
+create policy "Wazobia media upload own" on storage.objects
 for insert to authenticated with check (bucket_id='wazobia-media' and (storage.foldername(name))[1]=auth.uid()::text);
-drop policy if exists "Members update their own Wazobia media" on storage.objects;
-create policy "Members update their own Wazobia media" on storage.objects
+drop policy if exists "Wazobia media update own" on storage.objects;
+create policy "Wazobia media update own" on storage.objects
 for update to authenticated using (bucket_id='wazobia-media' and (storage.foldername(name))[1]=auth.uid()::text)
 with check (bucket_id='wazobia-media' and (storage.foldername(name))[1]=auth.uid()::text);
-drop policy if exists "Members delete their own Wazobia media" on storage.objects;
-create policy "Members delete their own Wazobia media" on storage.objects
+drop policy if exists "Wazobia media delete own" on storage.objects;
+create policy "Wazobia media delete own" on storage.objects
 for delete to authenticated using (bucket_id='wazobia-media' and (storage.foldername(name))[1]=auth.uid()::text);
 
 -- Supabase Realtime powers live feed refresh and in-app alert badges.
