@@ -2,7 +2,7 @@
 (() => {
   if (document.querySelector('script[data-wazobia-header-loader]')) return;
   const script = document.createElement('script');
-  script.src = '/js/wazobia-header-link.js?v=1';
+  script.src = '/js/wazobia-header-link.js?v=2-logo';
   script.async = true;
   script.setAttribute('data-wazobia-header-loader', '1');
   document.head.appendChild(script);
