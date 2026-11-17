@@ -598,7 +598,11 @@
       post_comment: `${actor} commented on your post.`,
       comment_reply: `${actor} replied to your comment.`,
       comment_reaction: `${actor} reacted to your comment.`,
-      new_post: `${actor} shared a new post.`
+      new_post: `${actor} shared a new post.`,
+      group_invite: `${actor} invited you to join ${n.group?.name || 'a Wazobia group'}.`,
+      group_join_request: `${actor} requested to join ${n.group?.name || 'your group'}.`,
+      group_join_approved: `Your request to join ${n.group?.name || 'the group'} was approved.`,
+      group_post: `${actor} published in ${n.group?.name || 'a group you joined'}.`
     };
     return labels[n.type] || `${actor} interacted with your Wazobia activity.`;
   }
@@ -610,12 +614,12 @@
   async function loadNotifications() {
     if (!state.user) return;
     const { data, error } = await state.db.from('wazobia_notifications')
-      .select('id,type,post_id,comment_id,actor_id,created_at,read_at,actor:wazobia_profiles!wazobia_notifications_actor_id_fkey(display_name,username,avatar_url)')
+      .select('id,type,post_id,comment_id,group_id,actor_id,created_at,read_at,actor:wazobia_profiles!wazobia_notifications_actor_id_fkey(display_name,username,avatar_url),group:wazobia_groups!wazobia_notifications_group_id_fkey(name)')
       .eq('recipient_id', state.user.id).order('created_at', { ascending: false }).limit(40);
     if (error) { console.warn('Wazobia notifications:', error.message); return; }
     state.lastNotifications = data || [];
     updateNotificationBadges(state.lastNotifications.filter(n => !n.read_at).length);
-    $('wz-notification-list').innerHTML = state.lastNotifications.length ? state.lastNotifications.map(n => `<a href="#" class="wz-notification ${n.read_at ? '' : 'unread'}" data-notification-id="${escapeHtml(n.id)}" data-post-id="${escapeHtml(n.post_id || '')}">${avatarMarkup(n.actor)}<span class="wz-notification-text"><span>${escapeHtml(notificationLabel(n))}</span><small>${escapeHtml(relativeTime(n.created_at))}</small></span>${n.read_at ? '' : '<i class="wz-notification-dot"></i>'}</a>`).join('') : '<p class="wz-muted">You are all caught up. New likes, replies and followers will appear here.</p>';
+    $('wz-notification-list').innerHTML = state.lastNotifications.length ? state.lastNotifications.map(n => `<a href="#" class="wz-notification ${n.read_at ? '' : 'unread'}" data-notification-id="${escapeHtml(n.id)}" data-post-id="${escapeHtml(n.post_id || '')}" data-group-id="${escapeHtml(n.group_id || '')}">${avatarMarkup(n.actor)}<span class="wz-notification-text"><span>${escapeHtml(notificationLabel(n))}</span><small>${escapeHtml(relativeTime(n.created_at))}</small></span>${n.read_at ? '' : '<i class="wz-notification-dot"></i>'}</a>`).join('') : '<p class="wz-muted">You are all caught up. New likes, replies and followers will appear here.</p>';
   }
 
   async function openNotifications() {
@@ -827,8 +831,9 @@
     $('wz-trends-list').addEventListener('click', (e) => { const b = e.target.closest('[data-trend]'); if (b) { $('wz-search').value = b.dataset.trend; state.activeTab = 'home'; setActiveTabButtons(); loadFeed(true); } });
     $('wz-notification-list').addEventListener('click', async (e) => {
       const item = e.target.closest('[data-notification-id]'); if (!item) return; e.preventDefault();
-      const id = item.dataset.notificationId, postId = item.dataset.postId;
+      const id = item.dataset.notificationId, postId = item.dataset.postId, groupId = item.dataset.groupId;
       await markNotificationRead(id); $('wz-notification-popover').hidden = true;
+      if (groupId) { location.href = `wazobia-groups.html?group=${encodeURIComponent(groupId)}`; return; }
       if (postId) { state.activeTab = 'home'; setActiveTabButtons(); await loadFeed(true); setTimeout(() => document.querySelector(`[data-post-id="${CSS.escape(postId)}"]`)?.scrollIntoView({behavior:'smooth',block:'center'}), 100); }
     });
     window.addEventListener('hashchange', () => {
@@ -848,6 +853,7 @@
       const { data, error } = await state.db.auth.getSession();
       if (error) throw error;
       await updateAuthSession(data.session);
+      if (!data.session && new URLSearchParams(location.search).get('openAuth') === '1') openModal('wz-auth-modal');
     } catch (error) { status(error.message || 'Could not connect to Wazobia Trends.', true); }
     state.db.auth.onAuthStateChange((_event, session) => {
       if (session?.user?.id !== state.user?.id) setTimeout(() => updateAuthSession(session), 0);
