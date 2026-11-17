@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Discover, create and manage communities on Parrothit Wazobia Trends.">
+  <meta name="theme-color" content="#d71920">
+  <title>Wazobia Groups | PARROTHIT</title>
+  <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=4-groups">
+  <link rel="stylesheet" href="css/wazobia-groups.css?v=1-groups">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+  <script src="js/wazobia-groups.js?v=1-groups" defer></script>
+</head>
+<body class="wz-page wz-groups-page">
+  <header class="wz-topbar wz-groups-topbar">
+    <a class="wz-brand" href="wazobia-trends.html" aria-label="Back to Wazobia Trends">
+      <img class="wz-logo-image" src="/assets/images/parrothit-wazobia-trends-logo.png" alt="Parrothit Wazobia Trends" width="46" height="46">
+      <span class="wz-brand-copy"><strong>PARROTHIT</strong><small>WAZOBIA TRENDS</small></span>
+    </a>
+    <label class="wz-search"><span aria-hidden="true">⌕</span><input id="wg-search" type="search" placeholder="Search groups" aria-label="Search groups"></label>
+    <nav class="wz-top-actions" aria-label="Groups navigation">
+      <a class="wz-icon-btn" href="wazobia-trends.html" title="Home feed" aria-label="Home feed">⌂</a>
+      <button class="wz-icon-btn" id="wg-theme" type="button" title="Toggle theme" aria-label="Toggle theme">◐</button>
+      <a class="wz-avatar-btn wg-account" href="wazobia-trends.html?openAuth=1" id="wg-account" title="Sign in to Wazobia">?</a>
+    </nav>
+  </header>
+
+  <main class="wg-layout">
+    <aside class="wg-left">
+      <div class="wg-heading-block">
+        <span class="wg-kicker">PARROTHIT COMMUNITY</span>
+        <h1>Groups</h1>
+        <p>Find your people. Build a community. Talk about what matters.</p>
+      </div>
+      <nav class="wg-nav" aria-label="Group sections">
+        <button type="button" class="active" data-view="discover">⌕ <span>Discover groups</span></button>
+        <button type="button" data-view="mine">♧ <span>Your groups</span></button>
+        <button type="button" data-view="invites">✉ <span>Invitations</span><b id="wg-invite-count" hidden>0</b></button>
+        <button type="button" data-view="requests">♢ <span>Member requests</span><b id="wg-request-count" hidden>0</b></button>
+      </nav>
+      <section class="wg-side-note">
+        <strong>Good groups start with respect.</strong>
+        <p>Set clear rules, welcome different perspectives and protect members' privacy.</p>
+        <small>WAZOBIA · ONE COMMUNITY, MANY VOICES</small>
+      </section>
+      <a class="wg-back-link" href="wazobia-trends.html">← Back to Wazobia feed</a>
+    </aside>
+
+    <section class="wg-main" aria-live="polite">
+      <div class="wg-view-head">
+        <div><span class="wg-kicker" id="wg-eyebrow">COMMUNITY DISCOVERY</span><h2 id="wg-view-title">Discover groups</h2><p id="wg-view-subtitle">Explore public communities across Wazobia Trends.</p></div>
+        <button class="wg-create-btn" id="wg-create-open" type="button">＋ Create group</button>
+      </div>
+      <div id="wg-status" class="wg-status" role="status" aria-live="polite" hidden></div>
+      <section id="wg-group-detail" class="wg-detail" hidden></section>
+      <section id="wg-group-list" class="wg-grid"><div class="wz-loading"><span class="wz-spinner"></span> Loading groups…</div></section>
+      <div class="wg-empty-auth" id="wg-auth-note" hidden>
+        <strong>Sign in to build your community</strong>
+        <p>You can explore public groups without signing in. Sign in to create groups, join communities, invite members and manage your group.</p>
+        <a class="wg-create-btn" href="wazobia-trends.html?openAuth=1">Sign in to Wazobia</a>
+      </div>
+    </section>
+
+    <aside class="wg-right">
+      <section class="wz-card wg-create-card">
+        <div class="wg-card-icon">＋</div>
+        <h3>Create your own group</h3>
+        <p>Start a space for your neighbourhood, school, business, culture, interests or discussion community.</p>
+        <button class="wg-create-btn wg-full" id="wg-create-side" type="button">Create a group</button>
+      </section>
+      <section class="wz-card wg-tips-card">
+        <h3>Group tools</h3>
+        <div><b>🌍 Public</b><p>Anyone can discover the group and join immediately.</p></div>
+        <div><b>🔒 Private</b><p>Only invited members and approved members can see the group and its discussions.</p></div>
+        <div><b>🛡️ Admin controls</b><p>Owners can appoint admins, approve requests, invite or remove members and update group details.</p></div>
+      </section>
+      <p class="wg-right-foot">PARROTHIT · News That Speaks!</p>
+    </aside>
+  </main>
+
+  <div class="wg-modal-backdrop" id="wg-create-modal" hidden>
+    <section class="wg-modal" role="dialog" aria-modal="true" aria-labelledby="wg-create-title">
+      <div class="wg-modal-head"><div><span class="wg-kicker">START A COMMUNITY</span><h2 id="wg-create-title">Create a group</h2></div><button type="button" class="wg-close" data-wg-close aria-label="Close">×</button></div>
+      <form id="wg-create-form">
+        <label class="wg-field">Group name<input id="wg-new-name" maxlength="80" minlength="3" required placeholder="e.g. Naija Tech Community"></label>
+        <label class="wg-field">Description<textarea id="wg-new-description" maxlength="600" rows="3" placeholder="What is this group about?"></textarea></label>
+        <label class="wg-field">Group privacy<select id="wg-new-privacy"><option value="public">Public — anyone can find and join</option><option value="private">Private — members need approval or an invitation</option></select></label>
+        <label class="wg-field">Group cover photo <span class="wg-optional">(optional)</span><input id="wg-new-cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></label>
+        <p class="wg-form-hint">You will become the group owner automatically. You can appoint admins and manage members later.</p>
+        <button class="wg-create-btn wg-full" id="wg-create-submit" type="submit">Create group</button>
+        <p class="wg-form-status" id="wg-create-status" role="status"></p>
+      </form>
+    </section>
+  </div>
+</body>
+</html>
