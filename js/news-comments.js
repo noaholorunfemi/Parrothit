@@ -12,6 +12,7 @@
   const ROOT_PAGE_SIZE = 15;
   const THREAD_PAGE_SIZE = 30;
   const FETCH_PAGE_SIZE = 500;
+  const REACTION_HOLD_MS = 430;
   const $ = (root, selector) => root.querySelector(selector);
   const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -112,7 +113,7 @@
       <div class="nc-head"><div class="nc-brand"><img class="nc-logo" src="assets/images/parrothit-logo.png" alt="PARROTHIT logo" onerror="this.style.display='none'"><div><div class="nc-head-title">PARROTHIT · ${threadPage ? 'Reply conversation' : 'Join the conversation'}</div><small>${threadPage ? 'A dedicated page for this reply thread' : 'Article discussion'}</small></div></div>
         <div class="nc-head-tools"><button type="button" class="nc-notification-btn" data-nc-notifications aria-expanded="false">🔔 <span>Notifications</span> <b data-nc-notification-count>0</b></button><span class="nc-count-pill">💬 <span data-nc-comment-count>${threadPage ? 'Replies (0)' : 'Comments (0)'}</span></span></div></div>
       <div class="nc-notification-panel nc-hidden" data-nc-notification-panel><strong>Your notifications</strong><div data-nc-notification-list class="nc-notification-list">No new notifications.</div></div>
-      <div class="nc-summary" aria-label="Reactions across this article's comments"><span class="nc-summary-label">TOP REACTIONS</span>${EMOJIS.map(item => `<span class="nc-reaction-chip" title="${item.label}"><span>${item.value}</span><span data-nc-total="${item.value}">0</span></span>`).join('')}</div>
+      <div class="nc-summary nc-hidden" aria-label="Reactions across this article's comments"><span class="nc-summary-label">TOP REACTIONS</span>${EMOJIS.map(item => `<span class="nc-reaction-chip nc-hidden" title="${item.label}"><span>${item.value}</span><span data-nc-total="${item.value}">0</span></span>`).join('')}</div>
       ${identityMarkup}
       <div class="nc-message nc-hidden" data-nc-message role="status" aria-live="polite"></div>
       <div class="nc-toolbar"><span class="nc-toolbar-label">${threadPage ? 'Replies in this conversation' : 'Community conversation'}</span>${threadPage ? '<span class="nc-thread-order">Original comment first · replies follow in time order</span>' : '<label><span class="nc-hidden">Sort comments</span><select class="nc-sort" data-nc-sort aria-label="Sort comments"><option value="relevant">Most Relevant</option><option value="newest">Newest First</option><option value="liked">Most Liked</option><option value="replied">Most Replied</option></select></label>'}</div>
@@ -178,24 +179,36 @@
       url.searchParams.delete('reply_to');
       return url.pathname + url.search + url.hash;
     }
+    function isActiveComment(commentOrId) {
+      const comment = typeof commentOrId === 'string' ? commentById.get(commentOrId) : commentOrId;
+      return !!(comment && !comment.is_deleted && comment.status === 'approved');
+    }
+    function activeComments() {
+      return allComments.filter(isActiveComment);
+    }
     function resolveRootId(id) {
       if (!id) return '';
       if (rootCache.has(id)) return rootCache.get(id);
-      const path = [], seen = new Set();
       let current = commentById.get(id);
+      if (!isActiveComment(current)) return '';
+      const path = [], seen = new Set();
       while (current && current.parent_comment_id && commentById.has(current.parent_comment_id) && !seen.has(current.id)) {
-        if (rootCache.has(current.id)) { current = commentById.get(rootCache.get(current.id)); break; }
+        const parent = commentById.get(current.parent_comment_id);
+        // A live child of a deleted parent becomes a fresh visible root.
+        if (!isActiveComment(parent)) break;
         seen.add(current.id);
         path.push(current.id);
-        current = commentById.get(current.parent_comment_id);
+        current = parent;
       }
-      const rootId = current && !seen.has(current.id) ? current.id : (current ? current.id : id);
+      const rootId = current ? current.id : id;
       rootCache.set(rootId, rootId);
       path.forEach(item => rootCache.set(item, rootId));
       if (!rootCache.has(id)) rootCache.set(id, rootId);
       return rootId;
     }
     function descendantsOf(rootId) {
+      const root = commentById.get(rootId);
+      if (!isActiveComment(root)) return [];
       const found = [], seen = new Set([rootId]), queue = [rootId];
       for (let queueIndex = 0; queueIndex < queue.length; queueIndex += 1) {
         const parentId = queue[queueIndex];
@@ -203,8 +216,11 @@
         children.forEach(child => {
           if (seen.has(child.id)) return;
           seen.add(child.id);
-          found.push(child);
-          queue.push(child.id);
+          // Deleted comments are omitted, but still traversed so their surviving replies stay visible.
+          if (isActiveComment(child)) {
+            found.push(child);
+            queue.push(child.id);
+          }
         });
       }
       found.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -213,10 +229,10 @@
     function rebuildThreadStats() {
       rootCache = new Map();
       threadStats = new Map();
-      allComments.forEach(comment => {
+      activeComments().forEach(comment => {
         if (!comment.parent_comment_id || !commentById.has(comment.parent_comment_id)) return;
         const rootId = resolveRootId(comment.id);
-        if (rootId === comment.id) return;
+        if (!rootId || rootId === comment.id) return;
         const stat = threadStats.get(rootId) || { count: 0, latest: null };
         stat.count += 1;
         if (!stat.latest || new Date(comment.created_at) > new Date(stat.latest.created_at)) stat.latest = comment;
@@ -318,15 +334,33 @@
     }
     function commentMarkup(comment, settings) {
       settings = settings || {};
+      if (!isActiveComment(comment)) return '';
       const counts = reactionCountMap(comment, totals);
-      const reactions = EMOJIS.map(item => `<button type="button" class="nc-action nc-react" data-nc-react="${item.value}" data-comment-id="${comment.id}" aria-label="${item.label} ${counts[item.value]}">${item.value} ${counts[item.value]}</button>`).join('');
+      const totalReactions = Object.values(counts).reduce((sum, count) => sum + count, 0);
+      const activeReactionIcons = EMOJIS
+        .filter(item => counts[item.value] > 0)
+        .sort((a, b) => counts[b.value] - counts[a.value])
+        .slice(0, 3)
+        .map(item => `<span aria-hidden="true">${item.value}</span>`).join('');
+      const reactionSummary = totalReactions
+        ? `<span class="nc-reaction-summary" title="${totalReactions} reaction${totalReactions === 1 ? '' : 's'}">${activeReactionIcons}<b>${totalReactions}</b></span>`
+        : '';
+      const reactionOptions = EMOJIS.map(item => `<button type="button" class="nc-reaction-option" data-nc-react="${item.value}" data-comment-id="${comment.id}" aria-label="${item.label}" title="${item.label}">${item.value}</button>`).join('');
+      const reactions = `<div class="nc-reaction-control" data-nc-reaction-control>
+        <button type="button" class="nc-action nc-like-trigger" data-nc-like-trigger data-comment-id="${comment.id}" aria-label="Like comment. Hold or use the down arrow to choose another reaction" aria-haspopup="true" aria-expanded="false"><span aria-hidden="true">👍</span><span>Like</span></button>
+        ${reactionSummary}
+        <div class="nc-reaction-picker nc-hidden" data-nc-reaction-picker role="group" aria-label="Choose a reaction">${reactionOptions}</div>
+      </div>`;
       const tag = comment.reader_tag || 'Reader';
-      const deleted = !!comment.is_deleted;
-      const ownActions = mine.has(comment.id) && !deleted ? `<button type="button" class="nc-action" data-nc-edit="${comment.id}">Edit</button><button type="button" class="nc-action nc-report" data-nc-delete="${comment.id}">Delete</button>` : '';
+      const ownActions = mine.has(comment.id) ? `<button type="button" class="nc-action" data-nc-edit="${comment.id}">Edit</button><button type="button" class="nc-action nc-report" data-nc-delete="${comment.id}">Delete</button>` : '';
       const isReply = !!settings.isReply;
       const parent = isReply && comment.parent_comment_id ? commentById.get(comment.parent_comment_id) : null;
-      const parentTag = parent ? (parent.reader_tag || 'Reader') : '';
-      const context = isReply && parent ? `<div class="nc-reply-context">↳ Replying to <strong>${esc(parentTag)}</strong></div>` : '';
+      const parentContext = parent
+        ? (isActiveComment(parent)
+          ? `<div class="nc-reply-context">↳ Replying to <strong>${esc(parent.reader_tag || 'Reader')}</strong></div>`
+          : '<div class="nc-reply-context">↳ Reply in this conversation</div>')
+        : '';
+      const context = isReply ? parentContext : '';
       const threadForm = threadPage ? `<form class="nc-reply-form nc-hidden" data-nc-reply-form="${comment.id}"><input class="nc-reply-input" type="email" name="email" required maxlength="254" autocomplete="email" placeholder="Your email"><textarea class="nc-reply-input" name="body" required minlength="2" maxlength="2000" placeholder="Write a reply… Use @ to mention a reader."></textarea><div class="nc-mention-suggestions nc-hidden" data-nc-mention-suggestions></div><div class="nc-honeypot" aria-hidden="true"><label>Leave this field empty<input name="website_url" tabindex="-1" autocomplete="off"></label></div><button class="nc-reply-send" type="submit">Reply</button></form>` : '';
       let threadPreview = '';
       if (!threadPage && !isReply) {
@@ -334,8 +368,9 @@
         if (stat.count && stat.latest) {
           const latest = stat.latest;
           const latestTag = latest.reader_tag || 'Reader';
-          const snippet = String(latest.is_deleted ? 'This reply was deleted.' : latest.body || '').slice(0, 110);
-          threadPreview = `<a class="nc-thread-preview" href="${esc(buildThreadUrl(comment.id))}"><span class="nc-thread-preview-count">↳ ${stat.count} ${stat.count === 1 ? 'reply' : 'replies'} · View conversation</span><span class="nc-thread-preview-latest"><b>${esc(latestTag)}</b> ${esc(snippet)}${String(latest.body || '').length > 110 ? '…' : ''}</span></a>`;
+          const latestBody = String(latest.body || '');
+          const snippet = latestBody.slice(0, 110);
+          threadPreview = `<a class="nc-thread-preview" href="${esc(buildThreadUrl(comment.id))}"><span class="nc-thread-preview-count">↳ ${stat.count} ${stat.count === 1 ? 'reply' : 'replies'} · View conversation</span><span class="nc-thread-preview-latest"><b>${esc(latestTag)}</b> ${esc(snippet)}${latestBody.length > 110 ? '…' : ''}</span></a>`;
         } else {
           threadPreview = `<a class="nc-thread-preview nc-thread-preview-empty" href="${esc(buildThreadUrl(comment.id, { replyTo: true }))}">Be the first to reply · Open conversation</a>`;
         }
@@ -344,11 +379,11 @@
         <div class="nc-avatar">${avatarMarkup(comment.avatar_url, '🦜')}</div>
         <div class="nc-comment-main">
           ${context}
-          <div class="nc-comment-meta"><button type="button" class="nc-reader nc-profile-trigger" data-nc-profile="${comment.id}">${esc(tag)}</button><span class="nc-reader-badge">PARROTHIT reader</span><time class="nc-time" datetime="${esc(comment.created_at)}">${relativeTime(comment.created_at)}</time>${comment.edited_at && !deleted ? '<span class="nc-edited">Edited</span>' : ''}</div>
+          <div class="nc-comment-meta"><button type="button" class="nc-reader nc-profile-trigger" data-nc-profile="${comment.id}">${esc(tag)}</button><span class="nc-reader-badge">PARROTHIT reader</span><time class="nc-time" datetime="${esc(comment.created_at)}">${relativeTime(comment.created_at)}</time>${comment.edited_at ? '<span class="nc-edited">Edited</span>' : ''}</div>
           <div class="nc-profile-card nc-hidden" data-nc-profile-card="${comment.id}"><strong>${esc(tag)}</strong><span>Anonymous PARROTHIT reader</span><small>${Number(comment.reader_comment_count || 0)} comment(s) in this article</small></div>
-          <p class="nc-comment-text ${deleted ? 'nc-deleted-text' : ''}" data-nc-comment-body="${comment.id}">${deleted ? 'This comment was deleted by its author.' : esc(comment.body)}</p>
-          <div class="nc-actions">${deleted ? '' : reactions}<button type="button" class="nc-action" data-nc-reply="${comment.id}">💬 Reply</button><button type="button" class="nc-action" data-nc-mention="${comment.id}">@ Mention</button>${ownActions}${deleted ? '' : `<button type="button" class="nc-action nc-report" data-nc-report="${comment.id}">Report</button>`}</div>
-          <form class="nc-edit-form nc-hidden" data-nc-edit-form="${comment.id}"><textarea class="nc-textarea" name="body" minlength="2" maxlength="2000" required>${deleted ? '' : esc(comment.body)}</textarea><div class="nc-edit-actions"><button type="submit" class="nc-reply-send">Save edit</button><button type="button" class="nc-action" data-nc-cancel-edit="${comment.id}">Cancel</button></div></form>
+          <p class="nc-comment-text" data-nc-comment-body="${comment.id}">${esc(comment.body)}</p>
+          <div class="nc-actions">${reactions}<button type="button" class="nc-action" data-nc-reply="${comment.id}">💬 Reply</button><button type="button" class="nc-action" data-nc-mention="${comment.id}">@ Mention</button>${ownActions}<button type="button" class="nc-action nc-report" data-nc-report="${comment.id}">Report</button></div>
+          <form class="nc-edit-form nc-hidden" data-nc-edit-form="${comment.id}"><textarea class="nc-textarea" name="body" minlength="2" maxlength="2000" required>${esc(comment.body)}</textarea><div class="nc-edit-actions"><button type="submit" class="nc-reply-send">Save edit</button><button type="button" class="nc-action" data-nc-cancel-edit="${comment.id}">Cancel</button></div></form>
           ${threadForm}
           ${threadPreview}
         </div>
@@ -357,13 +392,25 @@
     function renderSummaryAndCount() {
       const totalReactions = Object.fromEntries(EMOJIS.map(item => [item.value, 0]));
       totals.forEach(row => { if (totalReactions[row.reaction] !== undefined) totalReactions[row.reaction] += Number(row.reaction_count) || 0; });
-      EMOJIS.forEach(item => { const node = $(root, `[data-nc-total="${item.value}"]`); if (node) node.textContent = totalReactions[item.value]; });
+      let totalReactionCount = 0;
+      EMOJIS.forEach(item => {
+        const reactionCount = totalReactions[item.value];
+        totalReactionCount += reactionCount;
+        const node = $(root, `[data-nc-total="${item.value}"]`);
+        if (node) {
+          node.textContent = reactionCount;
+          const chip = node.closest('.nc-reaction-chip');
+          if (chip) chip.classList.toggle('nc-hidden', reactionCount < 1);
+        }
+      });
+      const summary = $(root, '.nc-summary');
+      if (summary) summary.classList.toggle('nc-hidden', totalReactionCount < 1);
       const count = $(root, '[data-nc-comment-count]');
-      if (count) count.textContent = threadPage ? `Replies (${threadRootId ? descendantsOf(threadRootId).length : 0})` : `Comments (${allComments.length})`;
+      if (count) count.textContent = threadPage ? `Replies (${threadRootId ? descendantsOf(threadRootId).length : 0})` : `Comments (${activeComments().length})`;
     }
     function renderRoots() {
       renderSummaryAndCount();
-      const roots = sortRoots(allComments.filter(comment => !comment.parent_comment_id || !commentById.has(comment.parent_comment_id)));
+      const roots = sortRoots(activeComments().filter(comment => !comment.parent_comment_id || !isActiveComment(commentById.get(comment.parent_comment_id))));
       const list = $(root, '[data-nc-list]');
       const page = roots.slice(0, visibleRoots);
       list.innerHTML = page.length ? page.map(comment => commentMarkup(comment, { isReply: false })).join('') : '<div class="nc-empty">No comments yet. Be the first to share your thoughts.</div>';
@@ -373,8 +420,8 @@
       renderSummaryAndCount();
       const list = $(root, '[data-nc-list]');
       const threadRoot = commentById.get(threadRootId);
-      if (!threadRoot) {
-        list.innerHTML = '<div class="nc-empty">This conversation could not be found. It may have been removed or is not available.</div>';
+      if (!isActiveComment(threadRoot)) {
+        list.innerHTML = '<div class="nc-empty">This conversation is no longer available. Return to the article to view the remaining discussion.</div>';
         return;
       }
       const descendants = descendantsOf(threadRootId);
@@ -411,8 +458,9 @@
         rows.forEach(row => { row.reader_comment_count = row.reader_tag ? (tagCounts.get(row.reader_tag) || 0) : 0; });
         rebuildThreadStats();
         totals = [];
-        for (let i = 0; i < rows.length; i += 100) {
-          const ids = rows.slice(i, i + 100).map(row => row.id);
+        const activeRows = rows.filter(row => !row.is_deleted);
+        for (let i = 0; i < activeRows.length; i += 100) {
+          const ids = activeRows.slice(i, i + 100).map(row => row.id);
           if (!ids.length) continue;
           const reactionResult = await db.from('news_comment_reaction_totals').select('comment_id,reaction,reaction_count').in('comment_id', ids);
           if (reactionResult.error) throw reactionResult.error;
@@ -420,8 +468,8 @@
         }
         if (threadPage) {
           const targetId = requestedCommentId || requestedReplyTo;
-          if (targetId && commentById.has(targetId)) threadRootId = resolveRootId(targetId);
-          else if (threadRootId && commentById.has(threadRootId)) threadRootId = resolveRootId(threadRootId);
+          if (targetId && isActiveComment(targetId)) threadRootId = resolveRootId(targetId);
+          else if (threadRootId && isActiveComment(threadRootId)) threadRootId = resolveRootId(threadRootId);
           else threadRootId = '';
           renderThread();
         } else {
@@ -436,6 +484,7 @@
       }
     }
     function showReplyForm(id, mention) {
+      if (!isActiveComment(id)) { setMessage(root, 'This comment is no longer available for replies.', 'error'); return; }
       if (!threadPage) { location.href = buildThreadUrl(id, { replyTo: true, mention: !!mention }); return; }
       const card = root.querySelector(`[data-comment-card="${CSS.escape(id)}"]`);
       if (!card) return;
@@ -489,7 +538,7 @@
     }
     async function revealComment(id) {
       const target = commentById.get(id);
-      if (!target) return;
+      if (!isActiveComment(target)) return;
       if (!threadPage && target.parent_comment_id && commentById.has(target.parent_comment_id)) {
         location.href = buildThreadUrl(id);
         return;
@@ -506,11 +555,66 @@
         if (index >= visibleThreadReplies) visibleThreadReplies = index + 1;
         renderThread();
       } else {
-        const roots = sortRoots(allComments.filter(comment => !comment.parent_comment_id || !commentById.has(comment.parent_comment_id)));
+        const roots = sortRoots(activeComments().filter(comment => !comment.parent_comment_id || !isActiveComment(commentById.get(comment.parent_comment_id))));
         const rootIndex = roots.findIndex(comment => comment.id === id);
         if (rootIndex >= visibleRoots) { visibleRoots = Math.ceil((rootIndex + 1) / ROOT_PAGE_SIZE) * ROOT_PAGE_SIZE; renderRoots(); }
       }
       scrollToComment(id);
+    }
+    function closeReactionPickers(keepPicker) {
+      root.querySelectorAll('[data-nc-reaction-picker]').forEach(picker => {
+        if (keepPicker && picker === keepPicker) return;
+        picker.classList.add('nc-hidden');
+        const control = picker.closest('[data-nc-reaction-control]');
+        const trigger = control && control.querySelector('[data-nc-like-trigger]');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      });
+    }
+    function openReactionPicker(trigger) {
+      const control = trigger && trigger.closest('[data-nc-reaction-control]');
+      const picker = control && control.querySelector('[data-nc-reaction-picker]');
+      if (!picker) return;
+      closeReactionPickers(picker);
+      picker.classList.remove('nc-hidden');
+      trigger.setAttribute('aria-expanded', 'true');
+    }
+    async function toggleReaction(commentId, reaction, button) {
+      if (!isActiveComment(commentId)) {
+        setMessage(root, 'This comment is no longer available for reactions.', 'error');
+        closeReactionPickers();
+        return;
+      }
+      if (button) button.disabled = true;
+      closeReactionPickers();
+      try {
+        const result = await db.rpc('toggle_news_comment_reaction', {
+          p_comment_id: commentId,
+          p_reaction: reaction,
+          p_voter_token: voterToken
+        });
+        if (result.error) throw result.error;
+        await load();
+      } catch (error) {
+        setMessage(root, error.message || 'Your reaction could not be saved.', 'error');
+      } finally {
+        if (button && button.isConnected) button.disabled = false;
+      }
+    }
+    let reactionHoldTimer = null;
+    let heldLikeTrigger = null;
+    let holdTriggered = false;
+    function clearReactionHold() {
+      if (reactionHoldTimer) window.clearTimeout(reactionHoldTimer);
+      reactionHoldTimer = null;
+    }
+    function closePickersWhenClickingOutside(event) {
+      const control = event.target.closest && event.target.closest('[data-nc-reaction-control]');
+      const clickedPicker = event.target.closest && event.target.closest('[data-nc-reaction-picker]');
+      closeReactionPickers(clickedPicker || null);
+      if (!control) {
+        holdTriggered = false;
+        heldLikeTrigger = null;
+      }
     }
     function showMentionSuggestions(textarea) {
       const form = textarea.closest('form');
@@ -535,7 +639,62 @@
       if (event.target.matches('[name="body"]')) showMentionSuggestions(event.target);
       if (event.target.matches('[data-nc-compose] [name="email"],[data-nc-identity] [name="email"]')) updateGoogleConnectionUI();
     });
+    root.addEventListener('pointerdown', event => {
+      const trigger = event.target.closest('[data-nc-like-trigger]');
+      if (!trigger || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      clearReactionHold();
+      heldLikeTrigger = trigger;
+      holdTriggered = false;
+      reactionHoldTimer = window.setTimeout(() => {
+        if (!heldLikeTrigger || !heldLikeTrigger.isConnected) return;
+        holdTriggered = true;
+        openReactionPicker(heldLikeTrigger);
+      }, REACTION_HOLD_MS);
+    });
+    root.addEventListener('pointerup', () => {
+      clearReactionHold();
+      if (holdTriggered) {
+        const lastTrigger = heldLikeTrigger;
+        window.setTimeout(() => {
+          if (heldLikeTrigger === lastTrigger && holdTriggered) {
+            heldLikeTrigger = null;
+            holdTriggered = false;
+          }
+        }, 1600);
+      }
+    });
+    root.addEventListener('pointercancel', () => {
+      clearReactionHold();
+      heldLikeTrigger = null;
+      holdTriggered = false;
+    });
+    root.addEventListener('contextmenu', event => {
+      if (event.target.closest('[data-nc-like-trigger]')) event.preventDefault();
+    });
+    root.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { closeReactionPickers(); holdTriggered = false; heldLikeTrigger = null; return; }
+      const trigger = event.target.closest('[data-nc-like-trigger]');
+      if (trigger && event.key === 'ArrowDown') {
+        event.preventDefault();
+        heldLikeTrigger = trigger;
+        holdTriggered = true;
+        openReactionPicker(trigger);
+      }
+    });
+    document.addEventListener('pointerdown', closePickersWhenClickingOutside);
+
     root.addEventListener('click', async event => {
+      const likeTrigger = event.target.closest('[data-nc-like-trigger]');
+      if (likeTrigger) {
+        if (holdTriggered && heldLikeTrigger === likeTrigger) {
+          holdTriggered = false;
+          heldLikeTrigger = null;
+          event.preventDefault();
+          return;
+        }
+        await toggleReaction(likeTrigger.dataset.commentId, '👍', likeTrigger);
+        return;
+      }
       const loadMore = event.target.closest('[data-nc-load-more]');
       if (loadMore) { visibleRoots += ROOT_PAGE_SIZE; renderRoots(); return; }
       const loadMoreThread = event.target.closest('[data-nc-thread-load-more]');
@@ -584,24 +743,20 @@
       }
       const del = event.target.closest('[data-nc-delete]');
       if (del) {
-        if (!confirm('Delete your comment? Replies will remain in the conversation.')) return;
+        if (!confirm('Delete this comment? It will disappear from the discussion. Any existing replies to it will remain visible as separate comments.')) return;
         try {
           const result = await db.rpc('manage_news_comment', { p_comment_id: del.dataset.ncDelete, p_action: 'delete', p_body: '', p_author_token: authorToken });
           if (result.error) throw result.error;
           await load();
-          setMessage(root, 'Your comment was deleted. Replies remain visible.', 'success');
+          setMessage(root, 'Your comment was deleted and removed from the visible discussion. Existing replies remain available.', 'success');
         } catch (error) { setMessage(root, error.message || 'Your comment could not be deleted.', 'error'); }
         return;
       }
       const react = event.target.closest('[data-nc-react]');
       if (react) {
-        react.disabled = true;
-        try {
-          const result = await db.rpc('toggle_news_comment_reaction', { p_comment_id: react.dataset.commentId, p_reaction: react.dataset.ncReact, p_voter_token: voterToken });
-          if (result.error) throw result.error;
-          await load();
-        } catch (error) { setMessage(root, error.message || 'Your reaction could not be saved.', 'error'); }
-        finally { react.disabled = false; }
+        holdTriggered = false;
+        heldLikeTrigger = null;
+        await toggleReaction(react.dataset.commentId, react.dataset.ncReact, react);
         return;
       }
       const removePhoto = event.target.closest('[data-nc-google-remove]');
@@ -672,6 +827,10 @@
       const body = String(data.get('body') || '').trim();
       const honeypot = String(data.get('website_url') || '');
       const parentId = form.dataset.ncReplyForm || null;
+      if (parentId && !isActiveComment(parentId)) {
+        setMessage(root, 'This comment has been deleted or is no longer available. You cannot reply to it.', 'error');
+        return;
+      }
       const button = form.querySelector('button[type="submit"]');
       if (button) { button.disabled = true; button.textContent = parentId ? 'Sending…' : 'Posting…'; }
       try {
@@ -705,15 +864,19 @@
     await loadNotifications(false);
     if (threadPage) {
       const focusId = requestedReplyTo || requestedCommentId || threadRootId;
-      if (focusId && commentById.has(focusId)) {
+      if (focusId && isActiveComment(focusId)) {
         await revealComment(focusId);
-        if (requestedReplyTo) showReplyForm(requestedReplyTo, requestedMention);
+        if (requestedReplyTo && isActiveComment(requestedReplyTo)) showReplyForm(requestedReplyTo, requestedMention);
       }
-    } else if (requestedCommentId && commentById.has(requestedCommentId)) {
+    } else if (requestedCommentId && isActiveComment(requestedCommentId)) {
       await revealComment(requestedCommentId);
     }
     notificationTimer = setInterval(() => loadNotifications(false), 60000);
-    window.addEventListener('pagehide', () => { if (notificationTimer) clearInterval(notificationTimer); }, { once: true });
+    window.addEventListener('pagehide', () => {
+      if (notificationTimer) clearInterval(notificationTimer);
+      clearReactionHold();
+      document.removeEventListener('pointerdown', closePickersWhenClickingOutside);
+    }, { once: true });
   }
 
   window.PARROTHITNewsComments = { init };
