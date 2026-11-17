@@ -166,103 +166,135 @@
 .nc-notification-item:hover{border-color:#e52a39;background:#241014}
 .nc-reply-form,.nc-edit-form{grid-template-columns:minmax(0,1fr)}
 
-/* PARROTHIT reply-thread layout repair (2026-11-17).
-   Reply containers span the whole comment card instead of being trapped inside
-   the text column. Only the first reply level indents; deeper replies stay aligned. */
-.news-comments .nc-comment {
-  display:grid;
-  grid-template-columns:40px minmax(0,1fr);
-  align-items:start;
-  width:100%;
-  min-width:0;
-  overflow:visible;
+/* PARROTHIT dedicated reply-page experience — 17 Nov 2026 */
+.news-comments .nc-thread-preview {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  margin: 9px 0 2px;
+  padding: 8px 10px;
+  border: 1px solid #3f3032;
+  border-left: 3px solid #d71928;
+  border-radius: 8px;
+  background: #111;
+  color: #fff;
+  text-decoration: none;
 }
-.news-comments .nc-comment > .nc-avatar {
-  grid-column:1;
-  grid-row:1;
-  min-width:0;
+.news-comments .nc-thread-preview:hover { border-color: #dc3340; background: #1b1012; }
+.news-comments .nc-thread-preview-count { color: #ff7881; font-size: .78rem; font-weight: 900; }
+.news-comments .nc-thread-preview-latest { color: #e6e6e6; font-size: .82rem; line-height: 1.4; overflow-wrap: anywhere; }
+.news-comments .nc-thread-preview-latest b { color: #fff; }
+.news-comments .nc-thread-preview-empty { display: inline-flex; width: auto; max-width: 100%; color: #ff7881; font-size: .78rem; font-weight: 850; }
+.news-comments .nc-thread-identity {
+  display: grid;
+  grid-template-columns: minmax(180px, .8fr) minmax(190px, 1fr);
+  gap: 9px 12px;
+  align-items: center;
+  margin: 12px 0 15px;
+  padding: 12px;
+  border: 1px solid #393939;
+  border-radius: 10px;
+  background: #101010;
 }
-.news-comments .nc-comment > .nc-comment-main {
-  grid-column:2;
-  grid-row:1;
-  min-width:0;
-  width:100%;
+.news-comments .nc-thread-identity-copy { display: grid; gap: 3px; min-width: 0; }
+.news-comments .nc-thread-identity-copy strong { color: #fff; font-size: .9rem; }
+.news-comments .nc-thread-identity-copy small { color: #bdbdbd; font-size: .74rem; line-height: 1.4; }
+.news-comments .nc-thread-identity > .nc-input { width: 100%; min-width: 0; min-height: 42px; background: #171717; color: #fff; border: 1px solid #555; }
+.news-comments .nc-thread-identity .nc-google-connect { grid-column: 1 / -1; }
+.news-comments .nc-thread-order { color: #bdbdbd; font-size: .72rem; }
+.news-comments .nc-thread-flat { display: grid; gap: 0; min-width: 0; }
+.news-comments .nc-thread-section-label {
+  padding: 10px 2px 5px;
+  color: #ff7881;
+  font-size: .68rem;
+  font-weight: 950;
+  letter-spacing: .11em;
 }
-.news-comments .nc-comment > .nc-replies {
-  grid-column:1 / -1;
-  grid-row:2;
-  display:block;
-  width:100%;
-  min-width:0;
-  max-width:100%;
-  margin:8px 0 0;
-  padding:0;
-  border:0;
-  box-sizing:border-box;
+.news-comments .nc-thread-replies-label { margin-top: 9px; border-top: 1px solid #363636; }
+.news-comments .nc-thread-flat > .nc-comment {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 2px;
+  border: 0;
+  border-bottom: 1px solid #303030;
+  background: transparent;
 }
-.news-comments .nc-comment[data-nc-depth="0"] > .nc-replies {
-  margin-top:10px;
-  padding-left:12px;
-  border-left:2px solid #bd1725;
+.news-comments .nc-thread-flat > .nc-thread-reply-card {
+  padding-left: 9px;
+  border-left: 2px solid #7a2029;
 }
-.news-comments .nc-replies > .nc-comment {
-  grid-template-columns:32px minmax(0,1fr);
-  gap:8px;
-  width:100%;
-  min-width:0;
-  padding:9px 0 7px;
-  border-bottom:1px solid #303030;
+.news-comments .nc-thread-flat .nc-comment-main,
+.news-comments .nc-thread-flat .nc-comment-text,
+.news-comments .nc-thread-flat .nc-comment-meta,
+.news-comments .nc-thread-flat .nc-actions { min-width: 0; max-width: 100%; }
+.news-comments .nc-thread-flat .nc-avatar { width: 38px; height: 38px; }
+.news-comments .nc-reply-context {
+  display: inline-flex;
+  gap: 4px;
+  align-items: baseline;
+  max-width: 100%;
+  margin: 0 0 5px;
+  color: #bdbdbd;
+  font-size: .72rem;
+  overflow-wrap: anywhere;
 }
-.news-comments .nc-replies > .nc-comment:last-of-type { border-bottom:0; }
-.news-comments .nc-replies > .nc-comment > .nc-avatar {
-  width:30px;
-  height:30px;
-  font-size:.85rem;
+.news-comments .nc-reply-context strong { color: #ff8990; }
+.news-comments .nc-thread-empty {
+  margin: 10px 0;
+  padding: 18px 13px;
+  border: 1px dashed #623038;
+  border-radius: 9px;
+  color: #d7d7d7;
+  background: #100d0e;
+  text-align: center;
+  font-size: .86rem;
 }
-.news-comments .nc-replies > .nc-comment > .nc-comment-main { min-width:0; }
-.news-comments .nc-comment[data-nc-depth]:not([data-nc-depth="0"]) .nc-profile-trigger::before {
-  content:"↳ ";
-  color:#ff6570;
-  font-weight:900;
+.nc-thread-document { min-height: 100vh; background: #080808; }
+.nc-thread-page-shell { max-width: 980px; padding-top: 20px; padding-bottom: 32px; }
+.nc-thread-page-heading {
+  margin: 0 0 14px;
+  padding: 18px 19px;
+  border: 1px solid #3b2428;
+  border-bottom: 3px solid #d71928;
+  border-radius: 12px;
+  background: linear-gradient(130deg, #171014, #0b0b0b 70%);
+  color: #fff;
 }
-.news-comments .nc-replies .nc-replies { margin-top:7px; }
-.news-comments .nc-replies .nc-load-more-replies { margin:7px 0; }
-.news-comments .nc-comment-main,
-.news-comments .nc-comment-text,
-.news-comments .nc-comment-meta,
-.news-comments .nc-actions { min-width:0; max-width:100%; }
-.news-comments .nc-comment-meta { overflow-wrap:anywhere; }
-.news-comments .nc-actions { row-gap:5px; }
-@media (max-width:650px) {
-  .news-comments .nc-comment {
-    grid-template-columns:32px minmax(0,1fr);
-    gap:7px;
-    padding:11px 0;
-  }
-  .news-comments .nc-comment > .nc-avatar {
-    width:30px;
-    height:30px;
-    font-size:.95rem;
-  }
-  .news-comments .nc-comment[data-nc-depth="0"] > .nc-replies {
-    margin-top:7px;
-    padding-left:8px;
-  }
-  .news-comments .nc-replies > .nc-comment {
-    grid-template-columns:28px minmax(0,1fr);
-    gap:7px;
-    padding:8px 0 6px;
-  }
-  .news-comments .nc-replies > .nc-comment > .nc-avatar {
-    width:27px;
-    height:27px;
-  }
-  .news-comments .nc-comment .nc-action { padding:5px 6px; }
-  .news-comments .nc-comment .nc-reply-form,
-  .news-comments .nc-comment .nc-edit-form { width:100%; min-width:0; }
+.nc-thread-page-heading .nc-thread-back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  margin-bottom: 11px;
+  padding: 7px 10px;
+  border: 1px solid #6b252d;
+  border-radius: 8px;
+  background: #250f13;
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 850;
+  text-decoration: none;
 }
-.news-comments .nc-profile-trigger {
-  white-space:normal;
-  overflow-wrap:anywhere;
-  text-align:left;
+.nc-thread-page-heading .nc-thread-back:hover { background: #421219; }
+.nc-thread-page-heading .nc-thread-eyebrow { margin: 0 0 5px; color: #ff7b84; font-size: .68rem; font-weight: 950; letter-spacing: .13em; }
+.nc-thread-page-heading h1 { margin: 0; color: #fff; font-size: clamp(1.25rem, 3vw, 1.8rem); line-height: 1.25; overflow-wrap: anywhere; }
+.nc-thread-page-heading p:last-child { margin: 6px 0 0; color: #c6c6c6; font-size: .82rem; }
+.nc-thread-page.news-comments { max-width: 980px; margin: 0 auto 32px; }
+.nc-thread-page .nc-list { border-top: 1px solid #393939; }
+.nc-thread-page .nc-thread-flat .nc-reply-form { margin-top: 10px; }
+.nc-thread-page .nc-thread-flat .nc-edit-form { margin-top: 10px; }
+@media (max-width: 650px) {
+  .nc-thread-page-shell { width: 96%; padding-top: 10px; }
+  .nc-thread-page-heading { padding: 14px 13px; }
+  .news-comments .nc-thread-identity { grid-template-columns: minmax(0, 1fr); padding: 10px; }
+  .news-comments .nc-thread-identity .nc-google-connect { grid-column: auto; }
+  .news-comments .nc-thread-flat > .nc-comment { grid-template-columns: 32px minmax(0, 1fr); gap: 8px; padding: 11px 1px; }
+  .news-comments .nc-thread-flat .nc-avatar { width: 30px; height: 30px; }
+  .news-comments .nc-thread-flat > .nc-thread-reply-card { padding-left: 7px; }
+  .news-comments .nc-thread-preview { padding: 7px 8px; }
+  .news-comments .nc-thread-order { display: block; width: 100%; }
 }
