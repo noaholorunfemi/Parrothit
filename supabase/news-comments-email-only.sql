@@ -396,23 +396,47 @@ create or replace function public.report_news_comment(
   p_comment_id uuid,
   p_reason text,
   p_reporter_token text
-) returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
+)
+returns jsonb
+as $report_news_comment$
 declare
-  v_reason text := trim(coalesce(p_reason,''));
+  v_reason text;
 begin
-  if length(v_reason) < 3 or length(v_reason) > 400 then raise exception 'Please provide a short reason for the report.'; end if;
-  if length(coalesce(p_reporter_token,'')) < 20 or length(p_reporter_token) > 100 then raise exception 'Invalid report token.'; end if;
-  if not exists(select 1 from public.comments where id=p_comment_id and status='approved' and coalesce(is_deleted,false)=false) then raise exception 'Comment is not available.'; end if;
-  insert into public.news_comment_reports(comment_id,reason,reporter_token)
-    values(p_comment_id,v_reason,p_reporter_token)
-    on conflict(comment_id,reporter_token) do nothing;
+  v_reason := trim(coalesce(p_reason, ''));
+
+  if length(v_reason) < 3 or length(v_reason) > 400 then
+    raise exception 'Please provide a short reason for the report.';
+  end if;
+
+  if length(coalesce(p_reporter_token, '')) < 20
+     or length(p_reporter_token) > 100 then
+    raise exception 'Invalid report token.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.comments
+    where id = p_comment_id
+      and status = 'approved'
+      and coalesce(is_deleted, false) = false
+  ) then
+    raise exception 'Comment is not available.';
+  end if;
+
+  insert into public.news_comment_reports (
+    comment_id, reason, reporter_token
+  )
+  values (
+    p_comment_id, v_reason, p_reporter_token
+  )
+  on conflict (comment_id, reporter_token) do nothing;
+
   return jsonb_build_object('submitted', true);
 end;
-$$;
+$report_news_comment$
+language plpgsql
+security definer
+set search_path = public, pg_temp;
 revoke all on function public.report_news_comment(uuid,text,text) from public;
 grant execute on function public.report_news_comment(uuid,text,text) to anon, authenticated;
 
