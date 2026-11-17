@@ -39,3 +39,12 @@ end;
 $$;
 revoke all on function public.wazobia_create_group(text,text,text) from public, anon;
 grant execute on function public.wazobia_create_group(text,text,text) to authenticated;
+
+
+-- Compatibility for clients still performing a direct insert: allow only the
+-- authenticated member to create a group with their own auth.uid() as owner.
+grant select, insert on public.wazobia_groups to authenticated;
+drop policy if exists "Members create Wazobia groups" on public.wazobia_groups;
+create policy "Members create Wazobia groups"
+on public.wazobia_groups for insert to authenticated
+with check (created_by = (select auth.uid()));
