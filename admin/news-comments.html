@@ -15,7 +15,7 @@
 <div class="shell">
 <header class="top"><div><h1>🗞 PARROTHIT News Comments</h1><p>Moderation for article comments across all 22 news categories</p></div><a class="btn light" href="control-directory.html">← Control Room</a></header>
 <section class="stats" aria-label="Comment statistics"><div class="stat"><span>Approved comments</span><strong id="statApproved">—</strong></div><div class="stat"><span>Pending</span><strong id="statPending">—</strong></div><div class="stat"><span>Hidden / spam</span><strong id="statHidden">—</strong></div><div class="stat"><span>Reader reports</span><strong id="statReports">—</strong></div></section>
-<section class="panel"><div class="tools"><input id="searchComments" type="search" placeholder="Search comment or article title…" aria-label="Search comments"><select id="filterStatus" aria-label="Filter comments"><option value="all">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="hidden">Hidden</option><option value="spam">Spam</option></select><button class="btn" id="refreshComments" type="button">↻ Refresh</button></div><div id="statusMessage" class="notice" role="status">Loading comments from Supabase…</div><div class="small-note">Reader emails are stored separately and are never displayed in this moderation list. Public commenters appear as “Reader”.</div></section>
+<section class="panel"><div class="tools"><input id="searchComments" type="search" placeholder="Search comment or article title…" aria-label="Search comments"><select id="filterStatus" aria-label="Filter comments"><option value="all">All statuses</option><option value="approved">Approved</option><option value="pending">Pending</option><option value="hidden">Hidden</option><option value="spam">Spam</option></select><button class="btn" id="refreshComments" type="button">↻ Refresh</button></div><div id="statusMessage" class="notice" role="status">Loading comments from Supabase…</div><div class="small-note">Reader emails and browser ownership tokens are stored separately and are never displayed here. Public readers use pseudonymous Reader tags. Hiding a parent keeps its replies visible as their own thread; permanent deletion removes its entire nested reply branch.</div></section>
 <section id="commentList" class="list"><div class="loading">Loading…</div></section>
 </div>
 <script>
@@ -23,7 +23,7 @@
  'use strict';
  const $=id=>document.getElementById(id);
  const esc=value=>String(value==null?'':value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
- let db=null,comments=[],reports=[];
+ let db=null,comments=[],reports=[],visibleRows=100;
  function message(text,error){$('statusMessage').textContent=text;$('statusMessage').classList.toggle('error',!!error)}
  function relationTitle(row){const rel=row.posts;return Array.isArray(rel)?(rel[0]?.title||'Article'):((rel&&rel.title)||'Article')}
  function render(){
@@ -33,22 +33,21 @@
    $('statPending').textContent=comments.filter(x=>x.status==='pending').length;
    $('statHidden').textContent=comments.filter(x=>x.status==='hidden'||x.status==='spam').length;
    $('statReports').textContent=reports.length;
-   $('commentList').innerHTML=filtered.map(row=>{
+   const page=filtered.slice(0,visibleRows);
+   $('commentList').innerHTML=page.map(row=>{
      const rowReports=reports.filter(r=>r.comment_id===row.id);
      const statusClass=row.status==='approved'?'':row.status;
      const when=row.created_at?new Date(row.created_at).toLocaleString('en-NG',{dateStyle:'medium',timeStyle:'short'}):'';
-     return `<article class="comment ${row.parent_comment_id?'reply':''}"><div class="meta"><strong>Reader</strong><span class="tag ${esc(statusClass)}">${esc(row.status)}</span><time>${esc(when)}</time><span>·</span><span>${row.parent_comment_id?'Reply':'Comment'}</span></div><div class="article-title">${esc(relationTitle(row))}</div><p class="body">${esc(row.body)}</p>${rowReports.length?`<div class="report-list">${rowReports.map(r=>`<span class="report">Report: ${esc(r.reason)}</span>`).join('')}</div>`:''}<div class="actions">${row.status!=='approved'?`<button class="btn" data-status="approved" data-id="${row.id}">✓ Approve / Restore</button>`:''}${row.status!=='hidden'?`<button class="btn warn" data-status="hidden" data-id="${row.id}">Hide</button>`:''}${row.status!=='spam'?`<button class="btn gray" data-status="spam" data-id="${row.id}">Mark spam</button>`:''}<button class="btn danger" data-delete="${row.id}">Delete</button>${rowReports.length?`<button class="btn light" data-clear-reports="${row.id}">Clear reports</button>`:''}</div></article>`;
+     return `<article class="comment ${row.parent_comment_id?'reply':''}"><div class="meta"><strong>${esc(row.reader_tag||'Reader')}</strong><span class="tag ${esc(statusClass)}">${esc(row.status)}</span>${row.is_deleted?'<span class="tag hidden">Author deleted</span>':''}${row.edited_at?'<span>Edited</span>':''}<time>${esc(when)}</time><span>·</span><span>${row.parent_comment_id?'Reply':'Comment'}</span></div><div class="article-title">${esc(relationTitle(row))}</div><p class="body">${esc(row.body)}</p>${rowReports.length?`<div class="report-list">${rowReports.map(r=>`<span class="report">Report: ${esc(r.reason)}</span>`).join('')}</div>`:''}<div class="actions">${row.status!=='approved'?`<button class="btn" data-status="approved" data-id="${row.id}">✓ Approve / Restore</button>`:''}${row.status!=='hidden'?`<button class="btn warn" data-status="hidden" data-id="${row.id}">Hide (keep replies)</button>`:''}${row.status!=='spam'?`<button class="btn gray" data-status="spam" data-id="${row.id}">Mark spam</button>`:''}<button class="btn danger" data-delete="${row.id}">Delete thread permanently</button>${rowReports.length?`<button class="btn light" data-clear-reports="${row.id}">Clear reports</button>`:''}</div></article>`;
    }).join('')||'<div class="panel empty">No comments match this filter.</div>';
+   if(filtered.length>visibleRows)$('commentList').insertAdjacentHTML('beforeend',`<button class="btn" id="loadMoreModeration" type="button" style="width:100%;margin:8px 0">Load more (${filtered.length-visibleRows} remaining)</button>`);
  }
  async function load(){
    message('Loading comments…');
-   const [commentResult,reportResult]=await Promise.all([
-     db.from('comments').select('id,post_id,visitor_name,body,status,parent_comment_id,created_at,posts(title,slug)').order('created_at',{ascending:false}).limit(500),
-     db.from('news_comment_reports').select('id,comment_id,reason,created_at').order('created_at',{ascending:false}).limit(500)
-   ]);
-   if(commentResult.error)throw commentResult.error;
-   if(reportResult.error)throw reportResult.error;
-   comments=commentResult.data||[];reports=reportResult.data||[];render();message('Showing '+comments.length+' comments and replies.');
+   const commentRows=[],reportRows=[];let offset=0;
+   while(true){const result=await db.from('comments').select('id,post_id,visitor_name,body,status,parent_comment_id,created_at,reader_tag,edited_at,is_deleted,posts(title,slug)').order('created_at',{ascending:false}).range(offset,offset+499);if(result.error)throw result.error;const batch=result.data||[];commentRows.push(...batch);if(batch.length<500)break;offset+=500;}
+   offset=0;while(true){const result=await db.from('news_comment_reports').select('id,comment_id,reason,created_at').order('created_at',{ascending:false}).range(offset,offset+499);if(result.error)throw result.error;const batch=result.data||[];reportRows.push(...batch);if(batch.length<500)break;offset+=500;}
+   comments=commentRows;reports=reportRows;visibleRows=100;render();message('Showing '+comments.length+' comments and replies.');
  }
  async function start(){
    if(typeof window.getParrothitSupabaseClient!=='function')throw new Error('Supabase configuration is missing.');
@@ -57,12 +56,13 @@
    await load();
  }
  $('refreshComments').addEventListener('click',()=>load().catch(err=>message(err.message||'Could not refresh comments.',true)));
- $('filterStatus').addEventListener('change',render);$('searchComments').addEventListener('input',render);
+ $('filterStatus').addEventListener('change',()=>{visibleRows=100;render()});$('searchComments').addEventListener('input',()=>{visibleRows=100;render()});
  $('commentList').addEventListener('click',async event=>{
+   const moreButton=event.target.closest('#loadMoreModeration');if(moreButton){visibleRows+=100;render();return;}
    const statusButton=event.target.closest('[data-status]'),deleteButton=event.target.closest('[data-delete]'),clearButton=event.target.closest('[data-clear-reports]');
    try{
      if(statusButton){const id=statusButton.dataset.id,status=statusButton.dataset.status;const result=await db.from('comments').update({status}).eq('id',id);if(result.error)throw result.error;message('Comment status updated.');await load();}
-     if(deleteButton){const id=deleteButton.dataset.delete;if(!confirm('Permanently delete this comment or reply?'))return;const result=await db.from('comments').delete().eq('id',id);if(result.error)throw result.error;message('Comment deleted.');await load();}
+     if(deleteButton){const id=deleteButton.dataset.delete;if(!confirm('Permanently delete this comment and ALL nested replies beneath it? This cannot be undone. To remove only this comment while preserving replies, use Hide (keep replies).'))return;const result=await db.from('comments').delete().eq('id',id);if(result.error)throw result.error;message('Comment deleted.');await load();}
      if(clearButton){const id=clearButton.dataset.clearReports;const result=await db.from('news_comment_reports').delete().eq('comment_id',id);if(result.error)throw result.error;message('Reports cleared.');await load();}
    }catch(err){message(err.message||'That moderation action failed.',true)}
  });
