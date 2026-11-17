@@ -8,10 +8,10 @@
   <title>Parrothit Wazobia Trends | PARROTHIT</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
   <link rel="apple-touch-icon" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-trends.css?v=2-logo">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=3-dashboard-comments">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-trends.js?v=2-logo" defer></script>
+  <script src="js/wazobia-trends.js?v=3-dashboard-comments" defer></script>
   <script src="/js/public-notifications.js?v=20261117-wazobia-header"></script>
 </head>
 <body class="wz-page">
@@ -44,6 +44,7 @@
       </section>
       <nav class="wz-side-nav">
         <button class="selected" data-wz-tab="home" type="button"><span>⌂</span> Home feed</button>
+        <button type="button" data-open-dashboard><span>♙</span> My dashboard</button>
         <button data-wz-tab="following" type="button"><span>♧</span> Following</button>
         <button data-wz-tab="saved" type="button"><span>▣</span> Saved posts</button>
         <button data-wz-tab="notifications" type="button"><span>♢</span> Notifications <b id="wz-side-badge" class="wz-badge" hidden>0</b></button>
@@ -148,14 +149,36 @@
   <div class="wz-modal-backdrop" id="wz-profile-modal" hidden>
     <section class="wz-modal wz-profile-modal" role="dialog" aria-modal="true" aria-labelledby="wz-profile-title">
       <button class="wz-modal-close" type="button" data-wz-close="profile" aria-label="Close">×</button>
-      <h2 id="wz-profile-title">Your Wazobia profile</h2>
-      <label class="wz-field">Display name<input id="wz-edit-display-name" maxlength="60"></label>
-      <label class="wz-field">Username<input id="wz-edit-username" minlength="3" maxlength="24"></label>
-      <label class="wz-field">About you<textarea id="wz-edit-bio" maxlength="240" rows="3" placeholder="A little about yourself"></textarea></label>
-      <button class="wz-primary-btn" id="wz-save-profile" type="button">Save profile</button>
+      <h2 id="wz-profile-title">Your Wazobia Dashboard</h2>
+      <div class="wz-dashboard-hero">
+        <div class="wz-dashboard-cover" id="wz-dashboard-cover">
+          <label class="wz-cover-upload" for="wz-cover-file">📷 Change cover photo</label>
+          <input id="wz-cover-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+        </div>
+        <div class="wz-dashboard-identity">
+          <div class="wz-dashboard-avatar-wrap"><div class="wz-avatar wz-dashboard-avatar" id="wz-dashboard-avatar">?</div><label class="wz-avatar-upload" for="wz-avatar-file" title="Upload profile picture">📷</label><input id="wz-avatar-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden></div>
+          <div><strong id="wz-dashboard-name">Your name</strong><small id="wz-dashboard-handle">@username</small></div>
+        </div>
+      </div>
+      <div class="wz-dashboard-stats" id="wz-dashboard-stats"><div><strong>—</strong><small>Posts</small></div><div><strong>—</strong><small>Comments</small></div><div><strong>—</strong><small>Followers</small></div><div><strong>—</strong><small>Following</small></div></div>
+      <nav class="wz-dashboard-tabs" aria-label="Your dashboard sections"><button type="button" class="active" data-dashboard-tab="overview">Overview</button><button type="button" data-dashboard-tab="posts">My posts</button><button type="button" data-dashboard-tab="about">About</button></nav>
+      <section id="wz-dashboard-content" class="wz-dashboard-content"><p class="wz-muted">Your posts, profile details and activity are private to your account dashboard.</p></section>
+      <div class="wz-dashboard-edit">
+        <h3>Edit your profile</h3>
+        <label class="wz-field">Display name<input id="wz-edit-display-name" maxlength="60"></label>
+        <label class="wz-field">Username<input id="wz-edit-username" minlength="3" maxlength="24"></label>
+        <label class="wz-field">About you<textarea id="wz-edit-bio" maxlength="240" rows="3" placeholder="A little about yourself"></textarea></label>
+        <button class="wz-primary-btn" id="wz-save-profile" type="button">Save profile</button>
+      </div>
       <button class="wz-text-btn" id="wz-sign-out" type="button">Sign out</button>
       <p id="wz-profile-status" class="wz-auth-status" role="status"></p>
     </section>
+  </div>
+
+  <div class="wz-comment-context-menu" id="wz-comment-context-menu" role="menu" hidden>
+    <button type="button" data-comment-action="edit">✎ Edit comment</button>
+    <button type="button" data-comment-action="copy">▢ Copy comment</button>
+    <button type="button" data-comment-action="delete" class="danger">⌫ Delete comment</button>
   </div>
 
   <footer class="wz-footer">© <span id="wz-year"></span> PARROTHIT · Wazobia Trends <span>Share responsibly. Respect every voice.</span></footer>
