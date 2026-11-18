@@ -10,8 +10,9 @@
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const safeUrl = (value) => {
+    if (value == null || !String(value).trim()) return '';
     try {
-      const url = new URL(String(value || ''), location.origin);
+      const url = new URL(String(value).trim(), location.origin);
       return url.protocol === 'https:' || url.origin === location.origin ? url.href : '';
     } catch (_) { return ''; }
   };
@@ -26,10 +27,13 @@
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
+  const profileHref = profile => profile?.user_id ? `wazobia-profile.html?user=${encodeURIComponent(profile.user_id)}` : '';
+  const profileName = (profile, name) => profileHref(profile) ? `<a class="wz-thread-profile-name-link" href="${profileHref(profile)}">${escapeHtml(name)}</a>` : `<strong>${escapeHtml(name)}</strong>`;
   const avatarMarkup = (profile, className = 'wz-thread-comment-avatar') => {
     const url = safeUrl(profile?.avatar_url);
     const name = profile?.display_name || profile?.username || 'Wazobia member';
-    return `<div class="wz-avatar ${className}">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${escapeHtml(initials(name))}'">` : escapeHtml(initials(name))}</div>`;
+    const visual = `<div class="wz-avatar ${className}">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" onerror="this.parentElement.textContent='${escapeHtml(initials(name))}'">` : escapeHtml(initials(name))}</div>`;
+    return profileHref(profile) ? `<a class="wz-thread-profile-avatar-link" href="${profileHref(profile)}" aria-label="View ${escapeHtml(name)} profile">${visual}</a>` : visual;
   };
   const threadHref = (targetId) => `wazobia-comment-replies.html?${new URLSearchParams({ post_id: postId, comment_id: targetId }).toString()}`;
   const showStatus = (message, isError = false) => {
@@ -78,7 +82,7 @@
     const edited = comment.updated_at && comment.updated_at !== comment.created_at;
     const parentAuthor = parentComment?.author?.display_name || 'another member';
     const replyContext = !isRoot
-      ? `<div class="wz-thread-reply-context">↳ Replying to <strong>${escapeHtml(parentAuthor)}</strong></div>`
+      ? `<div class="wz-thread-reply-context">↳ Replying to ${profileName(parentComment?.author,parentAuthor)}</div>`
       : '';
     const ownActions = own && !deleted
       ? `<button type="button" data-thread-edit="${escapeHtml(comment.id)}">Edit</button><button type="button" data-thread-delete="${escapeHtml(comment.id)}">Delete</button>`
@@ -88,7 +92,7 @@
       <div class="wz-thread-comment-main">
         ${replyContext}
         <div class="wz-comment-bubble">
-          <div class="wz-comment-heading"><strong>${escapeHtml(author)}</strong><span>· ${escapeHtml(relativeTime(comment.created_at))}${edited ? ' · edited' : ''}</span>${own ? '<em>by you</em>' : ''}</div>
+          <div class="wz-comment-heading">${profileName(comment.author,author)}<span>· ${escapeHtml(relativeTime(comment.created_at))}${edited ? ' · edited' : ''}</span>${own ? '<em>by you</em>' : ''}</div>
           <p>${escapeHtml(deleted ? '[This comment was deleted]' : comment.body)}</p>
         </div>
         <div class="wz-thread-comment-tools">
@@ -136,7 +140,7 @@
 
       const [postResult, comments] = await Promise.all([
         state.db.from('wazobia_posts')
-          .select('id,body,media_url,media_type,author:wazobia_profiles!wazobia_posts_author_id_fkey(display_name,username)')
+          .select('id,body,media_url,media_type,author:wazobia_profiles!wazobia_posts_author_id_fkey(user_id,display_name,username)')
           .eq('id', postId).eq('is_deleted', false).maybeSingle(),
         fetchAllComments()
       ]);
@@ -174,7 +178,7 @@
       if (mediaUrl) media = state.post.media_type === 'video'
         ? `<video src="${escapeHtml(mediaUrl)}" controls playsinline preload="metadata"></video>`
         : `<img src="${escapeHtml(mediaUrl)}" alt="Media attached to the original Wazobia post" loading="lazy">`;
-      postNode.innerHTML = `<small>Original post · ${escapeHtml(state.post.author?.display_name || 'Wazobia member')}${state.post.author?.username ? ` · @${escapeHtml(state.post.author.username)}` : ''}</small>${postBody}${media}`;
+      postNode.innerHTML = `<small>Original post · ${profileName(state.post.author,state.post.author?.display_name || 'Wazobia member')}${state.post.author?.username ? ` · @${escapeHtml(state.post.author.username)}` : ''}</small>${postBody}${media}`;
       postNode.hidden = false;
 
       state.commentsById = byId;

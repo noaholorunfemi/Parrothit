@@ -11,12 +11,16 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
   const initials = value => String(value || 'W').trim().split(/\s+/).slice(0, 2).map(part => part[0] || '').join('').toUpperCase() || 'W';
   const safeUrl = value => {
-    try { const url = new URL(String(value || ''), location.origin); return url.protocol === 'https:' || url.origin === location.origin ? url.href : ''; }
+    if (value == null || !String(value).trim()) return '';
+    try { const url = new URL(String(value).trim(), location.origin); return url.protocol === 'https:' || url.origin === location.origin ? url.href : ''; }
     catch (_) { return ''; }
   };
+  const profileHref = profile => profile?.user_id ? `wazobia-profile.html?user=${encodeURIComponent(profile.user_id)}` : '';
+  const profileName = (profile, name) => profileHref(profile) ? `<a class="wg-thread-profile-name-link" href="${profileHref(profile)}">${esc(name)}</a>` : `<strong>${esc(name)}</strong>`;
   const avatar = profile => {
     const url = safeUrl(profile?.avatar_url);
-    return `<span class="wg-member-avatar">${url ? `<img src="${esc(url)}" alt="" loading="lazy">` : esc(initials(profile?.display_name || profile?.username))}</span>`;
+    const visual = `<span class="wg-member-avatar">${url ? `<img src="${esc(url)}" alt="" loading="lazy">` : esc(initials(profile?.display_name || profile?.username))}</span>`;
+    return profileHref(profile) ? `<a class="wg-thread-profile-avatar-link" href="${profileHref(profile)}" aria-label="View ${esc(profile.display_name || profile.username || 'member')} profile">${visual}</a>` : visual;
   };
   const profileFor = comment => state.profiles.get(comment.author_id) || {};
   const authorName = comment => {
@@ -82,7 +86,7 @@
     const edited = isEdited(row) ? ' · edited' : '';
     const byYou = state.user?.id && row.author_id === state.user.id ? ' · by you' : '';
     const parentLine = parent
-      ? `<span class="wg-thread-replying-to">↳ Replying to <strong>${esc(authorName(parent))}</strong></span>`
+      ? `<span class="wg-thread-replying-to">↳ Replying to ${profileName(profileFor(parent),authorName(parent))}</span>`
       : '';
     const actions = [
       `<button type="button" data-thread-reply="${esc(row.id)}">Reply</button>`,
@@ -93,7 +97,7 @@
       ${avatar(profile)}
       <div class="wg-thread-comment-main">
         <div class="wg-thread-comment-bubble">
-          <div class="wg-thread-comment-author"><strong>${esc(authorName(row))}</strong><small>${esc(authorHandle(row))} · ${esc(relativeTime(row.created_at))}${edited}${byYou}</small></div>
+          <div class="wg-thread-comment-author">${profileName(profile,authorName(row))}<small>${esc(authorHandle(row))} · ${esc(relativeTime(row.created_at))}${edited}${byYou}</small></div>
           <p>${esc(row.body)}</p>
         </div>
         ${parentLine}
@@ -122,7 +126,7 @@
     const canReply = !!state.user && canReadPrivate;
     $('wg-thread-form').hidden = !canReply;
     $('wg-thread-signin').hidden = canReply;
-    if (!state.user) $('wg-thread-signin').innerHTML = 'Sign in to reply. <a href="wazobia-trends.html?openAuth=1">Sign in to Wazobia</a>';
+    if (!state.user) $('wg-thread-signin').innerHTML = 'Sign in to reply. <a href="parrothit-wazobia-trends.html?openAuth=1">Sign in to Wazobia</a>';
     else if (!canReadPrivate) $('wg-thread-signin').textContent = 'Join this private group before replying.';
     if (canReply) renderReplyContext();
   }

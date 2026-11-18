@@ -9,12 +9,13 @@
     posts: [], offset: 0, hasMore: false, loading: false, pendingFile: null,
     savedIds: new Set(), followingIds: new Set(), realtime: null,
     commentHoldTimer: null, activeCommentMenu: null, dashboardTab: 'overview',
-    notificationsOpen: false, lastNotifications: [], messageBadgeTimer: null
+    notificationsOpen: false, lastNotifications: [], messageBadgeTimer: null, messageBadgeLoading: false, imageViewerUrl: ''
   };
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const safeUrl = (value) => {
-    try { const u = new URL(String(value || ''), location.origin); return (u.protocol === 'https:' || u.origin === location.origin) ? u.href : ''; }
+    if (value == null || !String(value).trim()) return '';
+    try { const u = new URL(String(value).trim(), location.origin); return (u.protocol === 'https:' || u.origin === location.origin) ? u.href : ''; }
     catch (_) { return ''; }
   };
   const initials = (name) => String(name || 'P').trim().split(/\s+/).slice(0, 2).map(x => x[0] || '').join('').toUpperCase() || 'P';
@@ -123,6 +124,7 @@
     if ($('wz-dashboard-avatar')) $('wz-dashboard-avatar').innerHTML = avatarMarkup(p, 'wz-dashboard-avatar').replace(/^<div[^>]*>|<\/div>$/g, '');
     if ($('wz-dashboard-name')) $('wz-dashboard-name').textContent = name;
     if ($('wz-dashboard-handle')) $('wz-dashboard-handle').textContent = handle;
+    if ($('wz-public-profile-link') && state.user) $('wz-public-profile-link').href = `wazobia-profile.html?user=${encodeURIComponent(state.user.id)}`;
     if ($('wz-dashboard-cover')) { const cover = safeUrl(p?.cover_url); $('wz-dashboard-cover').style.backgroundImage = cover ? `linear-gradient(0deg,rgba(0,0,0,.15),rgba(0,0,0,.15)),url("${cover.replace(/"/g, '%22')}")` : ''; }
     if (state.user) {
       $('wz-edit-display-name').value = p?.display_name || '';
@@ -303,7 +305,7 @@
     const url = safeUrl(post.media_url); if (!url) return '';
     return post.media_type === 'video'
       ? `<video class="wz-post-media" src="${escapeHtml(url)}" controls playsinline preload="metadata"></video>`
-      : `<img class="wz-post-media" src="${escapeHtml(url)}" alt="Photo shared by ${escapeHtml(post.author?.display_name || 'a Wazobia member')}" loading="lazy">`;
+      : `<button type="button" class="wz-image-open" data-wz-image-view="${escapeHtml(url)}" aria-label="Open photo shared by ${escapeHtml(post.author?.display_name || 'a Wazobia member')}"><img class="wz-post-media" src="${escapeHtml(url)}" alt="Photo shared by ${escapeHtml(post.author?.display_name || 'a Wazobia member')}" loading="lazy"></button>`;
   }
 
   function renderPost(post, reactions) {
@@ -319,7 +321,7 @@
       .map(([key, count]) => `${reactionEmoji[key] || '👍'} ${count}`).join(' · ');
     return `<article class="wz-card wz-post" data-post-id="${escapeHtml(post.id)}">
       <div class="wz-post-inner">
-        <div class="wz-post-head">${avatarMarkup(author)}<div class="wz-post-identity"><strong>${escapeHtml(author.display_name || 'Wazobia member')}</strong><small>@${escapeHtml(author.username || 'member')} · ${escapeHtml(relativeTime(post.created_at))}</small></div>
+        <div class="wz-post-head"><a class="wz-profile-identity-link" href="wazobia-profile.html?user=${encodeURIComponent(post.author_id)}">${avatarMarkup(author)}<span class="wz-post-identity"><strong>${escapeHtml(author.display_name || 'Wazobia member')}</strong><small>@${escapeHtml(author.username || 'member')} · ${escapeHtml(relativeTime(post.created_at))}</small></span></a>
           ${!own && state.user ? `<button class="wz-follow-btn" data-action="follow" data-user-id="${escapeHtml(post.author_id)}">${following ? 'Following' : '+ Follow'}</button><button class="wz-post-message-btn" type="button" data-action="message-user" data-user-id="${escapeHtml(post.author_id)}">Message</button>` : ''}
           ${own ? `<button class="wz-more-btn" type="button" data-action="delete-post" aria-label="Delete your post" title="Delete post">⋯</button>` : `<button class="wz-more-btn" type="button" data-action="report-post" aria-label="Report post" title="Report post">⋯</button>`}
         </div>
@@ -487,10 +489,10 @@
       const author = comment.author?.display_name || 'Wazobia member';
       const edited = comment.updated_at && comment.updated_at !== comment.created_at;
       return `<div class="wz-comment" data-comment-id="${escapeHtml(comment.id)}" data-author-id="${escapeHtml(comment.author_id)}" data-comment-body="${escapeHtml(comment.body)}">
-        ${avatarMarkup(comment.author, 'wz-comment-avatar')}
         <div class="wz-comment-main">
+          <a class="wz-comment-profile-link" href="wazobia-profile.html?user=${encodeURIComponent(comment.author_id)}">${avatarMarkup(comment.author, 'wz-comment-avatar')}<strong>${escapeHtml(author)}</strong></a>
           <div class="wz-comment-bubble">
-            <div class="wz-comment-heading"><strong>${escapeHtml(author)}</strong><span>· ${escapeHtml(relativeTime(comment.created_at))}${edited ? ' · edited' : ''}</span>${own ? '<em>by you</em>' : ''}</div>
+            <div class="wz-comment-heading"><span>· ${escapeHtml(relativeTime(comment.created_at))}${edited ? ' · edited' : ''}</span>${own ? '<em>by you</em>' : ''}</div>
             <p>${escapeHtml(comment.body)}</p>
           </div>
           <div class="wz-comment-tools">
@@ -653,7 +655,36 @@
     const { data, error } = await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').neq('user_id', state.user.id).limit(35);
     if (error) return;
     const people = (data || []).filter(p => !state.followingIds.has(p.user_id)).slice(0,5);
-    $('wz-people-list').innerHTML = people.length ? people.map(p => `<div class="wz-person">${avatarMarkup(p)}<div><strong>${escapeHtml(p.display_name)}</strong><small>@${escapeHtml(p.username)}</small></div><button type="button" data-action="follow" data-user-id="${escapeHtml(p.user_id)}">Follow</button><a class="wz-person-message" href="wazobia-messages.html?user=${encodeURIComponent(p.user_id)}">Message</a></div>`).join('') : '<p class="wz-muted">You are following the suggested members. Check back for more.</p>';
+    $('wz-people-list').innerHTML = people.length ? people.map(p => `<div class="wz-person"><a class="wz-person-profile-link" href="wazobia-profile.html?user=${encodeURIComponent(p.user_id)}">${avatarMarkup(p)}<span><strong>${escapeHtml(p.display_name)}</strong><small>@${escapeHtml(p.username)}</small></span></a><button type="button" data-action="follow" data-user-id="${escapeHtml(p.user_id)}">Follow</button><a class="wz-person-message" href="wazobia-messages.html?user=${encodeURIComponent(p.user_id)}">Message</a></div>`).join('') : '<p class="wz-muted">You are following the suggested members. Check back for more.</p>';
+  }
+
+  function openImageViewer(url) {
+    const safe = safeUrl(url); if (!safe) return;
+    state.imageViewerUrl = safe;
+    $('wz-image-large').src = safe;
+    $('wz-image-viewer').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeImageViewer() {
+    $('wz-image-viewer').hidden = true;
+    $('wz-image-large').src = '';
+    document.body.style.overflow = '';
+  }
+  async function saveViewedImage() {
+    if (!state.imageViewerUrl) return;
+    const button = $('wz-image-save'); button.disabled = true;
+    try {
+      const response = await fetch(state.imageViewerUrl, {mode:'cors'});
+      if (!response.ok) throw new Error('The image could not be downloaded.');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a'); anchor.href = blobUrl; anchor.download = `parrothit-wazobia-${Date.now()}.${(blob.type.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi,'')}`;
+      document.body.append(anchor); anchor.click(); anchor.remove(); setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+      status('Image saved. Check your Downloads or Gallery app.');
+    } catch (error) {
+      const anchor = document.createElement('a'); anchor.href = state.imageViewerUrl; anchor.target = '_blank'; anchor.rel = 'noopener'; anchor.download = 'parrothit-wazobia-photo'; document.body.append(anchor); anchor.click(); anchor.remove();
+      status('Opened the image. Use your browser menu to download or save it.');
+    } finally { button.disabled = false; }
   }
 
   function updateMessageBadges(count) {
@@ -665,11 +696,16 @@
   }
   async function loadMessageBadge() {
     if (!state.user || !state.db) return updateMessageBadges(0);
-    const { count, error } = await state.db.from('wazobia_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('recipient_id', state.user.id).is('read_at', null);
-    if (error) { updateMessageBadges(0); return; }
-    updateMessageBadges(count || 0);
+    if (state.messageBadgeLoading) return;
+    state.messageBadgeLoading = true;
+    try {
+      // A capped unread lookup avoids repeated exact-count work on every feed refresh.
+      const { data, error } = await state.db.from('wazobia_messages')
+        .select('id').eq('recipient_id', state.user.id).is('read_at', null).limit(100);
+      if (error) { updateMessageBadges(0); return; }
+      updateMessageBadges((data || []).length);
+    } catch (_) { updateMessageBadges(0); }
+    finally { state.messageBadgeLoading = false; }
   }
 
   function notificationLabel(n) {
@@ -827,6 +863,10 @@
   }
 
   function bindEvents() {
+    $('wz-image-close').addEventListener('click', closeImageViewer);
+    $('wz-image-save').addEventListener('click', saveViewedImage);
+    $('wz-image-viewer').addEventListener('click', e => { if (e.target === $('wz-image-viewer')) closeImageViewer(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('wz-image-viewer').hidden) closeImageViewer(); });
     $('wz-login-tab').addEventListener('click', () => setAuthMode('login'));
     $('wz-signup-tab').addEventListener('click', () => setAuthMode('signup'));
     $('wz-auth-form').addEventListener('submit', authSubmit);
@@ -898,6 +938,8 @@
     document.addEventListener('click', e => { if (!e.target.closest('#wz-comment-context-menu')) hideCommentMenu(); });
 
     $('wz-feed').addEventListener('click', async (e) => {
+      const imageButton = e.target.closest('[data-wz-image-view]');
+      if (imageButton) { e.preventDefault(); openImageViewer(imageButton.dataset.wzImageView); return; }
       const hashtag = e.target.closest('[data-hashtag]');
       if (hashtag) { e.preventDefault(); $('wz-search').value = hashtag.dataset.hashtag; state.activeTab = 'home'; setActiveTabButtons(); return loadFeed(true); }
       const button = e.target.closest('[data-action]'); if (!button) return;

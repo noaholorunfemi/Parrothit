@@ -5,13 +5,15 @@
   const state = {
     db: null, user: null, profile: null, profiles: [], conversations: [], currentId: null,
     currentPerson: null, currentMessages: [], onlineIds: new Set(), presence: null, realtime: null,
-    pollTimer: null, inboxSearchTimer: null, memberSearchTimer: null, memberResults: null, searchText: '', memberSearch: '', showActive: localStorage.getItem('wzMessengerPresence') !== 'off', busy: false
+    pollTimer: null, inboxSearchTimer: null, memberSearchTimer: null, memberResults: null, searchText: '', memberSearch: '', showActive: localStorage.getItem('wzMessengerPresence') !== 'off', busy: false,
+    call: null, callChannel: null, processedCallSignals: new Set(), earlyIce: new Map()
   };
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const initials = (value) => String(value || 'W').trim().split(/\s+/).slice(0,2).map(x => x[0] || '').join('').toUpperCase() || 'W';
   const safeAvatar = (value) => {
-    try { const u = new URL(String(value || ''), location.origin); return (u.protocol === 'https:' || u.origin === location.origin) ? u.href : ''; }
+    if (value == null || !String(value).trim()) return '';
+    try { const u = new URL(String(value).trim(), location.origin); return (u.protocol === 'https:' || u.origin === location.origin) ? u.href : ''; }
     catch (_) { return ''; }
   };
   const clock = (value) => {
@@ -42,6 +44,7 @@
     $('wzm-login-gate').hidden = false;
   }
   function profileById(id) { return state.profiles.find(p => p.user_id === id) || null; }
+  const profileHref = (id) => `wazobia-profile.html?user=${encodeURIComponent(id || '')}`;
   function otherMember(conversation) {
     const id = conversation.participant_one === state.user.id ? conversation.participant_two : conversation.participant_one;
     return profileById(id);
@@ -54,6 +57,12 @@
     if (error) throw error;
     if (!data) throw new Error('Your Wazobia profile is missing. Open Wazobia Trends and sign in again.');
     state.profile = data;
+    const privacy = await state.db.rpc('wazobia_get_public_profile', {target_user:state.user.id});
+    if (!privacy.error) {
+      const row = Array.isArray(privacy.data) ? privacy.data[0] : privacy.data;
+      if (row) state.profile = {...state.profile,...row};
+    }
+    state.showActive = state.showActive && state.profile.show_active_status !== false;
   }
 
   async function loadProfiles() {
@@ -70,10 +79,10 @@
     const users = state.profiles.slice(0,35);
     $('wzm-online-count').textContent = state.onlineIds.size ? `${state.onlineIds.size} active now` : 'Find a member to message';
     const bubbles = users.map(p => `
-      <button class="wzm-person-bubble" type="button" data-message-user="${esc(p.user_id)}" title="Message ${esc(p.display_name)}">
+      <a class="wzm-person-bubble" href="${profileHref(p.user_id)}" title="View ${esc(p.display_name)}'s profile">
         <span class="wzm-person-photo">${safeAvatar(p.avatar_url) ? `<img src="${esc(safeAvatar(p.avatar_url))}" alt="" loading="lazy">` : esc(initials(p.display_name || p.username))}${state.onlineIds.has(p.user_id) ? '<i class="wzm-online-dot" aria-label="Online"></i>' : ''}</span>
         <span>${esc(p.display_name || p.username || 'Member')}</span>
-      </button>`).join('');
+      </a>`).join('');
     $('wzm-people-strip').innerHTML = `<button class="wzm-person-bubble wzm-new-person" type="button" id="wzm-start-bubble"><span class="wzm-new-person-icon">＋</span><span>New message</span></button>${bubbles || '<div class="wzm-strip-loading">No other Wazobia members yet.</div>'}`;
     $('wzm-start-bubble').addEventListener('click', openDiscover);
   }
@@ -87,28 +96,9 @@
     }).slice(0,45);
     $('wzm-member-results').innerHTML = users.length ? users.map(p => `
       <div class="wzm-member-row">
-        ${avatar(p, true, true)}
-        <div class="wzm-member-info"><strong>${esc(p.display_name || 'Wazobia member')}</strong><small>@${esc(p.username || 'member')}${state.onlineIds.has(p.user_id) ? ' · Active now' : ''}</small></div>
+        <a class="wzm-member-profile-link" href="${profileHref(p.user_id)}">${avatar(p, true, true)}<span class="wzm-member-info"><strong>${esc(p.display_name || 'Wazobia member')}</strong><small>@${esc(p.username || 'member')}${state.onlineIds.has(p.user_id) ? ' · Active now' : ''}</small></span></a>
         <button type="button" data-message-user="${esc(p.user_id)}">Message</button>
       </div>`).join('') : '<p class="wzm-muted">No members match that search.</p>';
-  }
-
-  async function searchMembers() {
-    const term = state.memberSearch.trim();
-    if (!term) { state.memberResults = null; renderMemberResults(); return; }
-    // Keep the PostgREST filter grammar safe while allowing normal names/usernames.
-    const safe = term.replace(/[^a-zA-Z0-9_ -]/g,' ').replace(/\s+/g,' ').trim().slice(0,60);
-    if (!safe) { state.memberResults = []; renderMemberResults(); return; }
-    const {data,error} = await state.db.from('wazobia_profiles')
-      .select('user_id,display_name,username,avatar_url,created_at')
-      .neq('user_id',state.user.id)
-      .or(`display_name.ilike."%${safe}%",username.ilike."%${safe}%"`)
-      .order('display_name',{ascending:true}).limit(45);
-    if (error) {
-      console.warn('Wazobia member search:',error.message);
-      state.memberResults = state.profiles.filter(p => `${p.display_name || ''} ${p.username || ''}`.toLowerCase().includes(safe.toLowerCase()));
-    } else state.memberResults = data || [];
-    renderMemberResults();
   }
 
   function previewText(message) {
@@ -158,11 +148,12 @@
       const preview = previewText(last);
       if (query && !`${name} ${person.username || ''} ${preview}`.toLowerCase().includes(query)) return '';
       const selected = c.id === state.currentId;
-      return `<button class="wzm-chat-row ${count ? 'unread' : ''} ${selected ? 'selected' : ''}" type="button" data-open-conversation="${esc(c.id)}" data-member-id="${esc(person.user_id)}">
-        ${avatar(person,false,true)}
-        <span class="wzm-chat-copy"><strong>${esc(name)}</strong><small>${esc(preview)}</small></span>
-        <span class="wzm-chat-meta"><time>${esc(shortTime(last?.created_at || c.last_message_at || c.created_at))}</time>${count ? `<i class="wzm-unread-badge">${count > 99 ? '99+' : count}</i>` : ''}</span>
-      </button>`;
+      return `<div class="wzm-chat-row ${count ? 'unread' : ''} ${selected ? 'selected' : ''}">
+        <a class="wzm-chat-profile-link" href="${profileHref(person.user_id)}">${avatar(person,false,true)}
+          <span class="wzm-chat-copy"><strong>${esc(name)}</strong><small>${esc(preview)}</small></span>
+        </a>
+        <span class="wzm-chat-meta"><time>${esc(shortTime(last?.created_at || c.last_message_at || c.created_at))}</time>${count ? `<i class="wzm-unread-badge">${count > 99 ? '99+' : count}</i>` : ''}<button class="wzm-chat-open" type="button" data-open-conversation="${esc(c.id)}" data-member-id="${esc(person.user_id)}">Chat</button></span>
+      </div>`;
     }).filter(Boolean).join('');
     $('wzm-inbox-list').innerHTML = rows || '<div class="wzm-inbox-empty">No conversations match your search.</div>';
   }
@@ -206,7 +197,11 @@
     const person = state.currentPerson;
     if (!person) return;
     const online = state.onlineIds.has(person.user_id);
-    $('wzm-chat-person').innerHTML = `${avatar(person,true,true)}<span><strong>${esc(person.display_name || 'Wazobia member')}</strong><small>${online ? 'Active now' : `@${esc(person.username || 'member')}`}</small></span>`;
+    const link = $('wzm-chat-person');
+    link.href = profileHref(person.user_id);
+    link.innerHTML = `${avatar(person,true,true)}<span><strong>${esc(person.display_name || 'Wazobia member')}</strong><small>${online ? 'Active now' : `@${esc(person.username || 'member')}`}</small></span>`;
+    $('wzm-voice-call').hidden = false;
+    $('wzm-video-call').hidden = false;
   }
 
   function renderMessages() {
@@ -318,6 +313,190 @@
     },18000);
   }
 
+  function callStatus(message) {
+    const node = $('wzm-call-status');
+    if (node) node.textContent = message || '';
+  }
+  function showCallOverlay(title, message, incoming = false, mediaType = 'audio') {
+    $('wzm-call-title').textContent = title || 'Wazobia call';
+    callStatus(message || 'Connecting…');
+    $('wzm-call-avatar').textContent = initials(state.currentPerson?.display_name || 'Wazobia');
+    $('wzm-call-answer').hidden = !incoming;
+    $('wzm-call-reject').hidden = !incoming;
+    $('wzm-call-hangup').hidden = incoming;
+    $('wzm-call-videos').hidden = mediaType !== 'video';
+    $('wzm-call-overlay').hidden = false;
+  }
+  function closeCallOverlay() {
+    $('wzm-call-overlay').hidden = true;
+    $('wzm-call-videos').hidden = true;
+    $('wzm-call-answer').hidden = true;
+    $('wzm-call-reject').hidden = true;
+    $('wzm-call-hangup').hidden = false;
+    $('wzm-remote-video').srcObject = null;
+    $('wzm-local-video').srcObject = null;
+    $('wzm-remote-audio').srcObject = null;
+  }
+  async function getCallPermission(targetId) {
+    const { data, error } = await state.db.rpc('wazobia_get_public_profile', {target_user:targetId});
+    if (error) throw error;
+    const person = Array.isArray(data) ? data[0] : data;
+    if (!person) throw new Error('This Wazobia member could not be found.');
+    if (!person.allow_calls) throw new Error('This member is not accepting voice or video calls.');
+    return person;
+  }
+  function signalIceServers() {
+    const custom = window.WAZOBIA_WEBRTC_ICE_SERVERS;
+    return Array.isArray(custom) && custom.length ? custom : [{urls:'stun:stun.l.google.com:19302'}];
+  }
+  async function sendCallSignal(type, payload = {}) {
+    if (!state.call || !state.user) return;
+    const { error } = await state.db.from('wazobia_call_signals').insert({
+      call_id:state.call.callId, sender_id:state.user.id, recipient_id:state.call.peerId,
+      signal_type:type, payload
+    });
+    if (error) throw error;
+  }
+  async function makePeerConnection() {
+    const call = state.call;
+    if (!call) throw new Error('There is no active call.');
+    const pc = new RTCPeerConnection({iceServers:signalIceServers()});
+    call.pc = pc;
+    pc.onicecandidate = event => {
+      if (event.candidate && state.call?.callId === call.callId) {
+        sendCallSignal('ice',{candidate:event.candidate.toJSON()}).catch(error => notify(error.message || 'Could not send call network information.',true));
+      }
+    };
+    pc.ontrack = event => {
+      const stream = event.streams?.[0];
+      if (!stream) return;
+      if (call.mediaType === 'video') {
+        $('wzm-remote-video').srcObject = stream;
+        $('wzm-remote-video').play?.().catch(() => {});
+      } else {
+        $('wzm-remote-audio').srcObject = stream;
+        $('wzm-remote-audio').play?.().catch(() => {});
+      }
+    };
+    pc.onconnectionstatechange = () => {
+      if (state.call?.callId !== call.callId) return;
+      const value = pc.connectionState;
+      if (value === 'connected') callStatus('Connected');
+      else if (value === 'connecting') callStatus('Connecting to member…');
+      else if (value === 'disconnected') callStatus('Connection interrupted. Trying to reconnect…');
+      else if (value === 'failed') { callStatus('Call connection failed. A TURN relay may be required on this network.'); setTimeout(() => { if (state.call?.callId === call.callId) endCall(false); },2200); }
+    };
+    if (call.localStream) call.localStream.getTracks().forEach(track => pc.addTrack(track,call.localStream));
+    return pc;
+  }
+  async function addQueuedIce(callId) {
+    const candidates = state.earlyIce.get(callId) || [];
+    state.earlyIce.delete(callId);
+    if (!state.call?.pc?.remoteDescription) {
+      state.call.queuedIce = [...(state.call.queuedIce || []),...candidates];
+      return;
+    }
+    for (const candidate of [...(state.call.queuedIce || []),...candidates]) {
+      try { await state.call.pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+      catch (error) { console.warn('Wazobia call ICE candidate:',error.message); }
+    }
+    state.call.queuedIce = [];
+  }
+  async function startCall(mediaType = 'audio') {
+    if (!state.currentPerson || state.call) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) return notify('Voice/video calling is not supported by this browser. Use an updated browser over HTTPS.',true);
+    try {
+      await getCallPermission(state.currentPerson.user_id);
+      state.currentPerson.allow_calls = true;
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:mediaType === 'video'});
+      state.call = {callId:crypto.randomUUID(),peerId:state.currentPerson.user_id,mediaType,direction:'outgoing',localStream:stream,pc:null,queuedIce:[]};
+      if (mediaType === 'video') { $('wzm-local-video').srcObject = stream; $('wzm-local-video').play?.().catch(() => {}); }
+      showCallOverlay(mediaType === 'video' ? `Video call · ${state.currentPerson.display_name}` : `Voice call · ${state.currentPerson.display_name}`,'Calling…',false,mediaType);
+      const pc = await makePeerConnection();
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await sendCallSignal('offer',{sdp:pc.localDescription.toJSON ? pc.localDescription.toJSON() : pc.localDescription,mediaType});
+    } catch (error) {
+      await endCall(false);
+      notify(error.message || 'Could not start the call. Check microphone/camera permissions.',true);
+    }
+  }
+  async function acceptIncomingCall() {
+    const call = state.call;
+    if (!call || call.direction !== 'incoming' || !call.offerSdp) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) return notify('Calling is not supported by this browser. Use an updated browser over HTTPS.',true);
+    $('wzm-call-answer').disabled = true;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:call.mediaType === 'video'});
+      call.localStream = stream;
+      if (call.mediaType === 'video') { $('wzm-local-video').srcObject = stream; $('wzm-local-video').play?.().catch(() => {}); }
+      const pc = await makePeerConnection();
+      await pc.setRemoteDescription(new RTCSessionDescription(call.offerSdp));
+      await addQueuedIce(call.callId);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await sendCallSignal('answer',{sdp:pc.localDescription.toJSON ? pc.localDescription.toJSON() : pc.localDescription});
+      callStatus('Connecting…');
+      $('wzm-call-answer').hidden = true; $('wzm-call-reject').hidden = true; $('wzm-call-hangup').hidden = false;
+    } catch (error) {
+      notify(error.message || 'Could not answer the call. Check microphone/camera permissions.',true);
+      await endCall(true,'reject');
+    } finally { $('wzm-call-answer').disabled = false; }
+  }
+  async function endCall(sendSignal = true, signalType = 'hangup') {
+    const call = state.call;
+    if (!call) { closeCallOverlay(); return; }
+    if (sendSignal) { try { await sendCallSignal(signalType,{}); } catch (error) { console.warn('Wazobia call end signal:',error.message); } }
+    if (call.pc) { call.pc.ontrack = null; call.pc.onicecandidate = null; call.pc.close(); }
+    if (call.localStream) call.localStream.getTracks().forEach(track => track.stop());
+    state.call = null;
+    closeCallOverlay();
+  }
+  async function handleCallSignal(row) {
+    if (!row || state.processedCallSignals.has(row.id)) return;
+    state.processedCallSignals.add(row.id);
+    if (state.processedCallSignals.size > 500) state.processedCallSignals.clear();
+    if (row.signal_type === 'ice') {
+      if (!state.call || state.call.callId !== row.call_id || !state.call.pc?.remoteDescription) {
+        const queue = state.earlyIce.get(row.call_id) || []; queue.push(row.payload?.candidate); state.earlyIce.set(row.call_id,queue); return;
+      }
+      try { if (row.payload?.candidate) await state.call.pc.addIceCandidate(new RTCIceCandidate(row.payload.candidate)); } catch (error) { console.warn('Wazobia call ICE:',error.message); }
+      return;
+    }
+    if (row.signal_type === 'offer') {
+      if (state.call) {
+        try { await state.db.from('wazobia_call_signals').insert({call_id:row.call_id,sender_id:state.user.id,recipient_id:row.sender_id,signal_type:'reject',payload:{reason:'busy'}}); } catch (_) {}
+        return;
+      }
+      const person = profileById(row.sender_id) || {user_id:row.sender_id,display_name:'Wazobia member'};
+      state.currentPerson = person;
+      state.call = {callId:row.call_id,peerId:row.sender_id,mediaType:row.payload?.mediaType === 'video' ? 'video' : 'audio',direction:'incoming',offerSdp:row.payload?.sdp,pc:null,localStream:null,queuedIce:[]};
+      showCallOverlay(`Incoming ${state.call.mediaType === 'video' ? 'video' : 'voice'} call`,`${person.display_name || 'A member'} is calling you.`,true,state.call.mediaType);
+      $('wzm-call-hangup').hidden = true;
+      return;
+    }
+    if (!state.call || state.call.callId !== row.call_id || state.call.peerId !== row.sender_id) return;
+    if (row.signal_type === 'answer' && state.call.direction === 'outgoing') {
+      try {
+        await state.call.pc.setRemoteDescription(new RTCSessionDescription(row.payload?.sdp));
+        await addQueuedIce(row.call_id);
+        callStatus('Connecting…');
+      } catch (error) { notify(error.message || 'The call response could not be connected.',true); await endCall(false); }
+    } else if (row.signal_type === 'reject') {
+      notify(`${state.currentPerson?.display_name || 'The member'} declined the call.`);
+      await endCall(false);
+    } else if (row.signal_type === 'hangup') {
+      notify('The other member ended the call.');
+      await endCall(false);
+    }
+  }
+  function startCallRealtime() {
+    if (!state.user || state.callChannel) return;
+    state.callChannel = state.db.channel(`wazobia-calls-${state.user.id}`)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'wazobia_call_signals',filter:`recipient_id=eq.${state.user.id}`},payload => handleCallSignal(payload.new).catch(error => notify(error.message || 'Could not process a call request.',true)))
+      .subscribe();
+  }
+
   function renderDiscoverStatus() {
     renderMemberResults();
   }
@@ -346,7 +525,9 @@
     $('wzm-clear-search').addEventListener('click',() => { $('wzm-inbox-search').value=''; state.searchText=''; loadInbox(); });
     $('wzm-settings-btn').addEventListener('click',() => { $('wzm-settings-panel').hidden = !$('wzm-settings-panel').hidden; });
     $('wzm-presence-toggle').addEventListener('click',async () => {
-      state.showActive = !state.showActive;
+      const next = !state.showActive;
+      if (next && state.profile?.show_active_status === false) return notify('You disabled active status in Profile & privacy settings. Change it there first.',true);
+      state.showActive = next;
       localStorage.setItem('wzMessengerPresence',state.showActive ? 'on' : 'off');
       $('wzm-presence-toggle').textContent = state.showActive ? 'On' : 'Off';
       $('wzm-presence-toggle').setAttribute('aria-pressed',String(state.showActive));
@@ -363,6 +544,12 @@
     $('wzm-message-input').addEventListener('input',e => {
       e.target.style.height='43px'; e.target.style.height=`${Math.min(e.target.scrollHeight,125)}px`;
     });
+    $('wzm-voice-call').addEventListener('click',() => startCall('audio'));
+    $('wzm-video-call').addEventListener('click',() => startCall('video'));
+    $('wzm-call-answer').addEventListener('click',acceptIncomingCall);
+    $('wzm-call-reject').addEventListener('click',() => endCall(true,'reject'));
+    $('wzm-call-hangup').addEventListener('click',() => endCall(true,'hangup'));
+    $('wzm-call-close').addEventListener('click',() => { if (state.call?.direction === 'incoming' && !state.call.pc) endCall(true,'reject'); else if (state.call) notify('Use End call to finish this conversation.'); else closeCallOverlay(); });
     $('wzm-chat-details').addEventListener('click',() => {
       if (!state.currentPerson) return;
       notify(`Private chat with ${state.currentPerson.display_name || 'this member'}. Only the two participants can read it.`);
@@ -381,6 +568,9 @@
       if (state.pollTimer) clearInterval(state.pollTimer);
       if (state.presence) state.db.removeChannel(state.presence);
       if (state.realtime) state.db.removeChannel(state.realtime);
+      if (state.callChannel) state.db.removeChannel(state.callChannel);
+      if (state.call?.localStream) state.call.localStream.getTracks().forEach(track => track.stop());
+      if (state.call?.pc) state.call.pc.close();
     });
   }
 
@@ -396,12 +586,27 @@
       state.user = data.session?.user || null;
       if (!state.user) { showLoginGate(); return; }
       await loadOwnProfile();
+      $('wzm-presence-toggle').textContent = state.showActive ? 'On' : 'Off';
+      $('wzm-presence-toggle').setAttribute('aria-pressed',String(state.showActive));
       await loadProfiles();
       await loadInbox();
       if (state.showActive) startPresence();
       startRealtime();
-      const requestedUser = new URLSearchParams(location.search).get('user');
-      if (requestedUser && requestedUser !== state.user.id) await startConversation(requestedUser);
+      startCallRealtime();
+      const query = new URLSearchParams(location.search);
+      const requestedUser = query.get('user');
+      const requestedCall = query.get('call');
+      if (requestedUser && requestedUser !== state.user.id) {
+        if (requestedCall === 'voice' || requestedCall === 'video') {
+          let person = profileById(requestedUser);
+          if (!person) {
+            const lookup = await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url,created_at').eq('user_id',requestedUser).maybeSingle();
+            if (!lookup.error && lookup.data) { person = lookup.data; state.profiles.unshift(person); }
+          }
+          if (person) { state.currentPerson = person; setTimeout(() => startCall(requestedCall === 'video' ? 'video' : 'audio'),350); }
+          else notify('This Wazobia member could not be found.',true);
+        } else await startConversation(requestedUser);
+      }
     } catch (error) {
       showLoginGate();
       notify(error.message || 'Could not open Wazobia messages.',true);
