@@ -85,3 +85,6 @@
 .wg-comments-error button{margin-left:8px;border:1px solid var(--wz-border);border-radius:6px;background:var(--wz-card);color:var(--wz-ink);padding:5px 8px;font-size:10px}
 .wg-comment-gate{margin:10px 0 0}
 @media(max-width:720px){.wg-post-engagement{align-items:flex-start}.wg-reaction-list{gap:2px}.wg-reaction{min-width:29px;min-height:29px;padding:3px 5px}.wg-reaction-total{font-size:8px}.wg-comments-toggle{margin-left:auto;padding:6px 2px}.wg-comment-card,.wg-comment{align-items:flex-start}.wg-comment .wg-member-avatar{width:32px;height:32px}.wg-comment-bubble{padding:9px 10px;border-radius:15px}.wg-comment-author{gap:5px}.wg-comment-bubble p{font-size:12px}.wg-comment-preview{max-width:calc(100% - 6px)}}
+
+/* Member identity links open Wazobia public profiles. */
+.wg-profile-avatar-link,.wg-thread-profile-avatar-link{display:inline-flex;flex:none;text-decoration:none;color:inherit}.wg-profile-name-link,.wg-thread-profile-name-link{color:inherit;text-decoration:none;font-weight:inherit}.wg-profile-name-link:hover,.wg-thread-profile-name-link:hover{text-decoration:underline}.wg-member-info .wg-profile-name-link{display:block;font-weight:850}
