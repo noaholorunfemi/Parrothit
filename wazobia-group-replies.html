@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#d71920">
+  <meta name="description" content="Read and reply to a conversation in a Parrothit Wazobia Trends group.">
+  <title>Group Replies | PARROTHIT WAZOBIA TRENDS</title>
+  <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=4-groups">
+  <link rel="stylesheet" href="css/wazobia-groups.css?v=7-flat-reply-pages">
+  <link rel="stylesheet" href="css/wazobia-group-replies.css?v=1-flat-thread">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+  <script src="js/wazobia-group-replies.js?v=1-flat-thread-20261118" defer></script>
+</head>
+<body class="wz-page wz-groups-page wg-thread-page">
+  <header class="wz-topbar wg-thread-topbar">
+    <a class="wz-brand" href="parrothit-wazobia-trends.html" aria-label="Back to Wazobia Trends">
+      <img class="wz-logo-image" src="/assets/images/parrothit-wazobia-trends-logo.png" alt="Parrothit Wazobia Trends" width="46" height="46">
+      <span class="wz-brand-copy"><strong>PARROTHIT</strong><small>WAZOBIA TRENDS</small></span>
+    </a>
+    <a class="wg-thread-back" id="wg-thread-back" href="wazobia-groups.html">← Back to group</a>
+  </header>
+
+  <main class="wg-thread-shell">
+    <section class="wz-card wg-thread-heading">
+      <span class="wg-kicker">GROUP CONVERSATION</span>
+      <h1>Replies</h1>
+      <p id="wg-thread-group-name">Loading group discussion…</p>
+    </section>
+
+    <div id="wg-thread-status" class="wg-thread-status" role="status" aria-live="polite" hidden></div>
+
+    <section class="wz-card wg-thread-original-card" aria-labelledby="wg-thread-original-heading">
+      <div class="wg-thread-section-title"><h2 id="wg-thread-original-heading">Original comment</h2><span id="wg-thread-count"></span></div>
+      <div id="wg-thread-original"><div class="wg-comments-loading">Loading the conversation…</div></div>
+    </section>
+
+    <section class="wz-card wg-thread-replies-card" aria-labelledby="wg-thread-replies-heading">
+      <div class="wg-thread-section-title"><h2 id="wg-thread-replies-heading">All replies</h2><span>One straight conversation</span></div>
+      <div id="wg-thread-replies" class="wg-thread-replies"><div class="wg-comments-loading">Loading replies…</div></div>
+    </section>
+
+    <section class="wz-card wg-thread-composer-card" id="wg-thread-composer-card">
+      <div id="wg-thread-reply-context" class="wg-thread-reply-context"></div>
+      <form id="wg-thread-form" class="wg-thread-form">
+        <label class="wg-thread-sr-only" for="wg-thread-body">Write a reply</label>
+        <textarea id="wg-thread-body" name="body" rows="3" maxlength="5000" placeholder="Write a reply…" required></textarea>
+        <div class="wg-thread-form-actions"><small>Be respectful. Your reply will appear in this conversation.</small><button type="submit">Reply</button></div>
+      </form>
+      <div id="wg-thread-signin" class="wg-thread-signin" hidden>Sign in to reply. <a href="parrothit-wazobia-trends.html?openAuth=1">Sign in to Wazobia</a></div>
+    </section>
+    <footer class="wg-thread-footer">PARROTHIT · News That Speaks!</footer>
+  </main>
+</body>
+</html>
