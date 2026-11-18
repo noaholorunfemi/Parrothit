@@ -22,6 +22,7 @@
     $('wzp-details').innerHTML = detailsMarkup(profile);
     const url = new URL(`wazobia-profile.html?user=${encodeURIComponent(profile.user_id)}`, location.href).href;
     $('wzp-profile-link').textContent = url;
+    $('wzp-link-card').hidden = !profile.is_owner && profile.hide_profile_link === true;
     $('wzp-actions').innerHTML = profile.is_owner
       ? '<button type="button" class="secondary" id="wzp-edit-toggle">Edit profile & privacy</button>'
       : `${friendActionMarkup()}${profile.allow_messages ? `<a href="wazobia-messages.html?user=${encodeURIComponent(profile.user_id)}">Message</a>` : '<span class="wzp-action-note">Not accepting messages</span>'}${profile.allow_calls ? `<a class="secondary" href="wazobia-messages.html?user=${encodeURIComponent(profile.user_id)}&call=voice">Voice call</a><a class="secondary" href="wazobia-messages.html?user=${encodeURIComponent(profile.user_id)}&call=video">Video call</a>` : ''}`;
@@ -36,6 +37,7 @@
       $('wzp-edit-interests').value = profile.interests || '';
       $('wzp-edit-bio').value = profile.bio || '';
       $('wzp-private-profile').checked = profile.profile_visibility === 'private';
+      $('wzp-hide-profile-link').checked = profile.hide_profile_link === true;
       ['age','education','location','interests'].forEach(k => { $(`wzp-show-${k}`).checked = profile[`show_${k}`] !== false; });
       $('wzp-allow-messages').checked = profile.allow_messages !== false;
       $('wzp-allow-calls').checked = profile.allow_calls !== false;
@@ -173,6 +175,7 @@
     const payload = {
       user_id:me.id, age, education:$('wzp-edit-education').value.trim(), location:$('wzp-edit-location').value.trim(), interests:$('wzp-edit-interests').value.trim(),
       profile_visibility:$('wzp-private-profile').checked ? 'private' : 'public',
+      hide_profile_link:$('wzp-hide-profile-link').checked,
       show_age:$('wzp-show-age').checked, show_education:$('wzp-show-education').checked, show_location:$('wzp-show-location').checked, show_interests:$('wzp-show-interests').checked,
       allow_messages:$('wzp-allow-messages').checked, allow_calls:$('wzp-allow-calls').checked, show_active_status:$('wzp-show-active').checked, updated_at:new Date().toISOString()
     };

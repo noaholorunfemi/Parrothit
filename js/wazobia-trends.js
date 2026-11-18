@@ -9,7 +9,8 @@
     posts: [], offset: 0, hasMore: false, loading: false, pendingFile: null,
     savedIds: new Set(), followingIds: new Set(), realtime: null,
     commentHoldTimer: null, activeCommentMenu: null, dashboardTab: 'overview',
-    notificationsOpen: false, lastNotifications: [], messageBadgeTimer: null, messageBadgeLoading: false, imageViewerUrl: ''
+    notificationsOpen: false, lastNotifications: [], messageBadgeTimer: null, messageBadgeLoading: false, imageViewerUrl: '',
+    postMentions: new Map(), mentionSearchTimer: null, mentionRangeStart: -1, statusFile: null, statusRefreshTimer: null, statusExpiryTimer: null
   };
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -44,6 +45,175 @@
   function postStatus(message, isError = false) {
     const node = $('wz-post-status'); if (!node) return;
     node.textContent = message || ''; node.classList.toggle('error', !!isError);
+  }
+
+  // Render @mentions as links only when the tagged member is discoverable
+  // through the database's public-profile visibility rules.
+  function renderPostBody(post) {
+    const mentions = state.postMentions.get(post.id) || new Map();
+    return escapeHtml(post.body || '').replace(/@([a-z0-9_]{3,24})\b/gi, (match, username) => {
+      const member = mentions.get(String(username).toLowerCase());
+      if (!member?.mentioned_user_id) return match;
+      return `<a class="wz-post-mention" href="wazobia-profile.html?user=${encodeURIComponent(member.mentioned_user_id)}">@${escapeHtml(username)}</a>`;
+    });
+  }
+
+  async function searchPostMention() {
+    const input = $('wz-post-text');
+    const suggestions = $('wz-mention-suggestions');
+    if (!input || !suggestions || !state.db || !state.user) return;
+    const cursor = input.selectionStart ?? input.value.length;
+    const before = input.value.slice(0, cursor);
+    const match = before.match(/(?:^|\s)@([a-z0-9_]{0,24})$/i);
+    if (!match) {
+      state.mentionRangeStart = -1;
+      suggestions.hidden = true;
+      suggestions.innerHTML = '';
+      return;
+    }
+    const atOffsetInMatch = match[0].lastIndexOf('@');
+    state.mentionRangeStart = before.length - match[0].length + atOffsetInMatch;
+    const term = String(match[1] || '').toLowerCase();
+    let query = state.db.from('wazobia_profiles')
+      .select('user_id,username,display_name')
+      .neq('user_id', state.user.id)
+      .order('username', {ascending:true})
+      .limit(7);
+    if (term) query = query.ilike('username', `${term}%`);
+    const {data,error} = await query;
+    if (error || !data?.length) {
+      suggestions.hidden = true;
+      suggestions.innerHTML = '';
+      return;
+    }
+    suggestions.innerHTML = data.map(person =>
+      `<button type="button" data-mention-id="${escapeHtml(person.user_id)}" data-mention-name="${escapeHtml(person.username)}"><strong>${escapeHtml(person.display_name || person.username)}</strong><small>@${escapeHtml(person.username)}</small></button>`
+    ).join('');
+    suggestions.hidden = false;
+  }
+
+  async function loadStatuses() {
+    const list = $('wz-status-list');
+    if (!list || !state.db) return;
+    const now = new Date();
+    const {data,error} = await state.db.from('wazobia_status_updates')
+      .select('id,user_id,body,media_url,media_path,created_at,expires_at')
+      .gt('expires_at', now.toISOString())
+      .order('created_at', {ascending:false})
+      .limit(100);
+    if (state.statusExpiryTimer) clearTimeout(state.statusExpiryTimer);
+    state.statusExpiryTimer = null;
+    if (data?.length) {
+      const nextExpiry = Math.min(...data.map(row => new Date(row.expires_at).getTime()).filter(Number.isFinite));
+      if (Number.isFinite(nextExpiry)) {
+        const delay = Math.max(1000, nextExpiry - Date.now() + 250);
+        state.statusExpiryTimer = setTimeout(() => loadStatuses().catch(error => console.warn('Status expiry refresh:',error)), delay);
+      }
+    }
+    if (error) {
+      list.innerHTML = '<p class="wz-muted">Status updates could not be loaded. Please refresh.</p>';
+      return;
+    }
+    if (!data?.length) {
+      list.innerHTML = '<p class="wz-muted">No active status updates yet.</p>';
+      return;
+    }
+    const ids = [...new Set(data.map(row => row.user_id))];
+    const profilesResult = await state.db.from('wazobia_profiles')
+      .select('user_id,display_name,username,avatar_url')
+      .in('user_id', ids);
+    if (profilesResult.error) {
+      list.innerHTML = '<p class="wz-muted">Status profiles could not be loaded.</p>';
+      return;
+    }
+    const profiles = new Map((profilesResult.data || []).map(person => [person.user_id,person]));
+    const visibleStatuses = data.filter(row => profiles.has(row.user_id) && new Date(row.expires_at).getTime() > Date.now());
+    await Promise.all(visibleStatuses.map(async row => {
+      if (row.media_path) {
+        const ttl = Math.max(60, Math.min(86400, Math.floor((new Date(row.expires_at).getTime()-Date.now())/1000)));
+        const {data:signed,error:signedError} = await state.db.storage.from('wazobia-status-media').createSignedUrl(row.media_path,ttl);
+        if (!signedError) row.signed_media_url = signed?.signedUrl || '';
+      }
+    }));
+    if (!visibleStatuses.length) {
+      list.innerHTML = '<p class="wz-muted">No active status updates yet.</p>';
+      return;
+    }
+    list.innerHTML = visibleStatuses.map(row => {
+      const person = profiles.get(row.user_id);
+      const own = row.user_id === state.user?.id;
+      const minsLeft = Math.max(1, Math.ceil((new Date(row.expires_at).getTime()-Date.now())/60000));
+      const timeLeft = minsLeft >= 60 ? `${Math.floor(minsLeft/60)}h ${minsLeft%60 ? `${minsLeft%60}m` : ''} left` : `${minsLeft}m left`;
+      const photo = safeUrl(row.signed_media_url || row.media_url);
+      return `<article class="wz-status-card" data-status-id="${escapeHtml(row.id)}">
+        <div class="wz-status-card-head">
+          ${avatarMarkup(person)}
+          <span class="wz-status-card-copy"><strong>${escapeHtml(person.display_name || person.username || 'Wazobia member')}</strong><small>@${escapeHtml(person.username || 'member')} · ${timeLeft}</small></span>
+          ${own ? `<button type="button" data-status-delete="${escapeHtml(row.id)}" aria-label="Delete your status" title="Delete your status">×</button>` : ''}
+        </div>
+        ${row.body ? `<p>${escapeHtml(row.body)}</p>` : ''}
+        ${photo ? `<img class="wz-status-photo" src="${escapeHtml(photo)}" alt="Status photo from ${escapeHtml(person.display_name || person.username || 'a member')}" loading="lazy">` : ''}
+      </article>`;
+    }).join('');
+  }
+
+  async function publishStatus(event) {
+    event?.preventDefault();
+    if (!requireUser('Log in to share a 24-hour status.')) return;
+    const body = $('wz-status-text').value.trim();
+    const file = state.statusFile;
+    if (!body && !file) {
+      $('wz-status-compose-message').textContent = 'Write a short update or add a photo.';
+      return;
+    }
+    if (body.length > 500) {
+      $('wz-status-compose-message').textContent = 'Status text must be 500 characters or fewer.';
+      return;
+    }
+    if (file && (!/^image\/(jpeg|png|webp|gif)$/.test(file.type) || file.size > 10 * 1024 * 1024)) {
+      $('wz-status-compose-message').textContent = 'Choose a JPG, PNG, WebP or GIF image up to 10 MB.';
+      return;
+    }
+    const button = $('wz-publish-status');
+    button.disabled = true;
+    $('wz-status-compose-message').textContent = 'Sharing status…';
+    try {
+      let mediaPath = null;
+      if (file) {
+        const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
+        mediaPath=`${state.user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+        const {error:uploadError}=await state.db.storage.from('wazobia-status-media').upload(mediaPath,file,{contentType:file.type,cacheControl:'3600',upsert:false});
+        if (uploadError) throw uploadError;
+      }
+      const {error} = await state.db.from('wazobia_status_updates').insert({
+        user_id:state.user.id,
+        body,
+        media_url:null,
+        media_path:mediaPath
+      });
+      if (error) throw error;
+      $('wz-status-text').value = '';
+      $('wz-status-media').value = '';
+      state.statusFile = null;
+      $('wz-status-compose-message').textContent = 'Your status is live and will disappear after 24 hours.';
+      await loadStatuses();
+      setTimeout(() => { const msg=$('wz-status-compose-message'); if (msg) msg.textContent=''; },5000);
+    } catch (error) {
+      $('wz-status-compose-message').textContent = error.message || 'Your status could not be shared.';
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function deleteStatus(statusId) {
+    if (!requireUser() || !statusId) return;
+    const {data,error} = await state.db.from('wazobia_status_updates')
+      .delete().eq('id',statusId).eq('user_id',state.user.id).select('id,media_path').maybeSingle();
+    if (error) return status(error.message || 'Your status could not be deleted.',true);
+    if (!data) return status('That status is no longer available.',true);
+    if (data.media_path) await state.db.storage.from('wazobia-status-media').remove([data.media_path]);
+    await loadStatuses();
+    status('Your status was deleted.');
   }
   function profileStatus(message, isError = false) {
     const node = $('wz-profile-status'); if (!node) return;
@@ -165,7 +335,9 @@
       if (state.messageBadgeTimer) { clearInterval(state.messageBadgeTimer); state.messageBadgeTimer = null; }
       $('wz-people-list').innerHTML = '<p class="wz-muted">Sign in to discover active members.</p>';
     }
-    await loadFeed(true);
+    await Promise.all([loadFeed(true),loadStatuses()]);
+    if (state.statusRefreshTimer) clearInterval(state.statusRefreshTimer);
+    state.statusRefreshTimer = setInterval(loadStatuses,60000);
     if (state.user) {
       try {
         const messagesReturn = sessionStorage.getItem('parrothitWazobiaMessagesReturn');
@@ -293,10 +465,19 @@
     try {
       if (file) media = await uploadMedia(file);
       const payload = { author_id: state.user.id, body, media_url: media?.url || null, media_path: media?.path || null, media_type: media?.type || null };
-      const { error } = await state.db.from('wazobia_posts').insert(payload);
+      const { data: createdPost, error } = await state.db.from('wazobia_posts').insert(payload).select('id').single();
       if (error) throw error;
-      state.pendingFile = null; $('wz-modal-media-preview').innerHTML = ''; closeModal('wz-post-modal');
-      status('Your post is live on Wazobia Trends.'); state.activeTab = 'home'; setActiveTabButtons(); await loadFeed(true);
+      const usernames = [...new Set([...body.matchAll(/@([a-z0-9_]{3,24})\b/gi)].map(match => match[1].toLowerCase()))];
+      let mentionWarning = '';
+      if (usernames.length) {
+        const found = await state.db.from('wazobia_profiles').select('user_id,username').in('username',usernames).neq('user_id',state.user.id);
+        if (!found.error && found.data?.length) {
+          const tagged = await state.db.rpc('wazobia_add_post_mentions',{p_post_id:createdPost.id,p_user_ids:found.data.map(person => person.user_id)});
+          if (tagged.error) mentionWarning = ' (Your post is live, but some tag notifications could not be sent.)';
+        }
+      }
+      state.pendingFile = null; $('wz-modal-media-preview').innerHTML = ''; $('wz-mention-suggestions').hidden = true; closeModal('wz-post-modal');
+      status(`Your post is live on Wazobia Trends.${mentionWarning}`); state.activeTab = 'home'; setActiveTabButtons(); await loadFeed(true);
     } catch (error) { postStatus(error.message || 'Your post could not be published.', true); }
     finally { button.disabled = false; button.textContent = 'Post'; }
   }
@@ -321,11 +502,11 @@
       .map(([key, count]) => `${reactionEmoji[key] || '👍'} ${count}`).join(' · ');
     return `<article class="wz-card wz-post" data-post-id="${escapeHtml(post.id)}">
       <div class="wz-post-inner">
-        <div class="wz-post-head"><a class="wz-profile-identity-link" href="wazobia-profile.html?user=${encodeURIComponent(post.author_id)}">${avatarMarkup(author)}<span class="wz-post-identity"><strong>${escapeHtml(author.display_name || 'Wazobia member')}</strong><small>@${escapeHtml(author.username || 'member')} · ${escapeHtml(relativeTime(post.created_at))}</small></span></a>
-          ${!own && state.user ? `<button class="wz-follow-btn" data-action="follow" data-user-id="${escapeHtml(post.author_id)}">${following ? 'Following' : '+ Follow'}</button><button class="wz-post-message-btn" type="button" data-action="message-user" data-user-id="${escapeHtml(post.author_id)}">Message</button>` : ''}
+        <div class="wz-post-head">${author.user_id ? `<a class="wz-profile-identity-link" href="wazobia-profile.html?user=${encodeURIComponent(post.author_id)}">${avatarMarkup(author)}<span class="wz-post-identity"><strong>${escapeHtml(author.display_name || 'Wazobia member')}</strong><small>@${escapeHtml(author.username || 'member')} · ${escapeHtml(relativeTime(post.created_at))}</small></span></a>` : `<div class="wz-profile-identity-link">${avatarMarkup({display_name:'Private member'})}<span class="wz-post-identity"><strong>Private member</strong><small>${escapeHtml(relativeTime(post.created_at))}</small></span></div>`}
+          ${!own && state.user && author.user_id ? `<button class="wz-follow-btn" data-action="follow" data-user-id="${escapeHtml(post.author_id)}">${following ? 'Following' : '+ Follow'}</button><button class="wz-post-message-btn" type="button" data-action="message-user" data-user-id="${escapeHtml(post.author_id)}">Message</button>` : ''}
           ${own ? `<button class="wz-more-btn" type="button" data-action="delete-post" aria-label="Delete your post" title="Delete post">⋯</button>` : `<button class="wz-more-btn" type="button" data-action="report-post" aria-label="Report post" title="Report post">⋯</button>`}
         </div>
-        ${post.body ? `<div class="wz-post-text">${escapeHtml(post.body).replace(/(^|\s)(#[a-zA-Z0-9_]{2,50})/g, '$1<a href="#" data-hashtag="$2">$2</a>')}</div>` : ''}
+        ${post.body ? `<div class="wz-post-text">${renderPostBody(post)}</div>` : ''}
       </div>
       ${postMediaMarkup(post)}
       <div class="wz-post-meta"><span class="wz-reaction-summary">${emojiSummary || 'Be the first to react'}${total ? ` <b>· ${total}</b>` : ''}</span><span data-comments-total="${escapeHtml(post.id)}">Comments</span></div>
@@ -394,8 +575,17 @@
       return;
     }
     const ids = state.posts.map(p => p.id);
-    const { data: reactions, error } = await state.db.from('wazobia_post_reactions').select('post_id,user_id,reaction').in('post_id', ids);
-    if (error) throw error;
+    const [reactionResult, mentionResult] = await Promise.all([
+      state.db.from('wazobia_post_reactions').select('post_id,user_id,reaction').in('post_id', ids),
+      state.db.rpc('wazobia_get_post_mentions',{p_post_ids:ids})
+    ]);
+    const reactions = reactionResult.data;
+    if (reactionResult.error) throw reactionResult.error;
+    state.postMentions = new Map();
+    (mentionResult.data || []).forEach(row => {
+      if (!state.postMentions.has(row.post_id)) state.postMentions.set(row.post_id,new Map());
+      state.postMentions.get(row.post_id).set(String(row.username || '').toLowerCase(),row);
+    });
     const byPost = new Map();
     (reactions || []).forEach(r => { if (!byPost.has(r.post_id)) byPost.set(r.post_id, []); byPost.get(r.post_id).push(r); });
     const search = ($('wz-search').value || '').trim().toLowerCase();
@@ -717,6 +907,7 @@
       comment_reply: `${actor} replied to your comment.`,
       comment_reaction: `${actor} reacted to your comment.`,
       new_post: `${actor} shared a new post.`,
+      post_mention: `${actor} tagged you in a post.`,
       group_invite: `${actor} invited you to join ${n.group?.name || 'a Wazobia group'}.`,
       group_join_request: `${actor} requested to join ${n.group?.name || 'your group'}.`,
       group_join_approved: `Your request to join ${n.group?.name || 'the group'} was approved.`,
@@ -828,7 +1019,7 @@
   }
 
   async function signOut() {
-    const { error } = await state.db.auth.signOut();
+    const { error } = await state.db.auth.signOut({ scope: 'local' });
     if (error) status(error.message, true);
     closeModal('wz-profile-modal');
     await updateAuthSession(null);
@@ -880,7 +1071,37 @@
     $('wz-add-video').addEventListener('click', () => { $('wz-media-input').accept = 'video/mp4,video/webm,video/quicktime'; $('wz-media-input').click(); });
     $('wz-media-input').addEventListener('change', (e) => { const file = e.target.files?.[0]; if (file) openPostModal(file); e.target.value = ''; });
     $('wz-modal-media').addEventListener('change', (e) => { state.pendingFile = e.target.files?.[0] || null; renderPendingPreview(); e.target.value = ''; });
-    $('wz-post-text').addEventListener('input', () => { $('wz-post-charcount').textContent = `${$('wz-post-text').value.length.toLocaleString()} / 5,000`; });
+    $('wz-post-text').addEventListener('input', () => {
+      $('wz-post-charcount').textContent = `${$('wz-post-text').value.length.toLocaleString()} / 5,000`;
+      clearTimeout(state.mentionSearchTimer); state.mentionSearchTimer = setTimeout(searchPostMention,180);
+    });
+    $('wz-mention-suggestions').addEventListener('click',e => {
+      const choice = e.target.closest('[data-mention-id]'); if (!choice) return;
+      const input = $('wz-post-text'), cursor = input.selectionStart;
+      const start = Math.max(0,state.mentionRangeStart);
+      input.value = input.value.slice(0,start) + `@${choice.dataset.mentionName} ` + input.value.slice(cursor);
+      const next = start + choice.dataset.mentionName.length + 2;
+      input.focus(); input.setSelectionRange(next,next);
+      $('wz-post-charcount').textContent = `${input.value.length.toLocaleString()} / 5,000`;
+      $('wz-mention-suggestions').hidden = true;
+    });
+    $('wz-open-status').addEventListener('click',() => {
+      if (!requireUser('Log in to share a 24-hour status.')) return;
+      $('wz-status-form').hidden = !$('wz-status-form').hidden;
+      if (!$('wz-status-form').hidden) $('wz-status-text').focus();
+    });
+    $('wz-status-media').addEventListener('change',e => {
+      const file=e.target.files?.[0] || null;
+      if (file && !/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
+        $('wz-status-compose-message').textContent='Choose a JPG, PNG, WebP or GIF image.'; e.target.value=''; return;
+      }
+      state.statusFile=file;
+      $('wz-status-compose-message').textContent=file ? `Photo selected: ${file.name}` : '';
+    });
+    $('wz-status-form').addEventListener('submit',publishStatus);
+    $('wz-status-list').addEventListener('click',e => {
+      const remove=e.target.closest('[data-status-delete]'); if (remove) deleteStatus(remove.dataset.statusDelete);
+    });
     $('wz-publish-post').addEventListener('click', publishPost);
     $('wz-load-more').addEventListener('click', () => loadFeed(false));
     $('wz-search').addEventListener('input', () => renderFeed());

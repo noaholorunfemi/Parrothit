@@ -6,7 +6,8 @@
     db: null, user: null, profile: null, profiles: [], conversations: [], currentId: null,
     currentPerson: null, currentMessages: [], onlineIds: new Set(), presence: null, realtime: null,
     pollTimer: null, inboxSearchTimer: null, memberSearchTimer: null, memberResults: null, searchText: '', memberSearch: '', showActive: localStorage.getItem('wzMessengerPresence') !== 'off', busy: false,
-    call: null, callChannel: null, processedCallSignals: new Set(), earlyIce: new Map()
+    call: null, callChannel: null, processedCallSignals: new Set(), earlyIce: new Map(),
+    blockState: 'none', chatPreference: {background_color:'#ffffff',background_path:null}, wallpaperUrl: ''
   };
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -47,7 +48,7 @@
   const profileHref = (id) => `wazobia-profile.html?user=${encodeURIComponent(id || '')}`;
   function otherMember(conversation) {
     const id = conversation.participant_one === state.user.id ? conversation.participant_two : conversation.participant_one;
-    return profileById(id);
+    return profileById(id) || {user_id:id,display_name:'Private member',username:'',avatar_url:null,is_private:true};
   }
 
   async function loadOwnProfile() {
@@ -148,10 +149,11 @@
       const preview = previewText(last);
       if (query && !`${name} ${person.username || ''} ${preview}`.toLowerCase().includes(query)) return '';
       const selected = c.id === state.currentId;
+      const identity = person.is_private
+        ? `<div class="wzm-chat-profile-link is-private">${avatar(person,false,true)}<span class="wzm-chat-copy"><strong>Private member</strong><small>Profile link hidden</small></span></div>`
+        : `<a class="wzm-chat-profile-link" href="${profileHref(person.user_id)}">${avatar(person,false,true)}<span class="wzm-chat-copy"><strong>${esc(name)}</strong><small>${esc(preview)}</small></span></a>`;
       return `<div class="wzm-chat-row ${count ? 'unread' : ''} ${selected ? 'selected' : ''}">
-        <a class="wzm-chat-profile-link" href="${profileHref(person.user_id)}">${avatar(person,false,true)}
-          <span class="wzm-chat-copy"><strong>${esc(name)}</strong><small>${esc(preview)}</small></span>
-        </a>
+        ${identity}
         <span class="wzm-chat-meta"><time>${esc(shortTime(last?.created_at || c.last_message_at || c.created_at))}</time>${count ? `<i class="wzm-unread-badge">${count > 99 ? '99+' : count}</i>` : ''}<button class="wzm-chat-open" type="button" data-open-conversation="${esc(c.id)}" data-member-id="${esc(person.user_id)}">Chat</button></span>
       </div>`;
     }).filter(Boolean).join('');
@@ -168,6 +170,110 @@
     $('wzm-discover').scrollIntoView({behavior:'smooth',block:'nearest'});
   }
   function closeDiscover() { $('wzm-discover').hidden = true; }
+
+  async function refreshBlockState() {
+    if (!state.currentPerson || !state.user) return;
+    const {data,error}=await state.db.rpc('wazobia_block_status',{target_user:state.currentPerson.user_id});
+    if (error) {
+      state.blockState='none';
+      console.warn('Wazobia block status:',error.message);
+    } else state.blockState=String(data || 'none');
+    const button=$('wzm-block-user');
+    button.textContent=state.blockState==='blocked_by_me' ? 'Unblock' : state.blockState==='blocked_you' ? 'Blocked you' : 'Block';
+    button.disabled=state.blockState==='blocked_you';
+    button.title=state.blockState==='blocked_by_me' ? 'Unblock this member' : state.blockState==='blocked_you' ? 'This member has blocked your account' : 'Prevent this member from messaging you';
+    $('wzm-message-input').disabled=state.blockState!=='none';
+    $('wzm-send-button').disabled=state.blockState!=='none';
+    if (state.blockState!=='none') {
+      notify(state.blockState==='blocked_by_me' ? 'You blocked this member. Unblock them to send messages.' : 'This member has blocked your account. You cannot send messages.',true);
+    }
+  }
+
+  function applyChatWallpaper() {
+    const node=$('wzm-messages');
+    const color=state.chatPreference.background_color || '#ffffff';
+    node.style.backgroundColor=color;
+    node.style.backgroundImage=state.wallpaperUrl ? `linear-gradient(rgba(255,255,255,.08),rgba(255,255,255,.08)),url("${state.wallpaperUrl.replace(/"/g,'%22')}")` : '';
+    node.style.backgroundSize=state.wallpaperUrl ? 'cover' : '';
+    node.style.backgroundPosition='center';
+    node.style.backgroundRepeat='no-repeat';
+    $('wzm-chat-color').value=/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffffff';
+  }
+
+  async function loadChatPreference() {
+    if (!state.currentId || !state.user) return;
+    state.chatPreference={background_color:'#ffffff',background_path:null};
+    state.wallpaperUrl='';
+    const {data,error}=await state.db.from('wazobia_chat_preferences').select('background_color,background_path')
+      .eq('owner_id',state.user.id).eq('conversation_id',state.currentId).maybeSingle();
+    if (error && !String(error.message).includes('wazobia_chat_preferences')) console.warn('Wazobia chat appearance:',error.message);
+    if (data) state.chatPreference=data;
+    if (state.chatPreference.background_path) {
+      const {data:signed,error:signedError}=await state.db.storage.from('wazobia-chat-wallpapers').createSignedUrl(state.chatPreference.background_path,3600);
+      if (!signedError) state.wallpaperUrl=signed?.signedUrl || '';
+    }
+    applyChatWallpaper();
+  }
+
+  async function saveChatWallpaper() {
+    if (!state.currentId || !state.user) return;
+    const color=$('wzm-chat-color').value;
+    if (!/^#[0-9a-f]{6}$/i.test(color)) return notify('Choose a valid background colour.',true);
+    const file=$('wzm-chat-wallpaper-file').files?.[0] || null;
+    let path=state.chatPreference.background_path || null;
+    try {
+      if (file) {
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type) || file.size>10*1024*1024)
+          throw new Error('Choose a JPG, PNG, WebP or GIF image up to 10 MB.');
+        const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
+        path=`${state.user.id}/${state.currentId}/${crypto.randomUUID()}.${ext}`;
+        const {error:uploadError}=await state.db.storage.from('wazobia-chat-wallpapers').upload(path,file,{contentType:file.type,cacheControl:'3600',upsert:false});
+        if (uploadError) throw uploadError;
+      }
+      const {error}=await state.db.from('wazobia_chat_preferences').upsert({
+        owner_id:state.user.id,conversation_id:state.currentId,background_color:color,background_path:path,updated_at:new Date().toISOString()
+      },{onConflict:'owner_id,conversation_id'});
+      if (error) throw error;
+      if (file && state.chatPreference.background_path && state.chatPreference.background_path!==path) {
+        await state.db.storage.from('wazobia-chat-wallpapers').remove([state.chatPreference.background_path]);
+      }
+      $('wzm-chat-wallpaper-file').value='';
+      await loadChatPreference();
+      notify('Your personal chat background has been saved.');
+    } catch (error) { notify(error.message || 'Could not save the chat background.',true); }
+  }
+
+  async function clearChatWallpaper() {
+    if (!state.currentId || !state.user) return;
+    const oldPath=state.chatPreference.background_path;
+    if (oldPath) await state.db.storage.from('wazobia-chat-wallpapers').remove([oldPath]);
+    const {error}=await state.db.from('wazobia_chat_preferences').upsert({
+      owner_id:state.user.id,conversation_id:state.currentId,background_color:$('wzm-chat-color').value || '#ffffff',
+      background_path:null,updated_at:new Date().toISOString()
+    },{onConflict:'owner_id,conversation_id'});
+    if (error) return notify(error.message || 'Could not clear the chat image.',true);
+    await loadChatPreference();
+    notify('Chat wallpaper image removed.');
+  }
+
+  async function toggleBlockCurrentMember() {
+    if (!state.currentPerson || !state.user) return;
+    const target=state.currentPerson.user_id;
+    try {
+      if (state.blockState==='blocked_by_me') {
+        const {error}=await state.db.from('wazobia_user_blocks').delete().eq('blocker_id',state.user.id).eq('blocked_id',target);
+        if (error) throw error;
+        notify('Member unblocked. You can message each other again.');
+      } else if (state.blockState==='none') {
+        if (!window.confirm(`Block ${state.currentPerson.display_name || 'this member'} from messaging you?`)) return;
+        const {error}=await state.db.from('wazobia_user_blocks').insert({blocker_id:state.user.id,blocked_id:target});
+        if (error) throw error;
+        notify('Member blocked. New private messages are disabled.');
+      } else return;
+      await refreshBlockState();
+      await loadInbox();
+    } catch (error) { notify(error.message || 'Could not update the block setting.',true); }
+  }
 
   async function startConversation(targetId) {
     if (!targetId || targetId === state.user.id) return;
@@ -188,6 +294,7 @@
     $('wzm-thread-empty').hidden = true;
     $('wzm-thread').hidden = false;
     renderChatHeader();
+    await Promise.all([loadChatPreference(),refreshBlockState()]);
     await loadInbox();
     await loadMessages();
     $('wzm-message-input').focus();
@@ -198,10 +305,21 @@
     if (!person) return;
     const online = state.onlineIds.has(person.user_id);
     const link = $('wzm-chat-person');
-    link.href = profileHref(person.user_id);
-    link.innerHTML = `${avatar(person,true,true)}<span><strong>${esc(person.display_name || 'Wazobia member')}</strong><small>${online ? 'Active now' : `@${esc(person.username || 'member')}`}</small></span>`;
+    if (person.is_private) {
+      link.removeAttribute('href');
+      link.setAttribute('aria-disabled','true');
+      link.tabIndex=-1;
+      link.classList.add('is-private');
+    } else {
+      link.href = profileHref(person.user_id);
+      link.removeAttribute('aria-disabled');
+      link.removeAttribute('tabindex');
+      link.classList.remove('is-private');
+    }
+    link.innerHTML = `${avatar(person,true,true)}<span><strong>${esc(person.display_name || 'Wazobia member')}</strong><small>${person.is_private ? 'Profile link hidden' : online ? 'Active now' : `@${esc(person.username || 'member')}`}</small></span>`;
     $('wzm-voice-call').hidden = false;
     $('wzm-video-call').hidden = false;
+    $('wzm-block-user').hidden = false;
   }
 
   function renderMessages() {
@@ -243,6 +361,7 @@
   async function sendMessage(event) {
     event.preventDefault();
     if (!state.currentId || !state.currentPerson || state.busy) return;
+    if (state.blockState!=='none') return notify('Messaging is unavailable for this member.',true);
     const input = $('wzm-message-input');
     const body = input.value.trim();
     if (!body) return;
@@ -265,6 +384,9 @@
     state.currentId = null;
     state.currentPerson = null;
     state.currentMessages = [];
+    state.blockState='none'; state.chatPreference={background_color:'#ffffff',background_path:null}; state.wallpaperUrl='';
+    $('wzm-messages').style.backgroundImage=''; $('wzm-messages').style.backgroundColor='';
+    $('wzm-chat-customize').hidden=true; $('wzm-block-user').hidden=true;
     $('wzm-workspace').classList.remove('thread-open');
     $('wzm-thread').hidden = true;
     $('wzm-thread-empty').hidden = false;
@@ -343,6 +465,8 @@
     const person = Array.isArray(data) ? data[0] : data;
     if (!person) throw new Error('This Wazobia member could not be found.');
     if (!person.allow_calls) throw new Error('This member is not accepting voice or video calls.');
+    const blocked=await state.db.rpc('wazobia_block_status',{target_user:targetId});
+    if (!blocked.error && blocked.data!=='none') throw new Error('Voice and video calls are unavailable because one of these accounts has blocked the other.');
     return person;
   }
   function signalIceServers() {
@@ -552,15 +676,18 @@
     $('wzm-call-close').addEventListener('click',() => { if (state.call?.direction === 'incoming' && !state.call.pc) endCall(true,'reject'); else if (state.call) notify('Use End call to finish this conversation.'); else closeCallOverlay(); });
     $('wzm-chat-details').addEventListener('click',() => {
       if (!state.currentPerson) return;
-      notify(`Private chat with ${state.currentPerson.display_name || 'this member'}. Only the two participants can read it.`);
+      $('wzm-chat-customize').hidden=!$('wzm-chat-customize').hidden;
     });
+    $('wzm-block-user').addEventListener('click',toggleBlockCurrentMember);
+    $('wzm-chat-wallpaper-save').addEventListener('click',saveChatWallpaper);
+    $('wzm-chat-wallpaper-clear').addEventListener('click',clearChatWallpaper);
     document.addEventListener('click',e => {
       const target = e.target.closest('[data-message-user]');
       if (target) startConversation(target.dataset.messageUser);
       const conversation = e.target.closest('[data-open-conversation]');
       if (conversation) {
         const item = state.conversations.find(c => c.id === conversation.dataset.openConversation);
-        if (item) { state.currentId=item.id; state.currentPerson=profileById(conversation.dataset.memberId) || otherMember(item); $('wzm-workspace').classList.add('thread-open'); $('wzm-thread-empty').hidden=true; $('wzm-thread').hidden=false; renderChatHeader(); loadMessages(); loadInbox(); }
+        if (item) { state.currentId=item.id; state.currentPerson=profileById(conversation.dataset.memberId) || otherMember(item); $('wzm-workspace').classList.add('thread-open'); $('wzm-thread-empty').hidden=true; $('wzm-thread').hidden=false; renderChatHeader(); Promise.all([loadChatPreference(),refreshBlockState()]).then(()=>loadMessages()); loadInbox(); }
       }
     });
     $('wzm-login-link').addEventListener('click',() => sessionStorage.setItem('parrothitWazobiaMessagesReturn',location.href));
