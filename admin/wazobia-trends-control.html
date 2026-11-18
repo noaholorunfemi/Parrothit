@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>PARROTHIT Wazobia Trends Control Centre</title>
+<script>document.documentElement.classList.add('admin-auth-pending');</script>
+<link rel="stylesheet" href="../css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../supabase-config.js"></script>
+<script src="../js/admin-auth-guard.js"></script>
+<link rel="stylesheet" href="../css/admin-responsive.css"><link rel="stylesheet" href="../css/admin-responsive-fixes.css">
+<style>
+:root{--bg:#06170f;--panel:#0c2619;--panel2:#102f20;--line:#28543b;--green:#0c8b4b;--bright:#34d399;--red:#b91c1c;--gold:#d5aa3c;--white:#f8fafc;--muted:#b7cabe}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 10% 0,#123c29 0,#06170f 46%);color:var(--white);font:15px/1.5 system-ui,Arial,sans-serif}.wrap{max-width:1450px;margin:auto;padding:18px}.hero{padding:22px;border:1px solid #397451;border-radius:18px;background:linear-gradient(125deg,#06472c,#087a43 60%,#775d20);box-shadow:0 14px 34px #0004}.hero h1{font-size:clamp(1.5rem,4vw,2.35rem);line-height:1.2;margin:8px 0}.hero p{margin:5px 0;color:#e3f7eb}.toplinks,.actions{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.btn{display:inline-flex;justify-content:center;align-items:center;gap:7px;border:1px solid transparent;border-radius:9px;padding:10px 14px;background:#087b44;color:#fff;text-decoration:none;font-weight:850;cursor:pointer;font:inherit}.btn:hover{filter:brightness(1.12)}.btn.gold{background:#d1a12b;color:#17220f}.btn.blue{background:#175cae}.btn.red{background:#a81722}.btn.gray{background:#243a30;border-color:#496657}.btn:disabled{opacity:.45;cursor:not-allowed}.status{margin:14px 0;padding:12px 14px;border:1px solid #427451;border-radius:10px;background:#0a2116;color:#d9fbe6;white-space:pre-wrap;overflow-wrap:anywhere}.status.bad{border-color:#a83c42;background:#321519;color:#ffd9dc}.notice{margin:14px 0;padding:13px 15px;background:#2c2817;border:1px solid #937628;color:#ffedb4;border-radius:10px}.stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:14px 0}.stat{padding:14px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#0e3020,#091e14)}.stat strong{display:block;font-size:1.65rem;color:#8cf1b6}.stat span{font-size:.84rem;color:var(--muted);font-weight:700}.panel{margin:15px 0;padding:17px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(150deg,#0d2a1b,#091d13)}.panel h2{margin:0 0 6px;font-size:1.22rem}.muted{color:var(--muted);font-size:.9rem}.switch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.switch{display:flex;gap:10px;align-items:flex-start;padding:12px;background:#071c12;border:1px solid #315c43;border-radius:11px;min-height:78px}.switch input{width:21px;height:21px;flex:0 0 auto;margin-top:2px;accent-color:#22c55e}.switch strong{display:block}.switch small{display:block;color:var(--muted);margin-top:3px;font-size:.82rem;line-height:1.4}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.field{min-width:min(100%,220px);flex:1;padding:10px 12px;border:1px solid #456b53;border-radius:9px;background:#06170f;color:#fff;font:inherit}.rows{display:grid;gap:9px;margin-top:12px}.row{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;padding:13px;border:1px solid #2e5940;border-radius:11px;background:#081e14}.row-main{min-width:0;flex:1}.row-main p{margin:5px 0;white-space:pre-wrap;overflow-wrap:anywhere}.row small{color:var(--muted)}.pill{display:inline-block;border-radius:20px;padding:3px 8px;background:#174b30;color:#c9f7d9;font-size:.75rem;font-weight:850}.pill.off{background:#4c2023;color:#ffd0d2}.pill.warn{background:#55441b;color:#ffebb0}.empty{padding:15px;border:1px dashed #426b50;border-radius:10px;color:var(--muted)}.room-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px}.room-link{display:block;padding:12px;border-radius:10px;background:#123d28;border:1px solid #356a49;color:#fff;text-decoration:none;font-weight:800}.room-link small{display:block;color:#bed8c6;font-weight:500}.panel-footer{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.modal{position:fixed;inset:0;background:#000b;z-index:99999;display:none;align-items:center;justify-content:center;padding:16px}.modal.open{display:flex}.dialog{max-width:500px;width:100%;padding:20px;border-radius:15px;background:#102b1c;border:2px solid var(--gold);box-shadow:0 15px 45px #0009}.dialog h2{color:#ffdf85;margin:0 0 8px}.hidden{display:none!important}body.wazobia-owner-pending main{visibility:hidden}
+@media(max-width:900px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:600px){.wrap{padding:9px}.hero,.panel{padding:13px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.switch-grid{grid-template-columns:1fr}.row{display:block}.row .actions{margin-top:10px}.btn{flex:1}.field{min-width:100%}}
+</style>
+</head>
+<body class="admin-auth-pending wazobia-owner-pending">
+<main class="wrap">
+<header class="hero">
+  <p><a href="dashboard.html" style="color:#fff;font-weight:900;text-decoration:none">← PARROTHIT Control Room</a></p>
+  <h1>🦜 PARROTHIT WAZOBIA TRENDS — CONTROL CENTRE</h1>
+  <p><b>ADMIN 1 · OWNER ONLY</b> — manage the public Wazobia Trends feed, member activity, rooms, reports and moderation.</p>
+  <div class="toplinks" style="margin-top:14px">
+    <a class="btn gold" href="../parrothit-wazobia-trends.html" target="_blank" rel="noopener">Open Wazobia Trends ↗</a>
+    <a class="btn blue" href="../wazobia-groups.html" target="_blank" rel="noopener">Open Wazobia Groups ↗</a>
+    <a class="btn gray" href="control-directory.html">All admin controls</a>
+  </div>
+</header>
+<div id="accessStatus" class="status" role="status">Verifying Admin 1 owner access…</div>
+<div class="notice"><b>Security:</b> this page is restricted to Admin 1 (Owner). Live controls use Supabase Row Level Security; do not add a service-role key to any browser file. Run the existing <code>supabase/community-admin-controls.sql</code> first, then the V1 report migration included in this patch.</div>
+<section class="stats" aria-label="Wazobia Trends overview">
+  <div class="stat"><strong id="statPosts">—</strong><span>Shared posts</span></div>
+  <div class="stat"><strong id="statPending">—</strong><span>Pending / hidden</span></div>
+  <div class="stat"><strong id="statMembers">—</strong><span>Member profiles</span></div>
+  <div class="stat"><strong id="statComments">—</strong><span>Comments & replies</span></div>
+  <div class="stat"><strong id="statReports">—</strong><span>Open reports</span></div>
+  <div class="stat"><strong id="statReactions">—</strong><span>Post/comment reactions</span></div>
+  <div class="stat"><strong id="statRooms">—</strong><span>Discussion rooms</span></div>
+</section>
+
+<section class="panel">
+ <h2>⚙️ Global Wazobia Trends settings</h2>
+ <p class="muted">These switches are shared across devices. They control posting, moderation, comments, reactions, member connections, uploads, room participation and private chat.</p>
+ <div class="switch-grid" id="controlGrid">
+  <label class="switch"><input type="checkbox" id="interaction_enabled"><span><strong>Enable Wazobia Trends</strong><small>Master switch for member activity on the social page.</small></span></label>
+  <label class="switch"><input type="checkbox" id="room_chat_enabled"><span><strong>Enable discussion rooms</strong><small>Allow room participation, membership and room posting.</small></span></label>
+  <label class="switch"><input type="checkbox" id="private_chat_enabled"><span><strong>Enable private messaging</strong><small>Allow member-to-member private conversations.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_new_registrations"><span><strong>Allow new registrations</strong><small>Controls the community registration flag. Supabase Auth sign-up settings remain the final server-side gate.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_posts"><span><strong>Allow new posts</strong><small>Pause or reopen member text and media posts.</small></span></label>
+  <label class="switch"><input type="checkbox" id="require_post_approval"><span><strong>Require post approval</strong><small>New posts wait for owner approval before appearing publicly.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_comments"><span><strong>Allow comments and replies</strong><small>Enable or pause post discussions and nested replies.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_reactions"><span><strong>Allow reactions</strong><small>Enable or pause emoji reactions on posts and comments.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_friendships"><span><strong>Allow friend requests</strong><small>Control member connection requests.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_room_invites"><span><strong>Allow room invitations</strong><small>Control invitations to discussion rooms.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_images"><span><strong>Allow image uploads</strong><small>Also enforced by the existing community media Storage policy.</small></span></label>
+  <label class="switch"><input type="checkbox" id="allow_voice"><span><strong>Allow voice messages</strong><small>Also enforced by the existing community media Storage policy.</small></span></label>
+ </div>
+ <div class="panel-footer"><button type="button" class="btn gold" id="commitControls">⚠️ Commit settings</button><button type="button" class="btn gray" id="reloadControls">Reload saved settings</button></div>
+</section>
+
+<section class="panel">
+ <h2>🛡️ Post moderation</h2><p class="muted">Review text, photos, voice posts, video links, polls and other feed entries. Approving publishes a post; hiding removes it from the public feed; deleting permanently removes it and its database-linked comments/reactions.</p>
+ <div class="toolbar"><input class="field" id="postSearch" type="search" placeholder="Search posts, author, room or post ID"><select class="field" id="postFilter" aria-label="Filter posts"><option value="all">All posts</option><option value="pending">Pending / hidden</option><option value="published">Published</option></select><button class="btn gray" id="reloadPosts" type="button">Refresh</button></div>
+ <div id="postsStatus" class="muted">Waiting for owner verification…</div><div id="postRows" class="rows"></div>
+</section>
+
+<section class="panel">
+ <h2>🚩 Member reports</h2><p class="muted">Reports submitted from Wazobia Trends are stored in Supabase for owner review, not only in the reporter's browser. Mark reports reviewed, dismiss them, or remove the reported post.</p>
+ <div class="toolbar"><input class="field" id="reportSearch" type="search" placeholder="Search report reason or post ID"><select class="field" id="reportFilter" aria-label="Filter reports"><option value="open">Open reports</option><option value="all">All reports</option><option value="reviewed">Reviewed</option><option value="dismissed">Dismissed</option><option value="removed">Post removed</option></select><button class="btn gray" id="reloadReports" type="button">Refresh</button></div>
+ <div id="reportsStatus" class="muted">Waiting for owner verification…</div><div id="reportRows" class="rows"></div>
+</section>
+
+<section class="panel">
+ <h2>🗨️ Comment and reply moderation</h2><p class="muted">Review and remove comments or nested replies across the shared Wazobia feed.</p>
+ <div class="toolbar"><input class="field" id="commentSearch" type="search" placeholder="Search comment text, author or post ID"><button class="btn gray" id="reloadComments" type="button">Refresh</button></div>
+ <div id="commentsStatus" class="muted">Waiting for owner verification…</div><div id="commentRows" class="rows"></div>
+</section>
+
+<section class="panel">
+ <h2>✨ Reaction moderation</h2><p class="muted">Review reactions across posts and comments. You can remove abusive or irrelevant reactions without deleting the post or comment.</p>
+ <div class="toolbar"><input class="field" id="reactionSearch" type="search" placeholder="Search emoji, member or post ID"><button class="btn gray" id="reloadReactions" type="button">Refresh</button></div>
+ <div id="reactionsStatus" class="muted">Waiting for owner verification…</div><div id="reactionRows" class="rows"></div>
+</section>
+
+<section class="panel">
+ <h2>👥 Member management</h2><p class="muted">Suspend a member from community participation without deleting their PARROTHIT login. Reactivate to restore access.</p>
+ <div class="toolbar"><input class="field" id="memberSearch" type="search" placeholder="Search members by name or username"><button class="btn gray" id="reloadMembers" type="button">Refresh</button></div>
+ <div id="membersStatus" class="muted">Waiting for owner verification…</div><div id="memberRows" class="rows"></div>
+</section>
+
+<section class="panel">
+ <h2>🗂️ Rooms and groups</h2><p class="muted">Open each Wazobia Trends discussion room. Wazobia Groups is a separate feature: its group owner continues to appoint/remove group admins and manage their own members inside the group page.</p>
+ <div class="room-grid" id="roomLinks"><div class="empty">Rooms will appear after the database is loaded.</div></div>
+ <div class="panel-footer"><a class="btn blue" href="../wazobia-groups.html" target="_blank" rel="noopener">Manage my Wazobia Groups ↗</a><a class="btn gray" href="../parrothit-wazobia-trends.html" target="_blank" rel="noopener">Preview the public feed ↗</a></div>
+</section>
+</main>
+<div class="modal" id="warningModal" role="dialog" aria-modal="true" aria-labelledby="warningTitle"><div class="dialog"><h2 id="warningTitle">🦜 PARROT WARNING!</h2><p>You are about to change global Wazobia Trends settings. These changes affect members across devices. Review your switches before committing.</p><div class="actions"><button type="button" class="btn gray" id="cancelWarning">Cancel</button><button type="button" class="btn gold" id="confirmWarning">Continue and save</button></div></div></div>
+<script src="../js/wazobia-trends-admin-control.js?v=20261117-v1"></script>
+</body></html>
