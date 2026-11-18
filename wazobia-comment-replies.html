@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Read and reply to conversations on Parrothit Wazobia Trends.">
+  <meta name="theme-color" content="#242629">
+  <meta name="robots" content="noindex,follow">
+  <title>Comment replies | Parrothit Wazobia Trends</title>
+  <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=5-comment-threads">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+  <script src="js/wazobia-comment-replies.js?v=1-static-thread" defer></script>
+</head>
+<body class="wz-thread-body">
+  <header class="wz-thread-topbar">
+    <a class="wz-thread-brand" href="wazobia-trends.html">
+      <img src="/assets/images/parrothit-wazobia-trends-logo.png" alt="Parrothit Wazobia Trends logo">
+      <span>PARROTHIT · WAZOBIA TRENDS</span>
+    </a>
+    <a class="wz-thread-back" id="wz-thread-back" href="wazobia-trends.html">← Back to Wazobia</a>
+  </header>
+
+  <main class="wz-thread-layout">
+    <section class="wz-thread-card" aria-labelledby="wz-thread-title">
+      <header class="wz-thread-heading">
+        <p class="wz-thread-eyebrow">PARROTHIT WAZOBIA TRENDS</p>
+        <h1 id="wz-thread-title">Comment replies</h1>
+        <p id="wz-thread-subtitle">Follow the full conversation and add your reply.</p>
+      </header>
+      <div class="wz-thread-post-context" id="wz-thread-post" hidden></div>
+      <section class="wz-thread-list" id="wz-thread-list" aria-live="polite">
+        <div class="wz-thread-empty">Loading this conversation…</div>
+      </section>
+      <section class="wz-thread-composer" aria-label="Write a reply">
+        <p class="wz-thread-replying" id="wz-thread-replying">Replying to this comment</p>
+        <form class="wz-thread-form" id="wz-thread-form">
+          <div class="wz-avatar" id="wz-thread-user-avatar" aria-hidden="true">?</div>
+          <textarea id="wz-thread-reply-input" maxlength="2000" rows="1" placeholder="Write a reply…" aria-label="Write a reply" required></textarea>
+          <button type="submit" id="wz-thread-submit">Reply</button>
+        </form>
+        <p class="wz-thread-status" id="wz-thread-status" role="status" aria-live="polite"></p>
+      </section>
+    </section>
+  </main>
+  <footer class="wz-thread-footer">PARROTHIT · News That Speaks! · Respect every voice.</footer>
+</body>
+</html>
