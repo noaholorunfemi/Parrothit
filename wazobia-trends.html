@@ -6,13 +6,23 @@
   <meta name="description" content="Parrothit Wazobia Trends — share ideas, pictures, videos and conversations with the PARROTHIT community.">
   <meta name="theme-color" content="#d71920">
   <title>Parrothit Wazobia Trends | PARROTHIT</title>
+  <style id="wazobia-remove-global-visit-button">
+    /* The global white "Visit Wazobia Trends" shortcut must never occupy
+       the Wazobia homepage header or overlap the For you / Following tabs. */
+    body.wz-page .parrothit-wazobia-header-link,
+    body.wz-page [data-wazobia-global-link] {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+  </style>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
   <link rel="apple-touch-icon" href="/assets/images/parrothit-wazobia-trends-logo.png">
   <link rel="stylesheet" href="css/wazobia-trends.css?v=9-profile-calls-links-fix">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
   <script src="js/wazobia-trends.js?v=9-profile-calls-links-fix" defer></script>
-  <script src="/js/public-notifications.js?v=20261118-friends-header-cleanup"></script>
+  <script src="/js/public-notifications.js?v=20261118-remove-wazobia-header-shortcut"></script>
 </head>
 <body class="wz-page">
   <a class="wz-skip" href="#wz-feed">Skip to feed</a>
