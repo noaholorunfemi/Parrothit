@@ -34,3 +34,102 @@
 .wz-mobile-tabs .wz-mobile-groups-link span{font-size:10px}
 .wz-groups-explore-link{display:block;padding:12px 0 0;margin-top:8px;border-top:1px solid var(--wz-border);color:var(--wz-green);font-size:11px;font-weight:900;text-decoration:none}
 .wz-groups-toplink{text-decoration:none}
+
+/* Facebook-inspired Wazobia comment panel: compact profile bubbles and separate reply threads. */
+.wz-comment-area{background:#242629;color:#f3f4f6;border-top:1px solid #3a3d42;padding:13px 14px 15px}
+.wz-comment-list{gap:17px;margin-bottom:12px}
+.wz-comment{position:relative;display:flex;align-items:flex-start;gap:10px;margin:0;padding:0}
+.wz-comment:before{content:"";position:absolute;left:19px;top:43px;bottom:-17px;width:2px;background:#45494f;pointer-events:none}
+.wz-comment:last-child:before{display:none}
+.wz-comment-avatar{width:40px;height:40px;border:1px solid #555a61;box-shadow:0 0 0 2px #242629;position:relative;z-index:1}
+.wz-comment-main{min-width:0;flex:1}
+.wz-comment-bubble{display:block;max-width:100%;width:fit-content;background:#34363a;border:0;border-radius:18px;padding:8px 13px 9px;color:#f4f5f6}
+.wz-comment-heading{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;margin-bottom:3px;line-height:1.25}
+.wz-comment-heading strong{font-size:14px;color:#fff;font-weight:850}
+.wz-comment-heading span,.wz-comment-heading em{font-size:11px;color:#b8bdc5;font-style:normal}
+.wz-comment-bubble p{font-size:15px;line-height:1.43;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#f4f5f6}
+.wz-comment-tools{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin:5px 10px 1px;color:#c1c5cb;font-size:12px;line-height:1.3}
+.wz-comment-tools button,.wz-comment-tools a{border:0;background:transparent;padding:0;color:#c9cdd3;font-size:12px;font-weight:800;text-decoration:none}
+.wz-comment-tools button:hover,.wz-comment-tools a:hover{color:#fff;text-decoration:underline}
+.wz-comment-tools .wz-comment-like.is-active{color:#78b7ff}
+.wz-comment-tools .wz-comment-thread-link{color:#bfc4cb}
+.wz-comment-hold-hint{color:#9da3ab}
+.wz-comment-preview{display:flex;align-items:center;gap:8px;max-width:100%;margin:8px 4px 0 12px;color:#e5e7eb;text-decoration:none;font-size:12px;line-height:1.35;overflow:hidden}
+.wz-comment-preview:hover{text-decoration:underline}
+.wz-comment-preview-avatar{width:27px;height:27px;font-size:10px;border:1px solid #5d6269}
+.wz-comment-preview span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wz-comment-preview strong{font-size:12px;color:#fff;margin-right:4px}
+.wz-comment-form{border-top:1px solid #41454b;padding-top:11px;align-items:center}
+.wz-comment-form textarea{min-height:43px;max-height:100px;border-radius:24px;border:1px solid #484d54;background:#34363a;color:#fff;padding:11px 15px;font-size:14px}
+.wz-comment-form textarea::placeholder{color:#b9bec6}
+.wz-comment-form button{border-radius:20px;background:#1877f2;padding:11px 16px}
+.wz-comment-area .wz-muted{color:#c2c7ce}
+
+/* Dedicated static comment-reply document. */
+.wz-thread-body{background:#17191c;color:#f3f4f6;min-height:100vh}
+.wz-thread-topbar{height:62px;position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 max(16px,calc((100vw - 900px)/2));background:#242629;border-bottom:1px solid #3a3d42;box-shadow:0 2px 12px #0003}
+.wz-thread-brand{display:flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-weight:900;font-size:14px}
+.wz-thread-brand img{width:38px;height:38px;border-radius:50%;object-fit:contain;background:#fff;border:2px solid #188447}
+.wz-thread-back{color:#dce0e5;text-decoration:none;font-size:13px;font-weight:800;padding:9px 12px;border:1px solid #4a4f56;border-radius:20px}
+.wz-thread-back:hover{background:#34373c}
+.wz-thread-layout{width:min(100% - 24px,760px);margin:23px auto 36px}
+.wz-thread-card{overflow:hidden;background:#242629;border:1px solid #3a3d42;border-radius:16px;box-shadow:0 8px 30px #0003}
+.wz-thread-heading{padding:19px 20px 14px;border-bottom:1px solid #3c4046}
+.wz-thread-eyebrow{margin:0 0 6px;color:#9fa6af;font-size:10px;font-weight:900;letter-spacing:1.2px}
+.wz-thread-heading h1{margin:0;color:#fff;font-size:23px;line-height:1.2}
+.wz-thread-heading p{margin:7px 0 0;color:#b8bec6;font-size:13px;line-height:1.45}
+.wz-thread-post-context{margin:14px 15px 0;padding:12px 14px;border:1px solid #41464d;border-radius:12px;background:#2c2f33;color:#e9ebef}
+.wz-thread-post-context small{display:block;color:#afb6bf;font-size:11px;margin-bottom:5px}
+.wz-thread-post-context p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.45}
+.wz-thread-post-context img,.wz-thread-post-context video{display:block;max-width:100%;max-height:260px;margin:9px auto 0;border-radius:9px}
+.wz-thread-list{display:grid;gap:13px;padding:17px 15px 20px}
+.wz-thread-comment{position:relative;display:flex;gap:10px;align-items:flex-start;margin-left:calc(var(--wz-thread-depth,0) * 19px)}
+.wz-thread-comment-avatar{width:40px;height:40px;flex:none;border:1px solid #575d65;position:relative;z-index:1}
+.wz-thread-comment-main{min-width:0;flex:1}
+.wz-thread-comment .wz-comment-bubble{max-width:100%}
+.wz-thread-replies{display:grid;gap:12px;margin:11px 0 0 10px;padding-left:14px;border-left:2px solid #454a51}
+.wz-thread-comment-tools{display:flex;align-items:center;gap:16px;margin:5px 8px 0;color:#c1c6cd;font-size:12px}
+.wz-thread-comment-tools button,.wz-thread-comment-tools a{padding:0;border:0;background:none;color:#cbd0d6;text-decoration:none;font-size:12px;font-weight:850}
+.wz-thread-comment-tools button:hover,.wz-thread-comment-tools a:hover{text-decoration:underline;color:#fff}
+.wz-thread-comment-tools button.is-active{color:#78b7ff}
+.wz-thread-composer{position:sticky;bottom:0;padding:13px 15px 15px;background:#242629;border-top:1px solid #41464d;box-shadow:0 -5px 20px #0002}
+.wz-thread-replying{margin:0 0 8px 49px;color:#b9c0c8;font-size:12px}
+.wz-thread-replying strong{color:#fff}
+.wz-thread-form{display:flex;align-items:center;gap:9px}
+.wz-thread-form .wz-avatar{width:40px;height:40px}
+.wz-thread-form textarea{min-width:0;flex:1;min-height:44px;max-height:110px;resize:vertical;border:1px solid #4b5057;border-radius:24px;padding:11px 15px;background:#34373b;color:#fff;font:inherit;font-size:14px;outline:0}
+.wz-thread-form textarea::placeholder{color:#b9bec6}
+.wz-thread-form textarea:focus{border-color:#188447;box-shadow:0 0 0 2px #18844735}
+.wz-thread-form button{border:0;border-radius:22px;background:#1877f2;color:#fff;padding:11px 16px;font-size:13px;font-weight:900}
+.wz-thread-form button:disabled{opacity:.55;cursor:wait}
+.wz-thread-status{min-height:17px;margin:7px 0 0 49px;color:#b9c0c8;font-size:12px}
+.wz-thread-status.error{color:#ff9b9b}
+.wz-thread-empty{padding:25px 18px;text-align:center;color:#c2c7ce;font-size:13px}
+.wz-thread-footer{width:min(100% - 24px,760px);margin:0 auto;padding:0 0 25px;color:#9198a1;font-size:11px;text-align:center}
+@media(max-width:560px){
+  .wz-comment-area{padding:11px 10px 13px}
+  .wz-comment-avatar,.wz-thread-comment-avatar{width:36px;height:36px}
+  .wz-comment:before{left:17px;top:40px}
+  .wz-comment-bubble p{font-size:14px}
+  .wz-comment-heading strong{font-size:13px}
+  .wz-comment-tools{gap:13px;margin-left:7px}
+  .wz-comment-preview{margin-left:7px}
+  .wz-thread-topbar{height:56px;padding:0 11px}
+  .wz-thread-brand{font-size:12px}
+  .wz-thread-brand img{width:34px;height:34px}
+  .wz-thread-back{font-size:11px;padding:8px 10px}
+  .wz-thread-layout{width:100%;margin:0 auto 22px}
+  .wz-thread-card{border-left:0;border-right:0;border-radius:0}
+  .wz-thread-heading{padding:16px 14px 12px}
+  .wz-thread-heading h1{font-size:20px}
+  .wz-thread-post-context{margin:11px 10px 0}
+  .wz-thread-list{padding:14px 10px 18px;gap:12px}
+  .wz-thread-comment{gap:8px;margin-left:calc(var(--wz-thread-depth,0) * 10px)}
+  .wz-thread-replies{margin-left:6px;padding-left:9px}
+  .wz-thread-composer{padding:11px 10px calc(12px + env(safe-area-inset-bottom))}
+  .wz-thread-form{gap:7px}
+  .wz-thread-form .wz-avatar{width:36px;height:36px}
+  .wz-thread-form textarea{font-size:13px;padding:10px 13px}
+  .wz-thread-form button{padding:10px 12px;font-size:12px}
+  .wz-thread-replying,.wz-thread-status{margin-left:43px}
+}
