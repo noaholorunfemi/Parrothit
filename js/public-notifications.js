@@ -1,8 +1,17 @@
-/* Load the independent Wazobia Trends header shortcut on public pages. */
+/* Load the independent Wazobia Trends shortcut on ordinary public pages only.
+   The Wazobia feed has its own two-row navigation; never inject a duplicate
+   white shortcut into that header. */
 (() => {
+  const path = (window.location.pathname || '/').replace(/\/+$/, '');
+  const leaf = path.split('/').pop() || '';
+  const isWazobiaPage = /^(?:wazobia-[a-z0-9-]+|parrothit-wazobia-trends)(?:\.html)?$/i.test(leaf);
+  if (isWazobiaPage) {
+    document.querySelectorAll('[data-wazobia-global-link],.parrothit-wazobia-header-link').forEach(node => node.remove());
+    return;
+  }
   if (document.querySelector('script[data-wazobia-header-loader]')) return;
   const script = document.createElement('script');
-  script.src = '/js/wazobia-header-link.js?v=3-header-exclusions';
+  script.src = '/js/wazobia-header-link.js?v=4-no-wazobia-home-link';
   script.async = true;
   script.setAttribute('data-wazobia-header-loader', '1');
   document.head.appendChild(script);

@@ -1,10 +1,11 @@
 /* Site-wide public navigation shortcut. Suppressed on Wazobia and LiveScore pages. */
 (() => {
   'use strict';
-  const path = location.pathname || '/';
+  const path = (location.pathname || '/').replace(/\/+$/, '');
+  const leaf = path.split('/').pop() || '';
   const isAdminPath = /^\/admin(?:\/|$)/i.test(path) || /(?:^|\/)(?:admin(?:-[^/]+)?|dashboard|owner-session-control-centre|control-directory|root-login)(?:\.html|\/|$)/i.test(path);
-  const isWazobiaPage = /(?:^|\/)(?:wazobia-[^/]+|parrothit-wazobia-trends)\.html$/i.test(path);
-  const isLiveScorePage = /(?:^|\/)livescore(?:-(?:match|competition))?(?:\.html)?$/i.test(path);
+  const isWazobiaPage = /^(?:wazobia-[a-z0-9-]+|parrothit-wazobia-trends)(?:\.html)?$/i.test(leaf);
+  const isLiveScorePage = /^livescore(?:-(?:match|competition))?(?:\.html)?$/i.test(leaf);
   if (isAdminPath || isWazobiaPage || isLiveScorePage) {
     document.querySelectorAll('[data-wazobia-global-link],.parrothit-wazobia-header-link').forEach(node => node.remove());
     return;
