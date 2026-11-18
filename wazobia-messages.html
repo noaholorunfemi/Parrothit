@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#242629">
+  <meta name="description" content="Private one-to-one messages for the PARROTHIT Wazobia Trends community.">
+  <title>Messages | PARROTHIT Wazobia Trends</title>
+  <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
+  <link rel="stylesheet" href="css/wazobia-messages.css?v=1-messenger">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+  <script src="js/wazobia-messages.js?v=1-messenger" defer></script>
+</head>
+<body class="wzm-page">
+  <header class="wzm-app-nav" id="wzm-app-nav" aria-label="Wazobia navigation">
+    <a href="wazobia-trends.html" aria-label="Wazobia home" title="Home">⌂</a>
+    <a href="wazobia-trends.html" aria-label="People" title="People">♙</a>
+    <a class="active" href="wazobia-messages.html" aria-label="Messages" title="Messages">●<span class="wzm-messenger-glyph">➤</span></a>
+    <a href="wazobia-groups.html" aria-label="Groups" title="Groups">▣</a>
+    <a href="wazobia-trends.html" aria-label="Wazobia feed" title="Wazobia feed">♧</a>
+  </header>
+
+  <main class="wzm-page-main">
+    <div class="wzm-titlebar" id="wzm-titlebar">
+      <a class="wzm-back" href="wazobia-trends.html" aria-label="Back to Wazobia Trends">‹</a>
+      <h1>Messages</h1>
+      <div class="wzm-title-actions">
+        <button type="button" id="wzm-new-message" aria-label="New message" title="New message">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10M14 4h7v7M21 4 10 15M14 20h5a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
+        <button type="button" id="wzm-settings-btn" aria-label="Message settings" title="Settings">⚙</button>
+        <button type="button" id="wzm-search-toggle" aria-label="Search messages" title="Search">⌕</button>
+      </div>
+    </div>
+
+    <div class="wzm-searchbar" id="wzm-searchbar" hidden>
+      <span>⌕</span><input id="wzm-inbox-search" type="search" placeholder="Search conversations" autocomplete="off" aria-label="Search conversations">
+      <button id="wzm-clear-search" type="button" aria-label="Clear search">×</button>
+    </div>
+
+    <section class="wzm-settings-panel" id="wzm-settings-panel" hidden>
+      <div><strong>Active status</strong><small>Let other Wazobia members see when you are online.</small></div>
+      <button type="button" id="wzm-presence-toggle" aria-pressed="true">On</button>
+      <p>Only you and the person in a one-to-one conversation can read its messages.</p>
+    </section>
+
+    <section class="wzm-people-section" id="wzm-people-section" aria-label="People">
+      <div class="wzm-people-heading"><strong>People</strong><span id="wzm-online-count">Connect with members</span></div>
+      <div class="wzm-people-strip" id="wzm-people-strip">
+        <button class="wzm-person-bubble wzm-new-person" type="button" id="wzm-start-bubble">
+          <span class="wzm-new-person-icon">＋</span><span>New message</span>
+        </button>
+        <div class="wzm-strip-loading">Loading people…</div>
+      </div>
+    </section>
+
+    <section class="wzm-discover" id="wzm-discover" hidden>
+      <div class="wzm-section-title"><div><h2>New message</h2><p>Find a Wazobia member to start a private chat.</p></div><button type="button" id="wzm-close-discover" aria-label="Close new message">×</button></div>
+      <label class="wzm-member-search"><span>⌕</span><input id="wzm-member-search" type="search" placeholder="Search by name or username" autocomplete="off"></label>
+      <div id="wzm-member-results" class="wzm-member-results"><p class="wzm-muted">Loading Wazobia members…</p></div>
+    </section>
+
+    <section class="wzm-workspace" id="wzm-workspace">
+      <aside class="wzm-inbox" id="wzm-inbox">
+        <div class="wzm-inbox-heading"><h2>Chats</h2><span id="wzm-chat-count"></span></div>
+        <div class="wzm-inbox-list" id="wzm-inbox-list" aria-live="polite"><div class="wzm-loading">Loading messages…</div></div>
+      </aside>
+
+      <section class="wzm-thread-panel" id="wzm-thread-panel" aria-label="Conversation">
+        <div class="wzm-thread-empty" id="wzm-thread-empty">
+          <div class="wzm-empty-icon">➤</div>
+          <h2>Your messages</h2>
+          <p>Select a conversation or start a new message with a Wazobia member.</p>
+          <button type="button" id="wzm-empty-new-message">New message</button>
+        </div>
+        <div class="wzm-thread" id="wzm-thread" hidden>
+          <header class="wzm-chat-header">
+            <button type="button" id="wzm-thread-back" aria-label="Back to chats">‹</button>
+            <div class="wzm-chat-person" id="wzm-chat-person"></div>
+            <button type="button" id="wzm-chat-details" aria-label="Conversation details" title="Conversation details">ⓘ</button>
+          </header>
+          <div class="wzm-messages" id="wzm-messages" aria-live="polite"></div>
+          <form class="wzm-composer" id="wzm-message-form">
+            <textarea id="wzm-message-input" rows="1" maxlength="4000" placeholder="Message…" aria-label="Write a message"></textarea>
+            <button type="submit" id="wzm-send-button" aria-label="Send message" title="Send">➤</button>
+          </form>
+          <p class="wzm-composer-hint">Enter to send · Shift + Enter for a new line</p>
+        </div>
+      </section>
+    </section>
+
+    <section class="wzm-login-gate" id="wzm-login-gate" hidden>
+      <div class="wzm-empty-icon">➤</div>
+      <h2>Log in to your Wazobia account</h2>
+      <p>Private messages are available to signed-in Wazobia members.</p>
+      <a href="wazobia-trends.html?openAuth=1" id="wzm-login-link">Log in or create account</a>
+    </section>
+    <div class="wzm-global-status" id="wzm-global-status" role="status" aria-live="polite" hidden></div>
+  </main>
+  <footer class="wzm-footer">PARROTHIT · Wazobia Trends <span>Private conversations for community members</span></footer>
+</body>
+</html>

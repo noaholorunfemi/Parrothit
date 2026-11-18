@@ -8,10 +8,10 @@
   <title>Parrothit Wazobia Trends | PARROTHIT</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
   <link rel="apple-touch-icon" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-trends.css?v=6-flat-reply-threads">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=7-messenger-entry">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-trends.js?v=20261118-username-login-diagnostics1" defer></script>
+  <script src="js/wazobia-trends.js?v=7-messenger-entry" defer></script>
   <script src="/js/public-notifications.js?v=20261117-wazobia-header"></script>
 </head>
 <body class="wz-page">
@@ -24,6 +24,7 @@
     <nav class="wz-top-actions" aria-label="Wazobia navigation">
       <button class="wz-icon-btn active" id="wz-home-btn" type="button" aria-label="Home feed" title="Home">⌂</button>
       <a class="wz-icon-btn wz-groups-toplink" href="wazobia-groups.html" aria-label="Groups" title="Groups">♧</a>
+      <a class="wz-icon-btn wz-messages-toplink" id="wz-messages-toplink" href="wazobia-messages.html" aria-label="Messages" title="Messages">✉<b id="wz-message-badge" class="wz-badge" hidden>0</b></a>
       <button class="wz-icon-btn" id="wz-notifications-btn" type="button" aria-label="Notifications" title="Notifications">♧<b id="wz-notification-badge" class="wz-badge" hidden>0</b></button>
       <button class="wz-icon-btn" id="wz-theme-btn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
       <button class="wz-avatar-btn" id="wz-account-btn" type="button" aria-label="Account">?</button>
@@ -34,6 +35,7 @@
     <button class="selected" data-wz-tab="home" type="button">⌂<span>Home</span></button>
     <button data-wz-tab="following" type="button">♧<span>Following</span></button>
     <button data-wz-tab="saved" type="button">▣<span>Saved</span></button>
+    <a class="wz-mobile-messages-link" id="wz-mobile-messages-link" href="wazobia-messages.html" aria-label="Messages">✉<span>Messages</span><b id="wz-mobile-message-badge" class="wz-badge" hidden>0</b></a>
     <a class="wz-mobile-groups-link" href="wazobia-groups.html" aria-label="Groups">♧<span>Groups</span></a>
     <button data-wz-tab="notifications" type="button">♢<span>Alerts</span><b id="wz-mobile-badge" class="wz-badge" hidden>0</b></button>
   </div>
@@ -48,6 +50,7 @@
         <button class="selected" data-wz-tab="home" type="button"><span>⌂</span> Home feed</button>
         <button type="button" data-open-dashboard><span>♙</span> My dashboard</button>
         <a href="wazobia-groups.html"><span>♧</span> Groups</a>
+        <a href="wazobia-messages.html"><span>✉</span> Messages</a>
         <button data-wz-tab="following" type="button"><span>♧</span> Following</button>
         <button data-wz-tab="saved" type="button"><span>▣</span> Saved posts</button>
         <button data-wz-tab="notifications" type="button"><span>♢</span> Notifications <b id="wz-side-badge" class="wz-badge" hidden>0</b></button>
