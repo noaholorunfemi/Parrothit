@@ -7,7 +7,7 @@
   const state = {
     db: null, user: null, profile: null, mode: 'login', activeTab: 'home',
     posts: [], offset: 0, hasMore: false, loading: false, pendingFile: null,
-    commentReplyTo: {}, savedIds: new Set(), followingIds: new Set(), realtime: null,
+    savedIds: new Set(), followingIds: new Set(), realtime: null,
     commentHoldTimer: null, activeCommentMenu: null, dashboardTab: 'overview',
     notificationsOpen: false, lastNotifications: []
   };
@@ -160,6 +160,20 @@
       $('wz-people-list').innerHTML = '<p class="wz-muted">Sign in to discover active members.</p>';
     }
     await loadFeed(true);
+    if (state.user) {
+      try {
+        const pendingThread = sessionStorage.getItem('parrothitWazobiaThreadReturn');
+        if (pendingThread) {
+          const destination = new URL(pendingThread, location.href);
+          if (destination.origin === location.origin && /\/wazobia-comment-replies\.html$/.test(destination.pathname)) {
+            sessionStorage.removeItem('parrothitWazobiaThreadReturn');
+            location.replace(destination.href);
+            return;
+          }
+          sessionStorage.removeItem('parrothitWazobiaThreadReturn');
+        }
+      } catch (_) {}
+    }
   }
 
   async function authSubmit(event) {
@@ -306,7 +320,7 @@
       <section class="wz-comment-area" data-comment-area hidden>
         <div class="wz-comment-list" data-comment-list><p class="wz-muted">Open comments to join this conversation.</p></div>
         <div class="wz-replying" data-replying hidden></div>
-        <form class="wz-comment-form" data-comment-form><textarea name="comment" maxlength="2000" placeholder="Write a comment…" aria-label="Write a comment" required></textarea><button type="submit">Reply</button></form>
+        <form class="wz-comment-form" data-comment-form><textarea name="comment" maxlength="2000" placeholder="Write a comment…" aria-label="Write a comment" required></textarea><button type="submit">Comment</button></form>
       </section>
     </article>`;
   }
@@ -395,12 +409,18 @@
     return all;
   }
 
+  function commentThreadHref(postId, commentId) {
+    const params = new URLSearchParams({ post_id: postId, comment_id: commentId });
+    return `wazobia-comment-replies.html?${params.toString()}`;
+  }
+
   async function loadComments(postId, area) {
     const list = area.querySelector('[data-comment-list]');
     list.innerHTML = '<p class="wz-muted">Loading comments…</p>';
     let comments = [];
     try { comments = await fetchAllComments(postId); }
     catch (error) { list.innerHTML = `<p class="wz-muted">${escapeHtml(error.message)}</p>`; return; }
+
     let commentReactions = [];
     for (let i = 0; i < comments.length; i += 500) {
       const ids = comments.slice(i, i + 500).map(c => c.id);
@@ -409,34 +429,64 @@
       if (!reactionResult.error) commentReactions.push(...(reactionResult.data || []));
     }
     const reactionsByComment = new Map();
-    commentReactions.forEach(r => { if (!reactionsByComment.has(r.comment_id)) reactionsByComment.set(r.comment_id, []); reactionsByComment.get(r.comment_id).push(r); });
-    if (!comments.length) list.innerHTML = '<p class="wz-muted">No comments yet. Start the conversation.</p>';
-    else {
-      const children = new Map();
-      comments.forEach(c => { const key = c.parent_comment_id || 'root'; if (!children.has(key)) children.set(key, []); children.get(key).push(c); });
-      const visited = new Set(); const output = [];
-      const queue = (children.get('root') || []).slice().reverse().map(c => ({ comment: c, depth: 0 }));
-      while (queue.length) {
-        const item = queue.pop(); const comment = item.comment; if (visited.has(comment.id)) continue; visited.add(comment.id);
-        const likes = reactionsByComment.get(comment.id) || [];
-        const liked = likes.some(r => r.user_id === state.user?.id);
-        const own = state.user?.id === comment.author_id;
-        output.push(`<div class="wz-comment" data-comment-id="${escapeHtml(comment.id)}" data-author-id="${escapeHtml(comment.author_id)}" data-comment-body="${escapeHtml(comment.body)}" style="--wz-comment-depth:${Math.min(item.depth, 5)}">${avatarMarkup(comment.author)}<div class="wz-comment-main"><div class="wz-comment-bubble"><strong>${escapeHtml(comment.author?.display_name || 'Wazobia member')} · @${escapeHtml(comment.author?.username || 'member')}${own ? ' · You' : ''}</strong><p>${escapeHtml(comment.body)}</p></div><div class="wz-comment-tools"><span>${escapeHtml(relativeTime(comment.created_at))}${comment.updated_at && comment.updated_at !== comment.created_at ? ' · edited' : ''}</span><button type="button" data-action="react-comment" data-comment-id="${escapeHtml(comment.id)}" data-post-id="${escapeHtml(postId)}" class="${liked ? 'is-active' : ''}">${liked ? 'Liked' : 'Like'}${likes.length ? ` · ${likes.length}` : ''}</button><button type="button" data-action="reply-comment" data-comment-id="${escapeHtml(comment.id)}">Reply</button>${own ? '<span class="wz-comment-hold-hint">Hold comment for options</span>' : ''}</div></div></div>`);
-        const descendants = (children.get(comment.id) || []).slice().reverse();
-        descendants.forEach(child => queue.push({ comment: child, depth: item.depth + 1 }));
-      }
-      // If a parent is deleted or missing, keep its remaining replies visible as standalone comments.
-      comments.filter(c => !visited.has(c.id)).forEach(c => {
-        const likes = reactionsByComment.get(c.id) || []; const own = state.user?.id === c.author_id;
-        output.push(`<div class="wz-comment" data-comment-id="${escapeHtml(c.id)}" data-author-id="${escapeHtml(c.author_id)}" data-comment-body="${escapeHtml(c.body)}">${avatarMarkup(c.author)}<div class="wz-comment-main"><div class="wz-comment-bubble"><strong>${escapeHtml(c.author?.display_name || 'Wazobia member')}${own ? ' · You' : ''}</strong><p>${escapeHtml(c.body)}</p></div><div class="wz-comment-tools"><span>${escapeHtml(relativeTime(c.created_at))}</span><button type="button" data-action="react-comment" data-comment-id="${escapeHtml(c.id)}" data-post-id="${escapeHtml(postId)}">Like${likes.length ? ` · ${likes.length}` : ''}</button><button type="button" data-action="reply-comment" data-comment-id="${escapeHtml(c.id)}">Reply</button></div></div></div>`);
-      });
-      list.innerHTML = output.join('');
+    commentReactions.forEach(r => {
+      if (!reactionsByComment.has(r.comment_id)) reactionsByComment.set(r.comment_id, []);
+      reactionsByComment.get(r.comment_id).push(r);
+    });
+
+    if (!comments.length) {
+      list.innerHTML = '<p class="wz-muted">No comments yet. Start the conversation.</p>';
+      return;
     }
-    const replyId = state.commentReplyTo[postId] || '';
-    const replying = area.querySelector('[data-replying]');
-    replying.hidden = !replyId;
-    replying.innerHTML = replyId ? `Replying to a comment <button type="button" data-action="cancel-reply">Cancel</button>` : '';
-    const submit = area.querySelector('form button'); submit.textContent = replyId ? 'Reply' : 'Comment';
+
+    const byId = new Map(comments.map(comment => [comment.id, comment]));
+    const children = new Map();
+    comments.forEach(comment => {
+      const key = comment.parent_comment_id || 'root';
+      if (!children.has(key)) children.set(key, []);
+      children.get(key).push(comment);
+    });
+    const roots = comments.filter(comment => !comment.parent_comment_id || !byId.has(comment.parent_comment_id));
+    const descendantCache = new Map();
+    const getDescendants = (commentId) => {
+      if (descendantCache.has(commentId)) return descendantCache.get(commentId);
+      const found = []; const seen = new Set([commentId]);
+      const queue = (children.get(commentId) || []).slice();
+      while (queue.length) {
+        const child = queue.shift();
+        if (!child || seen.has(child.id)) continue;
+        seen.add(child.id); found.push(child);
+        (children.get(child.id) || []).forEach(next => queue.push(next));
+      }
+      descendantCache.set(commentId, found);
+      return found;
+    };
+
+    list.innerHTML = roots.map(comment => {
+      const likes = reactionsByComment.get(comment.id) || [];
+      const liked = likes.some(r => r.user_id === state.user?.id);
+      const own = state.user?.id === comment.author_id;
+      const descendants = getDescendants(comment.id);
+      const preview = (children.get(comment.id) || [])[0];
+      const author = comment.author?.display_name || 'Wazobia member';
+      const edited = comment.updated_at && comment.updated_at !== comment.created_at;
+      return `<div class="wz-comment" data-comment-id="${escapeHtml(comment.id)}" data-author-id="${escapeHtml(comment.author_id)}" data-comment-body="${escapeHtml(comment.body)}">
+        ${avatarMarkup(comment.author, 'wz-comment-avatar')}
+        <div class="wz-comment-main">
+          <div class="wz-comment-bubble">
+            <div class="wz-comment-heading"><strong>${escapeHtml(author)}</strong><span>· ${escapeHtml(relativeTime(comment.created_at))}${edited ? ' · edited' : ''}</span>${own ? '<em>by you</em>' : ''}</div>
+            <p>${escapeHtml(comment.body)}</p>
+          </div>
+          <div class="wz-comment-tools">
+            <button type="button" data-action="react-comment" data-comment-id="${escapeHtml(comment.id)}" data-post-id="${escapeHtml(postId)}" class="wz-comment-like ${liked ? 'is-active' : ''}" aria-label="Like comment">👍${likes.length ? ` ${likes.length}` : ''}</button>
+            <a class="wz-comment-reply-link" href="${escapeHtml(commentThreadHref(postId, comment.id))}">Reply</a>
+            ${descendants.length ? `<a class="wz-comment-thread-link" href="${escapeHtml(commentThreadHref(postId, comment.id))}">⌄ View previous ${descendants.length} ${descendants.length === 1 ? 'reply' : 'replies'}</a>` : ''}
+            ${own ? '<span class="wz-comment-hold-hint">Hold comment for options</span>' : ''}
+          </div>
+          ${preview ? `<a class="wz-comment-preview" href="${escapeHtml(commentThreadHref(postId, comment.id))}">${avatarMarkup(preview.author, 'wz-comment-preview-avatar')}<span><strong>${escapeHtml(preview.author?.display_name || 'Wazobia member')}</strong> ${escapeHtml(preview.body.length > 92 ? preview.body.slice(0, 92) + '…' : preview.body)}</span></a>` : ''}
+        </div>
+      </div>`;
+    }).join('');
   }
 
   async function toggleReaction(postId) {
@@ -538,12 +588,12 @@
     if (!requireUser('Log in to comment on Wazobia posts.')) return;
     const textarea = form.querySelector('textarea'); const body = textarea.value.trim();
     if (!body) return;
-    const payload = { post_id: postId, author_id: state.user.id, body, parent_comment_id: state.commentReplyTo[postId] || null };
+    const payload = { post_id: postId, author_id: state.user.id, body, parent_comment_id: null };
     const button = form.querySelector('button'); button.disabled = true;
     try {
       const { error } = await state.db.from('wazobia_comments').insert(payload);
       if (error) throw error;
-      textarea.value = ''; delete state.commentReplyTo[postId];
+      textarea.value = '';
       await loadComments(postId, form.closest('[data-comment-area]'));
       await loadCommentCounts([postId]);
     } catch (error) { status(error.message || 'Your comment could not be posted.', true); }
@@ -725,7 +775,14 @@
         if (typeof window.showParrothitNotification === 'function') window.showParrothitNotification('You have new Wazobia Trends activity.');
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'wazobia_posts' }, () => loadFeed(true))
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wazobia_comments' }, () => loadCommentCounts(state.posts.map(p => p.id)))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'wazobia_comments' }, (payload) => {
+        const changedPostId = payload.new?.post_id;
+        if (!changedPostId) return;
+        loadCommentCounts([changedPostId]);
+        const post = document.querySelector(`[data-post-id="${CSS.escape(changedPostId)}"]`);
+        const area = post?.querySelector('[data-comment-area]');
+        if (area && !area.hidden) loadComments(changedPostId, area);
+      })
       .subscribe();
     state.realtime = channel;
   }
@@ -822,8 +879,6 @@
         case 'delete-post': return deletePost(postId);
         case 'report-post': return reportPost(postId);
         case 'react-comment': return toggleCommentReaction(button.dataset.commentId, button.dataset.postId);
-        case 'reply-comment': state.commentReplyTo[postId] = button.dataset.commentId; await loadComments(postId, post.querySelector('[data-comment-area]')); post.querySelector('[data-comment-form] textarea').focus(); return;
-        case 'cancel-reply': delete state.commentReplyTo[postId]; return loadComments(postId, post.querySelector('[data-comment-area]'));
       }
     });
     $('wz-feed').addEventListener('submit', (e) => { const form = e.target.closest('[data-comment-form]'); if (!form) return; e.preventDefault(); const postId = form.closest('[data-post-id]').dataset.postId; addComment(form, postId); });
