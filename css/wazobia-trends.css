@@ -166,3 +166,12 @@
   .wz-thread-reply-context{font-size:10px}
   .wz-thread-post-context img,.wz-thread-post-context video{max-height:150px}
 }
+
+/* Messenger entry points */
+.wz-person-message{border:1px solid #516b86;border-radius:7px;background:#293d52;color:#d7e8ff;padding:6px 8px;font-size:11px;font-weight:900;text-decoration:none;white-space:nowrap}.wz-dark .wz-person-message{background:#26394d;color:#d8eaff;border-color:#3e5c7b}.wz-mobile-messages-link{position:relative;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--wz-muted);padding:7px 3px 6px;display:grid;gap:2px;justify-items:center;text-decoration:none;font-size:17px}.wz-mobile-messages-link span{font-size:10px;font-weight:800}.wz-mobile-messages-link:hover{color:var(--wz-red)}
+@media(max-width:720px){.wz-mobile-tabs{grid-template-columns:repeat(6,1fr)}}
+
+.wz-post-message-btn{border:1px solid #516b86;border-radius:8px;background:#293d52;color:#d7e8ff;padding:7px 10px;font-size:12px;font-weight:850}.wz-post-message-btn:hover{background:#35516f}.wz-dark .wz-post-message-btn{background:#26394d;color:#d8eaff;border-color:#3e5c7b}
+@media(max-width:520px){.wz-post-message-btn{padding:6px 8px;font-size:11px}.wz-post-head{gap:7px}}
+
+.wz-mobile-messages-link{position:relative}.wz-mobile-messages-link .wz-badge{position:absolute;right:calc(50% - 25px);top:0}
