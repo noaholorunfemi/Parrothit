@@ -7,10 +7,10 @@
   <meta name="description" content="Wazobia Trends member profile.">
   <title>Member profile | PARROTHIT Wazobia Trends</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-profile.css?v=3-profile-privacy">
+  <link rel="stylesheet" href="css/wazobia-profile.css?v=4-friends">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-profile.js?v=3-profile-privacy" defer></script>
+  <script src="js/wazobia-profile.js?v=4-friends" defer></script>
 </head>
 <body class="wzp-page">
   <header class="wzp-topbar">
@@ -28,6 +28,13 @@
         <div class="wzp-actions" id="wzp-actions"></div>
       </section>
       <section class="wzp-details" id="wzp-details"></section>
+      <section class="wzp-friends-card">
+        <div class="wzp-friends-summary"><strong><span id="wzp-friends-count">—</span> <span id="wzp-friend-count-label">friends</span></strong><small>Wazobia connections</small></div>
+        <div id="wzp-friend-management" class="wzp-friend-management" hidden>
+          <h2>Friend requests</h2><div id="wzp-friend-requests" class="wzp-friend-list"><p class="wzp-friends-muted">Loading requests…</p></div>
+          <h2>Your friends</h2><div id="wzp-friend-list" class="wzp-friend-list"><p class="wzp-friends-muted">Loading your friends…</p></div>
+        </div>
+      </section>
       <section class="wzp-link-card"><span>Profile link</span><code id="wzp-profile-link"></code><button id="wzp-copy-link" type="button">Copy link</button></section>
       <section class="wzp-editor" id="wzp-editor" hidden>
         <h2>Edit profile details</h2>
