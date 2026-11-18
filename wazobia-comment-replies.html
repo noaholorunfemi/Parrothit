@@ -8,10 +8,10 @@
   <meta name="robots" content="noindex,follow">
   <title>Comment replies | Parrothit Wazobia Trends</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-trends.css?v=5-comment-threads">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=6-flat-reply-threads">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-comment-replies.js?v=1-static-thread" defer></script>
+  <script src="js/wazobia-comment-replies.js?v=2-flat-static-thread" defer></script>
 </head>
 <body class="wz-thread-body">
   <header class="wz-thread-topbar">
@@ -33,7 +33,7 @@
       <section class="wz-thread-list" id="wz-thread-list" aria-live="polite">
         <div class="wz-thread-empty">Loading this conversation…</div>
       </section>
-      <section class="wz-thread-composer" aria-label="Write a reply">
+      <section class="wz-thread-composer" id="wz-thread-composer" aria-label="Write a reply">
         <p class="wz-thread-replying" id="wz-thread-replying">Replying to this comment</p>
         <form class="wz-thread-form" id="wz-thread-form">
           <div class="wz-avatar" id="wz-thread-user-avatar" aria-hidden="true">?</div>
