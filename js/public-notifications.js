@@ -2,7 +2,7 @@
 (() => {
   if (document.querySelector('script[data-wazobia-header-loader]')) return;
   const script = document.createElement('script');
-  script.src = '/js/wazobia-header-link.js?v=20261118-no-shortcut-livescore-wazobia-v1';
+  script.src = '/js/wazobia-header-link.js?v=3-header-exclusions';
   script.async = true;
   script.setAttribute('data-wazobia-header-loader', '1');
   document.head.appendChild(script);
