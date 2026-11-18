@@ -2,7 +2,10 @@
 (() => {
   'use strict';
   const path = location.pathname || '/';
-  if (/^\/admin(?:\/|$)/i.test(path) || /(?:^|\/)(?:admin(?:-[^/]+)?|dashboard|owner-session-control-centre|control-directory|root-login)(?:\.html|\/|$)/i.test(path) || /\/wazobia-trends\.html$/i.test(path)) return;
+  const isAdminPage = /^\/admin(?:\/|$)/i.test(path) || /(?:^|\/)(?:admin(?:-[^/]+)?|dashboard|owner-session-control-centre|control-directory|root-login)(?:\.html|\/|$)/i.test(path);
+  const isLiveScorePage = /(?:^|\/)livescore(?:-[a-z0-9-]+)?\.html$/i.test(path);
+  const isWazobiaPage = /(?:^|\/)(?:wazobia-trends|parrothit-wazobia-trends|wazobia-groups|wazobia-group-replies|wazobia-comment-replies|wazobia-reset-password)\.html$/i.test(path);
+  if (isAdminPage || isLiveScorePage || isWazobiaPage) return;
 
   const mount = () => {
     if (!document.body || document.querySelector('[data-wazobia-global-link]')) return;
