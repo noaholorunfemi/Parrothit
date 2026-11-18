@@ -173,6 +173,12 @@
           sessionStorage.removeItem('parrothitWazobiaThreadReturn');
         }
       } catch (_) {}
+      try {
+        if (sessionStorage.getItem('parrothitWazobiaOpenDashboardAfterLogin') === '1') {
+          sessionStorage.removeItem('parrothitWazobiaOpenDashboardAfterLogin');
+          await showProfile();
+        }
+      } catch (_) {}
     }
   }
 
@@ -705,8 +711,25 @@
   }
 
   async function showProfile() {
-    if (!state.user) { openModal('wz-auth-modal'); return; }
-    refreshProfileUI(); profileStatus(''); openModal('wz-profile-modal'); await loadDashboardStats(); await renderDashboard('overview');
+    if (!state.user) {
+      openModal('wz-auth-modal');
+      authStatus('Log in to open your Wazobia dashboard.');
+      return;
+    }
+    // Open the dashboard immediately; slow or unavailable statistics must not
+    // prevent the member from reaching their profile controls.
+    refreshProfileUI();
+    profileStatus('');
+    $('wz-dashboard-stats').innerHTML = ['Posts','Comments','Followers','Following']
+      .map(label => `<div><strong>—</strong><small>${label}</small></div>`).join('');
+    $('wz-dashboard-content').innerHTML = '<p class="wz-muted">Loading your dashboard…</p>';
+    openModal('wz-profile-modal');
+    try {
+      await Promise.all([loadDashboardStats(), renderDashboard('overview')]);
+    } catch (error) {
+      $('wz-dashboard-content').innerHTML = `<p class="wz-muted">Your dashboard is open, but some account information could not be loaded. ${escapeHtml(error.message || 'Please try again.')}</p>`;
+      profileStatus('Some dashboard information could not be loaded. Your profile controls remain available.', true);
+    }
   }
 
   async function uploadProfileImage(file, kind) {
@@ -840,7 +863,7 @@
       }
       state.activeTab = btn.dataset.wzTab; setActiveTabButtons(); loadFeed(true);
     }));
-    $('wz-home-btn').addEventListener('click', () => { state.activeTab = 'home'; setActiveTabButtons(); loadFeed(true); });
+    $('wz-home-btn').addEventListener('click', () => { state.activeTab = 'home'; $('wz-search').value = ''; setActiveTabButtons(); loadFeed(true); window.scrollTo({ top: 0, behavior: 'smooth' }); });
     const feed = $('wz-feed');
     feed.addEventListener('pointerdown', e => {
       const comment = e.target.closest('.wz-comment[data-comment-id]'); if (!comment) return;
@@ -908,7 +931,24 @@
       const { data, error } = await state.db.auth.getSession();
       if (error) throw error;
       await updateAuthSession(data.session);
-      if (!data.session && new URLSearchParams(location.search).get('openAuth') === '1') openModal('wz-auth-modal');
+      const pageParams = new URLSearchParams(location.search);
+      if (pageParams.get('openDashboard') === '1') {
+        if (data.session?.user) await showProfile();
+        else {
+          try { sessionStorage.setItem('parrothitWazobiaOpenDashboardAfterLogin', '1'); } catch (_) {}
+          openModal('wz-auth-modal');
+          authStatus('Log in to open your Wazobia dashboard.');
+        }
+        pageParams.delete('openDashboard');
+        pageParams.delete('openAuth');
+        const remaining = pageParams.toString();
+        history.replaceState(history.state, '', location.pathname + (remaining ? `?${remaining}` : '') + location.hash);
+      } else if (!data.session && pageParams.get('openAuth') === '1') {
+        openModal('wz-auth-modal');
+        pageParams.delete('openAuth');
+        const remaining = pageParams.toString();
+        history.replaceState(history.state, '', location.pathname + (remaining ? `?${remaining}` : '') + location.hash);
+      }
     } catch (error) { status(error.message || 'Could not connect to Wazobia Trends.', true); }
     state.db.auth.onAuthStateChange((_event, session) => {
       if (session?.user?.id !== state.user?.id) setTimeout(() => updateAuthSession(session), 0);
