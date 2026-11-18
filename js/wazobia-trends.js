@@ -173,13 +173,43 @@
           sessionStorage.removeItem('parrothitWazobiaThreadReturn');
         }
       } catch (_) {}
-      try {
-        if (sessionStorage.getItem('parrothitWazobiaOpenDashboardAfterLogin') === '1') {
-          sessionStorage.removeItem('parrothitWazobiaOpenDashboardAfterLogin');
-          await showProfile();
-        }
-      } catch (_) {}
     }
+  }
+
+  async function readFunctionError(error) {
+    const context = error?.context;
+    let statusCode = Number(context?.status || error?.status || 0);
+    let payload = null;
+    if (context && typeof context.clone === 'function') {
+      const response = context.clone();
+      statusCode = statusCode || response.status;
+      try {
+        const raw = await response.text();
+        try { payload = raw ? JSON.parse(raw) : {}; }
+        catch (_) { payload = { message: raw }; }
+      } catch (_) {}
+    } else if (context && typeof context === 'object') {
+      payload = context;
+    }
+
+    const detail = String(payload?.error || payload?.message || error?.message || '').trim();
+    const lower = detail.toLowerCase();
+    if (statusCode === 401 && (lower.includes('jwt') || lower.includes('authorization') || lower.includes('token'))) {
+      return 'The username-login function is deployed, but Supabase is blocking public login requests. Redeploy it with JWT verification disabled (see supabase/functions/README-WAZOBIA-USERNAME-LOGIN.md).';
+    }
+    if (statusCode === 404 || lower.includes('function not found') || lower.includes('requested function')) {
+      return 'Supabase cannot find wazobia-username-login in the project configured on this page. Confirm the function name and project URL, then redeploy it.';
+    }
+    if (statusCode === 503 || lower.includes('not configured')) {
+      return detail || 'The username-login function is deployed but its server-side Supabase secrets are missing.';
+    }
+    if (statusCode >= 500) {
+      return detail || `The username-login function returned a server error (${statusCode}). Check its Supabase Edge Function logs.`;
+    }
+    if (error?.name === 'FunctionsFetchError' || /failed to fetch|networkerror|cors/i.test(detail)) {
+      return 'The browser could not reach the username-login function. Check the deployed function URL, CORS settings and network connection.';
+    }
+    return detail || 'Username login failed. Please check your username and password and try again.';
   }
 
   async function authSubmit(event) {
@@ -196,8 +226,8 @@
           await updateAuthSession(data.session);
         } else {
           const { data, error } = await state.db.functions.invoke('wazobia-username-login', { body: { username: identity, password } });
-          if (error) throw new Error('Username sign-in is not ready. Deploy the wazobia-username-login Edge Function from the patch instructions.');
-          if (!data?.access_token || !data?.refresh_token) throw new Error(data?.error || 'Invalid username or password.');
+          if (error) throw new Error(await readFunctionError(error));
+          if (!data?.access_token || !data?.refresh_token) throw new Error(data?.error || 'The username-login function responded without a valid sign-in session. Check its Edge Function logs.');
           const { data: sessionData, error: sessionError } = await state.db.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
           if (sessionError) throw sessionError;
           await updateAuthSession(sessionData.session);
@@ -711,25 +741,8 @@
   }
 
   async function showProfile() {
-    if (!state.user) {
-      openModal('wz-auth-modal');
-      authStatus('Log in to open your Wazobia dashboard.');
-      return;
-    }
-    // Open the dashboard immediately; slow or unavailable statistics must not
-    // prevent the member from reaching their profile controls.
-    refreshProfileUI();
-    profileStatus('');
-    $('wz-dashboard-stats').innerHTML = ['Posts','Comments','Followers','Following']
-      .map(label => `<div><strong>—</strong><small>${label}</small></div>`).join('');
-    $('wz-dashboard-content').innerHTML = '<p class="wz-muted">Loading your dashboard…</p>';
-    openModal('wz-profile-modal');
-    try {
-      await Promise.all([loadDashboardStats(), renderDashboard('overview')]);
-    } catch (error) {
-      $('wz-dashboard-content').innerHTML = `<p class="wz-muted">Your dashboard is open, but some account information could not be loaded. ${escapeHtml(error.message || 'Please try again.')}</p>`;
-      profileStatus('Some dashboard information could not be loaded. Your profile controls remain available.', true);
-    }
+    if (!state.user) { openModal('wz-auth-modal'); return; }
+    refreshProfileUI(); profileStatus(''); openModal('wz-profile-modal'); await loadDashboardStats(); await renderDashboard('overview');
   }
 
   async function uploadProfileImage(file, kind) {
@@ -863,7 +876,7 @@
       }
       state.activeTab = btn.dataset.wzTab; setActiveTabButtons(); loadFeed(true);
     }));
-    $('wz-home-btn').addEventListener('click', () => { state.activeTab = 'home'; $('wz-search').value = ''; setActiveTabButtons(); loadFeed(true); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    $('wz-home-btn').addEventListener('click', () => { state.activeTab = 'home'; setActiveTabButtons(); loadFeed(true); });
     const feed = $('wz-feed');
     feed.addEventListener('pointerdown', e => {
       const comment = e.target.closest('.wz-comment[data-comment-id]'); if (!comment) return;
@@ -931,24 +944,7 @@
       const { data, error } = await state.db.auth.getSession();
       if (error) throw error;
       await updateAuthSession(data.session);
-      const pageParams = new URLSearchParams(location.search);
-      if (pageParams.get('openDashboard') === '1') {
-        if (data.session?.user) await showProfile();
-        else {
-          try { sessionStorage.setItem('parrothitWazobiaOpenDashboardAfterLogin', '1'); } catch (_) {}
-          openModal('wz-auth-modal');
-          authStatus('Log in to open your Wazobia dashboard.');
-        }
-        pageParams.delete('openDashboard');
-        pageParams.delete('openAuth');
-        const remaining = pageParams.toString();
-        history.replaceState(history.state, '', location.pathname + (remaining ? `?${remaining}` : '') + location.hash);
-      } else if (!data.session && pageParams.get('openAuth') === '1') {
-        openModal('wz-auth-modal');
-        pageParams.delete('openAuth');
-        const remaining = pageParams.toString();
-        history.replaceState(history.state, '', location.pathname + (remaining ? `?${remaining}` : '') + location.hash);
-      }
+      if (!data.session && new URLSearchParams(location.search).get('openAuth') === '1') openModal('wz-auth-modal');
     } catch (error) { status(error.message || 'Could not connect to Wazobia Trends.', true); }
     state.db.auth.onAuthStateChange((_event, session) => {
       if (session?.user?.id !== state.user?.id) setTimeout(() => updateAuthSession(session), 0);
