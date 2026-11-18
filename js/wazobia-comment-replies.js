@@ -6,7 +6,7 @@
   const params = new URLSearchParams(location.search);
   const postId = params.get('post_id') || params.get('post') || '';
   const commentId = params.get('comment_id') || params.get('comment') || '';
-  const state = { db: null, user: null, profile: null, target: null, post: null, loading: false };
+  const state = { db: null, user: null, profile: null, target: null, replyTarget: null, post: null, commentsById: new Map(), loading: false };
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const safeUrl = (value) => {
@@ -46,7 +46,7 @@
     while (true) {
       const { data, error } = await state.db.from('wazobia_comments')
         .select('id,post_id,parent_comment_id,author_id,body,created_at,updated_at,is_deleted,author:wazobia_profiles!wazobia_comments_author_id_fkey(user_id,display_name,username,avatar_url)')
-        .eq('post_id', postId).eq('is_deleted', false).order('created_at', { ascending: true }).range(from, from + batchSize - 1);
+        .eq('post_id', postId).order('created_at', { ascending: true }).range(from, from + batchSize - 1);
       if (error) throw error;
       const rows = data || [];
       all.push(...rows);
@@ -68,36 +68,61 @@
     return all;
   }
 
-  function renderComment(comment, children, reactionsByComment, depth = 0, path = new Set()) {
-    if (!comment || path.has(comment.id) || depth > 12) return '';
-    const nextPath = new Set(path);
-    nextPath.add(comment.id);
+  function renderComment(comment, parentComment, reactionsByComment, isRoot = false) {
+    if (!comment) return '';
     const likes = reactionsByComment.get(comment.id) || [];
     const liked = likes.some(reaction => reaction.user_id === state.user?.id);
     const own = state.user?.id === comment.author_id;
+    const deleted = !!comment.is_deleted;
     const author = comment.author?.display_name || 'Wazobia member';
     const edited = comment.updated_at && comment.updated_at !== comment.created_at;
-    const replies = children.get(comment.id) || [];
-    const replyAction = comment.id === commentId
-      ? '<button type="button" data-thread-focus-reply>Reply</button>'
-      : `<a href="${escapeHtml(threadHref(comment.id))}">Reply</a>`;
-    const ownActions = own
-      ? `<button type="button" data-thread-edit="${escapeHtml(comment.id)}">Edit</button>${comment.id === commentId ? `<button type="button" data-thread-delete="${escapeHtml(comment.id)}">Delete</button>` : ''}`
+    const parentAuthor = parentComment?.author?.display_name || 'another member';
+    const replyContext = !isRoot
+      ? `<div class="wz-thread-reply-context">↳ Replying to <strong>${escapeHtml(parentAuthor)}</strong></div>`
       : '';
-    return `<article class="wz-thread-comment" data-thread-comment="${escapeHtml(comment.id)}" style="--wz-thread-depth:${Math.min(depth, 5)}">
+    const ownActions = own && !deleted
+      ? `<button type="button" data-thread-edit="${escapeHtml(comment.id)}">Edit</button><button type="button" data-thread-delete="${escapeHtml(comment.id)}">Delete</button>`
+      : '';
+    return `<article class="wz-thread-comment" data-thread-comment="${escapeHtml(comment.id)}">
       ${avatarMarkup(comment.author)}
       <div class="wz-thread-comment-main">
+        ${replyContext}
         <div class="wz-comment-bubble">
           <div class="wz-comment-heading"><strong>${escapeHtml(author)}</strong><span>· ${escapeHtml(relativeTime(comment.created_at))}${edited ? ' · edited' : ''}</span>${own ? '<em>by you</em>' : ''}</div>
-          <p>${escapeHtml(comment.body)}</p>
+          <p>${escapeHtml(deleted ? '[This comment was deleted]' : comment.body)}</p>
         </div>
         <div class="wz-thread-comment-tools">
           <button type="button" data-thread-react="${escapeHtml(comment.id)}" class="${liked ? 'is-active' : ''}" aria-label="Like comment">👍${likes.length ? ` ${likes.length}` : ''}</button>
-          ${replyAction}${ownActions}
+          ${deleted ? '' : `<button type="button" data-thread-reply="${escapeHtml(comment.id)}">Reply</button>`}
+          ${ownActions}
         </div>
-        ${replies.length ? `<div class="wz-thread-replies">${replies.map(reply => renderComment(reply, children, reactionsByComment, depth + 1, nextPath)).join('')}</div>` : ''}
       </div>
     </article>`;
+  }
+
+  function collectConversationReplies(rootId, children) {
+    const found = [];
+    const visited = new Set([rootId]);
+    const queue = (children.get(rootId) || []).slice();
+    while (queue.length) {
+      const comment = queue.shift();
+      if (!comment || visited.has(comment.id)) continue;
+      visited.add(comment.id);
+      found.push(comment);
+      (children.get(comment.id) || []).forEach(reply => queue.push(reply));
+    }
+    // A flat page is easier to read on phones; parent context is shown above each reply.
+    found.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    return found;
+  }
+
+  function setReplyTarget(comment) {
+    if (!comment) return;
+    state.replyTarget = comment;
+    const author = comment.author?.display_name || 'this member';
+    const isRoot = comment.id === state.target?.id;
+    $('wz-thread-replying').innerHTML = `Replying to <strong>${escapeHtml(author)}</strong>${isRoot ? '' : ' <button type="button" class="wz-thread-reset-reply" data-thread-reset-reply>Reply to original comment</button>'}`;
+    $('wz-thread-reply-input').placeholder = `Reply to ${author}…`;
   }
 
   async function loadThread() {
@@ -138,10 +163,9 @@
 
       const targetAuthor = state.target.author?.display_name || 'this member';
       $('wz-thread-title').textContent = 'Replies';
-      $('wz-thread-subtitle').textContent = `Conversation under ${targetAuthor}’s comment. Reply here or open a reply to continue a separate thread.`;
+      $('wz-thread-subtitle').textContent = `Read the conversation and reply without leaving this page.`;
       document.title = `Replies to ${targetAuthor} | Parrothit Wazobia Trends`;
       $('wz-thread-back').href = `wazobia-trends.html#post-${encodeURIComponent(postId)}`;
-      $('wz-thread-replying').innerHTML = `Replying to <strong>${escapeHtml(targetAuthor)}</strong>`;
 
       const postNode = $('wz-thread-post');
       const postBody = state.post.body ? `<p>${escapeHtml(state.post.body)}</p>` : '<p>Photo or video post</p>';
@@ -153,13 +177,21 @@
       postNode.innerHTML = `<small>Original post · ${escapeHtml(state.post.author?.display_name || 'Wazobia member')}${state.post.author?.username ? ` · @${escapeHtml(state.post.author.username)}` : ''}</small>${postBody}${media}`;
       postNode.hidden = false;
 
-      const topReplies = children.get(commentId) || [];
-      list.innerHTML = renderComment(state.target, children, reactionsByComment, 0) || '<div class="wz-thread-empty">No replies are available for this comment.</div>';
-      const replyCount = countDescendants(commentId, children);
+      state.commentsById = byId;
+      state.replyTarget = byId.get(state.replyTarget?.id || commentId) || state.target;
+      setReplyTarget(state.replyTarget);
+
+      const conversationReplies = collectConversationReplies(commentId, children);
+      const conversation = [state.target, ...conversationReplies];
+      list.innerHTML = conversation.map(comment =>
+        renderComment(comment, comment.parent_comment_id ? byId.get(comment.parent_comment_id) : null, reactionsByComment, comment.id === commentId)
+      ).join('') || '<div class="wz-thread-empty">No replies are available for this comment.</div>';
+
+      const replyCount = conversationReplies.length;
       $('wz-thread-subtitle').textContent = replyCount
-        ? `${replyCount} ${replyCount === 1 ? 'reply' : 'replies'} in this conversation under ${targetAuthor}’s comment.`
+        ? `${replyCount} ${replyCount === 1 ? 'reply' : 'replies'} in this conversation. All replies are shown in one aligned list.`
         : `Be the first to reply to ${targetAuthor}’s comment.`;
-      if (!topReplies.length) list.insertAdjacentHTML('beforeend', '<div class="wz-thread-empty">No replies yet. Add the first reply below.</div>');
+      if (!replyCount) list.insertAdjacentHTML('beforeend', '<div class="wz-thread-empty">No replies yet. Add the first reply below.</div>');
     } catch (error) {
       list.innerHTML = `<div class="wz-thread-empty">${escapeHtml(error.message || 'Could not load this conversation.')}</div>`;
       showStatus(error.message || 'Could not load this conversation.', true);
@@ -234,7 +266,7 @@
     try {
       const { error } = await state.db.from('wazobia_comments').insert({
         post_id: postId,
-        parent_comment_id: state.target.id,
+        parent_comment_id: (state.replyTarget || state.target).id,
         author_id: state.user.id,
         body
       });
@@ -274,11 +306,17 @@
       location.href = `wazobia-trends.html#post-${encodeURIComponent(postId)}`;
       return;
     }
+    if (state.replyTarget?.id === id) state.replyTarget = state.target;
     await loadThread();
   }
 
   async function init() {
     $('wz-thread-form').addEventListener('submit', submitReply);
+    $('wz-thread-composer').addEventListener('click', (event) => {
+      if (!event.target.closest('[data-thread-reset-reply]')) return;
+      setReplyTarget(state.target);
+      $('wz-thread-reply-input').focus();
+    });
     $('wz-thread-list').addEventListener('click', async (event) => {
       const like = event.target.closest('[data-thread-react]');
       if (like) return toggleReaction(like.dataset.threadReact);
@@ -286,7 +324,15 @@
       if (edit) return editOwnComment(edit.dataset.threadEdit);
       const remove = event.target.closest('[data-thread-delete]');
       if (remove) return deleteOwnComment(remove.dataset.threadDelete);
-      if (event.target.closest('[data-thread-focus-reply]')) $('wz-thread-reply-input').focus();
+      const reply = event.target.closest('[data-thread-reply]');
+      if (reply) {
+        const comment = state.commentsById.get(reply.dataset.threadReply);
+        if (comment) {
+          setReplyTarget(comment);
+          $('wz-thread-reply-input').focus();
+        }
+        return;
+      }
     });
 
     state.db = window.getParrothitSupabaseClient?.() || null;
