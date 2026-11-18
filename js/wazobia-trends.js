@@ -9,7 +9,7 @@
     posts: [], offset: 0, hasMore: false, loading: false, pendingFile: null,
     savedIds: new Set(), followingIds: new Set(), realtime: null,
     commentHoldTimer: null, activeCommentMenu: null, dashboardTab: 'overview',
-    notificationsOpen: false, lastNotifications: []
+    notificationsOpen: false, lastNotifications: [], messageBadgeTimer: null
   };
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -152,15 +152,31 @@
       closeModal('wz-auth-modal');
       loadPeopleSuggestions();
       loadNotifications();
+      loadMessageBadge();
+      if (!state.messageBadgeTimer) state.messageBadgeTimer = setInterval(loadMessageBadge, 45000);
       subscribeRealtime();
     } else {
       if (state.realtime) { state.db.removeChannel(state.realtime); state.realtime = null; }
       $('wz-notification-list').innerHTML = '<p class="wz-muted">Log in to see your notifications.</p>';
       updateNotificationBadges(0);
+      updateMessageBadges(0);
+      if (state.messageBadgeTimer) { clearInterval(state.messageBadgeTimer); state.messageBadgeTimer = null; }
       $('wz-people-list').innerHTML = '<p class="wz-muted">Sign in to discover active members.</p>';
     }
     await loadFeed(true);
     if (state.user) {
+      try {
+        const messagesReturn = sessionStorage.getItem('parrothitWazobiaMessagesReturn');
+        if (messagesReturn) {
+          const destination = new URL(messagesReturn, location.href);
+          if (destination.origin === location.origin && /\/wazobia-messages\.html$/.test(destination.pathname)) {
+            sessionStorage.removeItem('parrothitWazobiaMessagesReturn');
+            location.replace(destination.href);
+            return;
+          }
+          sessionStorage.removeItem('parrothitWazobiaMessagesReturn');
+        }
+      } catch (_) {}
       try {
         const pendingThread = sessionStorage.getItem('parrothitWazobiaThreadReturn');
         if (pendingThread) {
@@ -174,42 +190,6 @@
         }
       } catch (_) {}
     }
-  }
-
-  async function readFunctionError(error) {
-    const context = error?.context;
-    let statusCode = Number(context?.status || error?.status || 0);
-    let payload = null;
-    if (context && typeof context.clone === 'function') {
-      const response = context.clone();
-      statusCode = statusCode || response.status;
-      try {
-        const raw = await response.text();
-        try { payload = raw ? JSON.parse(raw) : {}; }
-        catch (_) { payload = { message: raw }; }
-      } catch (_) {}
-    } else if (context && typeof context === 'object') {
-      payload = context;
-    }
-
-    const detail = String(payload?.error || payload?.message || error?.message || '').trim();
-    const lower = detail.toLowerCase();
-    if (statusCode === 401 && (lower.includes('jwt') || lower.includes('authorization') || lower.includes('token'))) {
-      return 'The username-login function is deployed, but Supabase is blocking public login requests. Redeploy it with JWT verification disabled (see supabase/functions/README-WAZOBIA-USERNAME-LOGIN.md).';
-    }
-    if (statusCode === 404 || lower.includes('function not found') || lower.includes('requested function')) {
-      return 'Supabase cannot find wazobia-username-login in the project configured on this page. Confirm the function name and project URL, then redeploy it.';
-    }
-    if (statusCode === 503 || lower.includes('not configured')) {
-      return detail || 'The username-login function is deployed but its server-side Supabase secrets are missing.';
-    }
-    if (statusCode >= 500) {
-      return detail || `The username-login function returned a server error (${statusCode}). Check its Supabase Edge Function logs.`;
-    }
-    if (error?.name === 'FunctionsFetchError' || /failed to fetch|networkerror|cors/i.test(detail)) {
-      return 'The browser could not reach the username-login function. Check the deployed function URL, CORS settings and network connection.';
-    }
-    return detail || 'Username login failed. Please check your username and password and try again.';
   }
 
   async function authSubmit(event) {
@@ -226,8 +206,8 @@
           await updateAuthSession(data.session);
         } else {
           const { data, error } = await state.db.functions.invoke('wazobia-username-login', { body: { username: identity, password } });
-          if (error) throw new Error(await readFunctionError(error));
-          if (!data?.access_token || !data?.refresh_token) throw new Error(data?.error || 'The username-login function responded without a valid sign-in session. Check its Edge Function logs.');
+          if (error) throw new Error('Username sign-in is not ready. Deploy the wazobia-username-login Edge Function from the patch instructions.');
+          if (!data?.access_token || !data?.refresh_token) throw new Error(data?.error || 'Invalid username or password.');
           const { data: sessionData, error: sessionError } = await state.db.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
           if (sessionError) throw sessionError;
           await updateAuthSession(sessionData.session);
@@ -340,7 +320,7 @@
     return `<article class="wz-card wz-post" data-post-id="${escapeHtml(post.id)}">
       <div class="wz-post-inner">
         <div class="wz-post-head">${avatarMarkup(author)}<div class="wz-post-identity"><strong>${escapeHtml(author.display_name || 'Wazobia member')}</strong><small>@${escapeHtml(author.username || 'member')} · ${escapeHtml(relativeTime(post.created_at))}</small></div>
-          ${!own && state.user ? `<button class="wz-follow-btn" data-action="follow" data-user-id="${escapeHtml(post.author_id)}">${following ? 'Following' : '+ Follow'}</button>` : ''}
+          ${!own && state.user ? `<button class="wz-follow-btn" data-action="follow" data-user-id="${escapeHtml(post.author_id)}">${following ? 'Following' : '+ Follow'}</button><button class="wz-post-message-btn" type="button" data-action="message-user" data-user-id="${escapeHtml(post.author_id)}">Message</button>` : ''}
           ${own ? `<button class="wz-more-btn" type="button" data-action="delete-post" aria-label="Delete your post" title="Delete post">⋯</button>` : `<button class="wz-more-btn" type="button" data-action="report-post" aria-label="Report post" title="Report post">⋯</button>`}
         </div>
         ${post.body ? `<div class="wz-post-text">${escapeHtml(post.body).replace(/(^|\s)(#[a-zA-Z0-9_]{2,50})/g, '$1<a href="#" data-hashtag="$2">$2</a>')}</div>` : ''}
@@ -673,7 +653,23 @@
     const { data, error } = await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').neq('user_id', state.user.id).limit(35);
     if (error) return;
     const people = (data || []).filter(p => !state.followingIds.has(p.user_id)).slice(0,5);
-    $('wz-people-list').innerHTML = people.length ? people.map(p => `<div class="wz-person">${avatarMarkup(p)}<div><strong>${escapeHtml(p.display_name)}</strong><small>@${escapeHtml(p.username)}</small></div><button type="button" data-action="follow" data-user-id="${escapeHtml(p.user_id)}">Follow</button></div>`).join('') : '<p class="wz-muted">You are following the suggested members. Check back for more.</p>';
+    $('wz-people-list').innerHTML = people.length ? people.map(p => `<div class="wz-person">${avatarMarkup(p)}<div><strong>${escapeHtml(p.display_name)}</strong><small>@${escapeHtml(p.username)}</small></div><button type="button" data-action="follow" data-user-id="${escapeHtml(p.user_id)}">Follow</button><a class="wz-person-message" href="wazobia-messages.html?user=${encodeURIComponent(p.user_id)}">Message</a></div>`).join('') : '<p class="wz-muted">You are following the suggested members. Check back for more.</p>';
+  }
+
+  function updateMessageBadges(count) {
+    ['wz-message-badge','wz-mobile-message-badge'].forEach(id => {
+      const node = $(id); if (!node) return;
+      node.textContent = count > 99 ? '99+' : String(count);
+      node.hidden = !count;
+    });
+  }
+  async function loadMessageBadge() {
+    if (!state.user || !state.db) return updateMessageBadges(0);
+    const { count, error } = await state.db.from('wazobia_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('recipient_id', state.user.id).is('read_at', null);
+    if (error) { updateMessageBadges(0); return; }
+    updateMessageBadges(count || 0);
   }
 
   function notificationLabel(n) {
@@ -912,6 +908,7 @@
         case 'share': return sharePost(postId);
         case 'bookmark': return toggleBookmark(postId);
         case 'follow': return toggleFollow(button.dataset.userId, button);
+        case 'message-user': location.href = `wazobia-messages.html?user=${encodeURIComponent(button.dataset.userId)}`; return;
         case 'delete-post': return deletePost(postId);
         case 'report-post': return reportPost(postId);
         case 'react-comment': return toggleCommentReaction(button.dataset.commentId, button.dataset.postId);
