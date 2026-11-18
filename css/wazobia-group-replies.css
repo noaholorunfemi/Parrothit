@@ -1,0 +1,53 @@
+/* Flat group reply thread page. Every reply uses the same horizontal alignment. */
+.wg-thread-page{min-height:100vh}
+.wg-thread-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 max(14px,calc((100vw - 1120px)/2));height:68px;position:sticky;top:0;z-index:40}
+.wg-thread-topbar .wz-brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none}
+.wg-thread-topbar .wz-brand-copy{display:grid;gap:2px}
+.wg-thread-topbar .wz-brand-copy strong{font-size:14px;color:#fff}
+.wg-thread-topbar .wz-brand-copy small{font-size:10px;color:#c9f4d6;letter-spacing:.6px}
+.wg-thread-back{flex:none;border:1px solid #ffffff55;border-radius:24px;padding:9px 13px;color:#fff;text-decoration:none;font-size:11px;font-weight:900}
+.wg-thread-back:hover{background:#ffffff1c}
+.wg-thread-shell{width:min(760px,100% - 28px);margin:20px auto 42px;display:grid;gap:13px;min-width:0}
+.wg-thread-heading,.wg-thread-original-card,.wg-thread-replies-card,.wg-thread-composer-card{padding:16px;min-width:0}
+.wg-thread-heading h1{font-size:22px;margin:4px 0}
+.wg-thread-heading p{font-size:12px;color:var(--wz-muted);margin:0;overflow-wrap:anywhere}
+.wg-thread-section-title{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:13px}
+.wg-thread-section-title h2{font-size:14px;margin:0}
+.wg-thread-section-title>span{font-size:10px;color:var(--wz-muted)}
+.wg-thread-status{padding:10px 12px;border:1px solid var(--wz-border);border-radius:10px;background:var(--wz-card);color:var(--wz-muted);font-size:12px;line-height:1.5}
+.wg-thread-status.is-error{color:var(--wz-red)}
+.wg-thread-comment{display:flex;align-items:flex-start;gap:10px;width:100%;min-width:0;padding:12px 0;border-bottom:1px solid var(--wz-border)}
+.wg-thread-comment:first-child{padding-top:0}
+.wg-thread-comment:last-child{border-bottom:0;padding-bottom:0}
+.wg-thread-comment .wg-member-avatar{width:40px;height:40px;font-size:12px}
+.wg-thread-comment-main{flex:1;min-width:0}
+.wg-thread-comment-bubble{display:inline-block;max-width:100%;padding:11px 13px;border:1px solid var(--wz-border);border-radius:17px;background:var(--wz-soft);overflow-wrap:anywhere}
+.wg-thread-comment-author{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-bottom:5px}
+.wg-thread-comment-author strong{color:var(--wz-ink);font-size:12px}
+.wg-thread-comment-author small{color:var(--wz-muted);font-size:10px}
+.wg-thread-comment-bubble p{margin:0;color:var(--wz-ink);font-size:13px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.wg-thread-replying-to{display:block;margin-top:5px;color:var(--wz-muted);font-size:10px;line-height:1.4}
+.wg-thread-replying-to strong{color:var(--wz-green)}
+.wg-thread-comment-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:5px 0 0 8px}
+.wg-thread-comment-actions button{border:0;background:transparent;color:var(--wz-muted);padding:2px 0;font-size:10px;font-weight:900;cursor:pointer}
+.wg-thread-comment-actions button:hover{color:var(--wz-green)}
+.wg-thread-comment-actions button.danger{color:var(--wz-red)}
+.wg-thread-empty{padding:13px;border-radius:10px;background:var(--wz-soft);color:var(--wz-muted);font-size:12px;line-height:1.5}
+.wg-thread-composer-card{position:sticky;bottom:9px;z-index:10;box-shadow:0 7px 24px #0002}
+.wg-thread-reply-context{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;color:var(--wz-muted);font-size:11px}
+.wg-thread-reply-context strong{color:var(--wz-green)}
+.wg-thread-reply-context button{border:0;background:transparent;color:var(--wz-green);font-size:10px;font-weight:900;cursor:pointer}
+.wg-thread-form{display:grid;gap:9px}
+.wg-thread-form[hidden],.wg-thread-signin[hidden]{display:none}
+.wg-thread-form textarea{width:100%;min-height:68px;max-height:180px;resize:vertical;border:1px solid var(--wz-border);border-radius:13px;background:var(--wz-soft);color:var(--wz-ink);padding:11px 13px;font:inherit;font-size:13px;outline:0}
+.wg-thread-form textarea:focus{border-color:var(--wz-green);box-shadow:0 0 0 2px color-mix(in srgb,var(--wz-green) 12%,transparent)}
+.wg-thread-form-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.wg-thread-form-actions small{color:var(--wz-muted);font-size:10px;line-height:1.4}
+.wg-thread-form-actions button{border:0;border-radius:9px;background:var(--wz-green);color:#fff;padding:9px 16px;font-size:11px;font-weight:950;cursor:pointer}
+.wg-thread-form-actions button:disabled{opacity:.55;cursor:not-allowed}
+.wg-thread-signin{font-size:12px;color:var(--wz-muted)}
+.wg-thread-signin a{color:var(--wz-green);font-weight:900}
+.wg-thread-footer{padding:9px 3px 20px;text-align:center;color:var(--wz-muted);font-size:10px}
+.wg-thread-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.wg-thread-highlight{outline:2px solid color-mix(in srgb,var(--wz-green) 65%,transparent);outline-offset:3px;border-radius:12px}
+@media(max-width:600px){.wg-thread-topbar{height:60px;padding:0 12px}.wg-thread-topbar .wz-brand-copy strong{font-size:12px}.wg-thread-topbar .wz-brand-copy small{font-size:8px}.wg-thread-topbar .wz-logo-image{width:38px;height:38px}.wg-thread-back{padding:8px 10px;font-size:10px}.wg-thread-shell{width:100%;margin:10px auto 26px;gap:9px}.wg-thread-heading,.wg-thread-original-card,.wg-thread-replies-card,.wg-thread-composer-card{padding:13px;border-radius:0;border-left:0;border-right:0}.wg-thread-heading h1{font-size:20px}.wg-thread-comment{gap:8px;padding:10px 0}.wg-thread-comment .wg-member-avatar{width:35px;height:35px;font-size:10px}.wg-thread-comment-bubble{padding:9px 11px;border-radius:15px}.wg-thread-comment-author strong{font-size:11px}.wg-thread-comment-author small{font-size:9px}.wg-thread-comment-bubble p{font-size:12px}.wg-thread-composer-card{bottom:0}.wg-thread-form-actions small{max-width:65%}}
