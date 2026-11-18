@@ -133,3 +133,36 @@
   .wz-thread-form button{padding:10px 12px;font-size:12px}
   .wz-thread-replying,.wz-thread-status{margin-left:43px}
 }
+
+
+/* Wazobia comment layout correction: no nested offsets or long vertical rails. */
+.wz-comment:before{display:none!important;content:none!important}
+.wz-comment{margin-left:0!important;width:100%;min-width:0}
+.wz-comment-list{min-width:0;overflow:visible}
+.wz-comment-main{min-width:0;max-width:100%}
+.wz-comment-bubble{max-width:100%;overflow-wrap:anywhere}
+.wz-comment-bubble p{overflow-wrap:anywhere;word-break:normal}
+.wz-thread-body{max-width:100%;overflow-x:hidden}
+.wz-thread-layout{width:min(calc(100% - 24px),760px);max-width:100%;min-width:0}
+.wz-thread-card,.wz-thread-list,.wz-thread-comment,.wz-thread-comment-main{min-width:0;max-width:100%}
+.wz-thread-list{overflow-x:hidden}
+.wz-thread-comment{display:flex;align-items:flex-start;gap:10px;width:100%;margin:0!important;padding:0}
+.wz-thread-comment-main{flex:1;min-width:0;width:100%}
+.wz-thread-comment .wz-comment-bubble{display:block;width:fit-content;max-width:100%;overflow-wrap:anywhere}
+.wz-thread-replies{display:contents;margin:0;padding:0;border:0}
+.wz-thread-reply-context{margin:0 0 4px 3px;color:#aeb5be;font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+.wz-thread-reply-context strong{color:#e7e9ed;font-weight:800}
+.wz-thread-comment-tools{flex-wrap:wrap;gap:15px;margin:5px 8px 0}
+.wz-thread-comment-tools button{cursor:pointer}
+.wz-thread-reset-reply{margin-left:7px;padding:0;border:0;background:transparent;color:#8fc2ff;font-size:11px;font-weight:800}
+.wz-thread-post-context img,.wz-thread-post-context video{width:auto;max-width:min(100%,360px);max-height:175px;object-fit:contain}
+@media(max-width:560px){
+  .wz-comment:before{display:none!important}
+  .wz-comment{margin-left:0!important;gap:9px}
+  .wz-thread-layout{width:100%;margin:0 auto 22px}
+  .wz-thread-comment{margin:0!important;gap:8px}
+  .wz-thread-comment-avatar{width:36px;height:36px}
+  .wz-thread-comment-tools{gap:13px;margin-left:6px}
+  .wz-thread-reply-context{font-size:10px}
+  .wz-thread-post-context img,.wz-thread-post-context video{max-height:150px}
+}
