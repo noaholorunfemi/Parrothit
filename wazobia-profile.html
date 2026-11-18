@@ -7,10 +7,10 @@
   <meta name="description" content="Wazobia Trends member profile.">
   <title>Member profile | PARROTHIT Wazobia Trends</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-profile.css?v=4-friends">
+  <link rel="stylesheet" href="css/wazobia-profile.css?v=5-account-privacy">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-profile.js?v=4-friends" defer></script>
+  <script src="js/wazobia-profile.js?v=5-account-privacy" defer></script>
 </head>
 <body class="wzp-page">
   <header class="wzp-topbar">
@@ -35,7 +35,7 @@
           <h2>Your friends</h2><div id="wzp-friend-list" class="wzp-friend-list"><p class="wzp-friends-muted">Loading your friends…</p></div>
         </div>
       </section>
-      <section class="wzp-link-card"><span>Profile link</span><code id="wzp-profile-link"></code><button id="wzp-copy-link" type="button">Copy link</button></section>
+      <section class="wzp-link-card" id="wzp-link-card"><span>Profile link</span><code id="wzp-profile-link"></code><button id="wzp-copy-link" type="button">Copy link</button></section>
       <section class="wzp-editor" id="wzp-editor" hidden>
         <h2>Edit profile details</h2>
         <p>Choose what other members can see. Your age, education, location and interests are stored separately from the public member directory.</p>
@@ -45,7 +45,8 @@
         <label>Interest<input id="wzp-edit-interests" maxlength="500" placeholder="Music, football, technology…"></label>
         <label class="wzp-wide">About you<textarea id="wzp-edit-bio" rows="3" maxlength="240" placeholder="A short introduction"></textarea></label>
         <h3>Account privacy</h3>
-        <label class="wzp-check"><input id="wzp-private-profile" type="checkbox"> Hide my profile details from other members</label>
+        <label class="wzp-check"><input id="wzp-private-profile" type="checkbox"> Hide my profile and profile link from other members</label>
+        <label class="wzp-check"><input id="wzp-hide-profile-link" type="checkbox"> Hide my profile link from member lists and search</label>
         <label class="wzp-check"><input id="wzp-show-age" type="checkbox"> Show my age</label>
         <label class="wzp-check"><input id="wzp-show-education" type="checkbox"> Show my education</label>
         <label class="wzp-check"><input id="wzp-show-location" type="checkbox"> Show my location</label>

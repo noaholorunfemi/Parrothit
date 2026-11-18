@@ -18,10 +18,10 @@
   </style>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
   <link rel="apple-touch-icon" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-trends.css?v=9-profile-calls-links-fix">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=10-status-mentions">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-trends.js?v=9-profile-calls-links-fix" defer></script>
+  <script src="js/wazobia-trends.js?v=10-status-mentions" defer></script>
   <script src="/js/public-notifications.js?v=20261118-remove-wazobia-header-shortcut"></script>
 </head>
 <body class="wz-page">
@@ -61,6 +61,7 @@
         <button type="button" data-open-dashboard><span>♙</span> My dashboard</button>
         <a href="wazobia-groups.html"><span>♧</span> Groups</a>
         <a href="wazobia-messages.html"><span>✉</span> Messages</a>
+        <a href="wazobia-chat-groups.html"><span>▣</span> Group chats</a>
         <button data-wz-tab="following" type="button"><span>♧</span> Following</button>
         <button data-wz-tab="saved" type="button"><span>▣</span> Saved posts</button>
         <button data-wz-tab="notifications" type="button"><span>♢</span> Notifications <b id="wz-side-badge" class="wz-badge" hidden>0</b></button>
@@ -96,6 +97,16 @@
         <div class="wz-media-preview" id="wz-media-preview" hidden></div>
       </section>
 
+      <section class="wz-status-shelf wz-card" id="wz-status-shelf" aria-label="24-hour status updates">
+        <div class="wz-status-shelf-head"><div><strong>24-hour status</strong><small>Updates disappear after 24 hours</small></div><button type="button" id="wz-open-status" class="wz-status-add">＋ Add status</button></div>
+        <div id="wz-status-list" class="wz-status-list"><p class="wz-muted">Loading status updates…</p></div>
+        <form id="wz-status-form" class="wz-status-form" hidden>
+          <input type="text" id="wz-status-text" maxlength="500" placeholder="Share a quick update…" aria-label="Your status update">
+          <label class="wz-status-media-label" for="wz-status-media">＋ Photo</label><input id="wz-status-media" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+          <button type="submit" id="wz-publish-status">Share status</button>
+          <p id="wz-status-compose-message" role="status"></p>
+        </form>
+      </section>
       <div class="wz-status" id="wz-status" role="status" aria-live="polite" hidden></div>
       <section id="wz-feed" class="wz-feed" aria-live="polite"><div class="wz-loading"><span class="wz-spinner"></span> Loading Wazobia conversations…</div></section>
       <button class="wz-load-more" id="wz-load-more" type="button" hidden>Load more posts</button>
@@ -111,6 +122,7 @@
         <div class="wz-panel-heading"><h2>People to follow</h2><span>◎</span></div>
         <div id="wz-people-list"><p class="wz-muted">Sign in to discover active members.</p></div>
         <a class="wz-groups-explore-link" href="wazobia-groups.html">♧ Explore and create groups →</a>
+        <a class="wz-groups-explore-link" href="wazobia-chat-groups.html">▣ Open private group chats →</a>
       </section>
       <section class="wz-guidelines" id="wz-guidelines">
         <strong>Keep Wazobia welcoming</strong>
@@ -156,6 +168,7 @@
       <div class="wz-modal-heading"><h2 id="wz-post-modal-title">Create post</h2><button class="wz-modal-close inline" type="button" data-wz-close="post" aria-label="Close">×</button></div>
       <div class="wz-post-author"><div class="wz-avatar" id="wz-post-avatar">?</div><div><strong id="wz-post-author-name">Your profile</strong><small>Posting to everyone</small></div></div>
       <textarea id="wz-post-text" maxlength="5000" placeholder="What's on your mind? Share an idea, a trend or a conversation…"></textarea>
+      <div id="wz-mention-suggestions" class="wz-mention-suggestions" hidden></div>
       <div class="wz-post-modal-tools"><label for="wz-modal-media">▧ Add photo or video</label><input id="wz-modal-media" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" hidden><span id="wz-post-charcount">0 / 5,000</span></div>
       <div class="wz-modal-media-preview" id="wz-modal-media-preview" hidden></div>
       <button class="wz-primary-btn wz-publish-btn" id="wz-publish-post" type="button">Post</button>
