@@ -393,26 +393,47 @@ create index if not exists wazobia_chat_group_messages_idx
   on public.wazobia_chat_group_messages(group_id,created_at asc);
 
 create or replace function public.wazobia_chat_group_is_member(p_group_id uuid)
-returns boolean language sql stable security definer
-set search_path=public,pg_temp set row_security=off
-as $$
-  select exists(select 1 from public.wazobia_chat_group_members m
-    where m.group_id=p_group_id and m.user_id=auth.uid() and m.status='active');
-$$;
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+set row_security = off
+as 'select exists (
+  select 1
+  from public.wazobia_chat_group_members m
+  where m.group_id = p_group_id
+    and m.user_id = auth.uid()
+    and m.status = ''active''
+)';
+
 create or replace function public.wazobia_chat_group_is_owner(p_group_id uuid)
-returns boolean language sql stable security definer
-set search_path=public,pg_temp set row_security=off
-as $$
-  select exists(select 1 from public.wazobia_chat_groups g
-    where g.id=p_group_id and g.created_by=auth.uid());
-$$;
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+set row_security = off
+as 'select exists (
+  select 1
+  from public.wazobia_chat_groups g
+  where g.id = p_group_id
+    and g.created_by = auth.uid()
+)';
+
 create or replace function public.wazobia_chat_group_can_view(p_group_id uuid)
-returns boolean language sql stable security definer
-set search_path=public,pg_temp set row_security=off
-as $$
-  select exists(select 1 from public.wazobia_chat_group_members m
-    where m.group_id=p_group_id and m.user_id=auth.uid());
-$$;
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+set row_security = off
+as 'select exists (
+  select 1
+  from public.wazobia_chat_group_members m
+  where m.group_id = p_group_id
+    and m.user_id = auth.uid()
+)';
 revoke all on function public.wazobia_chat_group_is_member(uuid) from public;
 revoke all on function public.wazobia_chat_group_is_owner(uuid) from public;
 revoke all on function public.wazobia_chat_group_can_view(uuid) from public;
