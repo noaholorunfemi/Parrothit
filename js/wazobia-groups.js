@@ -1,10 +1,10 @@
-/* PARROTHIT Wazobia Trends — Groups. Build: 2026-11-17-v6-post-engagement. */
+/* PARROTHIT Wazobia Trends — Groups. Build: 2026-11-18-v7-flat-reply-pages. */
 (() => {
   'use strict';
-  window.__WAZOBIA_GROUPS_BUILD__ = 'v6-post-engagement-20261117';
-  console.info('[Wazobia Groups] build v6-post-engagement-20261117 loaded');
+  window.__WAZOBIA_GROUPS_BUILD__ = 'v7-flat-reply-pages-20261118';
+  console.info('[Wazobia Groups] build v7-flat-reply-pages-20261118 loaded');
   const $ = (id) => document.getElementById(id);
-  const state = { db: null, user: null, profile: null, view: 'discover', groups: [], memberships: [], currentGroup: null, search: '', requests: [], groupPosts: [], postActivity: new Map(), commentsByPost: new Map(), commentProfilesByPost: new Map(), replyTargets: new Map() };
+  const state = { db: null, user: null, profile: null, view: 'discover', groups: [], memberships: [], currentGroup: null, search: '', requests: [], groupPosts: [], postActivity: new Map(), commentsByPost: new Map(), commentProfilesByPost: new Map(), commentSorts: new Map() };
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const initials = (name) => String(name || 'W').trim().split(/\s+/).slice(0,2).map(x => x[0] || '').join('').toUpperCase() || 'W';
   const safeUrl = (value) => { try { const u = new URL(String(value || ''), location.origin); return (u.protocol === 'https:' || u.origin === location.origin) ? u.href : ''; } catch (_) { return ''; } };
@@ -117,7 +117,7 @@
     try {
       const { data: group, error } = await state.db.from('wazobia_groups').select('*').eq('id',id).single();
       if (error) throw error;
-      state.currentGroup = group; state.postActivity = new Map(); state.commentsByPost = new Map(); state.commentProfilesByPost = new Map(); state.replyTargets = new Map(); $('wg-group-list').hidden = true; $('wg-group-detail').hidden = false;
+      state.currentGroup = group; state.postActivity = new Map(); state.commentsByPost = new Map(); state.commentProfilesByPost = new Map(); state.commentSorts = new Map(); $('wg-group-list').hidden = true; $('wg-group-detail').hidden = false;
       $('wg-eyebrow').textContent = 'WAZOBIA COMMUNITY'; $('wg-view-title').textContent = group.name; $('wg-view-subtitle').textContent = group.privacy === 'private' ? 'Private group' : 'Public group';
       history.replaceState({},'',`${location.pathname}?group=${encodeURIComponent(id)}`);
       await renderGroupDetail();
@@ -173,7 +173,7 @@
       const meta=[p.post_kind==='question'?'❓ Question':'',p.location_text?`📍 ${esc(p.location_text)}`:'',p.feeling?`☺ ${esc(p.feeling)}`:''].filter(Boolean).join(' · ');
       const actions=`${p.can_delete?`<button type="button" data-group-post-delete="${esc(p.id)}">Delete</button>`:''}${manager?`<button type="button" data-group-post-pin="${esc(p.id)}" data-pin-value="${p.is_pinned?'false':'true'}">${p.is_pinned?'Unpin':'Pin post'}</button>`:''}`;
       const canComment=!!state.user && (g.privacy==='public' || active);
-      return `<article class="wz-card wg-wall-post ${p.is_pinned?'is-pinned':''}" data-group-post-id="${esc(p.id)}">${p.is_pinned?'<div class="wg-pinned-label">📌 Pinned by group admin</div>':''}<div class="wg-wall-post-head">${anonymous?'<span class="wg-member-avatar wg-anonymous-avatar">A</span>':avatar(profile)}<div><strong>${esc(authorName)}</strong><small>${authorHandle} · ${when(p.created_at)}</small></div>${actions?`<div class="wg-wall-post-actions">${actions}</div>`:''}</div>${meta?`<div class="wg-post-context">${meta}</div>`:''}${p.body?`<p>${esc(p.body)}</p>`:''}${media}${renderGroupPostEngagement(p.id)}<section class="wg-post-comments" data-group-comment-area="${esc(p.id)}" hidden><div class="wg-comments-loading">Open comments to load the discussion.</div></section>${!canComment&&state.user&&g.privacy==='private'?'<p class="wg-comment-gate">Join this private group to comment.</p>':''}</article>`;
+      return `<article class="wz-card wg-wall-post ${p.is_pinned?'is-pinned':''}" data-group-post-id="${esc(p.id)}" id="group-post-${esc(p.id)}">${p.is_pinned?'<div class="wg-pinned-label">📌 Pinned by group admin</div>':''}<div class="wg-wall-post-head">${anonymous?'<span class="wg-member-avatar wg-anonymous-avatar">A</span>':avatar(profile)}<div><strong>${esc(authorName)}</strong><small>${authorHandle} · ${when(p.created_at)}</small></div>${actions?`<div class="wg-wall-post-actions">${actions}</div>`:''}</div>${meta?`<div class="wg-post-context">${meta}</div>`:''}${p.body?`<p>${esc(p.body)}</p>`:''}${media}${renderGroupPostEngagement(p.id)}<section class="wg-post-comments" data-group-comment-area="${esc(p.id)}" hidden><div class="wg-comments-loading">Open comments to load the discussion.</div></section>${!canComment&&state.user&&g.privacy==='private'?'<p class="wg-comment-gate">Join this private group to comment.</p>':''}</article>`;
     }).join('');
     $('wg-group-detail').innerHTML = `<section class="wz-card wg-detail-top"><div class="wg-detail-cover" style="${cover?`background-image:url('${esc(cover)}')`:''}"></div><div class="wg-detail-top-inner"><div class="wg-detail-main-title"><h2>${esc(g.name)}</h2><p>${g.privacy==='private'?'🔒 Private':'🌍 Public'} · ${members.length} ${members.length===1?'member':'members'} · Created ${when(g.created_at)}</p></div><div class="wg-detail-actions"><button data-group-detail-action="back">← Back to groups</button>${mainAction}</div></div><p class="wg-detail-description">${esc(g.description||'This group has not added a description yet.')}</p></section>
       <div class="wg-detail-columns"><div><section class="wz-card wg-detail-panel"><div class="wg-panel-title"><h3>Group discussion</h3><small>${active?'Members can publish here':'Join this group to publish'}</small></div>${active?`<form id="wg-group-post-form" class="wg-post-form"><textarea name="body" maxlength="5000" placeholder="Share something with this group…"></textarea><div class="wg-post-anonymous"><label><input type="checkbox" name="is_anonymous"> <span>Post anonymously</span></label><small>Anonymous posts are text-only to protect uploader privacy. Group owners and admins can still moderate posts.</small></div><div class="wg-post-toolbar"><button type="button" data-post-tool="media">▣ Photos/Videos</button><button type="button" data-post-tool="location">📍 Add location</button><button type="button" data-post-tool="feeling">☺ Feeling/activity</button><button type="button" data-post-tool="question">❓ Ask a question</button></div><input class="wg-post-file" type="file" name="media" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" hidden><div class="wg-post-extra" data-post-extra="file" hidden><span class="wg-post-file-name"></span><button type="button" data-post-tool="remove-media" aria-label="Remove media">Remove</button></div><div class="wg-post-extra" data-post-extra="location" hidden><input name="location_text" maxlength="120" placeholder="Add a location or place name"></div><div class="wg-post-extra" data-post-extra="feeling" hidden><input name="feeling" maxlength="60" placeholder="What are you feeling or doing?"></div><input type="hidden" name="post_kind" value="discussion"><div class="wg-post-form-row"><small>Share text or one photo/video. Maximum 5,000 characters.</small><button type="submit" disabled>Post to group</button></div></form>`:''}<div class="wg-wall">${postCards||'<div class="wg-empty"><strong>No discussions yet</strong>Be the first to start a conversation in this group.</div>'}</div></section></div><div><section class="wz-card wg-detail-panel"><div class="wg-panel-title"><h3>Members</h3><small>${members.length} total</small></div>${manager?`<form id="wg-invite-form" class="wg-invite-form"><input name="username" required minlength="3" placeholder="Invite by Wazobia username"><button type="submit">Invite</button></form>`:''}${ownerAdminNote}<div class="wg-members-list">${memberCards||'<p class="wz-muted">No members are visible.</p>'}</div>${settings}</section></div></div>`;
@@ -203,30 +203,55 @@
     const profile = profileMap.get(comment.author_id) || {};
     return profile.display_name || profile.username || 'Wazobia member';
   }
-  function renderGroupCommentNode(comment, childrenMap, profileMap, depth = 0) {
+  function groupCommentDate(comment) {
+    const value = new Date(comment.created_at).getTime();
+    return Number.isFinite(value) ? value : 0;
+  }
+  function groupCommentDescendants(commentId, childrenMap) {
+    const found = [];
+    const queue = [...(childrenMap.get(String(commentId)) || [])];
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const item = queue[cursor];
+      found.push(item);
+      const children = childrenMap.get(String(item.id)) || [];
+      if (children.length) queue.push(...children);
+    }
+    return found.sort((a, b) => groupCommentDate(a) - groupCommentDate(b));
+  }
+  function groupThreadUrl(comment) {
+    const query = new URLSearchParams({ group: String(comment.group_id || state.currentGroup?.id || ''), post: String(comment.post_id || ''), comment: String(comment.id || '') });
+    return `wazobia-group-replies.html?${query.toString()}`;
+  }
+  function renderGroupCommentRoot(comment, childrenMap, profileMap) {
     const profile = profileMap.get(comment.author_id) || {};
-    const children = childrenMap.get(comment.id) || [];
-    const actions = `${comment.can_edit ? `<button type="button" data-group-comment-edit="${esc(comment.id)}" data-post-id="${esc(comment.post_id)}">Edit</button>` : ''}${comment.can_delete ? `<button type="button" class="wg-comment-delete" data-group-comment-delete="${esc(comment.id)}" data-post-id="${esc(comment.post_id)}">Delete</button>` : ''}${state.user ? `<button type="button" data-group-comment-reply="${esc(comment.id)}" data-post-id="${esc(comment.post_id)}">Reply</button>` : ''}`;
+    const replies = groupCommentDescendants(comment.id, childrenMap);
+    const latestReply = replies.length ? replies[replies.length - 1] : null;
     const edited = comment.updated_at && comment.created_at && (new Date(comment.updated_at).getTime() - new Date(comment.created_at).getTime() > 1500);
-    return `<article class="wg-comment-thread" style="--wg-comment-depth:${Math.min(depth, 8)}"><div class="wg-comment">${avatar(profile)}<div class="wg-comment-main"><div class="wg-comment-bubble"><div class="wg-comment-author"><strong>${esc(commentAuthorName(comment, profileMap))}</strong><small>@${esc(profile.username || 'member')} · ${when(comment.created_at)}${edited ? ' · edited' : ''}</small></div><p>${esc(comment.body)}</p></div><div class="wg-comment-actions">${actions}</div></div></div>${children.length ? `<div class="wg-comment-children">${children.map(child => renderGroupCommentNode(child, childrenMap, profileMap, depth + 1)).join('')}</div>` : ''}</article>`;
+    const actions = `${comment.can_edit ? `<button type="button" data-group-comment-edit="${esc(comment.id)}" data-post-id="${esc(comment.post_id)}">Edit</button>` : ''}${comment.can_delete ? `<button type="button" class="wg-comment-delete" data-group-comment-delete="${esc(comment.id)}" data-post-id="${esc(comment.post_id)}">Delete</button>` : ''}<a class="wg-comment-reply-link" href="${esc(groupThreadUrl(comment))}">Reply</a>`;
+    const preview = latestReply ? `<a class="wg-comment-preview" href="${esc(groupThreadUrl(comment))}"><span class="wg-comment-preview-name">${esc(commentAuthorName(latestReply, profileMap))}</span><span>${esc(latestReply.body)}</span></a>` : '';
+    const replyLink = replies.length ? `<a class="wg-view-replies" href="${esc(groupThreadUrl(comment))}">↳ View ${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}</a>` : '';
+    return `<article class="wg-comment-card" data-group-comment-root="${esc(comment.id)}"><div class="wg-comment">${avatar(profile)}<div class="wg-comment-main"><div class="wg-comment-bubble"><div class="wg-comment-author"><strong>${esc(commentAuthorName(comment, profileMap))}</strong><small>@${esc(profile.username || 'member')} · ${when(comment.created_at)}${edited ? ' · edited' : ''}</small></div><p>${esc(comment.body)}</p></div><div class="wg-comment-actions">${actions}</div>${replyLink}${preview}</div></div></article>`;
   }
   function renderGroupComments(postId, container, rows) {
     const profileMap = state.commentProfilesByPost.get(String(postId)) || new Map();
     const childrenMap = new Map();
     (rows || []).forEach(comment => {
-      const key = comment.parent_id || '__root__';
+      const key = String(comment.parent_id || '__root__');
       if (!childrenMap.has(key)) childrenMap.set(key, []);
       childrenMap.get(key).push(comment);
     });
-    const roots = childrenMap.get('__root__') || [];
-    const reply = state.replyTargets.get(String(postId));
-    const replyName = reply ? commentAuthorName({ author_id: reply.authorId }, profileMap) : '';
+    const roots = [...(childrenMap.get('__root__') || [])];
+    const replyCounts = new Map(roots.map(root => [String(root.id), groupCommentDescendants(root.id, childrenMap).length]));
+    const sort = state.commentSorts.get(String(postId)) || 'relevant';
+    if (sort === 'newest') roots.sort((a,b) => groupCommentDate(b)-groupCommentDate(a));
+    else if (sort === 'oldest') roots.sort((a,b) => groupCommentDate(a)-groupCommentDate(b));
+    else roots.sort((a,b) => (replyCounts.get(String(b.id)) || 0) - (replyCounts.get(String(a.id)) || 0) || groupCommentDate(b)-groupCommentDate(a));
     const canComment = !!state.user && (state.currentGroup?.privacy === 'public' || state.memberships.some(m => m.group_id === state.currentGroup?.id && m.status === 'active'));
-    const list = roots.length ? roots.map(comment => renderGroupCommentNode(comment, childrenMap, profileMap)).join('') : '<div class="wg-comments-empty">No comments yet. Start the conversation.</div>';
+    const list = roots.length ? roots.map(comment => renderGroupCommentRoot(comment, childrenMap, profileMap)).join('') : '<div class="wg-comments-empty">No comments yet. Start the conversation.</div>';
     const composer = canComment
-      ? `<form class="wg-group-comment-form" data-group-comment-form data-post-id="${esc(postId)}"><input type="hidden" name="parent_id" value="${esc(reply?.id || '')}">${reply ? `<div class="wg-reply-context"><span>Replying to <strong>${esc(replyName)}</strong></span><button type="button" data-group-cancel-reply="${esc(postId)}">Cancel</button></div>` : ''}<textarea name="body" maxlength="5000" rows="2" placeholder="Write a comment…" required></textarea><div class="wg-comment-form-actions"><small>Replies can be nested in the discussion.</small><button type="submit">${reply ? 'Post reply' : 'Comment'}</button></div></form>`
+      ? `<form class="wg-group-comment-form" data-group-comment-form data-post-id="${esc(postId)}"><textarea name="body" maxlength="5000" rows="2" placeholder="Write a comment…" required></textarea><div class="wg-comment-form-actions"><small>Join the conversation with a new comment.</small><button type="submit">Comment</button></div></form>`
       : '<p class="wg-comment-gate">Sign in to comment and reply.</p>';
-    container.innerHTML = `<div class="wg-comments-heading"><strong>Comments & replies</strong><span>${rows.length} ${rows.length === 1 ? 'comment' : 'comments'}</span></div><div class="wg-comments-list">${list}</div>${composer}`;
+    container.innerHTML = `<div class="wg-comments-heading"><strong>Comments</strong><label class="wg-comment-sort-label"><span>Sort:</span><select data-group-comment-sort data-post-id="${esc(postId)}"><option value="relevant" ${sort==='relevant'?'selected':''}>Most relevant</option><option value="newest" ${sort==='newest'?'selected':''}>Newest</option><option value="oldest" ${sort==='oldest'?'selected':''}>Oldest</option></select></label><span>${rows.length} ${rows.length === 1 ? 'comment' : 'comments'}</span></div><div class="wg-comments-list">${list}</div>${composer}`;
   }
   async function loadGroupPostComments(postId, container, force = false) {
     if (!container) return;
@@ -291,7 +316,7 @@
     const form = event.target;
     const postId = form.dataset.postId;
     const body = String(new FormData(form).get('body') || '').trim();
-    const parentId = String(new FormData(form).get('parent_id') || '').trim() || null;
+    const parentId = null;
     if (!requireLogin()) return;
     if (!body) return say('Write a comment before publishing.', true);
     if (body.length > 5000) return say('Comments may contain up to 5,000 characters.', true);
@@ -300,27 +325,14 @@
     try {
       const { error } = await state.db.rpc('wazobia_create_group_post_comment', { p_post_id: postId, p_body: body, p_parent_id: parentId });
       if (error) throw error;
-      state.replyTargets.delete(String(postId));
       const panel = document.querySelector(`[data-group-comment-area="${CSS.escape(String(postId))}"]`);
       if (panel) await loadGroupPostComments(postId, panel, true);
       await refreshGroupPostActivity();
-      say(parentId ? 'Your reply has been published.' : 'Your comment has been published.');
+      say('Your comment has been published.');
     } catch (error) {
       say(error.message || 'Could not publish your comment.', true);
     } finally {
-      if (button?.isConnected) { button.disabled = false; button.textContent = parentId ? 'Post reply' : 'Comment'; }
-    }
-  }
-  async function replyToGroupPostComment(postId, commentId) {
-    const rows = state.commentsByPost.get(String(postId)) || [];
-    const comment = rows.find(row => String(row.id) === String(commentId));
-    if (!comment) return;
-    const profileMap = state.commentProfilesByPost.get(String(postId)) || new Map();
-    state.replyTargets.set(String(postId), { id: comment.id, authorId: comment.author_id });
-    const panel = document.querySelector(`[data-group-comment-area="${CSS.escape(String(postId))}"]`);
-    if (panel) {
-      renderGroupComments(postId, panel, rows);
-      panel.querySelector('[name="body"]')?.focus();
+      if (button?.isConnected) { button.disabled = false; button.textContent = 'Comment'; }
     }
   }
   async function editGroupPostComment(postId, commentId) {
@@ -545,8 +557,6 @@
       const reaction=e.target.closest('[data-group-react]');if(reaction)return toggleGroupPostReaction(reaction.dataset.postId,reaction.dataset.groupReact,reaction);
       const comments=e.target.closest('[data-group-comments-toggle]');if(comments)return toggleGroupPostComments(comments.dataset.groupCommentsToggle);
       const retry=e.target.closest('[data-group-comments-retry]');if(retry){const panel=document.querySelector(`[data-group-comment-area="${CSS.escape(retry.dataset.groupCommentsRetry)}"]`);return loadGroupPostComments(retry.dataset.groupCommentsRetry,panel,true);}
-      const reply=e.target.closest('[data-group-comment-reply]');if(reply)return replyToGroupPostComment(reply.dataset.postId,reply.dataset.groupCommentReply);
-      const cancelReply=e.target.closest('[data-group-cancel-reply]');if(cancelReply){state.replyTargets.delete(String(cancelReply.dataset.groupCancelReply));const panel=document.querySelector(`[data-group-comment-area="${CSS.escape(cancelReply.dataset.groupCancelReply)}"]`);return loadGroupPostComments(cancelReply.dataset.groupCancelReply,panel,true);}
       const editComment=e.target.closest('[data-group-comment-edit]');if(editComment)return editGroupPostComment(editComment.dataset.postId,editComment.dataset.groupCommentEdit);
       const deleteComment=e.target.closest('[data-group-comment-delete]');if(deleteComment)return deleteGroupPostComment(deleteComment.dataset.postId,deleteComment.dataset.groupCommentDelete);
       const detail=e.target.closest('[data-group-detail-action]');if(detail)return detailAction(detail.dataset.groupDetailAction);
@@ -554,6 +564,10 @@
       const request=e.target.closest('[data-inline-request]');if(request)return approveRequest(state.currentGroup.id,request.dataset.userId,request.dataset.inlineRequest==='approve');
       const pin=e.target.closest('[data-group-post-pin]');if(pin)return pinGroupPost(pin.dataset.groupPostPin,pin.dataset.pinValue==='true');
       const post=e.target.closest('[data-group-post-delete]');if(post)return deleteGroupPost(post.dataset.groupPostDelete);
+    });
+    $('wg-group-detail').addEventListener('change',e=>{
+      const sort=e.target.closest('[data-group-comment-sort]');
+      if(sort){state.commentSorts.set(String(sort.dataset.postId),sort.value);const panel=document.querySelector(`[data-group-comment-area=\"${CSS.escape(sort.dataset.postId)}\"]`);if(panel)renderGroupComments(sort.dataset.postId,panel,state.commentsByPost.get(String(sort.dataset.postId))||[]);}
     });
     $('wg-group-detail').addEventListener('submit',e=>{
       if(e.target.id==='wg-edit-group'){e.preventDefault();saveGroup(e);}
@@ -574,7 +588,7 @@
       if(state.user){const {data:profile}=await state.db.from('wazobia_profiles').select('display_name,username,avatar_url').eq('user_id',state.user.id).maybeSingle();state.profile=profile||null;$('wg-account').textContent=initials(profile?.display_name||profile?.username||state.user.email);$('wg-account').title=profile?.display_name||'Your Wazobia account';}
       else $('wg-auth-note').hidden=false;
       await loadView();
-      const groupId=new URLSearchParams(location.search).get('group');if(groupId)await openGroup(groupId);
+      const pageParams=new URLSearchParams(location.search);const groupId=pageParams.get('group');const openCommentsPostId=pageParams.get('openComments');if(groupId){await openGroup(groupId);if(openCommentsPostId){const panel=document.querySelector(`[data-group-comment-area=\"${CSS.escape(openCommentsPostId)}\"]`);if(panel){panel.hidden=false;await loadGroupPostComments(openCommentsPostId,panel);document.querySelector(`[data-group-post-id=\"${CSS.escape(openCommentsPostId)}\"]`)?.scrollIntoView({behavior:'smooth',block:'start'});}}}
       state.db.auth.onAuthStateChange((_event,session)=>{setTimeout(async()=>{state.user=session?.user||null;try{await loadMemberships();await loadView();}catch(e){say(e.message,true);}},0);});
     } catch(error){$('wg-group-list').innerHTML=empty(error.message||'Could not connect to Wazobia.','Connection error');}
   }
