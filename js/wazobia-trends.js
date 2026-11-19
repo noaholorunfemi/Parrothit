@@ -380,7 +380,18 @@
           await updateAuthSession(data.session);
         } else {
           const { data, error } = await state.db.functions.invoke('wazobia-username-login', { body: { username: identity, password } });
-          if (error) throw new Error('Username sign-in is not ready. Deploy the wazobia-username-login Edge Function from the patch instructions.');
+          if (error) {
+            let detail = error.message || 'The username login endpoint could not be reached.';
+            try {
+              const response = error.context;
+              if (response && typeof response.clone === 'function') {
+                const body = await response.clone().json();
+                detail = body.error || body.message || detail;
+              }
+            } catch (_) {}
+            const status = error.context && error.context.status ? ` (HTTP ${error.context.status})` : '';
+            throw new Error(`Username login service unavailable${status}: ${detail}. Confirm that wazobia-username-login is deployed in the same Supabase project as this website.`);
+          }
           if (!data?.access_token || !data?.refresh_token) throw new Error(data?.error || 'Invalid username or password.');
           const { data: sessionData, error: sessionError } = await state.db.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
           if (sessionError) throw sessionError;
