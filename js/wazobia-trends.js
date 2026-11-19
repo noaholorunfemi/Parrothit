@@ -20,26 +20,6 @@
     catch (_) { return ''; }
   };
   const initials = (name) => String(name || 'P').trim().split(/\s+/).slice(0, 2).map(x => x[0] || '').join('').toUpperCase() || 'P';
-
-  // A room join must return to the selected room after login/OAuth/email verification.
-  // Restrict the destination to known same-origin community pages to prevent open redirects.
-  function safeNextDestination() {
-    const raw = new URLSearchParams(location.search).get('next');
-    if (!raw) return '';
-    try {
-      const destination = new URL(raw, location.href);
-      if (destination.origin !== location.origin) return '';
-      const leaf = destination.pathname.split('/').pop() || '';
-      const allowed = /^(?:wazobia-room-[a-z0-9-]+\.html|wazobia-room-discussions\.html|parrothit-wazobia-trends\.html)$/i;
-      return allowed.test(leaf) ? destination.href : '';
-    } catch (_) { return ''; }
-  }
-  function authRedirectUrl() {
-    const url = new URL('wazobia-trends.html', location.href);
-    const destination = safeNextDestination();
-    if (destination) url.searchParams.set('next', destination);
-    return url.href;
-  }
   const relativeTime = (value) => {
     const date = new Date(value); if (Number.isNaN(date.getTime())) return 'just now';
     const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
@@ -383,11 +363,6 @@
           sessionStorage.removeItem('parrothitWazobiaThreadReturn');
         }
       } catch (_) {}
-      const nextDestination = safeNextDestination();
-      if (nextDestination) {
-        location.replace(nextDestination);
-        return;
-      }
     }
   }
 
@@ -439,7 +414,7 @@
           password,
           options: {
             data: { display_name: displayName, username, wazobia_terms_accepted: true },
-            emailRedirectTo: authRedirectUrl()
+            emailRedirectTo: new URL('wazobia-trends.html', location.href).href
           }
         });
         if (error) throw error;
@@ -455,7 +430,7 @@
     try {
       const { error } = await state.db.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: authRedirectUrl(), queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined }
+        options: { redirectTo: new URL('wazobia-trends.html', location.href).href, queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined }
       });
       if (error) throw error;
     } catch (error) { authStatus(error.message || `${provider} sign-in could not start. Check the Supabase provider settings.`, true); }
@@ -854,9 +829,31 @@
 
   async function deletePost(postId) {
     if (!requireUser()) return;
+    if (!postId) return status('This post could not be identified. Refresh the page and try again.', true);
     if (!confirm('Delete this post? This cannot be undone.')) return;
-    const { error } = await state.db.from('wazobia_posts').update({ is_deleted: true }).eq('id', postId).eq('author_id', state.user.id);
-    if (error) status(error.message, true); else { status('Post deleted.'); await loadFeed(true); }
+
+    // Use a SECURITY DEFINER RPC that checks auth.uid() against the post owner
+    // before soft-deleting. This avoids stale/misconfigured UPDATE RLS policies
+    // without granting members access to delete posts belonging to others.
+    try {
+      const { data: deleted, error } = await state.db.rpc('wazobia_delete_post', { p_post_id: postId });
+      if (error) {
+        const message = /function .*wazobia_delete_post.*not found|schema cache/i.test(error.message || '')
+          ? 'Post deletion is not fully configured yet. Ask the site administrator to run supabase/wazobia-post-delete-rls-repair.sql in Supabase SQL Editor.'
+          : (error.message || 'The post could not be deleted.');
+        status(message, true);
+        return;
+      }
+      if (deleted !== true) {
+        status('This post has already been deleted or is no longer available.', true);
+        await loadFeed(true);
+        return;
+      }
+      status('Post deleted.');
+      await loadFeed(true);
+    } catch (error) {
+      status(error?.message || 'The post could not be deleted. Please try again.', true);
+    }
   }
 
   async function reportPost(postId) {
