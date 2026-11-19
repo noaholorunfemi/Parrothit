@@ -61,6 +61,7 @@ grant update (name,icon,description,theme_class,is_active,sort_order,updated_at)
 
 -- 2) Only active members can join a room; suspended members cannot rejoin.
 drop policy if exists "Members join rooms as themselves" on public.community_room_members;
+drop policy if exists "Members join active rooms as themselves" on public.community_room_members;
 create policy "Members join active rooms as themselves"
   on public.community_room_members for insert to authenticated
   with check (
