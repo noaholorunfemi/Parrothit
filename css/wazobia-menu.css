@@ -10,3 +10,18 @@ html[data-wz-theme="light"]{color-scheme:light;--wzm-bg:#f0f2f5;--wzm-card:#fff;
 .wzm-settings{padding:15px;background:var(--wzm-card);border:1px solid var(--wzm-border);border-radius:13px;margin:4px 0 20px}.wzm-settings .wzm-section-heading{margin:0 0 9px}.wzm-setting-row{width:100%;min-height:67px;display:flex;align-items:center;gap:12px;padding:11px 5px;background:transparent;color:var(--wzm-ink);border:0;border-top:1px solid var(--wzm-border);text-align:left}.wzm-setting-symbol{width:35px;height:35px;display:grid;place-items:center;flex:none;border-radius:50%;background:var(--wzm-bg);font-size:19px}.wzm-setting-copy{display:grid;gap:3px;flex:1;min-width:0}.wzm-setting-copy strong{font-size:14px}.wzm-setting-copy small{font-size:11px;color:var(--wzm-muted);line-height:1.35}.wzm-theme-choice{display:flex;gap:4px;padding:3px;border-radius:9px;background:var(--wzm-bg)}.wzm-theme-choice button{border:0;border-radius:7px;padding:8px 10px;background:transparent;color:var(--wzm-muted);font-size:11px;font-weight:850}.wzm-theme-choice button[aria-pressed="true"]{background:var(--wzm-green);color:#fff}.wzm-setting-link{display:flex;text-decoration:none}.wzm-signout{cursor:pointer;color:#ef747a}.wzm-signout[hidden]{display:none}.wzm-footer{display:flex;justify-content:space-between;gap:12px;padding:12px 3px 20px;color:var(--wzm-muted);font-size:11px}.wzm-footer a{font-weight:850;color:var(--wzm-ink)}.wzm-feedback{min-height:18px;margin:0;text-align:center;color:var(--wzm-green);font-size:12px}
 @media(max-width:480px){.wzm-topbar{height:60px;padding:0 14px;gap:12px}.wzm-topbar h1{font-size:25px}.wzm-top-actions button{width:38px;height:38px;font-size:26px}.wzm-main{width:calc(100% - 22px);margin:13px auto 26px}.wzm-profile-card{min-height:94px;padding:11px 12px}.wzm-avatar{width:52px;height:52px}.wzm-profile-copy strong{font-size:18px}.wzm-profile-copy small{font-size:13px}.wzm-profile-dashboard{width:38px;height:38px}.wzm-account-switch{min-height:66px}.wzm-invite{min-height:68px}.wzm-invite small{display:none}.wzm-shortcuts{gap:8px}.wzm-tile{min-height:110px;padding:13px}.wzm-tile strong{font-size:17px}.wzm-settings{padding:12px}.wzm-setting-row{gap:8px}.wzm-theme-choice button{padding:8px 7px}.wzm-footer{display:grid;gap:5px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+
+/* Wazobia category rooms */
+.wzm-rooms-section{margin:22px 0 28px}
+.wzm-room-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.wzm-room-tile{display:flex;align-items:flex-start;gap:12px;min-width:0;padding:15px;border:1px solid var(--wzm-border,#333b43);border-radius:16px;background:var(--wzm-card,#20252a);color:var(--wzm-text,#f7f8f9);text-decoration:none;transition:transform .16s ease,border-color .16s ease}
+.wzm-room-tile:hover,.wzm-room-tile:focus-visible{transform:translateY(-2px);border-color:#21a36b;outline:none}
+.wzm-room-icon{display:grid;place-items:center;flex:0 0 43px;width:43px;height:43px;border-radius:13px;background:rgba(28,166,105,.14);font-size:23px}
+.wzm-room-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.wzm-room-copy strong{font-size:15px;line-height:1.25}
+.wzm-room-copy small{font-size:12px;line-height:1.4;opacity:.72}
+.wzm-room-copy em{margin-top:4px;color:#2bb879;font-style:normal;font-size:12px;font-weight:800}
+.wzm-private-room-tile{border-color:rgba(43,184,121,.55)}
+.wzm-room-loading{grid-column:1/-1;padding:12px;border-radius:12px;background:var(--wzm-card,#20252a);opacity:.75}
+@media(max-width:520px){.wzm-room-grid{grid-template-columns:1fr}.wzm-room-tile{padding:13px}}
