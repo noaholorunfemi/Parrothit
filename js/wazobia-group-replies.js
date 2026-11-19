@@ -126,7 +126,7 @@
     const canReply = !!state.user && canReadPrivate;
     $('wg-thread-form').hidden = !canReply;
     $('wg-thread-signin').hidden = canReply;
-    if (!state.user) $('wg-thread-signin').innerHTML = 'Sign in to reply. <a href="parrothit-wazobia-trends.html?openAuth=1">Sign in to Wazobia</a>';
+    if (!state.user) $('wg-thread-signin').innerHTML = 'Sign in to reply. <a href="wazobia-trends.html?openDashboard=1">Sign in to Wazobia</a>';
     else if (!canReadPrivate) $('wg-thread-signin').textContent = 'Join this private group before replying.';
     if (canReply) renderReplyContext();
   }

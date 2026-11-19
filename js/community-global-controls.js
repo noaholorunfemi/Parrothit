@@ -9,7 +9,7 @@ function apply(s){
  const path=location.pathname.toLowerCase();
  const isRoom=/\/rooms\/[^/]+\.html$/.test(path);
  const isChat=/\/private-chat\.html$/.test(path);
- const isWazobia=/\/parrothit-wazobia-trends\.html$/.test(path);
+ const isWazobia=/\/wazobia-trends\.html$/.test(path);
  const interaction=/\/interaction\.html$/.test(path)||isWazobia;
  if(!s.interaction_enabled)banner(isWazobia?'PARROTHIT Wazobia Trends is temporarily paused by Admin 1. Public reading may remain available; member activity is disabled.':'PARROTHIT Interaction is temporarily paused by Admin 1. Public reading remains available; member activity is disabled.');
  if(isRoom&&!s.room_chat_enabled)banner('Room chat and membership actions are temporarily paused by Admin 1.');
@@ -21,7 +21,7 @@ function apply(s){
  if(!s.allow_reactions||!s.interaction_enabled)disable('[data-react]','Reactions are disabled by the administrator');
  if(!s.allow_friendships||!s.interaction_enabled)disable('[data-friend-request],[data-friend-accept],[data-friend-add],[data-friend-action],#communityFindFriend,#communityFriendSearch','Friend requests are disabled by the administrator');
  if(isWazobia&&(!s.room_chat_enabled||!s.interaction_enabled))disable('#communityRoomGrid a','Discussion room activity is disabled by the administrator');
- if(isWazobia&&(!s.private_chat_enabled||!s.interaction_enabled))disable('.auth-actions a[href$="private-chat.html"],.auth-actions a[href$="wazobia-messages.html"]','Private messaging is disabled by the administrator');
+ if(isWazobia&&(!s.private_chat_enabled||!s.interaction_enabled))disable('.auth-actions a[href$="private-chat.html"]','Private messaging is disabled by the administrator');
  if(!s.allow_room_invites||!s.interaction_enabled)toggle(document.getElementById('roomInviteButton'),true,'Room invitations are disabled by the administrator');
  if(!s.allow_images||!s.interaction_enabled){['postImage','communityCameraPick'].forEach(id=>{const e=document.getElementById(id);if(e){const lab=e.id==='postImage'?document.querySelector('label[for="postImage"]'):e;if(lab)lab.classList.add('hidden');toggle(e,true,'Image uploads are disabled by the administrator');}});}
  if(!s.allow_voice||!s.interaction_enabled)['communityVoiceRecord','communityVoiceStop'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.add('hidden');});
