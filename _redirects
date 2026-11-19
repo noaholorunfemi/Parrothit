@@ -1,0 +1,4 @@
+# Retired Wazobia page: send both historical URL forms to the current signed-in dashboard.
+/parrothit-wazobia-trends       /wazobia-trends.html?openDashboard=1  302
+/parrothit-wazobia-trends/      /wazobia-trends.html?openDashboard=1  302
+/parrothit-wazobia-trends.html  /wazobia-trends.html?openDashboard=1  302

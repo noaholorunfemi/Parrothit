@@ -6,18 +6,19 @@
   <meta name="description" content="Private Wazobia group chats on PARROTHIT.">
   <title>Group chats | PARROTHIT Wazobia Trends</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-chat-groups.css?v=1">
+  <link rel="stylesheet" href="css/wazobia-chat-groups.css?v=2-visible-fallback">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-chat-groups.js?v=1" defer></script>
+  <script src="js/wazobia-chat-groups.js?v=2-visible-fallback" defer></script>
 </head>
 <body class="wzcg-page">
   <header class="wzcg-topbar">
     <a class="wzcg-brand" href="wazobia-trends.html"><img src="/assets/images/parrothit-wazobia-trends-logo.png" alt=""><span><b>PARROTHIT</b><small>WAZOBIA TRENDS</small></span></a>
-    <nav><a href="wazobia-trends.html">Home</a><a href="wazobia-messages.html">One-to-one messages</a><a href="wazobia-groups.html">Community groups</a></nav>
+    <nav><a href="wazobia-trends.html">Home</a><a href="wazobia-messages.html">One-to-one messages</a><a href="wazobia-room-chats.html">Room chats</a><a href="wazobia-groups.html">Community groups</a></nav>
   </header>
   <main class="wzcg-main">
     <section class="wzcg-sidebar">
+      <p class="wzcg-chat-switch"><a href="wazobia-room-chats.html">← Your joined room chats</a></p>
       <div class="wzcg-side-head"><div><h1>Group chats</h1><p>Private conversations with your group.</p></div><button id="wzcg-new-group" type="button">＋ Create</button></div>
       <form id="wzcg-create-form" class="wzcg-create" hidden>
         <label>Group name<input id="wzcg-group-name" maxlength="70" minlength="3" placeholder="e.g. Friends and family" required></label>
