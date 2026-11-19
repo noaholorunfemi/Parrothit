@@ -5,6 +5,7 @@
   const state = {
     db: null, user: null, profile: null, profiles: [], conversations: [], currentId: null,
     currentPerson: null, currentMessages: [], onlineIds: new Set(), presence: null, realtime: null,
+    friendIds: new Set(), friendProfiles: [], profileSource: 'wazobia_profiles',
     pollTimer: null, inboxSearchTimer: null, memberSearchTimer: null, memberResults: null, searchText: '', memberSearch: '', showActive: localStorage.getItem('wzMessengerPresence') !== 'off', busy: false,
     call: null, callChannel: null, processedCallSignals: new Set(), earlyIce: new Map(),
     blockState: 'none', chatPreference: {background_color:'#ffffff',background_path:null}, wallpaperUrl: ''
@@ -66,25 +67,116 @@
     state.showActive = state.showActive && state.profile.show_active_status !== false;
   }
 
+  function normalizeProfile(p) {
+    if (!p || !p.user_id) return null;
+    return {
+      user_id: p.user_id,
+      display_name: p.display_name || p.full_name || 'Wazobia member',
+      username: p.username || '',
+      avatar_url: p.avatar_url || p.profile_picture || null,
+      created_at: p.created_at || null
+    };
+  }
+
+  function mergeProfiles(primary, secondary) {
+    const map = new Map();
+    [...(secondary || []), ...(primary || [])].forEach(row => {
+      const p = normalizeProfile(row);
+      if (p) map.set(p.user_id, {...(map.get(p.user_id) || {}), ...p});
+    });
+    return [...map.values()];
+  }
+
+  async function loadFriendIds() {
+    const uid = state.user.id;
+    const modern = await state.db.from('wazobia_friendships')
+      .select('member_one,member_two,status').eq('status','accepted')
+      .or(`member_one.eq.${uid},member_two.eq.${uid}`);
+    if (!modern.error) {
+      return (modern.data || []).map(row => row.member_one === uid ? row.member_two : row.member_one).filter(Boolean);
+    }
+
+    // Older Interaction accounts may still have their accepted connections
+    // in community_friendships. Use these only as a read-only compatibility path.
+    const legacy = await state.db.from('community_friendships')
+      .select('requester_id,addressee_id,status').eq('status','accepted')
+      .or(`requester_id.eq.${uid},addressee_id.eq.${uid}`);
+    if (!legacy.error) {
+      return (legacy.data || []).map(row => row.requester_id === uid ? row.addressee_id : row.requester_id).filter(Boolean);
+    }
+    return [];
+  }
+
   async function loadProfiles() {
-    const { data, error } = await state.db.from('wazobia_profiles')
+    let primary = await state.db.from('wazobia_profiles')
       .select('user_id,display_name,username,avatar_url,created_at')
-      .neq('user_id', state.user.id).order('created_at', {ascending:false}).limit(100);
-    if (error) throw error;
-    state.profiles = data || [];
+      .neq('user_id', state.user.id).order('created_at', {ascending:false}).limit(250);
+
+    let legacyRows = [];
+    if (primary.error) {
+      state.profileSource = 'community_social_profiles';
+      const legacy = await state.db.from('community_social_profiles')
+        .select('user_id,display_name,username,avatar_url,created_at')
+        .neq('user_id', state.user.id).order('created_at', {ascending:false}).limit(250);
+      if (legacy.error) {
+        state.profiles = [];
+        state.friendProfiles = [];
+        renderPeopleStrip();
+        renderMemberResults();
+        notify(`Member list could not be loaded: ${legacy.error.message || primary.error.message}`, true);
+        return;
+      }
+      legacyRows = legacy.data || [];
+    } else {
+      state.profileSource = 'wazobia_profiles';
+    }
+
+    let friends = [];
+    try { friends = await loadFriendIds(); } catch (_) { friends = []; }
+    state.friendIds = new Set(friends.filter(id => id && id !== state.user.id));
+
+    // Some legacy members have a community profile but no Wazobia profile yet.
+    // Merge the old public-safe directory without overwriting newer Wazobia data.
+    if (!primary.error) {
+      const legacy = await state.db.from('community_social_profiles')
+        .select('user_id,display_name,username,avatar_url,created_at')
+        .neq('user_id', state.user.id).limit(250);
+      if (!legacy.error) legacyRows = legacy.data || [];
+    }
+
+    let profiles = mergeProfiles(primary.data || [], legacyRows);
+    const missingFriends = [...state.friendIds].filter(id => !profiles.some(p => p.user_id === id));
+    if (missingFriends.length) {
+      const [modernMissing, legacyMissing] = await Promise.all([
+        state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url,created_at').in('user_id', missingFriends),
+        state.db.from('community_social_profiles').select('user_id,display_name,username,avatar_url,created_at').in('user_id', missingFriends)
+      ]);
+      profiles = mergeProfiles(modernMissing.data || [], mergeProfiles(profiles, legacyMissing.data || []));
+    }
+
+    state.profiles = profiles.filter(p => p.user_id !== state.user.id);
+    state.friendProfiles = [...state.friendIds].map(id => profileById(id)).filter(Boolean);
+    state.friendProfiles.sort((a,b) => String(a.display_name || a.username).localeCompare(String(b.display_name || b.username)));
     renderPeopleStrip();
     renderMemberResults();
   }
 
   function renderPeopleStrip() {
-    const users = state.profiles.slice(0,35);
-    $('wzm-online-count').textContent = state.onlineIds.size ? `${state.onlineIds.size} active now` : 'Find a member to message';
+    const friends = state.friendProfiles || [];
+    const allOthers = state.profiles.filter(p => !state.friendIds.has(p.user_id));
+    const users = [...friends, ...allOthers].slice(0,35);
+    const heading = $('wzm-people-section')?.querySelector('.wzm-people-heading strong');
+    const subtitle = $('wzm-online-count');
+    if (heading) heading.textContent = friends.length ? 'Friends & members' : 'Find people';
+    if (subtitle) subtitle.textContent = friends.length
+      ? `${friends.length} friend${friends.length === 1 ? '' : 's'} · ${state.onlineIds.size} active now`
+      : (state.onlineIds.size ? `${state.onlineIds.size} active now` : 'Find a member to message');
     const bubbles = users.map(p => `
-      <a class="wzm-person-bubble" href="${profileHref(p.user_id)}" title="View ${esc(p.display_name)}'s profile">
+      <a class="wzm-person-bubble ${state.friendIds.has(p.user_id) ? 'is-friend' : ''}" href="${profileHref(p.user_id)}" title="${state.friendIds.has(p.user_id) ? 'Friend' : 'View member'}: ${esc(p.display_name)}">
         <span class="wzm-person-photo">${safeAvatar(p.avatar_url) ? `<img src="${esc(safeAvatar(p.avatar_url))}" alt="" loading="lazy">` : esc(initials(p.display_name || p.username))}${state.onlineIds.has(p.user_id) ? '<i class="wzm-online-dot" aria-label="Online"></i>' : ''}</span>
         <span>${esc(p.display_name || p.username || 'Member')}</span>
       </a>`).join('');
-    $('wzm-people-strip').innerHTML = `<button class="wzm-person-bubble wzm-new-person" type="button" id="wzm-start-bubble"><span class="wzm-new-person-icon">＋</span><span>New message</span></button>${bubbles || '<div class="wzm-strip-loading">No other Wazobia members yet.</div>'}`;
+    $('wzm-people-strip').innerHTML = `<button class="wzm-person-bubble wzm-new-person" type="button" id="wzm-start-bubble"><span class="wzm-new-person-icon">＋</span><span>New message</span></button>${bubbles || '<div class="wzm-strip-loading">No friends or other members are available yet.</div>'}`;
     $('wzm-start-bubble').addEventListener('click', openDiscover);
   }
 
@@ -100,6 +192,36 @@
         <a class="wzm-member-profile-link" href="${profileHref(p.user_id)}">${avatar(p, true, true)}<span class="wzm-member-info"><strong>${esc(p.display_name || 'Wazobia member')}</strong><small>@${esc(p.username || 'member')}${state.onlineIds.has(p.user_id) ? ' · Active now' : ''}</small></span></a>
         <button type="button" data-message-user="${esc(p.user_id)}">Message</button>
       </div>`).join('') : '<p class="wzm-muted">No members match that search.</p>';
+  }
+
+  async function searchMembers() {
+    const term = state.memberSearch.trim().replace(/[,%()]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!term) {
+      state.memberResults = null;
+      renderMemberResults();
+      return;
+    }
+    const pattern = `%${term}%`;
+    let result = await state.db.from('wazobia_profiles')
+      .select('user_id,display_name,username,avatar_url,created_at')
+      .neq('user_id', state.user.id)
+      .or(`username.ilike.${pattern},display_name.ilike.${pattern}`)
+      .order('display_name', {ascending:true}).limit(60);
+    if (result.error) {
+      result = await state.db.from('community_social_profiles')
+        .select('user_id,display_name,username,avatar_url,created_at')
+        .neq('user_id', state.user.id)
+        .or(`username.ilike.${pattern},display_name.ilike.${pattern}`)
+        .order('display_name', {ascending:true}).limit(60);
+    }
+    if (!result.error) {
+      state.memberResults = (result.data || []).map(normalizeProfile).filter(Boolean);
+    } else {
+      const lower = term.toLowerCase();
+      state.memberResults = state.profiles.filter(p => `${p.display_name || ''} ${p.username || ''}`.toLowerCase().includes(lower));
+      if (!state.memberResults.length) notify(`Member search could not reach the directory: ${result.error.message}`, true);
+    }
+    renderMemberResults();
   }
 
   function previewText(message) {
@@ -179,9 +301,11 @@
       console.warn('Wazobia block status:',error.message);
     } else state.blockState=String(data || 'none');
     const button=$('wzm-block-user');
-    button.textContent=state.blockState==='blocked_by_me' ? 'Unblock' : state.blockState==='blocked_you' ? 'Blocked you' : 'Block';
-    button.disabled=state.blockState==='blocked_you';
-    button.title=state.blockState==='blocked_by_me' ? 'Unblock this member' : state.blockState==='blocked_you' ? 'This member has blocked your account' : 'Prevent this member from messaging you';
+    if (button) {
+      button.textContent=state.blockState==='blocked_by_me' ? 'Unblock' : state.blockState==='blocked_you' ? 'Blocked you' : 'Block';
+      button.disabled=state.blockState==='blocked_you';
+      button.title=state.blockState==='blocked_by_me' ? 'Unblock this member' : state.blockState==='blocked_you' ? 'This member has blocked your account' : 'Prevent this member from messaging you';
+    }
     $('wzm-message-input').disabled=state.blockState!=='none';
     $('wzm-send-button').disabled=state.blockState!=='none';
     if (state.blockState!=='none') {
@@ -197,7 +321,7 @@
     node.style.backgroundSize=state.wallpaperUrl ? 'cover' : '';
     node.style.backgroundPosition='center';
     node.style.backgroundRepeat='no-repeat';
-    $('wzm-chat-color').value=/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffffff';
+    if ($('wzm-chat-color')) $('wzm-chat-color').value=/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffffff';
   }
 
   async function loadChatPreference() {
@@ -216,7 +340,7 @@
   }
 
   async function saveChatWallpaper() {
-    if (!state.currentId || !state.user) return;
+    if (!state.currentId || !state.user || !$('wzm-chat-color') || !$('wzm-chat-wallpaper-file')) return;
     const color=$('wzm-chat-color').value;
     if (!/^#[0-9a-f]{6}$/i.test(color)) return notify('Choose a valid background colour.',true);
     const file=$('wzm-chat-wallpaper-file').files?.[0] || null;
@@ -244,7 +368,7 @@
   }
 
   async function clearChatWallpaper() {
-    if (!state.currentId || !state.user) return;
+    if (!state.currentId || !state.user || !$('wzm-chat-color')) return;
     const oldPath=state.chatPreference.background_path;
     if (oldPath) await state.db.storage.from('wazobia-chat-wallpapers').remove([oldPath]);
     const {error}=await state.db.from('wazobia_chat_preferences').upsert({
@@ -319,7 +443,7 @@
     link.innerHTML = `${avatar(person,true,true)}<span><strong>${esc(person.display_name || 'Wazobia member')}</strong><small>${person.is_private ? 'Profile link hidden' : online ? 'Active now' : `@${esc(person.username || 'member')}`}</small></span>`;
     $('wzm-voice-call').hidden = false;
     $('wzm-video-call').hidden = false;
-    $('wzm-block-user').hidden = false;
+    if ($('wzm-block-user')) $('wzm-block-user').hidden = false;
   }
 
   function renderMessages() {
@@ -386,7 +510,8 @@
     state.currentMessages = [];
     state.blockState='none'; state.chatPreference={background_color:'#ffffff',background_path:null}; state.wallpaperUrl='';
     $('wzm-messages').style.backgroundImage=''; $('wzm-messages').style.backgroundColor='';
-    $('wzm-chat-customize').hidden=true; $('wzm-block-user').hidden=true;
+    if ($('wzm-chat-customize')) $('wzm-chat-customize').hidden=true;
+    if ($('wzm-block-user')) $('wzm-block-user').hidden=true;
     $('wzm-workspace').classList.remove('thread-open');
     $('wzm-thread').hidden = true;
     $('wzm-thread-empty').hidden = false;
@@ -675,15 +800,15 @@
     $('wzm-call-hangup').addEventListener('click',() => endCall(true,'hangup'));
     $('wzm-call-close').addEventListener('click',() => { if (state.call?.direction === 'incoming' && !state.call.pc) endCall(true,'reject'); else if (state.call) notify('Use End call to finish this conversation.'); else closeCallOverlay(); });
     $('wzm-chat-details').addEventListener('click',() => {
-      if (!state.currentPerson) return;
+      if (!state.currentPerson || !$('wzm-chat-customize')) return;
       $('wzm-chat-customize').hidden=!$('wzm-chat-customize').hidden;
     });
-    $('wzm-block-user').addEventListener('click',toggleBlockCurrentMember);
-    $('wzm-chat-wallpaper-save').addEventListener('click',saveChatWallpaper);
-    $('wzm-chat-wallpaper-clear').addEventListener('click',clearChatWallpaper);
+    $('wzm-block-user')?.addEventListener('click',toggleBlockCurrentMember);
+    $('wzm-chat-wallpaper-save')?.addEventListener('click',saveChatWallpaper);
+    $('wzm-chat-wallpaper-clear')?.addEventListener('click',clearChatWallpaper);
     document.addEventListener('click',e => {
       const target = e.target.closest('[data-message-user]');
-      if (target) startConversation(target.dataset.messageUser);
+      if (target) startConversation(target.dataset.messageUser).catch(error => notify(error.message || 'Could not open this conversation.',true));
       const conversation = e.target.closest('[data-open-conversation]');
       if (conversation) {
         const item = state.conversations.find(c => c.id === conversation.dataset.openConversation);

@@ -14,21 +14,28 @@
 
   async function loadLists(){
     if(!state.user)return;
-    const {data:memberships,error}=await state.db.from('wazobia_chat_group_members')
-      .select('group_id,user_id,role,status,created_at').eq('user_id',state.user.id).order('created_at',{ascending:false});
-    if(error)throw error;
-    state.memberships=memberships||[];
-    const ids=[...new Set(state.memberships.map(x=>x.group_id))];
-    const {data:groups,error:groupError}=ids.length
-      ? await state.db.from('wazobia_chat_groups').select('id,name,created_by,created_at,updated_at').in('id',ids)
-      : {data:[],error:null};
-    if(groupError)throw groupError;
-    state.groups=groups||[];
-    const active=state.memberships.filter(x=>x.status==='active');
-    const invites=state.memberships.filter(x=>x.status==='invited');
-    const nameById=new Map(state.groups.map(g=>[g.id,g.name]));
-    $('wzcg-group-list').innerHTML=active.length?active.map(m=>`<button type="button" class="wzcg-group-row ${state.activeGroup?.id===m.group_id?'selected':''}" data-open-group="${esc(m.group_id)}"><span class="wzcg-group-icon">▣</span><span><strong>${esc(nameById.get(m.group_id)||'Group chat')}</strong><small>${m.role==='owner'?'Creator':'Member'}</small></span></button>`).join(''):'<p class="wzcg-muted">You have not joined a group chat yet.</p>';
-    $('wzcg-invites').innerHTML=invites.length?invites.map(m=>`<div class="wzcg-invite-row"><strong>${esc(nameById.get(m.group_id)||'Group invitation')}</strong><div><button type="button" data-invite-response="true" data-group-id="${esc(m.group_id)}">Accept</button><button class="secondary" type="button" data-invite-response="false" data-group-id="${esc(m.group_id)}">Decline</button></div></div>`).join(''):'<p class="wzcg-muted">No invitations.</p>';
+    try {
+      const {data:memberships,error}=await state.db.from('wazobia_chat_group_members')
+        .select('group_id,user_id,role,status,created_at').eq('user_id',state.user.id).order('created_at',{ascending:false});
+      if(error)throw error;
+      state.memberships=memberships||[];
+      const ids=[...new Set(state.memberships.map(x=>x.group_id))];
+      const {data:groups,error:groupError}=ids.length
+        ? await state.db.from('wazobia_chat_groups').select('id,name,created_by,created_at,updated_at').in('id',ids)
+        : {data:[],error:null};
+      if(groupError)throw groupError;
+      state.groups=groups||[];
+      const active=state.memberships.filter(x=>x.status==='active');
+      const invites=state.memberships.filter(x=>x.status==='invited');
+      const nameById=new Map(state.groups.map(g=>[g.id,g.name]));
+      $('wzcg-group-list').innerHTML=active.length?active.map(m=>`<button type="button" class="wzcg-group-row ${state.activeGroup?.id===m.group_id?'selected':''}" data-open-group="${esc(m.group_id)}"><span class="wzcg-group-icon">▣</span><span><strong>${esc(nameById.get(m.group_id)||'Group chat')}</strong><small>${m.role==='owner'?'Creator':'Member'}</small></span></button>`).join(''):'<p class="wzcg-muted">You have not joined a group chat yet.</p>';
+      $('wzcg-invites').innerHTML=invites.length?invites.map(m=>`<div class="wzcg-invite-row"><strong>${esc(nameById.get(m.group_id)||'Group invitation')}</strong><div><button type="button" data-invite-response="true" data-group-id="${esc(m.group_id)}">Accept</button><button class="secondary" type="button" data-invite-response="false" data-group-id="${esc(m.group_id)}">Decline</button></div></div>`).join(''):'<p class="wzcg-muted">No invitations.</p>';
+    } catch(error) {
+      $('wzcg-group-list').innerHTML=`<div class="wzcg-load-error"><strong>Group chats could not load</strong><p>${esc(error.message||'The group-chat database is unavailable.')}</p><small>Check that supabase/wazobia-account-chat-social-v2.sql has been run in Supabase SQL Editor.</small><button type="button" id="wzcg-retry-load">Try again</button></div>`;
+      $('wzcg-invites').innerHTML='<p class="wzcg-muted">Invitations are unavailable until group chats load.</p>';
+      $('wzcg-retry-load')?.addEventListener('click',()=>loadLists().catch(err=>say(err.message,true)));
+      throw error;
+    }
   }
 
   async function createGroup(event){
@@ -86,7 +93,8 @@
     if(error)throw error;
     state.activeMembers=data||[];
     const ids=[...new Set(state.activeMembers.map(m=>m.user_id))];
-    const peopleResult=ids.length?await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').in('user_id',ids):{data:[],error:null};
+    let peopleResult=ids.length?await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').in('user_id',ids):{data:[],error:null};
+    if(peopleResult.error&&ids.length)peopleResult=await state.db.from('community_social_profiles').select('user_id,display_name,username,avatar_url').in('user_id',ids);
     const people=new Map((peopleResult.data||[]).map(p=>[p.user_id,p]));
     const owner=state.activeGroup.created_by===state.user.id;
     const active=state.activeMembers.filter(m=>m.status==='active');
@@ -101,9 +109,10 @@
     const term=$('wzcg-member-search').value.trim().replace(/^@/,'');
     const panel=$('wzcg-member-results');
     if(!term){panel.hidden=true;panel.innerHTML='';return;}
-    const {data,error}=await state.db.from('wazobia_profiles')
+    let {data,error}=await state.db.from('wazobia_profiles')
       .select('user_id,username,display_name,avatar_url').ilike('username',`${term}%`)
       .neq('user_id',state.user.id).order('username').limit(10);
+    if(error){const fallback=await state.db.from('community_social_profiles').select('user_id,username,display_name,avatar_url').ilike('username',`${term}%`).neq('user_id',state.user.id).order('username').limit(10);data=fallback.data;error=fallback.error;}
     if(error){panel.innerHTML=`<p>${esc(error.message)}</p>`;panel.hidden=false;return;}
     const existing=new Set(state.activeMembers.map(m=>m.user_id));
     const results=(data||[]).filter(p=>!existing.has(p.user_id));
@@ -149,9 +158,10 @@
     const {data,error}=await state.db.from('wazobia_chat_group_messages')
       .select('id,group_id,sender_id,body,created_at').eq('group_id',state.activeGroup.id)
       .order('created_at',{ascending:true}).limit(300);
-    if(error){say(error.message||'Could not load group messages.',true);return;}
+    if(error){$('wzcg-messages').innerHTML=`<div class="wzcg-no-messages wzcg-load-error"><strong>Messages could not load</strong><p>${esc(error.message||'Please try again.')}</p><button type="button" id="wzcg-retry-messages">Try again</button></div>`;$('wzcg-retry-messages')?.addEventListener('click',()=>loadMessages());say(error.message||'Could not load group messages.',true);return;}
     const ids=[...new Set((data||[]).map(m=>m.sender_id))];
-    const peopleResult=ids.length?await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').in('user_id',ids):{data:[],error:null};
+    let peopleResult=ids.length?await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').in('user_id',ids):{data:[],error:null};
+    if(peopleResult.error&&ids.length)peopleResult=await state.db.from('community_social_profiles').select('user_id,display_name,username,avatar_url').in('user_id',ids);
     const people=new Map((peopleResult.data||[]).map(p=>[p.user_id,p]));
     $('wzcg-messages').innerHTML=(data||[]).length?(data||[]).map(m=>{
       const mine=m.sender_id===state.user.id;const p=people.get(m.sender_id)||{};
@@ -201,7 +211,7 @@
       await loadLists();
       const requested=new URLSearchParams(location.search).get('group');
       if(requested)await openGroup(requested);
-    }catch(error){say(error.message||'Could not load group chats.',true);}
+    }catch(error){say(`${error.message||'Could not load group chats.'} Check supabase/wazobia-account-chat-social-v2.sql in Supabase SQL Editor.`,true);}
     state.db.auth.onAuthStateChange((_event,session)=>{if(!session?.user)location.replace('wazobia-trends.html?openAuth=1');});
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
