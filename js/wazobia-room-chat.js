@@ -6,8 +6,16 @@
   const esc = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const safeUrl = value => { try { const u=new URL(value,location.origin); return ['https:'].includes(u.protocol)?u.href:''; } catch (_) { return ''; } };
   const initials = value => String(value||'W').trim().slice(0,1).toUpperCase()||'W';
-  let db=null,user=null,joined=false,roomRow=null,messageChannel=null,membershipChannel=null,busy=false,refreshing=false;
+  let db=null,user=null,joined=false,roomRow=null,messageChannel=null,membershipChannel=null,busy=false,refreshing=false,selectedRoomImage=null,roomPreviewUrl=null,sendingRoomMessage=false;
+  const CHAT_MEDIA_BUCKET='wazobia-chat-media';
+  const MAX_CHAT_IMAGE_BYTES=12*1024*1024;
+  const CHAT_IMAGE_TYPES={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'};
   const say=(message,bad=false)=>{const el=$('wrc-status');if(el){el.textContent=message||'';el.classList.toggle('error',!!bad);}};
+  function clearRoomPhoto(){if(roomPreviewUrl)URL.revokeObjectURL(roomPreviewUrl);roomPreviewUrl=null;selectedRoomImage=null;const input=$('wrc-image-input');if(input)input.value='';const preview=$('wrc-image-preview');if(preview)preview.hidden=true;const img=$('wrc-image-preview-img');if(img)img.removeAttribute('src');}
+  function chooseRoomPhoto(file){if(!file){clearRoomPhoto();return;}if(!CHAT_IMAGE_TYPES[file.type]){clearRoomPhoto();say('Choose a JPEG, PNG, WebP or GIF image.',true);return;}if(file.size>MAX_CHAT_IMAGE_BYTES){clearRoomPhoto();say('Images must be 12 MB or smaller.',true);return;}if(roomPreviewUrl)URL.revokeObjectURL(roomPreviewUrl);selectedRoomImage=file;roomPreviewUrl=URL.createObjectURL(file);$('wrc-image-preview-img').src=roomPreviewUrl;$('wrc-image-preview').hidden=false;say('Photo ready to send.');}
+  async function uploadRoomPhoto(file){if(!file)return null;const ext=CHAT_IMAGE_TYPES[file.type];const id=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);const path=`rooms/${room.slug}/${user.id}/${id}.${ext}`;const {error}=await db.storage.from(CHAT_MEDIA_BUCKET).upload(path,file,{contentType:file.type,cacheControl:'3600',upsert:false});if(error)throw error;return path;}
+  async function bindRoomPhotoUrls(root){const images=[...root.querySelectorAll('[data-wrc-image-path]')];await Promise.all(images.map(async img=>{const path=img.getAttribute('data-wrc-image-path');const {data,error}=await db.storage.from(CHAT_MEDIA_BUCKET).createSignedUrl(path,3600);if(error||!data?.signedUrl){img.alt='Photo unavailable';return;}img.src=data.signedUrl;img.addEventListener('click',()=>window.open(data.signedUrl,'_blank','noopener'));}));}
+
   const inviteSay=(message,bad=false)=>{const el=$('wrc-invite-feedback');if(el){el.textContent=message||'';el.style.color=bad?'#ff9ea7':'#9fc8ff';}};
   function avatarMarkup(profile, cls='wrc-person-avatar') { const url=safeUrl(profile?.avatar_url); return `<span class="${cls}">${url?`<img src="${esc(url)}" alt="" loading="lazy">`:esc(initials(profile?.display_name||profile?.username))}</span>`; }
   function syncChatVisibility(){
@@ -56,7 +64,7 @@
   async function loadMessages(){
     if(!db||!user||!joined||busy)return;busy=true;
     try{
-      const {data,error}=await db.from('community_room_messages').select('id,room_slug,sender_id,body,created_at').eq('room_slug',room.slug).order('created_at',{ascending:true}).limit(250);
+      const {data,error}=await db.from('community_room_messages').select('id,room_slug,sender_id,body,image_path,created_at').eq('room_slug',room.slug).order('created_at',{ascending:true}).limit(250);
       if(error)throw error;
       const rows=data||[];const ids=[...new Set(rows.map(x=>x.sender_id))];let profiles=[];
       if(ids.length){const p=await db.from('community_social_profiles').select('user_id,username,display_name,avatar_url').in('user_id',ids);if(!p.error)profiles=p.data||[];}
@@ -66,8 +74,11 @@
         const p=map.get(row.sender_id)||{};const mine=row.sender_id===user.id;const who=p.display_name||p.username||'Wazobia member';
         const url=safeUrl(p.avatar_url);const av=url?`<span class="wrc-message-avatar"><img src="${esc(url)}" alt="" loading="lazy"></span>`:`<span class="wrc-message-avatar">${esc(initials(who))}</span>`;
         const time=new Date(row.created_at);const timeText=Number.isNaN(time.getTime())?'':time.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-        return `<article class="wrc-message-row ${mine?'mine':'theirs'}" data-message-id="${esc(row.id)}">${av}<div class="wrc-message-content"><div class="wrc-message-bubble">${mine?'':`<span class="wrc-message-author">${esc(who)}</span>`}${esc(row.body)}</div><div class="wrc-message-time"><time>${esc(timeText)}</time>${mine?'<span>You</span>':''}${mine?`<button type="button" data-delete-message="${esc(row.id)}">Delete</button>`:''}</div></div></article>`;
+        const photo=row.image_path?`<img class="wrc-chat-image" data-wrc-image-path="${esc(row.image_path)}" alt="Photo shared in room chat" loading="lazy">`:'';
+        const text=row.body?`<div>${esc(row.body)}</div>`:'';
+        return `<article class="wrc-message-row ${mine?'mine':'theirs'}" data-message-id="${esc(row.id)}">${av}<div class="wrc-message-content"><div class="wrc-message-bubble">${mine?'':`<span class="wrc-message-author">${esc(who)}</span>`}${photo}${text}</div><div class="wrc-message-time"><time>${esc(timeText)}</time>${mine?'<span>You</span>':''}${mine?`<button type="button" data-delete-message="${esc(row.id)}">Delete</button>`:''}</div></div></article>`;
       }).join('');
+      await bindRoomPhotoUrls(feed);
       feed.scrollTop=feed.scrollHeight;
     }catch(error){say(`Room chat could not load: ${error.message||'Check the Wazobia room chat SQL.'}`,true);}
     finally{busy=false;}
@@ -106,12 +117,14 @@
     const box=$('wrc-pending-invites');if(!box||!user)return;const {data,error}=await db.from('community_room_invites').select('id,room_slug,inviter_id').eq('room_slug',room.slug).eq('invitee_id',user.id).eq('status','pending').order('created_at',{ascending:false});if(error){box.textContent='';return;}const rows=data||[];if(!rows.length){box.innerHTML='';return;}const ids=[...new Set(rows.map(x=>x.inviter_id))];const res=ids.length?await db.from('community_social_profiles').select('user_id,username,display_name').in('user_id',ids):{data:[]};const map=new Map((res.data||[]).map(p=>[p.user_id,p]));box.innerHTML=rows.map(x=>`<div class="wrc-pending-row"><span>${esc(map.get(x.inviter_id)?.display_name||map.get(x.inviter_id)?.username||'A member')} invited you to ${esc(room.name)}.</span><span><button type="button" data-accept-invite="${esc(x.id)}">Join</button></span></div>`).join('');
   }
   async function acceptInvite(id){const {error}=await db.from('community_room_invites').update({status:'accepted',responded_at:new Date().toISOString()}).eq('id',id).eq('invitee_id',user.id);if(error)return say(error.message,true);const r=await db.from('community_room_members').insert({room_slug:room.slug,user_id:user.id});if(r.error&&r.error.code!=='23505')return say(r.error.message,true);await syncMembership();say(`You joined ${room.name}. Your group chat is now open.`);}
-  async function sendMessage(event){event.preventDefault();if(!db||!user||!joined)return say('Join this room before sending messages.',true);const input=$('wrc-message-input'),text=String(input.value||'').trim();if(!text)return;const send=$('wrc-send-button');send.disabled=true;try{const {error}=await db.from('community_room_messages').insert({room_slug:room.slug,sender_id:user.id,body:text});if(error)throw error;input.value='';input.style.height='auto';say('Message sent.');await loadMessages();}catch(error){say(`Message could not be sent: ${error.message||'Please try again.'}`,true);}finally{send.disabled=false;input.focus();}}
+  async function sendMessage(event){event.preventDefault();if(!db||!user||!joined)return say('Join this room before sending messages.',true);if(sendingRoomMessage)return;const input=$('wrc-message-input'),text=String(input.value||'').trim(),file=selectedRoomImage;if(!text&&!file)return;if(text.length>4000)return say('Messages can contain up to 4,000 characters.',true);const send=$('wrc-send-button');sendingRoomMessage=true;send.disabled=true;let imagePath=null;try{if(file)imagePath=await uploadRoomPhoto(file);const {error}=await db.from('community_room_messages').insert({room_slug:room.slug,sender_id:user.id,body:text,image_path:imagePath});if(error)throw error;input.value='';input.style.height='auto';clearRoomPhoto();say('Message sent.');await loadMessages();}catch(error){if(imagePath)await db.storage.from(CHAT_MEDIA_BUCKET).remove([imagePath]).catch(()=>{});say(`Message could not be sent: ${error.message||'Please try again. Run the chat photo SQL setup if this is an image message.'}`,true);}finally{sendingRoomMessage=false;send.disabled=false;input.focus();}}
   async function deleteMessage(id){if(!joined||!user||!confirm('Delete your message from this room?'))return;const {error}=await db.from('community_room_messages').delete().eq('id',id).eq('sender_id',user.id);if(error)return say(error.message,true);await loadMessages();}
   function bind(){
     $('wrc-join-button').addEventListener('click',toggleJoin);$('wrc-gate-join').addEventListener('click',toggleJoin);$('wrc-invite-toggle').addEventListener('click',openInvite);$('wrc-invite-form').addEventListener('submit',inviteMember);$('wrc-composer').addEventListener('submit',sendMessage);$('wrc-leave-button').addEventListener('click',toggleJoin);
     $('wrc-message-input').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,130)+'px';});
     $('wrc-message-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('wrc-composer').requestSubmit();}});
+    $('wrc-image-input').addEventListener('change',e=>chooseRoomPhoto(e.target.files?.[0]||null));
+    $('wrc-image-clear').addEventListener('click',()=>{clearRoomPhoto();say('Photo removed from this message.');});
     $('wrc-message-feed').addEventListener('click',e=>{const btn=e.target.closest('[data-delete-message]');if(btn)deleteMessage(btn.dataset.deleteMessage);});
     $('wrc-pending-invites').addEventListener('click',e=>{const btn=e.target.closest('[data-accept-invite]');if(btn)acceptInvite(btn.dataset.acceptInvite).catch(err=>say(err.message,true));});
     $('wrc-room-info').addEventListener('click',()=>alert(`${room.name}\n${roomRow?.description||'Wazobia category room'}\n\nOnly members can read and send messages. Use the Group chats button to see your joined rooms.`));

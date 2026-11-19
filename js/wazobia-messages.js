@@ -8,7 +8,7 @@
     friendIds: new Set(), friendProfiles: [], profileSource: 'wazobia_profiles',
     pollTimer: null, inboxSearchTimer: null, memberSearchTimer: null, memberResults: null, searchText: '', memberSearch: '', showActive: localStorage.getItem('wzMessengerPresence') !== 'off', busy: false,
     call: null, callChannel: null, processedCallSignals: new Set(), earlyIce: new Map(),
-    blockState: 'none', chatPreference: {background_color:'#ffffff',background_path:null}, wallpaperUrl: ''
+    blockState: 'none', chatPreference: {background_color:'#ffffff',background_path:null}, wallpaperUrl: '', selectedImage:null, imagePreviewUrl:null
   };
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -38,6 +38,13 @@
     node.classList.toggle('error', !!isError);
     if (message) window.setTimeout(() => { if (node.textContent === message) node.hidden = true; }, 6500);
   }
+  const CHAT_MEDIA_BUCKET='wazobia-chat-media';
+  const MAX_CHAT_IMAGE_BYTES=12*1024*1024;
+  const CHAT_IMAGE_TYPES={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'};
+  function clearDirectPhoto(){if(state.imagePreviewUrl)URL.revokeObjectURL(state.imagePreviewUrl);state.imagePreviewUrl=null;state.selectedImage=null;const input=$('wzm-image-input');if(input)input.value='';const preview=$('wzm-image-preview');if(preview)preview.hidden=true;const img=$('wzm-image-preview-img');if(img)img.removeAttribute('src');}
+  function chooseDirectPhoto(file){if(!file){clearDirectPhoto();return;}if(!CHAT_IMAGE_TYPES[file.type]){clearDirectPhoto();notify('Choose a JPEG, PNG, WebP or GIF image.',true);return;}if(file.size>MAX_CHAT_IMAGE_BYTES){clearDirectPhoto();notify('Images must be 12 MB or smaller.',true);return;}if(state.imagePreviewUrl)URL.revokeObjectURL(state.imagePreviewUrl);state.selectedImage=file;state.imagePreviewUrl=URL.createObjectURL(file);$('wzm-image-preview-img').src=state.imagePreviewUrl;$('wzm-image-preview').hidden=false;notify('Photo ready to send.');}
+  async function uploadDirectPhoto(file){if(!file)return null;const ext=CHAT_IMAGE_TYPES[file.type];const id=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);const path=`direct/${state.currentId}/${state.user.id}/${id}.${ext}`;const {error}=await state.db.storage.from(CHAT_MEDIA_BUCKET).upload(path,file,{contentType:file.type,cacheControl:'3600',upsert:false});if(error)throw error;return path;}
+  async function bindDirectPhotoUrls(root){const images=[...root.querySelectorAll('[data-wzm-image-path]')];await Promise.all(images.map(async img=>{const path=img.getAttribute('data-wzm-image-path');const {data,error}=await state.db.storage.from(CHAT_MEDIA_BUCKET).createSignedUrl(path,3600);if(error||!data?.signedUrl){img.alt='Photo unavailable';return;}img.src=data.signedUrl;img.addEventListener('click',()=>window.open(data.signedUrl,'_blank','noopener'));}));}
   function showLoginGate() {
     $('wzm-app-nav').hidden = true;
     $('wzm-titlebar')?.classList.add('logged-out');
@@ -227,7 +234,7 @@
   function previewText(message) {
     if (!message) return 'Start a conversation';
     const prefix = message.sender_id === state.user.id ? 'You: ' : '';
-    return prefix + String(message.body || '').replace(/\s+/g,' ').slice(0,72);
+    return prefix + (message.body ? String(message.body).replace(/\s+/g,' ').slice(0,72) : (message.image_path ? '📷 Photo' : 'Start a conversation'));
   }
 
   async function loadInbox() {
@@ -255,7 +262,7 @@
       return;
     }
     const [messageResult, unreadResult] = await Promise.all([
-      state.db.from('wazobia_messages').select('id,conversation_id,sender_id,recipient_id,body,created_at,read_at').in('conversation_id', ids).order('created_at',{ascending:false}).limit(600),
+      state.db.from('wazobia_messages').select('id,conversation_id,sender_id,recipient_id,body,image_path,created_at,read_at').in('conversation_id', ids).order('created_at',{ascending:false}).limit(600),
       state.db.from('wazobia_messages').select('conversation_id').in('conversation_id', ids).eq('recipient_id',state.user.id).is('read_at',null).limit(1200)
     ]);
     const latest = new Map();
@@ -401,6 +408,7 @@
 
   async function startConversation(targetId) {
     if (!targetId || targetId === state.user.id) return;
+    clearDirectPhoto();
     let person = profileById(targetId);
     if (!person) {
       const lookup = await state.db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url,created_at').eq('user_id',targetId).maybeSingle();
@@ -456,15 +464,18 @@
     list.innerHTML = intro + state.currentMessages.map(m => {
       const mine = m.sender_id === state.user.id;
       const receipt = mine && m.read_at ? '<span class="wzm-read-receipt">Seen</span>' : '';
-      return `<div class="wzm-message-row ${mine ? 'mine' : 'theirs'}"><div class="wzm-message-bubble">${esc(m.body)}</div><time class="wzm-message-time">${esc(clock(m.created_at))}</time>${receipt}</div>`;
+      const photo = m.image_path ? `<img class="wzm-chat-image" data-wzm-image-path="${esc(m.image_path)}" alt="Photo shared in private message" loading="lazy">` : '';
+      const text = m.body ? `<div>${esc(m.body)}</div>` : '';
+      return `<div class="wzm-message-row ${mine ? 'mine' : 'theirs'}"><div class="wzm-message-bubble">${photo}${text}</div><time class="wzm-message-time">${esc(clock(m.created_at))}</time>${receipt}</div>`;
     }).join('');
+    bindDirectPhotoUrls(list).catch(error=>console.warn('Wazobia message photo:',error.message||error));
     list.scrollTop = list.scrollHeight;
   }
 
   async function loadMessages() {
     if (!state.currentId || !state.user) return;
     const { data, error } = await state.db.from('wazobia_messages')
-      .select('id,conversation_id,sender_id,recipient_id,body,created_at,read_at')
+      .select('id,conversation_id,sender_id,recipient_id,body,image_path,created_at,read_at')
       .eq('conversation_id',state.currentId).order('created_at',{ascending:true}).limit(300);
     if (error) { notify(error.message || 'Messages could not be loaded.',true); return; }
     state.currentMessages = data || [];
@@ -488,23 +499,34 @@
     if (state.blockState!=='none') return notify('Messaging is unavailable for this member.',true);
     const input = $('wzm-message-input');
     const body = input.value.trim();
-    if (!body) return;
+    const file = state.selectedImage;
+    if (!body && !file) return;
     if (body.length > 4000) return notify('Messages can contain up to 4,000 characters.',true);
     state.busy = true;
     $('wzm-send-button').disabled = true;
-    const { error } = await state.db.from('wazobia_messages').insert({
-      conversation_id:state.currentId, sender_id:state.user.id,
-      recipient_id:state.currentPerson.user_id, body
-    });
-    if (error) notify(error.message || 'Your message could not be sent.',true);
-    else { input.value = ''; input.style.height = '43px'; await loadMessages(); }
-    state.busy = false;
-    $('wzm-send-button').disabled = false;
-    await loadInbox();
-    input.focus();
+    let imagePath = null;
+    try {
+      if (file) imagePath = await uploadDirectPhoto(file);
+      const { error } = await state.db.from('wazobia_messages').insert({
+        conversation_id:state.currentId, sender_id:state.user.id,
+        recipient_id:state.currentPerson.user_id, body, image_path:imagePath
+      });
+      if (error) throw error;
+      input.value = ''; input.style.height = '43px'; clearDirectPhoto();
+      await loadMessages();
+    } catch (error) {
+      if (imagePath) await state.db.storage.from(CHAT_MEDIA_BUCKET).remove([imagePath]).catch(()=>{});
+      notify(error.message || 'Your message could not be sent. Run the chat photo SQL setup if this is an image message.',true);
+    } finally {
+      state.busy = false;
+      $('wzm-send-button').disabled = false;
+      await loadInbox();
+      input.focus();
+    }
   }
 
   function backToInbox() {
+    clearDirectPhoto();
     state.currentId = null;
     state.currentPerson = null;
     state.currentMessages = [];
@@ -787,6 +809,8 @@
     });
     $('wzm-thread-back').addEventListener('click',backToInbox);
     $('wzm-message-form').addEventListener('submit',sendMessage);
+    $('wzm-image-input').addEventListener('change',e=>chooseDirectPhoto(e.target.files?.[0]||null));
+    $('wzm-image-clear').addEventListener('click',()=>{clearDirectPhoto();notify('Photo removed from this message.');});
     $('wzm-message-input').addEventListener('keydown',e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('wzm-message-form').requestSubmit(); }
     });
@@ -812,7 +836,7 @@
       const conversation = e.target.closest('[data-open-conversation]');
       if (conversation) {
         const item = state.conversations.find(c => c.id === conversation.dataset.openConversation);
-        if (item) { state.currentId=item.id; state.currentPerson=profileById(conversation.dataset.memberId) || otherMember(item); $('wzm-workspace').classList.add('thread-open'); $('wzm-thread-empty').hidden=true; $('wzm-thread').hidden=false; renderChatHeader(); Promise.all([loadChatPreference(),refreshBlockState()]).then(()=>loadMessages()); loadInbox(); }
+        if (item) { clearDirectPhoto(); state.currentId=item.id; state.currentPerson=profileById(conversation.dataset.memberId) || otherMember(item); $('wzm-workspace').classList.add('thread-open'); $('wzm-thread-empty').hidden=true; $('wzm-thread').hidden=false; renderChatHeader(); Promise.all([loadChatPreference(),refreshBlockState()]).then(()=>loadMessages()); loadInbox(); }
       }
     });
     $('wzm-login-link').addEventListener('click',() => sessionStorage.setItem('parrothitWazobiaMessagesReturn',location.href));
