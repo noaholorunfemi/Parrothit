@@ -67,6 +67,12 @@
     if (profile.is_owner) {
       try { await loadOwnerConnections(); }
       catch (error) { $('wzp-friend-list').innerHTML = `<p class="wzp-friends-muted">Could not load friends: ${esc(error.message || 'Please refresh and try again.')}</p>`; }
+      if (params.get('settings') === '1') {
+        $('wzp-editor').hidden = false;
+        setTimeout(() => $('wzp-editor').scrollIntoView({behavior:'smooth',block:'start'}), 80);
+      } else if (location.hash === '#friends') {
+        setTimeout(() => $('wzp-friends-card').scrollIntoView({behavior:'smooth',block:'start'}), 80);
+      }
     }
   }
   function friendActionMarkup() {

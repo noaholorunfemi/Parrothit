@@ -1047,10 +1047,13 @@
   }
 
   function setTheme() {
-    const dark = localStorage.getItem('parrothit-wazobia-theme') === 'dark';
+    // Match the menu's screenshot-inspired dark default while preserving a member's saved choice.
+    const dark = (localStorage.getItem('parrothit-wazobia-theme') || 'dark') === 'dark';
     document.body.classList.toggle('wz-dark', dark);
-    $('wz-theme-btn').textContent = dark ? '☀' : '◐';
-    $('wz-theme-btn').setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    if ($('wz-theme-btn')) {
+      $('wz-theme-btn').textContent = dark ? '☀' : '◐';
+      $('wz-theme-btn').setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    }
   }
 
   function bindEvents() {
@@ -1195,6 +1198,11 @@
   async function init() {
     $('wz-year').textContent = new Date().getFullYear();
     setTheme(); bindEvents(); setAuthMode('login');
+    const menuParams = new URLSearchParams(location.search);
+    const requestedTab = menuParams.get('tab');
+    if (['home','following','saved'].includes(requestedTab)) state.activeTab = requestedTab;
+    if (menuParams.has('search')) $('wz-search').value = menuParams.get('search') || '';
+    setActiveTabButtons();
     state.db = window.getParrothitSupabaseClient?.() || null;
     if (!state.db) {
       $('wz-feed').innerHTML = '<div class="wz-empty">The Wazobia service is not connected yet. Check supabase-config.js and apply the Wazobia SQL setup file.</div>';
@@ -1204,7 +1212,10 @@
       const { data, error } = await state.db.auth.getSession();
       if (error) throw error;
       await updateAuthSession(data.session);
-      if (!data.session && new URLSearchParams(location.search).get('openAuth') === '1') openModal('wz-auth-modal');
+      if (!data.session && menuParams.get('openAuth') === '1') openModal('wz-auth-modal');
+      if (!data.session && (menuParams.get('openDashboard') === '1' || menuParams.get('openNotifications') === '1')) openModal('wz-auth-modal');
+      if (data.session && menuParams.get('openDashboard') === '1') await showProfile();
+      if (data.session && menuParams.get('openNotifications') === '1') await openNotifications();
     } catch (error) { status(error.message || 'Could not connect to Wazobia Trends.', true); }
     state.db.auth.onAuthStateChange((_event, session) => {
       if (session?.user?.id !== state.user?.id) setTimeout(() => updateAuthSession(session), 0);
