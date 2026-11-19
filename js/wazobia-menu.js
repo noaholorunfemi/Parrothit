@@ -3,6 +3,23 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const THEME_KEY = 'parrothit-wazobia-theme';
+  const CATEGORY_ROOMS = [
+    {slug:'general',name:'General',icon:'🌐',description:'Open discussion for every Wazobia member.'},
+    {slug:'dating',name:'Dating',icon:'💞',description:'Meet people respectfully and make genuine connections.'},
+    {slug:'love',name:'Love',icon:'❤️',description:'Talk about love, care and healthy relationships.'},
+    {slug:'romance',name:'Romance',icon:'🌹',description:'Romantic stories, advice and thoughtful conversations.'},
+    {slug:'sports',name:'Sports',icon:'⚽',description:'Sports talk, teams, training and active living.'},
+    {slug:'entertainment',name:'Entertainment',icon:'🎬',description:'Movies, music, comedy and popular culture.'},
+    {slug:'education',name:'Education',icon:'📚',description:'Learning, study tips, exams and opportunities.'},
+    {slug:'technology',name:'Technology',icon:'💻',description:'Digital life, devices, science and innovation.'},
+    {slug:'politics',name:'Politics',icon:'🗳️',description:'Discuss public affairs respectfully.'},
+    {slug:'health',name:'Health',icon:'🌿',description:'Wellbeing, healthy habits and fitness.'},
+    {slug:'business',name:'Business',icon:'💼',description:'Entrepreneurship, jobs, skills and careers.'},
+    {slug:'culture',name:'Culture',icon:'🎭',description:'Traditions, food, fashion and the arts.'},
+    {slug:'travel',name:'Travel',icon:'🧭',description:'Places, travel stories and adventures.'},
+    {slug:'faith',name:'Faith',icon:'🕊️',description:'Faith, values and respectful encouragement.'},
+    {slug:'gaming',name:'Gaming',icon:'🎮',description:'Gaming, creativity and digital play.'}
+  ];
   let db = null, currentUser = null;
   const initials = (value) => String(value || 'W').trim().split(/\s+/).slice(0,2).map(v => v[0] || '').join('').toUpperCase() || 'W';
   const safeImageUrl = (value) => {
@@ -38,6 +55,7 @@
     $('wzm-dashboard-link').href = user ? 'wazobia-trends.html?openDashboard=1' : 'wazobia-trends.html?openAuth=1';
     const ownProfile = user ? `wazobia-profile.html?user=${encodeURIComponent(user.id)}` : 'wazobia-trends.html?openAuth=1';
     $('wzm-friends-link').href = user ? `${ownProfile}#friends` : ownProfile;
+    const privateFriends = $('wzm-private-friends'); if (privateFriends) privateFriends.href = user ? `${ownProfile}#friends` : 'wazobia-trends.html?openAuth=1';
     $('wzm-privacy-link').href = user ? `${ownProfile}&settings=1` : ownProfile;
     $('wzm-settings-privacy').href = user ? `${ownProfile}&settings=1` : ownProfile;
     $('wzm-account-label').textContent = user ? 'Switch account' : 'Sign in or switch account';
@@ -45,6 +63,36 @@
     $('wzm-account-icon').textContent = user ? '↔' : '＋';
     $('wzm-signout').hidden = !user;
   }
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function renderRooms(rows) {
+    const box = $('wzm-room-grid');
+    if (!box) return;
+    const list = (rows && rows.length ? rows : CATEGORY_ROOMS).filter(room => room.is_active !== false);
+    box.innerHTML = list.map(room => `
+      <a class="wzm-room-tile" href="rooms/room.html?room=${encodeURIComponent(room.slug)}">
+        <span class="wzm-room-icon" aria-hidden="true">${escapeHtml(room.icon || '🌐')}</span>
+        <span class="wzm-room-copy"><strong>${escapeHtml(room.name || room.slug)}</strong><small>${escapeHtml(room.description || 'Join the discussion.')}</small><em>Open room ↗</em></span>
+      </a>`).join('') + `
+      <a class="wzm-room-tile wzm-private-room-tile" id="wzm-private-friends" href="${currentUser ? `wazobia-profile.html?user=${encodeURIComponent(currentUser.id)}#friends` : 'wazobia-trends.html?openAuth=1'}">
+        <span class="wzm-room-icon" aria-hidden="true">💬</span>
+        <span class="wzm-room-copy"><strong>Private chats</strong><small>Connect privately with people you have added as friends.</small><em>Open friends list ↗</em></span>
+      </a>`;
+  }
+  async function loadRooms() {
+    if (!db) { renderRooms(CATEGORY_ROOMS); return; }
+    const {data,error} = await db.from('community_rooms')
+      .select('slug,name,icon,description,is_active,sort_order')
+      .eq('is_active', true).order('sort_order', {ascending:true}).order('name', {ascending:true});
+    if (error) {
+      console.warn('Wazobia category rooms:', error.message);
+      renderRooms(CATEGORY_ROOMS);
+      return;
+    }
+    renderRooms(data || []);
+  }
+
   async function loadAccount() {
     db = window.getParrothitSupabaseClient?.() || null;
     if (!db) { setProfile(null, null); feedback('Wazobia account service is not connected. Check supabase-config.js.', true); return; }
@@ -126,6 +174,7 @@
     bind();
     try { await loadAccount(); }
     catch (error) { setProfile(null, null); feedback(error.message || 'Could not load your Wazobia account.', true); }
+    await loadRooms();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
 })();
