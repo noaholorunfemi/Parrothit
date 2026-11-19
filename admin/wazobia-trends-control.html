@@ -85,7 +85,7 @@
 </section>
 
 <section class="panel">
- <h2>👥 Member management</h2><p class="muted">Suspend or reactivate a member without deleting their PARROTHIT login. Permanent deletion removes the member’s Auth account and associated records; it cannot be undone.</p>
+ <h2>👥 Member management</h2><p class="muted">Search Wazobia accounts from both profile directories. Suspend/reactivate community access, or use the red <b>Delete user from database</b> button to permanently remove a non-admin member’s linked sign-in account and cascading records. Admin accounts are protected; permanent deletion cannot be undone.</p>
  <div class="toolbar"><input class="field" id="memberSearch" type="search" placeholder="Search members by name or username"><button class="btn gray" id="reloadMembers" type="button">Refresh</button></div>
  <div id="membersStatus" class="muted">Waiting for owner verification…</div><div id="memberRows" class="rows"></div>
 </section>
@@ -97,5 +97,5 @@
 </section>
 </main>
 <div class="modal" id="warningModal" role="dialog" aria-modal="true" aria-labelledby="warningTitle"><div class="dialog"><h2 id="warningTitle">🦜 PARROT WARNING!</h2><p>You are about to change global Wazobia Trends settings. These changes affect members across devices. Review your switches before committing.</p><div class="actions"><button type="button" class="btn gray" id="cancelWarning">Cancel</button><button type="button" class="btn gold" id="confirmWarning">Continue and save</button></div></div></div>
-<script src="../js/wazobia-trends-admin-control.js?v=20261119-v2"></script>
+<script src="../js/wazobia-trends-admin-control.js?v=20261120-member-delete-v3"></script>
 </body></html>
