@@ -7,13 +7,13 @@
   <meta name="description" content="Wazobia Trends menu — profile, messages, groups, friends and settings.">
   <title>Menu | PARROTHIT Wazobia Trends</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-menu.css?v=1-menu">
+  <link rel="stylesheet" href="css/wazobia-menu.css?v=2-category-rooms">
   <script>
     (function(){try{var v=localStorage.getItem('parrothit-wazobia-theme')||'dark';document.documentElement.dataset.wzTheme=v;}catch(e){document.documentElement.dataset.wzTheme='dark';}})();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-menu.js?v=1-menu" defer></script>
+  <script src="js/wazobia-menu.js?v=2-category-rooms" defer></script>
 </head>
 <body class="wzm-page">
   <a class="wzm-skip" href="#wzm-main">Skip to menu items</a>
@@ -67,6 +67,16 @@
         <a class="wzm-tile" id="wzm-privacy-link" href="wazobia-profile.html" data-menu-title="Privacy and security"><span class="wzm-tile-icon">🔐</span><strong>Privacy & security</strong><small>Profile visibility and account controls</small></a>
         <a class="wzm-tile" href="about.html" data-menu-title="About"><span class="wzm-tile-icon">ⓘ</span><strong>About PARROTHIT</strong><small>About the community</small></a>
         <a class="wzm-tile" href="wazobia-trends.html#wz-guidelines" data-menu-title="Community guidelines"><span class="wzm-tile-icon">📜</span><strong>Community guidelines</strong><small>Keep Wazobia welcoming</small></a>
+      </nav>
+    </section>
+
+    <section class="wzm-rooms-section" aria-labelledby="wzm-rooms-title">
+      <div class="wzm-section-heading">
+        <h2 id="wzm-rooms-title">🌍 Explore community rooms</h2>
+        <small>Join a topic, share ideas and chat with other members</small>
+      </div>
+      <nav class="wzm-room-grid" id="wzm-room-grid" aria-label="Wazobia category rooms">
+        <p class="wzm-room-loading">Loading community rooms…</p>
       </nav>
     </section>
 
