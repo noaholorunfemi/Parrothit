@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#242629">
+  <meta name="description" content="Education group conversation on PARROTHIT Wazobia Trends.">
+  <title>📚 Education | Wazobia Group Chat</title>
+  <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
+  <link rel="stylesheet" href="css/wazobia-room-chat.css?v=3-dedicated-room-pages">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+</head>
+<body class="wrc-page" data-room-slug="education" data-room-name="Education" data-room-icon="📚">
+  <header class="wrc-app-nav" aria-label="Wazobia navigation">
+    <a href="wazobia-trends.html" title="Home" aria-label="Home">⌂</a>
+    <a href="wazobia-profile.html" title="People" aria-label="People">♙</a>
+    <a class="active" href="wazobia-messages.html" title="Messages" aria-label="Messages">●<span class="wrc-messenger-glyph">➤</span></a>
+    <a href="wazobia-groups.html" title="Groups" aria-label="Groups">▣</a>
+    <a href="wazobia-menu.html" title="Menu" aria-label="Menu">☰</a>
+  </header>
+  <main class="wrc-main">
+    <div class="wrc-titlebar">
+      <a class="wrc-back" href="wazobia-menu.html" aria-label="Back to rooms">‹</a>
+      <div class="wrc-title-copy"><h1 id="wrc-room-title">Education</h1><small id="wrc-room-subtitle">Wazobia group chat</small></div>
+      <a class="wrc-group-pill" href="wazobia-room-chats.html">Group chats</a>
+      <button class="wrc-info-button" id="wrc-room-info" type="button" aria-label="Room information" title="Room information">ⓘ</button>
+    </div>
+
+    <section class="wrc-people-section" aria-label="Room members">
+      <div class="wrc-people-heading"><strong>People</strong><span id="wrc-member-count">Loading members…</span></div>
+      <div class="wrc-people-strip" id="wrc-member-strip" aria-live="polite"><div class="wrc-strip-loading">Loading room members…</div></div>
+    </section>
+
+    <section class="wrc-chat-workspace">
+      <div class="wrc-chat-heading">
+        <div class="wrc-room-badge">📚</div>
+        <div class="wrc-chat-heading-copy"><strong id="wrc-chat-name">Education</strong><small id="wrc-chat-subtitle">Group conversation · Members only</small></div>
+        <button class="wrc-join-button" id="wrc-join-button" type="button">＋ Join room</button>
+      </div>
+
+      <div class="wrc-access-gate" id="wrc-access-gate">
+        <div class="wrc-gate-icon">📚</div>
+        <h2>Join the Education room</h2>
+        <p>After joining, this room's group conversation opens here. Only members of this room can read and send messages.</p>
+        <button class="wrc-primary-button" id="wrc-gate-join" type="button">Join and open group chat</button>
+        <a href="wazobia-trends.html?openAuth=1" id="wrc-signin-link">Sign in to continue</a>
+      </div>
+
+      <div class="wrc-chat-thread" id="wrc-chat-thread" hidden>
+        <div class="wrc-chat-toolbar"><span><i class="wrc-live-dot"></i> Live group conversation</span><button id="wrc-invite-toggle" type="button">＋ Invite people</button></div>
+        <form class="wrc-invite-form" id="wrc-invite-form" hidden>
+          <input id="wrc-invite-username" type="text" maxlength="24" placeholder="Enter member username" autocomplete="off" aria-label="Member username">
+          <button type="submit">Send invite</button>
+        </form>
+        <div class="wrc-invite-feedback" id="wrc-invite-feedback" role="status" aria-live="polite"></div>
+        <div class="wrc-pending-invites" id="wrc-pending-invites"></div>
+        <div class="wrc-message-feed" id="wrc-message-feed" aria-live="polite"><p class="wrc-empty">Loading room messages…</p></div>
+        <form class="wrc-composer" id="wrc-composer">
+          <label class="wrc-sr-only" for="wrc-message-input">Write a message</label>
+          <textarea id="wrc-message-input" rows="1" maxlength="4000" placeholder="Message the Education group…" required></textarea>
+          <button type="submit" id="wrc-send-button" aria-label="Send message" title="Send">➤</button>
+        </form>
+        <p class="wrc-composer-hint">Messages are shared with members of this room.</p>
+      </div>
+    </section>
+
+    <section class="wrc-extra-links">
+      <a href="wazobia-room-discussions.html?room=education">📝 Room posts &amp; longer discussions ↗</a>
+      <a href="wazobia-messages.html">🔒 Private one-to-one messages ↗</a>
+      <a href="wazobia-profile.html#friends">🫂 Open friends list ↗</a>
+      <button id="wrc-leave-button" type="button" hidden>Leave this room</button>
+    </section>
+    <p class="wrc-status" id="wrc-status" role="status" aria-live="polite"></p>
+    <footer class="wrc-footer"><a href="wazobia-trends.html">Wazobia Trends</a><span>PARROTHIT · News That Speaks!</span></footer>
+  </main>
+  <script src="js/wazobia-room-chat.js?v=3-dedicated-room-pages" defer></script>
+</body>
+</html>
