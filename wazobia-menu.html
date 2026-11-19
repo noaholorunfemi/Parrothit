@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17191c">
+  <meta name="description" content="Wazobia Trends menu — profile, messages, groups, friends and settings.">
+  <title>Menu | PARROTHIT Wazobia Trends</title>
+  <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
+  <link rel="stylesheet" href="css/wazobia-menu.css?v=1-menu">
+  <script>
+    (function(){try{var v=localStorage.getItem('parrothit-wazobia-theme')||'dark';document.documentElement.dataset.wzTheme=v;}catch(e){document.documentElement.dataset.wzTheme='dark';}})();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+  <script src="js/wazobia-menu.js?v=1-menu" defer></script>
+</head>
+<body class="wzm-page">
+  <a class="wzm-skip" href="#wzm-main">Skip to menu items</a>
+  <header class="wzm-topbar">
+    <a class="wzm-brand" href="wazobia-trends.html" aria-label="Back to Wazobia Trends home">
+      <img src="/assets/images/parrothit-wazobia-trends-logo.png" alt="Wazobia Trends logo" width="42" height="42">
+    </a>
+    <h1>Menu</h1>
+    <div class="wzm-top-actions">
+      <button type="button" id="wzm-sort" aria-label="Sort menu items" title="Sort menu items">↕</button>
+      <button type="button" id="wzm-search-toggle" aria-label="Search Wazobia" title="Search Wazobia">⌕</button>
+    </div>
+  </header>
+
+  <main id="wzm-main" class="wzm-main">
+    <form class="wzm-search" id="wzm-search-form" hidden>
+      <label for="wzm-search-input">Search posts and trends</label>
+      <div><input id="wzm-search-input" type="search" maxlength="100" placeholder="Search people, posts and trends"><button type="submit">Search</button></div>
+    </form>
+
+    <section class="wzm-profile-card" aria-label="Your profile">
+      <a class="wzm-profile-main" id="wzm-profile-link" href="wazobia-trends.html?openAuth=1">
+        <span class="wzm-avatar" id="wzm-avatar">W</span>
+        <span class="wzm-profile-copy"><strong id="wzm-display-name">Welcome to Wazobia</strong><small id="wzm-profile-subtitle">Sign in to view your profile</small></span>
+      </a>
+      <a class="wzm-profile-dashboard" id="wzm-dashboard-link" href="wazobia-trends.html?openDashboard=1" title="Open your dashboard" aria-label="Open your dashboard">▦</a>
+      <span class="wzm-profile-chevron" aria-hidden="true">›</span>
+    </section>
+    <p class="wzm-profile-caption" id="wzm-profile-caption">Your Wazobia profile and account</p>
+
+    <button class="wzm-account-switch" id="wzm-switch-account" type="button">
+      <span class="wzm-account-icon" id="wzm-account-icon">↔</span>
+      <span><strong id="wzm-account-label">Sign in or switch account</strong><small id="wzm-account-hint">Manage the account you use on Wazobia</small></span>
+      <span class="wzm-chevron">⌄</span>
+    </button>
+
+    <button class="wzm-invite" id="wzm-invite" type="button"><span aria-hidden="true">💗</span><strong>Invite friends</strong><small>Share Wazobia Trends</small></button>
+
+    <section class="wzm-shortcuts-section" aria-labelledby="wzm-shortcuts-title">
+      <div class="wzm-section-heading"><h2 id="wzm-shortcuts-title">Your shortcuts</h2><small>Everything you need in one place</small></div>
+      <nav class="wzm-shortcuts" id="wzm-shortcuts" aria-label="Wazobia shortcuts">
+        <a class="wzm-tile" href="wazobia-messages.html" data-menu-title="Messages"><span class="wzm-tile-icon">💬</span><strong>Messages <b class="wzm-badge" id="wzm-message-badge" hidden>0</b></strong><small>Private chats and calls</small></a>
+        <a class="wzm-tile" href="wazobia-groups.html" data-menu-title="Groups"><span class="wzm-tile-icon">👥</span><strong>Groups</strong><small>Community discussions</small></a>
+        <a class="wzm-tile" id="wzm-friends-link" href="wazobia-profile.html" data-menu-title="Friends"><span class="wzm-tile-icon">🫂</span><strong>Friends</strong><small>Requests and connections</small></a>
+        <a class="wzm-tile" href="wazobia-chat-groups.html" data-menu-title="Group chats"><span class="wzm-tile-icon">▣</span><strong>Group chats</strong><small>Private group conversations</small></a>
+        <a class="wzm-tile" href="wazobia-trends.html?openNotifications=1" data-menu-title="Notifications"><span class="wzm-tile-icon">🔔</span><strong>Notifications <b class="wzm-badge" id="wzm-notification-badge" hidden>0</b></strong><small>Likes, replies and activity</small></a>
+        <a class="wzm-tile" href="wazobia-trends.html?tab=saved" data-menu-title="Saved posts"><span class="wzm-tile-icon">🔖</span><strong>Saved posts</strong><small>Posts you bookmarked</small></a>
+        <a class="wzm-tile" href="wazobia-trends.html?tab=following" data-menu-title="Following"><span class="wzm-tile-icon">🧭</span><strong>Following</strong><small>Updates from people you follow</small></a>
+        <a class="wzm-tile" href="wazobia-trends.html" data-menu-title="Home feed"><span class="wzm-tile-icon">⌂</span><strong>Home feed</strong><small>Latest Wazobia conversations</small></a>
+        <a class="wzm-tile" href="wazobia-trends.html?openDashboard=1" data-menu-title="My dashboard"><span class="wzm-tile-icon">▤</span><strong>My dashboard</strong><small>Your posts and profile activity</small></a>
+        <a class="wzm-tile" id="wzm-privacy-link" href="wazobia-profile.html" data-menu-title="Privacy and security"><span class="wzm-tile-icon">🔐</span><strong>Privacy & security</strong><small>Profile visibility and account controls</small></a>
+        <a class="wzm-tile" href="about.html" data-menu-title="About"><span class="wzm-tile-icon">ⓘ</span><strong>About PARROTHIT</strong><small>About the community</small></a>
+        <a class="wzm-tile" href="wazobia-trends.html#wz-guidelines" data-menu-title="Community guidelines"><span class="wzm-tile-icon">📜</span><strong>Community guidelines</strong><small>Keep Wazobia welcoming</small></a>
+      </nav>
+    </section>
+
+    <section class="wzm-settings" aria-labelledby="wzm-settings-title">
+      <div class="wzm-section-heading"><h2 id="wzm-settings-title">Settings</h2><small>Personalise your Wazobia experience</small></div>
+      <div class="wzm-setting-row">
+        <span class="wzm-setting-symbol">◐</span>
+        <span class="wzm-setting-copy"><strong>Appearance</strong><small>Choose dark or light background</small></span>
+        <div class="wzm-theme-choice" role="group" aria-label="Background colour mode">
+          <button type="button" data-wzm-theme="dark" aria-pressed="false">Dark</button>
+          <button type="button" data-wzm-theme="light" aria-pressed="false">Light</button>
+        </div>
+      </div>
+      <a class="wzm-setting-row wzm-setting-link" id="wzm-settings-privacy" href="wazobia-profile.html">
+        <span class="wzm-setting-symbol">🔒</span><span class="wzm-setting-copy"><strong>Profile & privacy</strong><small>Control who can see your details and profile link</small></span><span class="wzm-chevron">›</span>
+      </a>
+      <button class="wzm-setting-row wzm-signout" id="wzm-signout" type="button" hidden>
+        <span class="wzm-setting-symbol">⇥</span><span class="wzm-setting-copy"><strong>Sign out</strong><small>Sign out of this device only</small></span><span class="wzm-chevron">›</span>
+      </button>
+    </section>
+
+    <footer class="wzm-footer"><a href="wazobia-trends.html">Wazobia Trends</a><span>PARROTHIT · News That Speaks!</span></footer>
+    <p class="wzm-feedback" id="wzm-feedback" role="status" aria-live="polite"></p>
+  </main>
+</body>
+</html>

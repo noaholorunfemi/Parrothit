@@ -18,27 +18,28 @@
   </style>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
   <link rel="apple-touch-icon" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-trends.css?v=10-status-mentions">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=11-menu">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-trends.js?v=10-status-mentions" defer></script>
+  <script src="js/wazobia-trends.js?v=11-menu" defer></script>
   <script src="/js/public-notifications.js?v=20261118-remove-wazobia-header-shortcut"></script>
 </head>
 <body class="wz-page">
   <a class="wz-skip" href="#wz-feed">Skip to feed</a>
-  <header class="wz-topbar">
-    <a class="wz-brand" href="wazobia-trends.html" aria-label="Parrothit Wazobia Trends home">
-      <img class="wz-logo-image" src="/assets/images/parrothit-wazobia-trends-logo.png" alt="Parrothit Wazobia Trends logo" width="48" height="48"><span class="wz-brand-copy"><strong>PARROTHIT</strong><small>WAZOBIA TRENDS</small></span>
+  <header class="wz-topbar wz-topbar-minimal">
+    <a class="wz-brand wz-brand-icon-only" href="wazobia-trends.html" aria-label="Parrothit Wazobia Trends home" title="Wazobia Trends home">
+      <img class="wz-logo-image" src="/assets/images/parrothit-wazobia-trends-logo.png" alt="Parrothit Wazobia Trends" width="48" height="48">
     </a>
-    <label class="wz-search"><span aria-hidden="true">⌕</span><input id="wz-search" type="search" placeholder="Search posts and trends" aria-label="Search posts and trends"></label>
-    <nav class="wz-top-actions" aria-label="Wazobia navigation">
-      <button class="wz-icon-btn active" id="wz-home-btn" type="button" aria-label="Home feed" title="Home">⌂</button>
-      <a class="wz-icon-btn wz-groups-toplink" href="wazobia-groups.html" aria-label="Groups" title="Groups">♧</a>
-      <a class="wz-icon-btn wz-messages-toplink" id="wz-messages-toplink" href="wazobia-messages.html" aria-label="Messages" title="Messages">✉<b id="wz-message-badge" class="wz-badge" hidden>0</b></a>
-      <button class="wz-icon-btn" id="wz-notifications-btn" type="button" aria-label="Notifications" title="Notifications">♧<b id="wz-notification-badge" class="wz-badge" hidden>0</b></button>
-      <button class="wz-icon-btn" id="wz-theme-btn" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
-      <button class="wz-avatar-btn" id="wz-account-btn" type="button" aria-label="Account">?</button>
-    </nav>
+    <a class="wz-menu-open" href="wazobia-menu.html" aria-label="Open Wazobia menu"><span aria-hidden="true">☰</span><strong>Menu</strong></a>
+    <!-- Retained, visually hidden controls keep existing feed, notification and dashboard handlers compatible. -->
+    <div class="wz-legacy-controls" aria-hidden="true">
+      <input id="wz-search" type="search" aria-label="Search posts and trends">
+      <button id="wz-home-btn" type="button">Home</button>
+      <button id="wz-notifications-btn" type="button">Notifications</button>
+      <button id="wz-theme-btn" type="button">Theme</button>
+      <button id="wz-account-btn" type="button">Account</button>
+      <b id="wz-message-badge" hidden>0</b><b id="wz-notification-badge" hidden>0</b>
+    </div>
   </header>
 
   <div class="wz-mobile-tabs" role="navigation" aria-label="Quick navigation">
