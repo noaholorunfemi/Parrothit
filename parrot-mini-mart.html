@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071a12">
+  <title>PARROT MINI MART | PARROTHIT</title>
+  <style>
+    :root{color-scheme:light;--green:#087a49;--dark:#071a12;--ink:#17251e;--muted:#66756c;--line:#dce7df;--soft:#f4f8f5}
+    *{box-sizing:border-box}body{margin:0;background:#f1f6f2;color:var(--ink);font-family:Inter,system-ui,Arial,sans-serif}
+    .pm-top{background:linear-gradient(120deg,#052c1c,#087a49);color:#fff;padding:16px clamp(14px,4vw,42px);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .pm-top strong{font-size:1.1rem}.pm-top nav{display:flex;gap:8px;flex-wrap:wrap}.pm-top a{color:#fff;text-decoration:none;font-weight:750;padding:8px 11px;border-radius:9px;background:#ffffff18}
+    .pm-wrap{max-width:1120px;margin:22px auto;padding:0 15px 40px}.pm-hero{padding:24px;border-radius:18px;color:#fff;background:linear-gradient(120deg,#063b27,#118451 65%,#ad8c2b);box-shadow:0 10px 28px #0b3f241c}
+    .pm-hero h1{margin:0 0 8px;font-size:clamp(1.6rem,4vw,2.3rem)}.pm-hero p{margin:0;max-width:760px;line-height:1.65;color:#e2f4e9}
+    .pm-panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-top:16px;box-shadow:0 7px 22px #173f2510}.pm-panel h2{margin:0 0 12px}.pm-note{padding:12px 14px;background:#eff8f1;border:1px solid #cde6d4;border-radius:10px;color:#244d34;line-height:1.55}
+    .pm-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.pm-form-grid label{display:grid;gap:6px;font-weight:750}.pm-form-grid .wide{grid-column:1/-1}
+    .pm-form-grid input,.pm-form-grid textarea,.pm-form-grid select{width:100%;border:1px solid #cbd8ce;border-radius:9px;padding:11px;font:inherit;background:#fff;color:var(--ink)}.pm-form-grid textarea{min-height:110px;resize:vertical}
+    .pm-btn{border:0;border-radius:10px;background:var(--green);color:#fff;padding:10px 14px;font:inherit;font-weight:800;cursor:pointer}.pm-btn.secondary{background:#e8f1eb;color:#164b2e;border:1px solid #cbded0}.pm-btn:disabled{opacity:.55;cursor:not-allowed}
+    .pm-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}.pm-status{display:inline-block;font-size:.76rem;font-weight:850;color:#087a49;background:#e3f5e9;border-radius:99px;padding:4px 8px}.pm-status.sold{background:#fee2e2;color:#991b1b}
+    .pm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.pm-item{overflow:hidden;border:1px solid var(--line);border-radius:14px;background:#fff}.pm-item>img{width:100%;height:190px;object-fit:cover;background:#edf2ee}.pm-item-body{padding:13px}.pm-item h3{margin:8px 0}.pm-item p{line-height:1.5}.pm-price{font-size:1.18rem;font-weight:900;color:#087a49}.pm-tag{font-size:.82rem;color:var(--muted)}.pm-empty{padding:20px;border:1px dashed #c5d4c9;border-radius:12px;color:var(--muted);background:#fbfdfb}
+    #pmAuthMessage{margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;line-height:1.6}#pmAuthMessage a{color:#087a49;font-weight:850}
+    .pm-modal-backdrop{display:none;position:fixed;inset:0;z-index:1000;background:#071a12a8;padding:18px;align-items:center;justify-content:center}.pm-modal-backdrop.open{display:flex}.pm-modal{width:min(540px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 20px 60px #0005}.pm-modal h2{margin-top:0}.pm-modal img{max-width:100%;max-height:260px;object-fit:contain;border-radius:10px}.pm-modal-backdrop .pm-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+    .hidden{display:none!important}.pm-footer{text-align:center;color:#66756c;font-size:.86rem;padding:20px}
+    @media(max-width:850px){.pm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:580px){.pm-form-grid,.pm-grid{grid-template-columns:1fr}.pm-form-grid .wide{grid-column:auto}.pm-item>img{height:210px}.pm-panel{padding:14px}}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+</head>
+<body>
+  <header class="pm-top"><strong>🛍️ PARROT MINI MART</strong><nav aria-label="Wazobia navigation"><a href="wazobia-trends.html">Wazobia feed</a><a href="wazobia-menu.html">Menu</a><a href="wazobia-profile.html?me=1">My profile</a><a href="wazobia-messages.html">Messages</a></nav></header>
+  <main class="pm-wrap">
+    <section class="pm-hero"><h1>PARROT MINI MART</h1><p>Discover member listings and contact sellers directly. Listings may require administrator approval. PARROTHIT does not process payments or guarantee transactions, delivery, or item condition.</p></section>
+    <div id="pmAuthMessage" role="status">Checking your Wazobia account…</div>
+    <div id="pmApp" class="hidden">
+      <section class="pm-panel"><h2>🛍️ Available listings</h2><p class="pm-note">Be careful with private transactions. Inspect items, verify sellers, and never share your PIN, password, or OTP. Do not pay in advance to an unknown seller.</p><div class="pm-actions"><button class="pm-btn secondary" type="button" id="pmRefresh">↻ Refresh listings</button></div><div id="pmItemGrid" class="pm-grid" style="margin-top:14px"><div class="pm-empty">Loading listings…</div></div></section>
+      <section class="pm-panel"><h2>＋ List an item</h2><p class="pm-tag">Only verified community members can create listings. Complete all fields and add a clear picture.</p>
+        <form id="pmListingForm"><div class="pm-form-grid">
+          <label>Item title<input id="pmTitle" maxlength="120" required placeholder="What are you selling?"></label>
+          <label>Price (₦)<input id="pmPrice" type="number" min="0" step="0.01" required placeholder="0"></label>
+          <label class="wide">Description<textarea id="pmDescription" maxlength="5000" required placeholder="Describe the item, condition, and important details."></textarea></label>
+          <label>Seller contact / address<input id="pmContact" maxlength="240" required placeholder="Phone number or contact details"></label>
+          <label>Availability<select id="pmItemStatus"><option value="available">Available</option><option value="sold_out">Sold out</option></select></label>
+          <label class="wide">Item picture<input id="pmImage" type="file" accept="image/*" required><img id="pmImagePreview" alt="Selected item preview" hidden style="max-width:220px;max-height:180px;object-fit:contain;border-radius:10px"></label>
+        </div><div class="pm-actions"><button class="pm-btn" type="submit">Submit listing</button></div><p id="pmSellerMessage" role="status" aria-live="polite"></p></form>
+      </section>
+      <section class="pm-panel"><h2>My listings</h2><p class="pm-tag">Manage your own item status or remove a listing.</p><div id="pmMyListings" class="pm-grid"><div class="pm-empty">Loading your listings…</div></div></section>
+      <section class="pm-panel"><h2>Transaction safety rules</h2><p id="pmRulesText" class="pm-note">Do not pay in advance. Inspect the item and verify the seller before payment. Meet in a safe public place. Never share a PIN, password or OTP. PARROTHIT does not process payments.</p></section>
+    </div>
+  </main>
+  <footer class="pm-footer">PARROTHIT · PARROT MINI MART · Buyer and seller transactions are handled directly between members.</footer>
+  <div id="pmRulesModal" class="pm-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="pmRulesHeading"><section class="pm-modal"><h2 id="pmRulesHeading">Before contacting this seller</h2><p id="pmModalRules" class="pm-note"></p><div class="pm-modal-actions"><button class="pm-btn secondary" id="pmCloseRules" type="button">Cancel</button><button class="pm-btn" id="pmAcknowledgeRules" type="button">I understand — continue</button></div></section></div>
+  <script src="parrot-mini-mart.js"></script>
+  <script src="js/parrothit-advertise-banner.js" defer></script>
+</body></html>
