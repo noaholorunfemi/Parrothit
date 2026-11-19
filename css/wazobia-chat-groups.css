@@ -1,3 +1,4 @@
+[hidden]{display:none!important}
 *{box-sizing:border-box}
 body.wzcg-page{margin:0;background:#f1f3f6;color:#20242a;font-family:Arial,Helvetica,sans-serif}
 .wzcg-topbar{height:68px;background:#17191c;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 max(18px,calc((100vw - 1200px)/2));gap:20px}
@@ -33,3 +34,5 @@ body.wzcg-page{margin:0;background:#f1f3f6;color:#20242a;font-family:Arial,Helve
 .wzcg-status{padding:7px 14px;color:#087f5b;font-size:12px}.wzcg-status.error{color:#b4232d}.wzcg-login{margin:auto;text-align:center;padding:30px}.wzcg-login a{display:inline-block;padding:10px 14px;background:#087f5b;color:#fff;border-radius:9px;text-decoration:none}
 .wzcg-page footer{text-align:center;padding:18px;color:#747e87;font-size:11px}
 @media(max-width:760px){.wzcg-topbar{height:auto;min-height:62px;padding:10px 13px;align-items:flex-start;flex-direction:column;gap:8px}.wzcg-topbar nav{gap:13px}.wzcg-main{grid-template-columns:1fr;margin:12px auto;gap:12px}.wzcg-sidebar{padding:13px}.wzcg-thread{min-height:500px}.wzcg-active{min-height:500px}.wzcg-messages{max-height:48vh}.wzcg-message{max-width:88%}}
+
+.wzcg-chat-switch{margin:0 0 12px;font-size:12px}.wzcg-chat-switch a{color:#087f5b;font-weight:700;text-decoration:none}
