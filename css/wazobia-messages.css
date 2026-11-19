@@ -7,23 +7,5 @@ html,body{width:100%;max-width:100%;overflow-x:hidden}.wzm-page-main{width:100%;
 @media(max-width:720px){.wzm-app-nav{padding:0 9px}.wzm-page-main{width:100%;max-width:100%;padding:0}.wzm-workspace{width:100%;min-width:0}.wzm-inbox{width:100%;max-width:100%}.wzm-chat-row{padding:11px 12px}.wzm-chat-profile-link{gap:9px}.wzm-chat-open{padding:8px 9px}.wzm-chat-header{gap:5px;padding-left:8px;padding-right:8px}.wzm-chat-person{gap:7px}.wzm-chat-person .wzm-avatar{width:38px;height:38px}.wzm-chat-person strong{max-width:125px;font-size:12px}.wzm-chat-call-actions{gap:0}.wzm-chat-call-actions button{width:30px;height:32px;font-size:15px}.wzm-chat-header>button{width:30px}.wzm-call-card{padding:25px 13px 18px}.wzm-call-videos video{max-height:48dvh}}
 @media(max-width:390px){.wzm-chat-row{gap:5px;padding:10px 8px}.wzm-chat-profile-link{gap:7px}.wzm-chat-profile-link .wzm-avatar{width:48px;height:48px}.wzm-chat-copy strong{font-size:12px}.wzm-chat-copy small{font-size:11px}.wzm-chat-open{font-size:10px;padding:7px 8px}.wzm-chat-call-actions button{width:28px}.wzm-chat-details{display:none}}
 
-
-/* Per-user Messenger wallpaper controls and member blocking */
-.wzm-group-chat-link{display:inline-flex;align-items:center;white-space:nowrap;text-decoration:none;border:1px solid var(--wzm-border,#dfe3e8);border-radius:18px;padding:7px 10px;font-size:12px;font-weight:700;color:inherit}
-#wzm-block-user{border:1px solid #c83c45;background:#fff;color:#b4232d;border-radius:18px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer}
-#wzm-block-user:disabled{opacity:.65;cursor:not-allowed}
-.wzm-chat-customize{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:12px 15px;border-bottom:1px solid var(--wzm-border,#e5e7eb);background:var(--wzm-panel,#fff)}
-.wzm-chat-customize>strong{flex-basis:100%;font-size:13px}
-.wzm-chat-customize label{display:flex;align-items:center;gap:7px;font-size:12px}
-.wzm-chat-customize input[type=color]{width:42px;height:32px;border:1px solid #ccd1d8;border-radius:7px;padding:2px;background:#fff}
-.wzm-chat-customize input[type=file]{max-width:190px;font-size:12px}
-.wzm-chat-customize-actions{display:flex;gap:8px}
-.wzm-chat-customize-actions button{border:0;border-radius:16px;padding:8px 12px;background:#087f5b;color:#fff;font-weight:700;font-size:12px;cursor:pointer}
-.wzm-chat-customize-actions button:last-child{background:#e9edf0;color:#27313a}
-.wzm-chat-customize small{flex-basis:100%;font-size:11px;opacity:.7}
-.wzm-messages{background-size:cover;background-position:center;transition:background-color .15s}
-@media(max-width:560px){.wzm-group-chat-link{font-size:11px;padding:6px 8px}.wzm-chat-customize{gap:9px}.wzm-chat-customize input[type=file]{max-width:145px}}
-
-/* Private Wazobia profiles remain readable in existing message threads without a profile link. */
-.wzm-chat-profile-link.is-private{cursor:default;text-decoration:none;pointer-events:none;}
-#wzm-chat-person.is-private{cursor:default;pointer-events:none;text-decoration:none;}
+/* Wazobia category group chats shortcut */
+.wzm-group-chats-pill{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border:1px solid var(--wzm-border);border-radius:22px;padding:9px 13px;background:#25282d;color:var(--wzm-text);text-decoration:none;font-size:12px;font-weight:850;flex:none}.wzm-group-chats-pill:hover,.wzm-group-chats-pill:focus-visible{border-color:var(--wzm-blue);background:#303640;outline:0}@media(max-width:520px){.wzm-titlebar{gap:8px}.wzm-titlebar h1{font-size:23px}.wzm-group-chats-pill{padding:8px 10px;font-size:11px}.wzm-title-actions{gap:1px}.wzm-title-actions button{width:34px}}
