@@ -71,7 +71,7 @@
     if (!box) return;
     const list = (rows && rows.length ? rows : CATEGORY_ROOMS).filter(room => room.is_active !== false);
     box.innerHTML = list.map(room => `
-      <a class="wzm-room-tile" href="rooms/room.html?room=${encodeURIComponent(room.slug)}">
+      <a class="wzm-room-tile" href="wazobia-room-${encodeURIComponent(room.slug)}.html">
         <span class="wzm-room-icon" aria-hidden="true">${escapeHtml(room.icon || '🌐')}</span>
         <span class="wzm-room-copy"><strong>${escapeHtml(room.name || room.slug)}</strong><small>${escapeHtml(room.description || 'Join the discussion.')}</small><em>Open room ↗</em></span>
       </a>`).join('') + `
