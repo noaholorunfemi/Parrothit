@@ -212,3 +212,20 @@ html,body.wz-page{width:100%;max-width:100%;overflow-x:hidden}.wz-topbar{width:1
 
 .wz-status-card-head>.wz-avatar{flex:none;width:31px;height:31px}
 .wz-status-card-head>.wz-status-card-copy{display:grid;gap:2px;min-width:0;flex:1}
+
+
+/* Wazobia navigation consolidation: top header keeps the logo and Menu entry only. */
+.wz-topbar-minimal{height:64px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 max(14px,calc((100vw - 1180px)/2));}
+.wz-topbar-minimal .wz-brand-icon-only{display:flex;align-items:center;justify-content:center;min-width:46px;text-decoration:none;}
+.wz-topbar-minimal .wz-brand-icon-only .wz-logo-image{width:44px;height:44px;}
+.wz-menu-open{display:inline-flex;align-items:center;gap:9px;padding:9px 15px;border:1px solid rgba(255,255,255,.28);border-radius:24px;background:rgba(255,255,255,.14);color:#fff;text-decoration:none;font-size:14px;font-weight:850;}
+.wz-menu-open span{font-size:20px;line-height:1;}
+.wz-menu-open:hover{background:#fff;color:var(--wz-red);}
+.wz-legacy-controls{display:none!important;}
+.wz-mobile-tabs{display:none!important;}
+.wz-left-rail{display:none!important;}
+.wz-layout{grid-template-columns:minmax(0,650px) 300px;max-width:1080px;justify-content:center;}
+@media(max-width:1120px){.wz-layout{grid-template-columns:minmax(0,650px);max-width:700px;}.wz-right-rail{display:none;}}
+@media(max-width:720px){.wz-topbar-minimal{height:58px;grid-template-columns:1fr auto;padding:0 12px;}.wz-topbar-minimal .wz-brand-icon-only .wz-logo-image{width:40px;height:40px;}.wz-menu-open{padding:7px 13px;font-size:13px;}.wz-layout{display:block;margin:0 auto 25px;padding:0 0 18px;max-width:650px;}}
+
+@media(max-width:720px){.wz-mobile-heading{display:none!important;}}
