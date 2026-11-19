@@ -48,11 +48,22 @@
     db = window.getParrothitSupabaseClient?.();
     if (!db) return status('Wazobia database is not configured.', true);
     const params = new URLSearchParams(location.search);
-    const target = params.get('user');
-    if (!target || !/^[0-9a-f-]{36}$/i.test(target)) return status('This profile link is invalid.', true);
-    const [sessionResult, profileResult] = await Promise.all([db.auth.getSession(), db.rpc('wazobia_get_public_profile', {target_user:target})]);
-    if (profileResult.error) throw new Error(profileResult.error.message.includes('wazobia_get_public_profile') ? 'Apply supabase/wazobia-profile-calls-upgrade.sql in Supabase first.' : profileResult.error.message);
+    const sessionResult = await db.auth.getSession();
+    if (sessionResult.error) throw sessionResult.error;
     me = sessionResult.data?.session?.user || null;
+    let target = params.get('user');
+    const username = params.get('username');
+    if (!target && username) {
+      const lookup = await db.from('wazobia_profiles').select('user_id').eq('username', username.toLowerCase()).maybeSingle();
+      if (lookup.error) throw lookup.error;
+      target = lookup.data?.user_id || null;
+    }
+    // `?me=1`, `#friends`, and a plain profile URL all mean the current member's page.
+    if (!target && !username) target = me?.id || null;
+    if (!target) return status('Sign in to Wazobia Trends to view your profile and friends.', true);
+    if (!/^[0-9a-f-]{36}$/i.test(target)) return status('This profile link is invalid.', true);
+    const profileResult = await db.rpc('wazobia_get_public_profile', {target_user:target});
+    if (profileResult.error) throw new Error(profileResult.error.message.includes('wazobia_get_public_profile') ? 'Apply supabase/wazobia-profile-calls-upgrade.sql in Supabase first.' : profileResult.error.message);
     profile = Array.isArray(profileResult.data) ? profileResult.data[0] : profileResult.data;
     if (!profile) return status('This Wazobia member could not be found.', true);
     if (profile.is_owner && me?.id === profile.user_id) {
@@ -162,6 +173,7 @@
     const accepted = rows.filter(row => row.status === 'accepted');
     const ids = [...new Set(rows.map(row => row.member_one === me.id ? row.member_two : row.member_one))];
     const peopleResult = ids.length ? await db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').in('user_id', ids) : {data:[],error:null};
+    if (peopleResult.error) throw peopleResult.error;
     const people = new Map((peopleResult.data || []).map(person => [person.user_id, person]));
     const personLink = (id, p) => `<a class="wzp-friend-person" href="wazobia-profile.html?user=${encodeURIComponent(id)}">${safeUrl(p?.avatar_url) ? `<img src="${esc(safeUrl(p.avatar_url))}" alt="">` : '<span class="wzp-friend-initial">W</span>'}<span><strong>${esc(p?.display_name || 'Wazobia member')}</strong><small>@${esc(p?.username || 'member')}</small></span></a>`;
     requests.innerHTML = incoming.length || outgoing.length

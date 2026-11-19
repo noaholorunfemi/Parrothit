@@ -28,6 +28,12 @@
     document.title=`${room.icon} ${room.name} | Wazobia Group Chat`;
     $('wrc-room-title').textContent=room.name;$('wrc-chat-name').textContent=room.name;
     $('wrc-room-subtitle').textContent=data.description||'Wazobia group chat';
+    // Both the visible sign-in link and the join button must return to this room.
+    const signInLink=$('wrc-signin-link');
+    if(signInLink){
+      const roomPath=`wazobia-room-${room.slug}.html`;
+      signInLink.href=`wazobia-trends.html?openAuth=1&next=${encodeURIComponent(roomPath)}`;
+    }
     $('wrc-chat-subtitle').textContent='Group conversation · Members only';
     const badge=document.querySelector('.wrc-room-badge');if(badge)badge.textContent=room.icon;
     const gateIcon=document.querySelector('.wrc-gate-icon');if(gateIcon)gateIcon.textContent=room.icon;

@@ -20,6 +20,26 @@
     catch (_) { return ''; }
   };
   const initials = (name) => String(name || 'P').trim().split(/\s+/).slice(0, 2).map(x => x[0] || '').join('').toUpperCase() || 'P';
+
+  // A room join must return to the selected room after login/OAuth/email verification.
+  // Restrict the destination to known same-origin community pages to prevent open redirects.
+  function safeNextDestination() {
+    const raw = new URLSearchParams(location.search).get('next');
+    if (!raw) return '';
+    try {
+      const destination = new URL(raw, location.href);
+      if (destination.origin !== location.origin) return '';
+      const leaf = destination.pathname.split('/').pop() || '';
+      const allowed = /^(?:wazobia-room-[a-z0-9-]+\.html|wazobia-room-discussions\.html|parrothit-wazobia-trends\.html)$/i;
+      return allowed.test(leaf) ? destination.href : '';
+    } catch (_) { return ''; }
+  }
+  function authRedirectUrl() {
+    const url = new URL('wazobia-trends.html', location.href);
+    const destination = safeNextDestination();
+    if (destination) url.searchParams.set('next', destination);
+    return url.href;
+  }
   const relativeTime = (value) => {
     const date = new Date(value); if (Number.isNaN(date.getTime())) return 'just now';
     const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
@@ -363,6 +383,11 @@
           sessionStorage.removeItem('parrothitWazobiaThreadReturn');
         }
       } catch (_) {}
+      const nextDestination = safeNextDestination();
+      if (nextDestination) {
+        location.replace(nextDestination);
+        return;
+      }
     }
   }
 
@@ -414,7 +439,7 @@
           password,
           options: {
             data: { display_name: displayName, username, wazobia_terms_accepted: true },
-            emailRedirectTo: new URL('wazobia-trends.html', location.href).href
+            emailRedirectTo: authRedirectUrl()
           }
         });
         if (error) throw error;
@@ -430,7 +455,7 @@
     try {
       const { error } = await state.db.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: new URL('wazobia-trends.html', location.href).href, queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined }
+        options: { redirectTo: authRedirectUrl(), queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined }
       });
       if (error) throw error;
     } catch (error) { authStatus(error.message || `${provider} sign-in could not start. Check the Supabase provider settings.`, true); }

@@ -86,7 +86,7 @@
         const check=await client.rpc('parrothit_username_available',{candidate:username});
         if(check.error)throw new Error('Username validation is not ready. Run supabase/community-interaction.sql. '+check.error.message);
         if(check.data!==true)return say('That username is unavailable or invalid. Choose another.',true);
-        const {data,error}=await client.auth.signUp({email,password,options:{data:{display_name:displayName,username,rules_accepted:true},emailRedirectTo:new URL('interaction.html',location.href).href}});
+        const {data,error}=await client.auth.signUp({email,password,options:{data:{display_name:displayName,username,rules_accepted:true},emailRedirectTo:new URL('parrothit-wazobia-trends.html#feed',location.href).href}});
         if(error)throw error;
         if(data.user&&data.session){await recordMember(data.user,{display_name:displayName,username,rulesAccepted:true});await updateUI(data.user);say('Registration successful.');}
         else say('Registration received. Check your email for the confirmation link. Verify your email, then sign in.');
@@ -108,7 +108,7 @@
       }catch(err){say(err.message||'Could not save your profile.',true);}return;
     }
     if(form?.id==='postForm'||form?.matches('[data-reply-form]')){
-      if(!canContribute()||profileForm&&!profileForm.classList.contains('hidden')){event.preventDefault();event.stopImmediatePropagation();if(!currentUser){location.href='community-auth.html?next=interaction.html';return;}say('Verify your email and complete your community profile before contributing.',true);profileForm?.classList.remove('hidden');}
+      if(!canContribute()||profileForm&&!profileForm.classList.contains('hidden')){event.preventDefault();event.stopImmediatePropagation();if(!currentUser){location.href='wazobia-trends.html?openAuth=1&next='+encodeURIComponent('parrothit-wazobia-trends.html#feed');return;}say('Verify your email and complete your community profile before contributing.',true);profileForm?.classList.remove('hidden');}
     }
   },true);
   document.addEventListener('click',async event=>{
@@ -126,10 +126,10 @@
     if(event.target.closest('#communityLogout')){event.preventDefault();if(client){const {error}=await client.auth.signOut();if(error)say('Logout failed: '+error.message,true);else await updateUI(null);}return;}
     if(event.target.closest('#googleAuth')){
       event.preventDefault();if(!client)return say('Supabase is not configured.',true);
-      try{const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:new URL('interaction.html',location.href).href,queryParams:{prompt:'select_account'}}});if(error)throw error;}catch(err){say(err.message||'Google sign-in could not start. Check the Supabase Google provider configuration.',true);}return;
+      try{const {error}=await client.auth.signInWithOAuth({provider:'google',options:{redirectTo:new URL('parrothit-wazobia-trends.html#feed',location.href).href,queryParams:{prompt:'select_account'}}});if(error)throw error;}catch(err){say(err.message||'Google sign-in could not start. Check the Supabase Google provider configuration.',true);}return;
     }
     const contribution=event.target.closest('[data-react],[data-report-post],[data-edit-post],[data-delete-post],[data-reply-to]');
-    if(contribution&&!canContribute()) {event.preventDefault();event.stopImmediatePropagation();if(!currentUser){location.href='community-auth.html?next=interaction.html';return;}say('Verify your email and complete your community profile before contributing.',true);profileForm?.classList.remove('hidden');}
+    if(contribution&&!canContribute()) {event.preventDefault();event.stopImmediatePropagation();if(!currentUser){location.href='wazobia-trends.html?openAuth=1&next='+encodeURIComponent('parrothit-wazobia-trends.html#feed');return;}say('Verify your email and complete your community profile before contributing.',true);profileForm?.classList.remove('hidden');}
   },true);
   document.addEventListener('submit',event=>{const form=event.target?.matches('[data-reply-form]')?event.target:null;if(!form||!currentUser)return;let email=form.querySelector('input[name="email"]');if(!email){email=document.createElement('input');email.type='hidden';email.name='email';form.appendChild(email);}email.value=currentUser.email||'';},false);
   setMode('register');init();
