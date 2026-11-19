@@ -7,10 +7,10 @@
   <meta name="description" content="Private one-to-one messages for the PARROTHIT Wazobia Trends community.">
   <title>Messages | PARROTHIT Wazobia Trends</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-messages.css?v=3-profile-calls-links">
+  <link rel="stylesheet" href="css/wazobia-messages.css?v=5-chat-images">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-messages.js?v=4-friends-startup-fix" defer></script>
+  <script src="js/wazobia-messages.js?v=5-chat-images" defer></script>
 </head>
 <body class="wzm-page">
   <header class="wzm-app-nav" id="wzm-app-nav" aria-label="Wazobia navigation">
@@ -83,7 +83,10 @@
             <button type="button" id="wzm-chat-details" aria-label="Conversation details" title="Conversation details">ⓘ</button>
           </header>
           <div class="wzm-messages" id="wzm-messages" aria-live="polite"></div>
+          <div class="wzm-image-preview" id="wzm-image-preview" hidden><img id="wzm-image-preview-img" alt="Selected photo preview"><button type="button" id="wzm-image-clear">Remove photo</button></div>
           <form class="wzm-composer" id="wzm-message-form">
+            <label class="wzm-attach-button" for="wzm-image-input" aria-label="Attach a photo" title="Attach a photo">▧</label>
+            <input id="wzm-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
             <textarea id="wzm-message-input" rows="1" maxlength="4000" placeholder="Message…" aria-label="Write a message"></textarea>
             <button type="submit" id="wzm-send-button" aria-label="Send message" title="Send">➤</button>
           </form>

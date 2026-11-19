@@ -7,7 +7,7 @@
   <meta name="description" content="General group conversation on PARROTHIT Wazobia Trends.">
   <title>🌐 General | Wazobia Group Chat</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-room-chat.css?v=3-dedicated-room-pages">
+  <link rel="stylesheet" href="css/wazobia-room-chat.css?v=4-chat-images">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
 </head>
@@ -56,9 +56,12 @@
         <div class="wrc-invite-feedback" id="wrc-invite-feedback" role="status" aria-live="polite"></div>
         <div class="wrc-pending-invites" id="wrc-pending-invites"></div>
         <div class="wrc-message-feed" id="wrc-message-feed" aria-live="polite"><p class="wrc-empty">Loading room messages…</p></div>
+        <div class="wrc-image-preview" id="wrc-image-preview" hidden><img id="wrc-image-preview-img" alt="Selected photo preview"><button type="button" id="wrc-image-clear">Remove photo</button></div>
         <form class="wrc-composer" id="wrc-composer">
+          <label class="wrc-attach-button" for="wrc-image-input" aria-label="Attach a photo" title="Attach a photo">▧</label>
+          <input id="wrc-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
           <label class="wrc-sr-only" for="wrc-message-input">Write a message</label>
-          <textarea id="wrc-message-input" rows="1" maxlength="4000" placeholder="Message the General group…" required></textarea>
+          <textarea id="wrc-message-input" rows="1" maxlength="4000" placeholder="Message the General group…"></textarea>
           <button type="submit" id="wrc-send-button" aria-label="Send message" title="Send">➤</button>
         </form>
         <p class="wrc-composer-hint">Messages are shared with members of this room.</p>
@@ -74,6 +77,6 @@
     <p class="wrc-status" id="wrc-status" role="status" aria-live="polite"></p>
     <footer class="wrc-footer"><a href="wazobia-trends.html">Wazobia Trends</a><span>PARROTHIT · News That Speaks!</span></footer>
   </main>
-  <script src="js/wazobia-room-chat.js?v=4-auth-return" defer></script>
+  <script src="js/wazobia-room-chat.js?v=5-chat-images" defer></script>
 </body>
 </html>
