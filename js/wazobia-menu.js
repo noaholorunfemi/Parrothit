@@ -59,7 +59,7 @@
     $('wzm-privacy-link').href = user ? `${ownProfile}&settings=1` : ownProfile;
     $('wzm-settings-privacy').href = user ? `${ownProfile}&settings=1` : ownProfile;
     $('wzm-account-label').textContent = user ? 'Switch account' : 'Sign in or switch account';
-    $('wzm-account-hint').textContent = user ? 'Sign out here, then sign in with another account' : 'Sign in to use messages, groups and your profile';
+    $('wzm-account-hint').textContent = user ? 'Save this account on your device, then tap another account to switch' : 'Sign in or choose an account already saved on this device';
     $('wzm-account-icon').textContent = user ? '↔' : '＋';
     $('wzm-signout').hidden = !user;
   }
@@ -104,6 +104,11 @@
       const result = await db.from('wazobia_profiles').select('user_id,display_name,username,avatar_url').eq('user_id', user.id).maybeSingle();
       if (result.error) console.warn('Wazobia menu profile:', result.error.message);
       profile = result.data || null;
+      if (window.WazobiaSavedAccounts) {
+        window.WazobiaSavedAccounts.attach(db);
+        try { await window.WazobiaSavedAccounts.saveCurrentSession(db, profile); }
+        catch (saveError) { console.warn('Wazobia account could not be saved yet:', saveError); }
+      }
     }
     setProfile(user, profile);
     await loadUnreadBadges();
@@ -135,12 +140,24 @@
       node.hidden = count === 0;
     });
   }
-  async function signOutAndSwitch() {
-    if (!currentUser) { location.href = 'wazobia-trends.html?openAuth=1'; return; }
-    if (!confirm('Sign out of this device so another Wazobia account can be used?')) return;
-    const {error} = await db.auth.signOut({scope:'local'});
-    if (error) { feedback(error.message, true); return; }
-    location.href = 'wazobia-trends.html?openAuth=1';
+  async function switchAccount() {
+    if (!currentUser) { location.href = 'wazobia-auth.html'; return; }
+    try {
+      if (!window.WazobiaSavedAccounts) throw new Error('Saved-account support is not loaded. Refresh this page and try again.');
+      await window.WazobiaSavedAccounts.saveCurrentSession(db);
+      await window.WazobiaSavedAccounts.clearCurrentLocalSession(db);
+      location.replace('wazobia-auth.html?next=%2Fwazobia-trends.html');
+    } catch (error) { feedback(error.message || 'Could not switch accounts. Your current session is still active.', true); }
+  }
+  async function signOutAndForget() {
+    if (!currentUser) { location.href = 'wazobia-auth.html'; return; }
+    if (!confirm('Sign out and remove this account from the saved accounts on this device?')) return;
+    try {
+      const {error} = await db.auth.signOut({scope:'local'});
+      if (error) throw error;
+      window.WazobiaSavedAccounts?.removeSavedAccount(currentUser.id);
+      location.replace('wazobia-auth.html');
+    } catch (error) { feedback(error.message || 'Sign-out failed.', true); }
   }
   async function inviteFriends() {
     const shareData = {title:'Join PARROTHIT Wazobia Trends', text:'Join me on Wazobia Trends to share ideas, pictures and conversations.', url:new URL('wazobia-trends.html', location.href).href};
@@ -151,8 +168,8 @@
     } catch (error) { if (error?.name !== 'AbortError') feedback('Could not share the invitation on this device.', true); }
   }
   function bind() {
-    $('wzm-switch-account').addEventListener('click', signOutAndSwitch);
-    $('wzm-signout').addEventListener('click', signOutAndSwitch);
+    $('wzm-switch-account').addEventListener('click', switchAccount);
+    $('wzm-signout').addEventListener('click', signOutAndForget);
     $('wzm-invite').addEventListener('click', inviteFriends);
     $('wzm-search-toggle').addEventListener('click', () => {
       const form = $('wzm-search-form'); form.hidden = !form.hidden;

@@ -1,8 +1,8 @@
 /* PARROTHIT Wazobia Trends — Groups. Build: 2026-11-18-v7-flat-reply-pages. */
 (() => {
   'use strict';
-  window.__WAZOBIA_GROUPS_BUILD__ = 'v8-profile-links-20261118';
-  console.info('[Wazobia Groups] build v8-profile-links-20261118 loaded');
+  window.__WAZOBIA_GROUPS_BUILD__ = 'v9-group-post-edit-delete';
+  console.info('[Wazobia Groups] build v9-group-post-edit-delete loaded');
   const $ = (id) => document.getElementById(id);
   const state = { db: null, user: null, profile: null, view: 'discover', groups: [], memberships: [], currentGroup: null, search: '', requests: [], groupPosts: [], postActivity: new Map(), commentsByPost: new Map(), commentProfilesByPost: new Map(), commentSorts: new Map() };
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -147,7 +147,7 @@
     if (profileResult.error) throw profileResult.error;
     const pmap=new Map((profileResult.data||[]).map(p=>[p.user_id,p]));
     const cover=safeUrl(g.cover_url);
-    const mainAction = !state.user ? `<a class="wg-create-btn" href="wazobia-trends.html?openDashboard=1">Sign in to join</a>` : active ? (owner ? `<button disabled>Group owner</button>` : `<button data-group-detail-action="leave" class="danger">Leave group</button>`) : own?.status==='pending' ? `<button disabled>Request pending</button>` : `<button class="primary" data-group-detail-action="join">${own?.status==='invited'?'Accept invitation':g.privacy==='private'?'Request to join':'Join group'}</button>`;
+    const mainAction = !state.user ? `<a class="wg-create-btn" href="parrothit-wazobia-trends.html?openAuth=1">Sign in to join</a>` : active ? (owner ? `<button disabled>Group owner</button>` : `<button data-group-detail-action="leave" class="danger">Leave group</button>`) : own?.status==='pending' ? `<button disabled>Request pending</button>` : `<button class="primary" data-group-detail-action="join">${own?.status==='invited'?'Accept invitation':g.privacy==='private'?'Request to join':'Join group'}</button>`;
     const adminCount=members.filter(m=>m.role==='admin').length;
     const ownerAdminNote=owner ? `<div class="wg-owner-admin-note"><strong>Owner controls · ${adminCount} ${adminCount===1?'admin':'admins'}</strong><span>You can appoint any active member as an admin or remove an admin role. Group admins cannot appoint other admins or remove the owner.</span></div>` : '';
     const settings = manager ? `<details class="wg-group-edit"><summary>⚙ Manage group settings</summary><form id="wg-edit-group" class="wg-group-edit-form"><label>Group name<input name="name" required minlength="3" maxlength="80" value="${esc(g.name)}"></label><label>Description<textarea name="description" maxlength="600" rows="3">${esc(g.description||'')}</textarea></label><div class="wg-inline-row"><label>Privacy<select name="privacy"><option value="public" ${g.privacy==='public'?'selected':''}>Public</option><option value="private" ${g.privacy==='private'?'selected':''}>Private</option></select></label><label>Change cover photo<input name="cover" type="file" accept="image/jpeg,image/png,image/webp,image/gif"></label></div><button type="submit">Save group changes</button><span class="wg-form-status" id="wg-edit-status"></span></form>${owner?'<button type="button" class="wg-detail-danger" data-group-detail-action="delete">Delete group permanently</button>':''}</details>` : '';
@@ -173,7 +173,7 @@
       const mediaUrl=safeUrl(mediaUrls[index]);
       const media=p.media_type==='video'&&mediaUrl?`<video class="wg-post-media" controls playsinline preload="metadata" src="${esc(mediaUrl)}"></video>`:p.media_type==='image'&&mediaUrl?`<img class="wg-post-media" src="${esc(mediaUrl)}" alt="Group post attachment" loading="lazy">`:'';
       const meta=[p.post_kind==='question'?'❓ Question':'',p.location_text?`📍 ${esc(p.location_text)}`:'',p.feeling?`☺ ${esc(p.feeling)}`:''].filter(Boolean).join(' · ');
-      const actions=`${p.can_delete?`<button type="button" data-group-post-delete="${esc(p.id)}">Delete</button>`:''}${manager?`<button type="button" data-group-post-pin="${esc(p.id)}" data-pin-value="${p.is_pinned?'false':'true'}">${p.is_pinned?'Unpin':'Pin post'}</button>`:''}`;
+      const actions=`${p.is_mine?`<button type="button" data-group-post-edit="${esc(p.id)}">Edit</button>`:''}${p.can_delete?`<button type="button" data-group-post-delete="${esc(p.id)}">Delete</button>`:''}${manager?`<button type="button" data-group-post-pin="${esc(p.id)}" data-pin-value="${p.is_pinned?'false':'true'}">${p.is_pinned?'Unpin':'Pin post'}</button>`:''}`;
       const canComment=!!state.user && (g.privacy==='public' || active);
       return `<article class="wz-card wg-wall-post ${p.is_pinned?'is-pinned':''}" data-group-post-id="${esc(p.id)}" id="group-post-${esc(p.id)}">${p.is_pinned?'<div class="wg-pinned-label">📌 Pinned by group admin</div>':''}<div class="wg-wall-post-head">${anonymous?'<span class="wg-member-avatar wg-anonymous-avatar">A</span>':avatar(profile)}<div>${anonymous?`<strong>${esc(authorName)}</strong>`:profileName(profile,authorName)}<small>${authorHandle} · ${when(p.created_at)}</small></div>${actions?`<div class="wg-wall-post-actions">${actions}</div>`:''}</div>${meta?`<div class="wg-post-context">${meta}</div>`:''}${p.body?`<p>${esc(p.body)}</p>`:''}${media}${renderGroupPostEngagement(p.id)}<section class="wg-post-comments" data-group-comment-area="${esc(p.id)}" hidden><div class="wg-comments-loading">Open comments to load the discussion.</div></section>${!canComment&&state.user&&g.privacy==='private'?'<p class="wg-comment-gate">Join this private group to comment.</p>':''}</article>`;
     }).join('');
@@ -533,6 +533,22 @@
       await renderGroupDetail(); say('Group post deleted.');
     } catch(error){ say(error.message||'Could not delete the post.',true); }
   }
+  async function editGroupPost(id) {
+    const post=(state.groupPosts||[]).find(p=>String(p.id)===String(id));
+    if(!post || !post.is_mine || !state.user) return say('You can only edit your own group posts.',true);
+    const next=window.prompt('Edit your group post:',post.body||'');
+    if(next===null) return;
+    const body=String(next).trim();
+    if(!body || body.length>5000) return say('Group posts must contain between 1 and 5,000 characters.',true);
+    try {
+      const {data,error}=await state.db.from('wazobia_group_posts')
+        .update({body,updated_at:new Date().toISOString()})
+        .eq('id',id).eq('author_id',state.user.id).select('id').maybeSingle();
+      if(error) throw error;
+      if(!data) throw new Error('The post was not updated. Check that you are still a member of this group.');
+      await renderGroupDetail(); say('Your group post was updated.');
+    } catch(error) { say(error.message||'Could not edit your group post.',true); }
+  }
   async function pinGroupPost(id,pin) {
     try { const {error}=await state.db.rpc('wazobia_pin_group_post',{p_post_id:id,p_pin:pin}); if(error) throw error; await renderGroupDetail(); say(pin?'Post pinned to the group.':'Post unpinned.'); }
     catch(error){ say(error.message||'Could not update the pinned post.',true); }
@@ -564,6 +580,7 @@
       const detail=e.target.closest('[data-group-detail-action]');if(detail)return detailAction(detail.dataset.groupDetailAction);
       const member=e.target.closest('[data-member-action]');if(member)return memberAction(member.dataset.memberAction,member.dataset.userId);
       const request=e.target.closest('[data-inline-request]');if(request)return approveRequest(state.currentGroup.id,request.dataset.userId,request.dataset.inlineRequest==='approve');
+      const editPost=e.target.closest('[data-group-post-edit]');if(editPost)return editGroupPost(editPost.dataset.groupPostEdit);
       const pin=e.target.closest('[data-group-post-pin]');if(pin)return pinGroupPost(pin.dataset.groupPostPin,pin.dataset.pinValue==='true');
       const post=e.target.closest('[data-group-post-delete]');if(post)return deleteGroupPost(post.dataset.groupPostDelete);
     });

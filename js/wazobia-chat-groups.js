@@ -165,7 +165,7 @@
   async function loadMessages() {
     if (!state.activeGroup || !state.user) return;
     const result = await state.db.from('wazobia_chat_group_messages')
-      .select('id,group_id,sender_id,body,created_at')
+      .select('id,group_id,sender_id,body,created_at,edited_at')
       .eq('group_id', state.activeGroup.id)
       .order('created_at', { ascending: true })
       .limit(300);
@@ -193,9 +193,13 @@
         const time = message.created_at
           ? new Date(message.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
           : '';
-        return `<article class="wzcg-message ${mine ? 'mine' : ''}">
+        const controls = mine ? `<div class="wzcg-message-actions">
+          <button type="button" data-edit-group-message="${esc(message.id)}">Edit</button>
+          <button type="button" data-delete-group-message="${esc(message.id)}">Delete</button>
+        </div>` : '';
+        return `<article class="wzcg-message ${mine ? 'mine' : ''}" data-group-message-id="${esc(message.id)}">
           ${!mine ? `<small>${esc(profile.display_name || profile.username || 'Member')}</small>` : ''}
-          <p>${esc(message.body)}</p><time>${esc(time)}</time>
+          <p>${esc(message.body)}</p><div class="wzcg-message-meta"><time>${esc(time)}${message.edited_at ? ' · edited' : ''}</time>${controls}</div>
         </article>`;
       }).join('')
       : '<div class="wzcg-no-messages">No messages yet. Start the conversation.</div>';
@@ -408,6 +412,38 @@
     }
   }
 
+  async function editGroupMessage(id) {
+    if (!state.activeGroup || !state.user) return;
+    const message = document.querySelector(`[data-group-message-id="${CSS.escape(String(id))}"]`);
+    const bodyNode = message?.querySelector('p');
+    const currentBody = bodyNode?.textContent || '';
+    const next = window.prompt('Edit your group-chat message:', currentBody);
+    if (next === null) return;
+    const body = String(next).trim();
+    if (!body || body.length > 4000) return say('Messages must contain between 1 and 4,000 characters.', true);
+    try {
+      const { error } = await state.db.from('wazobia_chat_group_messages')
+        .update({ body })
+        .eq('id', id).eq('group_id', state.activeGroup.id).eq('sender_id', state.user.id);
+      if (error) throw error;
+      await loadMessages();
+      say('Your group-chat message was updated.');
+    } catch (error) { say(error.message || 'Could not edit this message.', true); }
+  }
+
+  async function deleteGroupMessage(id) {
+    if (!state.activeGroup || !state.user) return;
+    if (!window.confirm('Delete your message from this group chat?')) return;
+    try {
+      const { error } = await state.db.from('wazobia_chat_group_messages')
+        .delete()
+        .eq('id', id).eq('group_id', state.activeGroup.id).eq('sender_id', state.user.id);
+      if (error) throw error;
+      await loadMessages();
+      say('Your group-chat message was deleted.');
+    } catch (error) { say(error.message || 'Could not delete this message.', true); }
+  }
+
   function bind() {
     $('wzcg-new-group')?.addEventListener('click', () => {
       $('wzcg-create-form').hidden = !$('wzcg-create-form').hidden;
@@ -443,7 +479,12 @@
     $('wzcg-messages')?.addEventListener('click', event => {
       if (event.target.closest('#wzcg-retry-messages')) {
         loadMessages().catch(renderMessageLoadError);
+        return;
       }
+      const edit = event.target.closest('[data-edit-group-message]');
+      if (edit) { editGroupMessage(edit.dataset.editGroupMessage); return; }
+      const remove = event.target.closest('[data-delete-group-message]');
+      if (remove) deleteGroupMessage(remove.dataset.deleteGroupMessage);
     });
     $('wzcg-rename')?.addEventListener('click', renameGroup);
     $('wzcg-message-form')?.addEventListener('submit', sendMessage);
