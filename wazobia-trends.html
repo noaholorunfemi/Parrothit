@@ -18,10 +18,10 @@
   </style>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
   <link rel="apple-touch-icon" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-trends.css?v=11-menu">
+  <link rel="stylesheet" href="css/wazobia-trends.css?v=13-home-app-nav">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-trends.js?v=12-post-delete-rpc" defer></script>
+  <script src="js/wazobia-trends.js?v=14-room-join-multi-photo-app-nav" defer></script>
   <script src="/js/public-notifications.js?v=20261118-remove-wazobia-header-shortcut"></script>
 </head>
 <body class="wz-page">
@@ -42,14 +42,30 @@
     </div>
   </header>
 
-  <div class="wz-mobile-tabs" role="navigation" aria-label="Quick navigation">
-    <button class="selected" data-wz-tab="home" type="button">⌂<span>Home</span></button>
-    <button data-wz-tab="following" type="button">♧<span>Following</span></button>
-    <button data-wz-tab="saved" type="button">▣<span>Saved</span></button>
-    <a class="wz-mobile-messages-link" id="wz-mobile-messages-link" href="wazobia-messages.html" aria-label="Messages">✉<span>Messages</span><b id="wz-mobile-message-badge" class="wz-badge" hidden>0</b></a>
-    <a class="wz-mobile-groups-link" href="wazobia-groups.html" aria-label="Groups">♧<span>Groups</span></a>
-    <button data-wz-tab="notifications" type="button">♢<span>Alerts</span><b id="wz-mobile-badge" class="wz-badge" hidden>0</b></button>
+
+  <nav class="wz-mobile-tabs wz-home-app-nav" role="navigation" aria-label="Wazobia quick navigation">
+    <button class="selected" data-wz-tab="home" type="button" aria-label="Home" title="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21H5v-9.2"/></svg><span class="wz-nav-sr-only">Home</span></button>
+    <button type="button" data-open-dashboard aria-label="Your profile" title="Your profile"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2.2a7 7 0 0 1 14 0V21Z"/></svg><span class="wz-nav-sr-only">Profile</span></button>
+    <a class="wz-mobile-messages-link" id="wz-mobile-messages-link" href="wazobia-messages.html" aria-label="Messages" title="Messages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 4 18-1-7 18-3.5-7.5L3 4Z"/><path d="m10.5 13.5 6-6"/></svg><b id="wz-mobile-message-badge" class="wz-badge" hidden>0</b><span class="wz-nav-sr-only">Messages</span></a>
+    <a class="wz-mobile-groups-link" href="wazobia-chat-groups.html" aria-label="Group chats" title="Group chats"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18"/><path d="M8 7h8M8 11h8M8 15h5"/></svg><span class="wz-nav-sr-only">Group chats</span></a>
+    <a class="wz-mobile-community-link" href="wazobia-groups.html" aria-label="Community groups" title="Community groups"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21v-7M12 14C7 14 4 11 4 7c4 0 7 2 8 7ZM12 14c0-5 3-8 8-8 0 4-2 7-8 8ZM12 14c-4-1-6-4-6-8 4 1 6 3 6 8ZM12 14c4-1 6-4 6-8-4 1-6 3-6 8Z"/></svg><span class="wz-nav-sr-only">Community groups</span></a>
+  </nav>
+
+  <header class="wz-secondary-header" aria-label="Wazobia Trends actions">
+    <h1>Wazobia Trends</h1>
+    <a class="wz-secondary-group-pill" href="wazobia-chat-groups.html">Group chats</a>
+    <div class="wz-secondary-actions">
+      <button type="button" id="wz-home-compose" aria-label="Create a post" title="Create a post">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10M14 4h7v7M21 4 10 15"/></svg>
+      </button>
+      <button type="button" id="wz-home-settings" aria-label="Account and dashboard" title="Account and dashboard">⚙</button>
+      <button type="button" id="wz-home-search-toggle" aria-label="Search Wazobia posts" title="Search">⌕</button>
+    </div>
+  </header>
+  <div class="wz-home-searchbar" id="wz-home-searchbar" hidden>
+    <span>⌕</span><input id="wz-home-search-input" type="search" placeholder="Search Wazobia posts and trends" autocomplete="off" aria-label="Search Wazobia posts and trends">
   </div>
+
 
   <main class="wz-layout">
     <aside class="wz-left-rail" aria-label="Your shortcuts">
@@ -170,7 +186,13 @@
       <div class="wz-post-author"><div class="wz-avatar" id="wz-post-avatar">?</div><div><strong id="wz-post-author-name">Your profile</strong><small>Posting to everyone</small></div></div>
       <textarea id="wz-post-text" maxlength="5000" placeholder="What's on your mind? Share an idea, a trend or a conversation…"></textarea>
       <div id="wz-mention-suggestions" class="wz-mention-suggestions" hidden></div>
-      <div class="wz-post-modal-tools"><label for="wz-modal-media">▧ Add photo or video</label><input id="wz-modal-media" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" hidden><span id="wz-post-charcount">0 / 5,000</span></div>
+      <div class="wz-post-modal-tools">
+        <div class="wz-post-attach-options">
+          <label for="wz-modal-media">▧ Add up to 10 photos</label><input id="wz-modal-media" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>
+          <label for="wz-modal-video">▷ Add video</label><input id="wz-modal-video" type="file" accept="video/mp4,video/webm,video/quicktime" hidden>
+        </div>
+        <span id="wz-post-charcount">0 / 5,000</span>
+      </div>
       <div class="wz-modal-media-preview" id="wz-modal-media-preview" hidden></div>
       <button class="wz-primary-btn wz-publish-btn" id="wz-publish-post" type="button">Post</button>
       <p id="wz-post-status" class="wz-auth-status" role="status" aria-live="polite"></p>
@@ -207,9 +229,12 @@
     </section>
   </div>
 
-  <div class="wz-image-viewer" id="wz-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
-    <button type="button" id="wz-image-close" aria-label="Close photo">×</button>
+  <div class="wz-image-viewer" id="wz-image-viewer" hidden role="dialog" aria-modal="true" aria-label="Photo gallery">
+    <button type="button" id="wz-image-close" aria-label="Close photo gallery">×</button>
+    <button type="button" class="wz-image-nav wz-image-prev" id="wz-image-prev" aria-label="Previous photo">‹</button>
     <img id="wz-image-large" alt="Shared Wazobia photo">
+    <span class="wz-image-count" id="wz-image-count">1 / 1</span>
+    <button type="button" class="wz-image-nav wz-image-next" id="wz-image-next" aria-label="Next photo">›</button>
     <button type="button" id="wz-image-save">↓ Save image</button>
   </div>
 
