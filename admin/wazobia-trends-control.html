@@ -29,11 +29,11 @@
   </div>
 </header>
 <div id="accessStatus" class="status" role="status">Verifying Admin 1 owner access…</div>
-<div class="notice"><b>Security:</b> this page is restricted to Admin 1 (Owner). Live controls use Supabase Row Level Security; do not add a service-role key to any browser file. Run the existing <code>supabase/community-admin-controls.sql</code> first, then the V1 report migration included in this patch.</div>
+<div class="notice"><b>Security:</b> this page is restricted to Admin 1 (Owner). Live controls use Supabase Row Level Security; do not add a service-role key to any browser file. Run the existing Wazobia/community migrations first, then <code>supabase/wazobia-member-management.sql</code>. The updated owner-only Edge Function must also be deployed. Do not put the Supabase service-role key in this page.</div>
 <section class="stats" aria-label="Wazobia Trends overview">
   <div class="stat"><strong id="statPosts">—</strong><span>Shared posts</span></div>
   <div class="stat"><strong id="statPending">—</strong><span>Pending / hidden</span></div>
-  <div class="stat"><strong id="statMembers">—</strong><span>Member profiles</span></div>
+  <div class="stat"><strong id="statMembers">—</strong><span>Wazobia users</span></div>
   <div class="stat"><strong id="statComments">—</strong><span>Comments & replies</span></div>
   <div class="stat"><strong id="statReports">—</strong><span>Open reports</span></div>
   <div class="stat"><strong id="statReactions">—</strong><span>Post/comment reactions</span></div>
@@ -85,8 +85,8 @@
 </section>
 
 <section class="panel">
- <h2>👥 Member management</h2><p class="muted">Search Wazobia accounts from both profile directories. Suspend/reactivate community access, or use the red <b>Delete user from database</b> button to permanently remove a non-admin member’s linked sign-in account and cascading records. Admin accounts are protected; permanent deletion cannot be undone.</p>
- <div class="toolbar"><input class="field" id="memberSearch" type="search" placeholder="Search members by name or username"><button class="btn gray" id="reloadMembers" type="button">Refresh</button></div>
+ <h2>👥 Wazobia Trends user management</h2><p class="muted">All accounts in the shared Wazobia/PARROTHIT Auth directory are listed, including Wazobia profiles, legacy community profiles and accounts whose Wazobia profile is still pending. Suspend or reactivate blocks Wazobia activity while leaving PARROTHIT sign-in available. Permanent deletion removes the shared Auth account and can affect other PARROTHIT features. Admin accounts are protected.</p>
+ <div class="toolbar"><input class="field" id="memberSearch" type="search" placeholder="Search all users: name, username, email or ID"><select class="field" id="memberFilter" aria-label="Filter member status" style="max-width:190px;min-width:150px;flex:0 1 190px"><option value="all">All accounts</option><option value="active">Active users</option><option value="suspended">Suspended users</option><option value="admin">Administrators</option></select><button class="btn gray" id="reloadMembers" type="button">Refresh all users</button></div>
  <div id="membersStatus" class="muted">Waiting for owner verification…</div><div id="memberRows" class="rows"></div>
 </section>
 
@@ -97,5 +97,5 @@
 </section>
 </main>
 <div class="modal" id="warningModal" role="dialog" aria-modal="true" aria-labelledby="warningTitle"><div class="dialog"><h2 id="warningTitle">🦜 PARROT WARNING!</h2><p>You are about to change global Wazobia Trends settings. These changes affect members across devices. Review your switches before committing.</p><div class="actions"><button type="button" class="btn gray" id="cancelWarning">Cancel</button><button type="button" class="btn gold" id="confirmWarning">Continue and save</button></div></div></div>
-<script src="../js/wazobia-trends-admin-control.js?v=20261120-member-delete-v3"></script>
+<script src="../js/wazobia-trends-admin-control.js?v=20261120-member-management-v2"></script>
 </body></html>
