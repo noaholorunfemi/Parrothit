@@ -88,3 +88,6 @@
 
 /* Member identity links open Wazobia public profiles. */
 .wg-profile-avatar-link,.wg-thread-profile-avatar-link{display:inline-flex;flex:none;text-decoration:none;color:inherit}.wg-profile-name-link,.wg-thread-profile-name-link{color:inherit;text-decoration:none;font-weight:inherit}.wg-profile-name-link:hover,.wg-thread-profile-name-link:hover{text-decoration:underline}.wg-member-info .wg-profile-name-link{display:block;font-weight:850}
+
+/* Distinguish editing controls from the destructive delete action. */
+.wg-wall-post-actions button[data-group-post-edit]{color:#087f5b}
