@@ -7,10 +7,11 @@
   <meta name="description" content="Sign in to Wazobia Trends and continue to your selected room.">
   <title>Sign in | Wazobia Trends</title>
   <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
-  <link rel="stylesheet" href="css/wazobia-auth.css?v=1-room-auth-bridge">
+  <link rel="stylesheet" href="css/wazobia-auth.css?v=2-saved-account-chooser">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-config.js?v=20261104-public-anon-read"></script>
-  <script src="js/wazobia-auth.js?v=1-room-auth-bridge" defer></script>
+  <script src="js/wazobia-saved-accounts.js?v=2-device-account-switcher"></script>
+  <script src="js/wazobia-auth.js?v=3-saved-account-chooser" defer></script>
 </head>
 <body class="wza-page">
   <main class="wza-shell">
@@ -19,6 +20,11 @@
       <div class="wza-room-mark" aria-hidden="true">🔐</div>
       <h1 id="wza-title">Sign in to continue</h1>
       <p class="wza-intro" id="wza-destination">Sign in to return to your selected Wazobia room.</p>
+      <section class="wza-saved-accounts" id="wza-saved-accounts" hidden aria-label="Saved accounts">
+        <div class="wza-saved-heading"><strong>Saved accounts</strong><small>Tap an account to continue</small></div>
+        <div class="wza-saved-list" id="wza-saved-list"></div>
+        <p class="wza-saved-note">Saved sign-ins are stored in this browser only. Your password is never stored. Avoid saving accounts on a shared device.</p>
+      </section>
       <form id="wza-login-form" novalidate>
         <label for="wza-identity">Email address or username</label>
         <input id="wza-identity" name="identity" type="text" autocomplete="username" autocapitalize="none" required placeholder="Email or username">
