@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17191c">
+  <meta name="description" content="Sign in to Wazobia Trends and continue to your selected room.">
+  <title>Sign in | Wazobia Trends</title>
+  <link rel="icon" type="image/png" href="/assets/images/parrothit-wazobia-trends-logo.png">
+  <link rel="stylesheet" href="css/wazobia-auth.css?v=1-room-auth-bridge">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js?v=20261104-public-anon-read"></script>
+  <script src="js/wazobia-auth.js?v=1-room-auth-bridge" defer></script>
+</head>
+<body class="wza-page">
+  <main class="wza-shell">
+    <a class="wza-brand" href="/wazobia-trends.html"><img src="/assets/images/parrothit-wazobia-trends-logo.png" alt="" width="54" height="54"><span><strong>Wazobia Trends</strong><small>PARROTHIT community</small></span></a>
+    <section class="wza-card" aria-labelledby="wza-title">
+      <div class="wza-room-mark" aria-hidden="true">🔐</div>
+      <h1 id="wza-title">Sign in to continue</h1>
+      <p class="wza-intro" id="wza-destination">Sign in to return to your selected Wazobia room.</p>
+      <form id="wza-login-form" novalidate>
+        <label for="wza-identity">Email address or username</label>
+        <input id="wza-identity" name="identity" type="text" autocomplete="username" autocapitalize="none" required placeholder="Email or username">
+        <label for="wza-password">Password</label>
+        <input id="wza-password" name="password" type="password" autocomplete="current-password" required placeholder="Your password">
+        <button id="wza-submit" type="submit">Sign in and return to room</button>
+      </form>
+      <div class="wza-divider"><span>or sign in with</span></div>
+      <div class="wza-oauth"><button type="button" id="wza-google">Google</button><button type="button" id="wza-facebook">Facebook</button></div>
+      <p id="wza-status" class="wza-status" role="status" aria-live="polite"></p>
+      <p class="wza-foot">Your account session is protected by Supabase authentication. Your password is never stored on this page.</p>
+      <a class="wza-back" id="wza-back-link" href="/wazobia-trends.html">Back to Wazobia Trends</a>
+    </section>
+  </main>
+</body>
+</html>
