@@ -7,10 +7,19 @@
   const safeUrl = value => { try { const u=new URL(value,location.origin); return ['https:'].includes(u.protocol)?u.href:''; } catch (_) { return ''; } };
   const initials = value => String(value||'W').trim().slice(0,1).toUpperCase()||'W';
   let db=null,user=null,joined=false,roomRow=null,messageChannel=null,membershipChannel=null,busy=false,refreshing=false,selectedRoomImage=null,roomPreviewUrl=null,sendingRoomMessage=false;
+  let pendingAutoJoin=new URLSearchParams(location.search).get('autoJoin')==='1',autoJoinBusy=false;
   const CHAT_MEDIA_BUCKET='wazobia-chat-media';
   const MAX_CHAT_IMAGE_BYTES=12*1024*1024;
   const CHAT_IMAGE_TYPES={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'};
   const say=(message,bad=false)=>{const el=$('wrc-status');if(el){el.textContent=message||'';el.classList.toggle('error',!!bad);}};
+  function roomAuthUrl(){
+    const roomUrl=new URL(`/wazobia-room-${room.slug}.html`,location.origin);
+    roomUrl.searchParams.set('autoJoin','1');
+    const signInUrl=new URL('/wazobia-trends.html',location.origin);
+    signInUrl.searchParams.set('openAuth','1');
+    signInUrl.searchParams.set('next',roomUrl.href);
+    return signInUrl.href;
+  }
   function clearRoomPhoto(){if(roomPreviewUrl)URL.revokeObjectURL(roomPreviewUrl);roomPreviewUrl=null;selectedRoomImage=null;const input=$('wrc-image-input');if(input)input.value='';const preview=$('wrc-image-preview');if(preview)preview.hidden=true;const img=$('wrc-image-preview-img');if(img)img.removeAttribute('src');}
   function chooseRoomPhoto(file){if(!file){clearRoomPhoto();return;}if(!CHAT_IMAGE_TYPES[file.type]){clearRoomPhoto();say('Choose a JPEG, PNG, WebP or GIF image.',true);return;}if(file.size>MAX_CHAT_IMAGE_BYTES){clearRoomPhoto();say('Images must be 12 MB or smaller.',true);return;}if(roomPreviewUrl)URL.revokeObjectURL(roomPreviewUrl);selectedRoomImage=file;roomPreviewUrl=URL.createObjectURL(file);$('wrc-image-preview-img').src=roomPreviewUrl;$('wrc-image-preview').hidden=false;say('Photo ready to send.');}
   async function uploadRoomPhoto(file){if(!file)return null;const ext=CHAT_IMAGE_TYPES[file.type];const id=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`);const path=`rooms/${room.slug}/${user.id}/${id}.${ext}`;const {error}=await db.storage.from(CHAT_MEDIA_BUCKET).upload(path,file,{contentType:file.type,cacheControl:'3600',upsert:false});if(error)throw error;return path;}
@@ -39,8 +48,7 @@
     // Both the visible sign-in link and the join button must return to this room.
     const signInLink=$('wrc-signin-link');
     if(signInLink){
-      const roomPath=`wazobia-room-${room.slug}.html`;
-      signInLink.href=`wazobia-trends.html?openAuth=1&next=${encodeURIComponent(roomPath)}`;
+      signInLink.href=roomAuthUrl();
     }
     $('wrc-chat-subtitle').textContent='Group conversation · Members only';
     const badge=document.querySelector('.wrc-room-badge');if(badge)badge.textContent=room.icon;
@@ -96,14 +104,38 @@
     }catch(error){say(error.message||'Could not check room membership.',true);}
     finally{refreshing=false;}
   }
+  async function joinRoomMembership(){
+    if(!db||!user)return false;
+    const {error}=await db.from('community_room_members').insert({room_slug:room.slug,user_id:user.id});
+    if(error&&error.code!=='23505')throw error;
+    joined=true;syncChatVisibility();await syncMembership();
+    say(`You joined ${room.name}. Your group chat is now open.`);
+    return true;
+  }
+  async function completePendingAutoJoin(){
+    if(!pendingAutoJoin||!user||autoJoinBusy)return;
+    autoJoinBusy=true;
+    try{
+      if(!joined)await joinRoomMembership();
+      pendingAutoJoin=false;
+      const clean=new URL(location.href);clean.searchParams.delete('autoJoin');
+      history.replaceState(history.state,'',clean.pathname+clean.search+clean.hash);
+    }catch(error){say(`You signed in, but could not join ${room.name}: ${error.message||'Please tap Join room to retry.'}`,true);}
+    finally{autoJoinBusy=false;}
+  }
   async function toggleJoin(){
     if(!db)return;
-    if(!user){location.href=`wazobia-trends.html?openAuth=1&next=${encodeURIComponent(`wazobia-room-${room.slug}.html`)}`;return;}
+    // The join button may be tapped before the first getSession() call finishes.
+    // Re-check Supabase directly before treating the visitor as signed out.
+    if(!user){
+      try{const {data,error}=await db.auth.getSession();if(!error)user=data?.session?.user||null;}catch(_){}
+    }
+    if(!user){location.assign(roomAuthUrl());return;}
     if(busy)return;
     const button=$('wrc-join-button');if(button)button.disabled=true;
     try{
       if(joined){if(!confirm(`Leave the ${room.name} room? You can rejoin later.`))return;const {error}=await db.from('community_room_members').delete().eq('room_slug',room.slug).eq('user_id',user.id);if(error)throw error;joined=false;say('You left this room. You can rejoin at any time.');}
-      else{const {error}=await db.from('community_room_members').insert({room_slug:room.slug,user_id:user.id});if(error&&error.code!=='23505')throw error;joined=true;say(`You joined ${room.name}. Your group chat is now open.`);}
+      else await joinRoomMembership();
       syncChatVisibility();await syncMembership();
     }catch(error){say(`Could not update membership: ${error.message||'Try again.'}`,true);}
     finally{if(button)button.disabled=false;}
@@ -131,13 +163,19 @@
   }
   async function init(){
     db=window.getParrothitSupabaseClient?.()||null;bind();
+    // Prevent taps while the initial auth/session and membership check is still in flight.
+    if($('wrc-join-button'))$('wrc-join-button').disabled=true;
+    if($('wrc-gate-join'))$('wrc-gate-join').disabled=true;
     if(!db){say('Wazobia Supabase connection is unavailable. Check supabase-config.js.',true);$('wrc-join-button').disabled=true;return;}
     try{await loadRoom();await syncMembership();
+      if($('wrc-join-button'))$('wrc-join-button').disabled=false;
+      if($('wrc-gate-join'))$('wrc-gate-join').disabled=false;
+      await completePendingAutoJoin();
       messageChannel=db.channel('wazobia-room-chat-'+room.slug).on('postgres_changes',{event:'*',schema:'public',table:'community_room_messages',filter:'room_slug=eq.'+room.slug},()=>loadMessages()).subscribe();
       membershipChannel=db.channel('wazobia-room-members-'+room.slug).on('postgres_changes',{event:'*',schema:'public',table:'community_room_members',filter:'room_slug=eq.'+room.slug},()=>syncMembership()).subscribe();
-      db.auth.onAuthStateChange(()=>setTimeout(()=>syncMembership(),0));
+      db.auth.onAuthStateChange(()=>setTimeout(async()=>{await syncMembership();await completePendingAutoJoin();},0));
       window.addEventListener('beforeunload',()=>{if(messageChannel)db.removeChannel(messageChannel);if(membershipChannel)db.removeChannel(membershipChannel);});
-    }catch(error){say(error.message||'This room could not be opened.',true);$('wrc-join-button').disabled=true;}
+    }catch(error){say(error.message||'This room could not be opened.',true);if($('wrc-join-button'))$('wrc-join-button').disabled=true;if($('wrc-gate-join'))$('wrc-gate-join').disabled=true;}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();

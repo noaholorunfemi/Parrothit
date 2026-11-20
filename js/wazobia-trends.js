@@ -4,12 +4,16 @@
   const $ = (id) => document.getElementById(id);
   const PAGE_SIZE = 15;
   const MAX_MEDIA_BYTES = 100 * 1024 * 1024;
+  const MAX_POST_IMAGES = 10;
+  const MAX_POST_IMAGE_BYTES = 20 * 1024 * 1024;
+  const MAX_POST_IMAGE_TOTAL_BYTES = 100 * 1024 * 1024;
   const state = {
     db: null, user: null, profile: null, mode: 'login', activeTab: 'home',
-    posts: [], offset: 0, hasMore: false, loading: false, pendingFile: null,
+    posts: [], offset: 0, hasMore: false, loading: false, pendingFiles: [], pendingPreviewUrls: [],
     savedIds: new Set(), followingIds: new Set(), realtime: null,
     commentHoldTimer: null, activeCommentMenu: null, dashboardTab: 'overview',
     notificationsOpen: false, lastNotifications: [], messageBadgeTimer: null, messageBadgeLoading: false, imageViewerUrl: '',
+    imageViewerItems: [], imageViewerIndex: 0, authReturnUrl: '', authReturnStarted: false,
     postMentions: new Map(), mentionSearchTimer: null, mentionRangeStart: -1, statusFile: null, statusRefreshTimer: null, statusExpiryTimer: null
   };
 
@@ -19,6 +23,40 @@
     try { const u = new URL(String(value).trim(), location.origin); return (u.protocol === 'https:' || u.origin === location.origin) ? u.href : ''; }
     catch (_) { return ''; }
   };
+  const AUTH_RETURN_STORAGE_KEY = 'wazobiaPendingRoomReturn';
+  function validateAuthReturn(raw) {
+    if (!raw) return '';
+    try {
+      const destination = new URL(String(raw), location.origin);
+      if (destination.origin !== location.origin) return '';
+      const allowed = /^\/(?:wazobia-room-[a-z0-9-]+\.html|wazobia-room-discussions\.html|wazobia-room-chats\.html|wazobia-chat-groups\.html|wazobia-messages\.html)$/i;
+      if (!allowed.test(destination.pathname)) return '';
+      return destination.href;
+    } catch (_) { return ''; }
+  }
+  function getAuthReturnTarget() {
+    const candidate = state.authReturnUrl || (() => { try { return sessionStorage.getItem(AUTH_RETURN_STORAGE_KEY) || ''; } catch (_) { return ''; } })();
+    return validateAuthReturn(candidate);
+  }
+  function buildAuthCallbackUrl() {
+    const callback = new URL('/wazobia-trends.html', location.origin);
+    const target = getAuthReturnTarget();
+    if (target) {
+      callback.searchParams.set('openAuth', '1');
+      callback.searchParams.set('next', target);
+    }
+    return callback.href;
+  }
+  function returnAfterAuthentication() {
+    if (!state.user || state.authReturnStarted) return false;
+    const target = getAuthReturnTarget();
+    if (!target) return false;
+    state.authReturnStarted = true;
+    state.authReturnUrl = target;
+    try { sessionStorage.removeItem(AUTH_RETURN_STORAGE_KEY); } catch (_) {}
+    location.replace(target);
+    return true;
+  }
   const initials = (name) => String(name || 'P').trim().split(/\s+/).slice(0, 2).map(x => x[0] || '').join('').toUpperCase() || 'P';
   const relativeTime = (value) => {
     const date = new Date(value); if (Number.isNaN(date.getTime())) return 'just now';
@@ -45,6 +83,31 @@
   function postStatus(message, isError = false) {
     const node = $('wz-post-status'); if (!node) return;
     node.textContent = message || ''; node.classList.toggle('error', !!isError);
+  }
+  function clearPendingMedia() {
+    (state.pendingPreviewUrls || []).forEach(url => URL.revokeObjectURL(url));
+    state.pendingPreviewUrls = [];
+    state.pendingFiles = [];
+    const preview = $('wz-modal-media-preview'); if (preview) { preview.innerHTML = ''; preview.hidden = true; }
+    const images = $('wz-modal-media'); if (images) images.value = '';
+    const video = $('wz-modal-video'); if (video) video.value = '';
+  }
+  function setPendingMedia(files) {
+    const selected = Array.from(files || []).filter(Boolean);
+    if (!selected.length) { clearPendingMedia(); renderPendingPreview(); return true; }
+    const images = selected.filter(file => /^image\/(jpeg|png|webp|gif)$/.test(file.type));
+    const videos = selected.filter(file => /^video\/(mp4|webm|quicktime)$/.test(file.type));
+    if (images.length + videos.length !== selected.length) { postStatus('Choose JPG, PNG, WebP or GIF images, or one MP4, WebM or MOV video.', true); return false; }
+    if (videos.length && (videos.length !== 1 || selected.length !== 1)) { postStatus('A video must be posted by itself. You can select up to 10 photos together.', true); return false; }
+    if (images.length > MAX_POST_IMAGES) { postStatus(`Select no more than ${MAX_POST_IMAGES} photos per post.`, true); return false; }
+    if (images.some(file => file.size > MAX_POST_IMAGE_BYTES)) { postStatus('Each photo must be 20 MB or smaller.', true); return false; }
+    if (images.reduce((sum, file) => sum + file.size, 0) > MAX_POST_IMAGE_TOTAL_BYTES) { postStatus('The total size of selected photos must not exceed 100 MB.', true); return false; }
+    if (videos.some(file => file.size > MAX_MEDIA_BYTES)) { postStatus('Videos must be 100 MB or smaller.', true); return false; }
+    clearPendingMedia();
+    state.pendingFiles = selected;
+    renderPendingPreview();
+    postStatus(images.length > 1 ? `${images.length} photos selected. They will appear together as a collage.` : (images.length ? 'Photo selected.' : 'Video selected.'));
+    return true;
   }
 
   // Render @mentions as links only when the tagged member is discoverable
@@ -220,7 +283,15 @@
     node.textContent = message || ''; node.classList.toggle('error', !!isError);
   }
   function openModal(id) { const node = $(id); if (node) { node.hidden = false; document.body.style.overflow = 'hidden'; } }
-  function closeModal(id) { const node = $(id); if (node) { node.hidden = true; document.body.style.overflow = ''; } }
+  function closeModal(id) {
+    const node = $(id);
+    if (node) { node.hidden = true; document.body.style.overflow = ''; }
+    if (id === 'wz-post-modal') clearPendingMedia();
+    if (id === 'wz-auth-modal' && !state.user) {
+      state.authReturnUrl = '';
+      try { sessionStorage.removeItem(AUTH_RETURN_STORAGE_KEY); } catch (_) {}
+    }
+  }
   function requireUser(message = 'Log in or create a Wazobia account to continue.') {
     if (state.user) return true;
     openModal('wz-auth-modal'); authStatus(message); return false;
@@ -305,6 +376,7 @@
 
   async function updateAuthSession(session) {
     state.user = session?.user || null;
+    if (state.user && returnAfterAuthentication()) return;
     state.profile = null;
     state.savedIds = new Set();
     state.followingIds = new Set();
@@ -414,11 +486,11 @@
           password,
           options: {
             data: { display_name: displayName, username, wazobia_terms_accepted: true },
-            emailRedirectTo: new URL('wazobia-trends.html', location.href).href
+            emailRedirectTo: buildAuthCallbackUrl()
           }
         });
         if (error) throw error;
-        if (data.session) { await updateAuthSession(data.session); await showProfile(); }
+        if (data.session) { await updateAuthSession(data.session); if (!state.authReturnStarted) await showProfile(); }
         else authStatus('Account created. Check your email for the verification link, then log in to Wazobia Trends.');
       }
     } catch (error) { authStatus(error.message || 'Authentication failed. Please try again.', true); }
@@ -430,33 +502,53 @@
     try {
       const { error } = await state.db.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: new URL('wazobia-trends.html', location.href).href, queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined }
+        options: { redirectTo: buildAuthCallbackUrl(), queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined }
       });
       if (error) throw error;
     } catch (error) { authStatus(error.message || `${provider} sign-in could not start. Check the Supabase provider settings.`, true); }
   }
 
-  async function openPostModal(file = null) {
+  async function openPostModal(files = []) {
     if (!requireUser('Log in before publishing a post.')) return;
-    state.pendingFile = file;
     $('wz-post-text').value = '';
     $('wz-post-charcount').textContent = '0 / 5,000';
     $('wz-post-author-name').textContent = state.profile?.display_name || 'Your profile';
     $('wz-post-avatar').innerHTML = avatarMarkup(state.profile).replace(/^<div[^>]*>|<\/div>$/g, '');
-    renderPendingPreview(); postStatus(''); openModal('wz-post-modal'); $('wz-post-text').focus();
+    clearPendingMedia();
+    const selected = files instanceof File ? [files] : Array.from(files || []);
+    if (selected.length && !setPendingMedia(selected)) return;
+    postStatus(''); openModal('wz-post-modal'); $('wz-post-text').focus();
   }
   function renderPendingPreview() {
     const box = $('wz-modal-media-preview');
-    if (!state.pendingFile) { box.hidden = true; box.innerHTML = ''; return; }
-    const url = URL.createObjectURL(state.pendingFile);
-    box.innerHTML = state.pendingFile.type.startsWith('video/') ? `<video controls src="${url}"></video>` : `<img src="${url}" alt="Selected media preview">`;
+    if (!box) return;
+    (state.pendingPreviewUrls || []).forEach(url => URL.revokeObjectURL(url));
+    state.pendingPreviewUrls = [];
+    box.replaceChildren();
+    if (!state.pendingFiles?.length) { box.hidden = true; return; }
     box.hidden = false;
+    const isVideo = state.pendingFiles[0].type.startsWith('video/');
+    state.pendingFiles.forEach((file, index) => {
+      const url = URL.createObjectURL(file); state.pendingPreviewUrls.push(url);
+      const item = document.createElement('div'); item.className = 'wz-selected-media-item';
+      const media = isVideo ? document.createElement('video') : document.createElement('img');
+      media.src = url; media.alt = isVideo ? 'Selected video preview' : `Selected photo ${index + 1}`;
+      if (isVideo) { media.controls = true; media.playsInline = true; }
+      const caption = document.createElement('div'); caption.className = 'wz-selected-media-caption';
+      const name = document.createElement('small'); name.textContent = `${file.name || `Photo ${index + 1}`} · ${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+      const remove = document.createElement('button'); remove.type = 'button'; remove.dataset.removeSelectedMedia = String(index); remove.textContent = 'Remove';
+      caption.append(name, remove); item.append(media, caption); box.append(item);
+    });
+    const note = document.createElement('p'); note.className = 'wz-selected-media-note';
+    note.textContent = isVideo ? 'One video per post.' : `${state.pendingFiles.length} of ${MAX_POST_IMAGES} photos selected · They will be displayed as a collage.`;
+    box.append(note);
   }
 
   async function uploadMedia(file) {
     if (!file || !state.user) return null;
     if (!/^(image\/(jpeg|png|webp|gif)|video\/(mp4|webm|quicktime))$/.test(file.type)) throw new Error('Choose a JPG, PNG, WebP, GIF, MP4, WebM or MOV file.');
-    if (file.size > MAX_MEDIA_BYTES) throw new Error('The maximum photo or video size is 100 MB.');
+    if (file.type.startsWith('image/') && file.size > MAX_POST_IMAGE_BYTES) throw new Error('Each photo must be 20 MB or smaller.');
+    if (file.type.startsWith('video/') && file.size > MAX_MEDIA_BYTES) throw new Error('Videos must be 100 MB or smaller.');
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
     const path = `${state.user.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
     const { error } = await state.db.storage.from('wazobia-media').upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false });
@@ -468,16 +560,27 @@
   async function publishPost() {
     if (!requireUser()) return;
     const body = $('wz-post-text').value.trim();
-    const file = state.pendingFile;
-    if (!body && !file) return postStatus('Write something or add a photo/video before posting.', true);
+    const files = [...(state.pendingFiles || [])];
+    if (!body && !files.length) return postStatus('Write something or add up to 10 photos before posting.', true);
     if (body.length > 5000) return postStatus('Posts can contain up to 5,000 characters.', true);
     const button = $('wz-publish-post'); button.disabled = true; button.textContent = 'Publishing…';
-    let media = null;
+    const uploaded = [];
     try {
-      if (file) media = await uploadMedia(file);
-      const payload = { author_id: state.user.id, body, media_url: media?.url || null, media_path: media?.path || null, media_type: media?.type || null };
+      for (let index = 0; index < files.length; index++) {
+        postStatus(`Uploading ${index + 1} of ${files.length} ${files[index].type.startsWith('video/') ? 'video' : 'photos'}…`);
+        uploaded.push(await uploadMedia(files[index]));
+      }
+      const first = uploaded[0] || null;
+      const payload = {
+        author_id: state.user.id, body,
+        media_url: first?.url || null, media_path: first?.path || null, media_type: first?.type || null,
+        media_items: uploaded
+      };
       const { data: createdPost, error } = await state.db.from('wazobia_posts').insert(payload).select('id').single();
-      if (error) throw error;
+      if (error) {
+        if (/media_items|column .* does not exist|schema cache/i.test(error.message || '')) throw new Error('Multiple-photo posting is not installed yet. Run supabase/wazobia-post-multiple-images.sql in Supabase SQL Editor, then try again.');
+        throw error;
+      }
       const usernames = [...new Set([...body.matchAll(/@([a-z0-9_]{3,24})\b/gi)].map(match => match[1].toLowerCase()))];
       let mentionWarning = '';
       if (usernames.length) {
@@ -487,17 +590,30 @@
           if (tagged.error) mentionWarning = ' (Your post is live, but some tag notifications could not be sent.)';
         }
       }
-      state.pendingFile = null; $('wz-modal-media-preview').innerHTML = ''; $('wz-mention-suggestions').hidden = true; closeModal('wz-post-modal');
+      clearPendingMedia(); $('wz-mention-suggestions').hidden = true; closeModal('wz-post-modal');
       status(`Your post is live on Wazobia Trends.${mentionWarning}`); state.activeTab = 'home'; setActiveTabButtons(); await loadFeed(true);
-    } catch (error) { postStatus(error.message || 'Your post could not be published.', true); }
-    finally { button.disabled = false; button.textContent = 'Post'; }
+    } catch (error) {
+      if (uploaded.length) await state.db.storage.from('wazobia-media').remove(uploaded.map(item => item.path)).catch(() => {});
+      postStatus(error.message || 'Your post could not be published.', true);
+    } finally { button.disabled = false; button.textContent = 'Post'; }
   }
 
+  function getPostMediaItems(post) {
+    let items = post?.media_items;
+    if (typeof items === 'string') { try { items = JSON.parse(items); } catch (_) { items = []; } }
+    if (Array.isArray(items) && items.length) {
+      return items.map(item => ({ url: safeUrl(item?.url || item?.media_url), type: item?.type || (item?.media_type === 'video' ? 'video' : 'image') })).filter(item => item.url);
+    }
+    const legacy = safeUrl(post?.media_url);
+    return legacy ? [{ url: legacy, type: post?.media_type === 'video' ? 'video' : 'image' }] : [];
+  }
   function postMediaMarkup(post) {
-    const url = safeUrl(post.media_url); if (!url) return '';
-    return post.media_type === 'video'
-      ? `<video class="wz-post-media" src="${escapeHtml(url)}" controls playsinline preload="metadata"></video>`
-      : `<button type="button" class="wz-image-open" data-wz-image-view="${escapeHtml(url)}" aria-label="Open photo shared by ${escapeHtml(post.author?.display_name || 'a Wazobia member')}"><img class="wz-post-media" src="${escapeHtml(url)}" alt="Photo shared by ${escapeHtml(post.author?.display_name || 'a Wazobia member')}" loading="lazy"></button>`;
+    const items = getPostMediaItems(post);
+    if (!items.length) return '';
+    if (items[0].type === 'video') return `<video class="wz-post-media" src="${escapeHtml(items[0].url)}" controls playsinline preload="metadata"></video>`;
+    const count = items.length;
+    const visible = items.slice(0, 4);
+    return `<div class="wz-post-collage wz-post-collage-${Math.min(count,4)}" aria-label="${count} photos">${visible.map((item,index) => `<button type="button" class="wz-post-collage-tile" data-wz-gallery-index="${index}" aria-label="Open photo ${index + 1} of ${count}"><img src="${escapeHtml(item.url)}" alt="Photo ${index + 1} of ${count}" loading="lazy">${index === 3 && count > 4 ? `<span class="wz-post-collage-more">+${count - 4}</span>` : ''}</button>`).join('')}</div>`;
   }
 
   function renderPost(post, reactions) {
@@ -549,20 +665,21 @@
     state.loading = true;
     if (reset) $('wz-feed').innerHTML = '<div class="wz-loading"><span class="wz-spinner"></span> Loading Wazobia conversations…</div>';
     try {
-      let query = state.db.from('wazobia_posts').select('id,author_id,body,media_url,media_path,media_type,created_at,updated_at,author:wazobia_profiles!wazobia_posts_author_id_fkey(user_id,display_name,username,avatar_url)')
-        .eq('is_deleted', false).order('created_at', { ascending: false }).range(state.offset, state.offset + PAGE_SIZE - 1);
-      if (state.activeTab === 'following') {
-        if (!state.user) { state.posts = []; return renderFeed(); }
-        const ids = [...state.followingIds];
-        if (!ids.length) { state.posts = []; state.hasMore = false; return renderFeed(); }
-        query = query.in('author_id', ids);
-      } else if (state.activeTab === 'saved') {
-        if (!state.user) { state.posts = []; return renderFeed(); }
-        const ids = [...state.savedIds];
-        if (!ids.length) { state.posts = []; state.hasMore = false; return renderFeed(); }
-        query = query.in('id', ids);
+      const buildPostsQuery = includeGallery => {
+        const columns = `id,author_id,body,media_url,media_path,media_type,${includeGallery ? 'media_items,' : ''}created_at,updated_at,author:wazobia_profiles!wazobia_posts_author_id_fkey(user_id,display_name,username,avatar_url)`;
+        let query = state.db.from('wazobia_posts').select(columns)
+          .eq('is_deleted', false).order('created_at', { ascending: false }).range(state.offset, state.offset + PAGE_SIZE - 1);
+        if (state.activeTab === 'following') query = query.in('author_id', [...state.followingIds]);
+        else if (state.activeTab === 'saved') query = query.in('id', [...state.savedIds]);
+        return query;
+      };
+      if (state.activeTab === 'following' && (!state.user || !state.followingIds.size)) { state.posts = []; state.hasMore = false; return renderFeed(); }
+      if (state.activeTab === 'saved' && (!state.user || !state.savedIds.size)) { state.posts = []; state.hasMore = false; return renderFeed(); }
+      let { data, error } = await buildPostsQuery(true);
+      // Keep the existing feed readable before the gallery migration is applied.
+      if (error && /media_items|column .* does not exist|schema cache/i.test(error.message || '')) {
+        ({ data, error } = await buildPostsQuery(false));
       }
-      const { data, error } = await query;
       if (error) throw error;
       const items = data || [];
       state.hasMore = items.length === PAGE_SIZE;
@@ -881,18 +998,38 @@
     $('wz-people-list').innerHTML = people.length ? people.map(p => `<div class="wz-person"><a class="wz-person-profile-link" href="wazobia-profile.html?user=${encodeURIComponent(p.user_id)}">${avatarMarkup(p)}<span><strong>${escapeHtml(p.display_name)}</strong><small>@${escapeHtml(p.username)}</small></span></a><button type="button" data-action="follow" data-user-id="${escapeHtml(p.user_id)}">Follow</button><a class="wz-person-message" href="wazobia-messages.html?user=${encodeURIComponent(p.user_id)}">Message</a></div>`).join('') : '<p class="wz-muted">You are following the suggested members. Check back for more.</p>';
   }
 
-  function openImageViewer(url) {
-    const safe = safeUrl(url); if (!safe) return;
-    state.imageViewerUrl = safe;
-    $('wz-image-large').src = safe;
+  function renderImageViewerImage() {
+    const current = state.imageViewerItems[state.imageViewerIndex];
+    if (!current) return;
+    state.imageViewerUrl = current.url;
+    $('wz-image-large').src = current.url;
+    const count = $('wz-image-count'); if (count) count.textContent = `${state.imageViewerIndex + 1} / ${state.imageViewerItems.length}`;
+    const previous = $('wz-image-prev'), next = $('wz-image-next');
+    if (previous) previous.disabled = state.imageViewerIndex <= 0;
+    if (next) next.disabled = state.imageViewerIndex >= state.imageViewerItems.length - 1;
+  }
+  function openImageGallery(items, index = 0) {
+    const safeItems = (items || []).map(item => typeof item === 'string' ? {url:safeUrl(item)} : {url:safeUrl(item?.url),type:item?.type || 'image'}).filter(item => item.url && item.type !== 'video');
+    if (!safeItems.length) return;
+    state.imageViewerItems = safeItems;
+    state.imageViewerIndex = Math.max(0,Math.min(Number(index) || 0,safeItems.length - 1));
+    renderImageViewerImage();
     $('wz-image-viewer').hidden = false;
     document.body.style.overflow = 'hidden';
+  }
+  function openImageViewer(url) { openImageGallery([url],0); }
+  function moveImageViewer(direction) {
+    const next = state.imageViewerIndex + direction;
+    if (next < 0 || next >= state.imageViewerItems.length) return;
+    state.imageViewerIndex = next; renderImageViewerImage();
   }
   function closeImageViewer() {
     $('wz-image-viewer').hidden = true;
     $('wz-image-large').src = '';
+    state.imageViewerItems = []; state.imageViewerIndex = 0; state.imageViewerUrl = '';
     document.body.style.overflow = '';
   }
+
   async function saveViewedImage() {
     if (!state.imageViewerUrl) return;
     const button = $('wz-image-save'); button.disabled = true;
@@ -1090,10 +1227,16 @@
   }
 
   function bindEvents() {
+    $('wz-home-compose').addEventListener('click', () => openPostModal());
+    $('wz-home-settings').addEventListener('click', showProfile);
+    $('wz-home-search-toggle').addEventListener('click', () => { const bar = $('wz-home-searchbar'); bar.hidden = !bar.hidden; if (!bar.hidden) $('wz-home-search-input').focus(); });
+    $('wz-home-search-input').addEventListener('input', e => { $('wz-search').value = e.target.value; renderFeed(); });
     $('wz-image-close').addEventListener('click', closeImageViewer);
     $('wz-image-save').addEventListener('click', saveViewedImage);
+    $('wz-image-prev').addEventListener('click', () => moveImageViewer(-1));
+    $('wz-image-next').addEventListener('click', () => moveImageViewer(1));
     $('wz-image-viewer').addEventListener('click', e => { if (e.target === $('wz-image-viewer')) closeImageViewer(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('wz-image-viewer').hidden) closeImageViewer(); });
+    document.addEventListener('keydown', e => { if ($('wz-image-viewer').hidden) return; if (e.key === 'Escape') closeImageViewer(); else if (e.key === 'ArrowLeft') moveImageViewer(-1); else if (e.key === 'ArrowRight') moveImageViewer(1); });
     $('wz-login-tab').addEventListener('click', () => setAuthMode('login'));
     $('wz-signup-tab').addEventListener('click', () => setAuthMode('signup'));
     $('wz-auth-form').addEventListener('submit', authSubmit);
@@ -1103,10 +1246,12 @@
     $('wz-open-composer').addEventListener('click', () => openPostModal());
     $('wz-post-open').addEventListener('click', () => openPostModal());
     $('wz-add-idea').addEventListener('click', () => openPostModal());
-    $('wz-add-photo').addEventListener('click', () => { $('wz-media-input').accept = 'image/jpeg,image/png,image/webp,image/gif'; $('wz-media-input').click(); });
-    $('wz-add-video').addEventListener('click', () => { $('wz-media-input').accept = 'video/mp4,video/webm,video/quicktime'; $('wz-media-input').click(); });
-    $('wz-media-input').addEventListener('change', (e) => { const file = e.target.files?.[0]; if (file) openPostModal(file); e.target.value = ''; });
-    $('wz-modal-media').addEventListener('change', (e) => { state.pendingFile = e.target.files?.[0] || null; renderPendingPreview(); e.target.value = ''; });
+    $('wz-add-photo').addEventListener('click', () => { const input = $('wz-media-input'); input.accept = 'image/jpeg,image/png,image/webp,image/gif'; input.multiple = true; input.click(); });
+    $('wz-add-video').addEventListener('click', () => { const input = $('wz-media-input'); input.accept = 'video/mp4,video/webm,video/quicktime'; input.multiple = false; input.click(); });
+    $('wz-media-input').addEventListener('change', (e) => { const files = Array.from(e.target.files || []); if (files.length) openPostModal(files); e.target.value = ''; });
+    $('wz-modal-media').addEventListener('change', (e) => { const files = Array.from(e.target.files || []); if (files.length) setPendingMedia(files); e.target.value = ''; });
+    $('wz-modal-video').addEventListener('change', (e) => { const file = e.target.files?.[0]; if (file) setPendingMedia([file]); e.target.value = ''; });
+    $('wz-modal-media-preview').addEventListener('click', e => { const button = e.target.closest('[data-remove-selected-media]'); if (!button) return; const index = Number(button.dataset.removeSelectedMedia); const remaining = state.pendingFiles.filter((_,i) => i !== index); setPendingMedia(remaining); });
     $('wz-post-text').addEventListener('input', () => {
       $('wz-post-charcount').textContent = `${$('wz-post-text').value.length.toLocaleString()} / 5,000`;
       clearTimeout(state.mentionSearchTimer); state.mentionSearchTimer = setTimeout(searchPostMention,180);
@@ -1195,6 +1340,14 @@
     document.addEventListener('click', e => { if (!e.target.closest('#wz-comment-context-menu')) hideCommentMenu(); });
 
     $('wz-feed').addEventListener('click', async (e) => {
+      const galleryButton = e.target.closest('[data-wz-gallery-index]');
+      if (galleryButton) {
+        e.preventDefault();
+        const postId = galleryButton.closest('[data-post-id]')?.dataset.postId;
+        const postData = state.posts.find(item => String(item.id) === String(postId));
+        if (postData) openImageGallery(getPostMediaItems(postData), Number(galleryButton.dataset.wzGalleryIndex || 0));
+        return;
+      }
       const imageButton = e.target.closest('[data-wz-image-view]');
       if (imageButton) { e.preventDefault(); openImageViewer(imageButton.dataset.wzImageView); return; }
       const hashtag = e.target.closest('[data-hashtag]');
@@ -1232,6 +1385,12 @@
     $('wz-year').textContent = new Date().getFullYear();
     setTheme(); bindEvents(); setAuthMode('login');
     const menuParams = new URLSearchParams(location.search);
+    state.authReturnUrl = validateAuthReturn(menuParams.get('next'));
+    if (state.authReturnUrl) {
+      try { sessionStorage.setItem(AUTH_RETURN_STORAGE_KEY, state.authReturnUrl); } catch (_) {}
+    } else {
+      try { state.authReturnUrl = validateAuthReturn(sessionStorage.getItem(AUTH_RETURN_STORAGE_KEY)); } catch (_) {}
+    }
     const requestedTab = menuParams.get('tab');
     if (['home','following','saved'].includes(requestedTab)) state.activeTab = requestedTab;
     if (menuParams.has('search')) $('wz-search').value = menuParams.get('search') || '';
