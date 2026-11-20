@@ -33,13 +33,15 @@ async function hasActiveOwnerSession(db: any, userId: string, authHeader: string
   const authSessionId = authSessionIdFromHeader(authHeader);
   if (!authSessionId) return false;
   const now = new Date().toISOString();
-  const cutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  // The owner page can remain open while the owner reviews a member. Do not
+  // reject a valid, unexpired owner session solely because its last heartbeat
+  // was more than five minutes ago. The exact Supabase auth session id and the
+  // server-maintained expiry remain mandatory.
   const { data, error } = await db.from("admin_active_sessions")
     .select("user_id")
     .eq("user_id", userId)
     .eq("auth_session_id", authSessionId)
     .gt("expires_at", now)
-    .gt("last_activity_at", cutoff)
     .maybeSingle();
   return !error && !!data;
 }
